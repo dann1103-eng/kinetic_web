@@ -92,7 +92,8 @@ export function RequirementModal({
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [priority, setPriority] = useState<Priority>('media')
-  const [estimatedTime, setEstimatedTime] = useState('')
+  const [estHours, setEstHours] = useState<string>('')
+  const [estMinsField, setEstMinsField] = useState<string>('')
   const [assignedTo, setAssignedTo] = useState<string[]>([])
   const [forceOverLimit, setForceOverLimit] = useState(false)
   const [deadline, setDeadline] = useState('')
@@ -194,7 +195,9 @@ export function RequirementModal({
       return
     }
 
-    const estMins = estimatedTime.trim() ? parseInt(estimatedTime.trim(), 10) : null
+    const h = estHours.trim() ? parseInt(estHours.trim(), 10) : 0
+    const m = estMinsField.trim() ? parseInt(estMinsField.trim(), 10) : 0
+    const estMins = (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m) || null
 
     if (isScheduledType) {
       if (!startsAt) {
@@ -202,7 +205,7 @@ export function RequirementModal({
         setLoading(false)
         return
       }
-      if (!estMins || isNaN(estMins) || estMins < 1) {
+      if (!estMins || estMins < 1) {
         setError('La duración es obligatoria para reuniones y producciones.')
         setLoading(false)
         return
@@ -235,6 +238,17 @@ export function RequirementModal({
             }
           }
         }
+      }
+    } else {
+      if (!deadline.trim()) {
+        setError('La fecha de entrega es obligatoria.')
+        setLoading(false)
+        return
+      }
+      if (!estMins || estMins < 1) {
+        setError('El tiempo estimado es obligatorio.')
+        setLoading(false)
+        return
       }
     }
 
@@ -280,7 +294,8 @@ export function RequirementModal({
     setTitle('')
     setNotes('')
     setPriority('media')
-    setEstimatedTime('')
+    setEstHours('')
+    setEstMinsField('')
     setAssignedTo([])
     setForceOverLimit(false)
     setDeadline('')
@@ -452,7 +467,7 @@ export function RequirementModal({
               ) : (
                 <div>
                   <Label htmlFor="deadline" className="text-sm font-medium text-fm-on-surface mb-1.5 block">
-                    Fecha de entrega <span className="text-fm-outline font-normal">(opcional)</span>
+                    Fecha de entrega <span className="text-fm-error">*</span>
                   </Label>
                   <input
                     id="deadline"
@@ -464,23 +479,39 @@ export function RequirementModal({
                 </div>
               )}
 
-              {/* Duración: obligatoria para reunion/produccion, opcional para artes */}
+              {/* Tiempo estimado: horas + minutos. Obligatorio siempre. */}
               <div>
-                <Label htmlFor="est-time" className="text-sm font-medium text-fm-on-surface mb-1.5 block">
-                  Duración (min){isScheduledType
-                    ? <span className="text-fm-error"> *</span>
-                    : <span className="text-fm-outline font-normal"> (opcional)</span>
-                  }
+                <Label className="text-sm font-medium text-fm-on-surface mb-1.5 block">
+                  {isScheduledType ? 'Duración' : 'Tiempo estimado'}{' '}
+                  <span className="text-fm-error">*</span>
                 </Label>
-                <input
-                  id="est-time"
-                  type="number"
-                  min="1"
-                  value={estimatedTime}
-                  onChange={(e) => setEstimatedTime(e.target.value)}
-                  placeholder={isScheduledType ? 'ej. 60' : 'ej. 90'}
-                  className="w-full px-3 py-2 text-sm bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary text-fm-on-surface"
-                />
+                <div className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <input
+                      id="est-hours"
+                      type="number"
+                      min="0"
+                      value={estHours}
+                      onChange={(e) => setEstHours(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-3 py-2 pr-10 text-sm bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary text-fm-on-surface"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-fm-outline font-medium pointer-events-none">h</span>
+                  </div>
+                  <div className="flex-1 relative">
+                    <input
+                      id="est-mins"
+                      type="number"
+                      min="0"
+                      max="59"
+                      value={estMinsField}
+                      onChange={(e) => setEstMinsField(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-3 py-2 pr-12 text-sm bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary text-fm-on-surface"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-fm-outline font-medium pointer-events-none">min</span>
+                  </div>
+                </div>
               </div>
 
               {/* Includes story switch — solo tipos aplicables */}
@@ -654,7 +685,8 @@ export function RequirementModal({
                 loading ||
                 (!title.trim() && !isSimpleType) ||
                 (selectedAtLimit && !forceOverLimit) ||
-                (isScheduledType && (!startsAt || !estimatedTime.trim()))
+                (isScheduledType && (!startsAt || (!estHours.trim() && !estMinsField.trim()))) ||
+                (!isScheduledType && selectedType !== null && (!deadline.trim() || (!estHours.trim() && !estMinsField.trim())))
               }
               className="flex-1 rounded-xl text-white font-semibold"
               style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}

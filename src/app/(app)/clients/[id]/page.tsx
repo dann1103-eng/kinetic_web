@@ -252,7 +252,7 @@ export default async function ClientDetailPage({
             isAdmin={isAdmin}
             canCreate={canCreate}
             userMap={userMap}
-            assignableUsers={(users ?? []).map(u => ({
+            assignableUsers={(users ?? []).filter(u => u.role !== 'client').map(u => ({
               id: u.id,
               full_name: u.full_name || u.role,
               default_assignee: u.default_assignee ?? false,
