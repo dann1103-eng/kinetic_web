@@ -433,6 +433,7 @@ export interface Database {
           includes_story: boolean
           deadline: string | null
           starts_at: string | null
+          consumption_overrides_json: Partial<Record<ContentType, number>> | null
         }
         Insert: {
           id?: string
@@ -456,6 +457,7 @@ export interface Database {
           includes_story?: boolean
           deadline?: string | null
           starts_at?: string | null
+          consumption_overrides_json?: Partial<Record<ContentType, number>> | null
         }
         Update: {
           billing_cycle_id?: string
@@ -477,6 +479,7 @@ export interface Database {
           includes_story?: boolean
           deadline?: string | null
           starts_at?: string | null
+          consumption_overrides_json?: Partial<Record<ContentType, number>> | null
         }
         Relationships: [
           {
@@ -535,6 +538,9 @@ export interface Database {
           notes: string | null
           created_by: string | null
           created_at: string
+          voided: boolean
+          voided_by_user_id: string | null
+          voided_at: string | null
         }
         Insert: {
           id?: string
@@ -542,8 +548,15 @@ export interface Database {
           notes?: string | null
           created_by?: string | null
           created_at?: string
+          voided?: boolean
+          voided_by_user_id?: string | null
+          voided_at?: string | null
         }
-        Update: Record<string, never>
+        Update: {
+          voided?: boolean
+          voided_by_user_id?: string | null
+          voided_at?: string | null
+        }
         Relationships: [
           {
             foreignKeyName: 'requirement_cambio_logs_requirement_id_fkey'

@@ -47,6 +47,47 @@ export function canRegisterWithContext(
   return { ok: true }
 }
 
+/**
+ * Desglose efectivo de consumo de un requerimiento.
+ * - Si tiene `consumption_overrides_json` con valores, ese map manda (admin).
+ * - Si no, comportamiento legacy: 1 del `content_type` + 1 a historia si `includes_story`.
+ */
+export function consumptionOf(
+  r: Pick<Requirement, 'content_type' | 'includes_story' | 'consumption_overrides_json'>
+): Partial<Record<ContentType, number>> {
+  const o = r.consumption_overrides_json
+  if (o && Object.keys(o).length > 0) {
+    // Filtra entradas con cantidad <= 0 para evitar consumos espurios
+    const out: Partial<Record<ContentType, number>> = {}
+    for (const [type, qty] of Object.entries(o)) {
+      const n = Number(qty)
+      if (Number.isFinite(n) && n > 0) out[type as ContentType] = n
+    }
+    if (Object.keys(out).length > 0) return out
+  }
+  const def: Partial<Record<ContentType, number>> = { [r.content_type]: 1 }
+  if (r.includes_story && r.content_type !== 'historia') def.historia = 1
+  return def
+}
+
+/**
+ * Valida que un breakdown completo (mapa tipo→cantidad) cabe en los límites
+ * dado el consumo actual. Retorna el primer tipo que excede si lo hay.
+ */
+export function canRegisterBreakdown(
+  breakdown: Partial<Record<ContentType, number>>,
+  totals: RequirementTotals,
+  limits: Record<ContentType, number>
+): { ok: boolean; exceeded?: ContentType } {
+  for (const [type, qty] of Object.entries(breakdown)) {
+    const t = type as ContentType
+    if ((totals[t] ?? 0) + (qty as number) > (limits[t] ?? 0)) {
+      return { ok: false, exceeded: t }
+    }
+  }
+  return { ok: true }
+}
+
 /** Calcula el índice de semana (1..4) de una fecha dentro del ciclo. S5+ se clampa a 4. */
 export function weekIndexInCycle(date: Date, periodStart: string): 1 | 2 | 3 | 4 {
   const start = new Date(periodStart)
@@ -77,9 +118,9 @@ export function dominantCycleMonth(startIso: string, endIso: string): { year: nu
 }
 
 /** Count non-voided requirements by type.
- *  When a requirement has `includes_story = true`, it also adds +1 to `historia`,
- *  because the derived story is produced alongside the main deliverable and
- *  counts toward the monthly story quota without being a separate requirement. */
+ *  Si un requerimiento tiene `consumption_overrides_json` con valores, ese map
+ *  define exactamente cuánto consume (multi-consumo admin). Si no, aplica la
+ *  regla legacy: 1 del `content_type` + 1 a `historia` cuando `includes_story=true`. */
 export function computeTotals(requirements: Requirement[]): RequirementTotals {
   const totals: RequirementTotals = {
     historia: 0,
@@ -94,8 +135,10 @@ export function computeTotals(requirements: Requirement[]): RequirementTotals {
 
   for (const r of requirements) {
     if (r.voided || r.carried_over) continue
-    totals[r.content_type]++
-    if (r.includes_story) totals.historia++
+    const breakdown = consumptionOf(r)
+    for (const [type, qty] of Object.entries(breakdown)) {
+      totals[type as ContentType] += qty as number
+    }
   }
 
   return totals

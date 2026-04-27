@@ -88,6 +88,9 @@ interface RequirementPanelProps {
   limits: Record<ContentType, number>
   daysLeft: number | null
   isAdmin: boolean
+  /** Admin estricto (rol = 'admin'). Default: igual a `isAdmin`.
+   *  Pasar explícitamente cuando isAdmin agrega supervisor (ej. portal). */
+  isStrictAdmin?: boolean
   canCreate?: boolean
   canAssign?: boolean
   userMap: Record<string, string>
@@ -109,6 +112,7 @@ export function RequirementPanel({
   limits,
   daysLeft,
   isAdmin,
+  isStrictAdmin,
   canCreate = false,
   canAssign = false,
   userMap,
@@ -922,6 +926,7 @@ export function RequirementPanel({
         totals={totals}
         limits={effectiveLimitsMap}
         isAdmin={isAdmin}
+        isStrictAdmin={isStrictAdmin ?? isAdmin}
         canAssign={canAssign}
         assignableUsers={assignableUsers}
       />

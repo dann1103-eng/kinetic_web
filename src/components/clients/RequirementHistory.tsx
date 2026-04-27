@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Requirement, RequirementCambioLog, ContentType } from '@/types/db'
 import { CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
 import { CONTENT_ICONS } from '@/lib/domain/content-icons'
+import { voidCambioLog } from '@/app/actions/cambioLogs'
 
 const TYPE_ACTION: Record<ContentType, string> = {
   historia: 'Historia registrada',
@@ -47,13 +48,39 @@ export function RequirementHistory({
   const router = useRouter()
   const [voidingId, setVoidingId] = useState<string | null>(null)
   const [incrementingId, setIncrementingId] = useState<string | null>(null)
+  const [voidingLogId, setVoidingLogId] = useState<string | null>(null)
   // Which requirement's cambio form is open
   const [cambioFormId, setCambioFormId] = useState<string | null>(null)
   const [cambioNote, setCambioNote] = useState('')
   // Local cambio logs (optimistic update)
   const [cambioLogsMap, setCambioLogsMap] = useState(initialCambioLogsMap)
+  // Local cambios_count override (optimistic decrement on void)
+  const [cambiosCountOverride, setCambiosCountOverride] = useState<Record<string, number>>({})
   // Which requirement's log list is expanded
   const [expandedId, setExpandedId] = useState<string | null>(null)
+
+  async function handleVoidLog(logId: string, requirementId: string) {
+    setVoidingLogId(logId)
+    const result = await voidCambioLog(logId)
+    if ('error' in result) {
+      alert(result.error)
+      setVoidingLogId(null)
+      return
+    }
+    // Optimistic: marca el log como anulado y decrementa el contador local
+    setCambioLogsMap((prev) => ({
+      ...prev,
+      [requirementId]: (prev[requirementId] ?? []).map((l) =>
+        l.id === logId ? { ...l, voided: true, voided_at: new Date().toISOString() } : l,
+      ),
+    }))
+    setCambiosCountOverride((prev) => {
+      const current = prev[requirementId] ?? requirements.find((r) => r.id === requirementId)?.cambios_count ?? 0
+      return { ...prev, [requirementId]: Math.max(0, current - 1) }
+    })
+    setVoidingLogId(null)
+    router.refresh()
+  }
 
   async function handleVoid(requirementId: string) {
     setVoidingId(requirementId)
@@ -104,6 +131,9 @@ export function RequirementHistory({
       notes: note,
       created_by: user?.id ?? null,
       created_at: new Date().toISOString(),
+      voided: false,
+      voided_by_user_id: null,
+      voided_at: null,
     }
     setCambioLogsMap(prev => ({
       ...prev,
@@ -131,8 +161,15 @@ export function RequirementHistory({
           const type = r.content_type as ContentType
           const userName = userMap[r.registered_by_user_id] ?? 'Operador'
           const logs = cambioLogsMap[r.id] ?? []
+          const activeLogs = logs.filter((l) => !l.voided)
+          const effectiveCambiosCount = cambiosCountOverride[r.id] ?? r.cambios_count
           const isExpanded = expandedId === r.id
           const isCambioOpen = cambioFormId === r.id
+          // Multi-consumo: muestra chip si admin definió consumption_overrides_json
+          const overrides = r.consumption_overrides_json
+          const overrideEntries = overrides
+            ? (Object.entries(overrides) as [ContentType, number][]).filter(([, qty]) => (qty ?? 0) > 0)
+            : []
 
           return (
             <div
@@ -168,12 +205,12 @@ export function RequirementHistory({
                           onClick={() => setExpandedId(isExpanded ? null : r.id)}
                           className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded text-fm-on-surface-variant bg-fm-outline-variant/20 hover:bg-fm-outline-variant/40 transition-colors"
                         >
-                          {logs.length} {logs.length === 1 ? 'cambio' : 'cambios'} {isExpanded ? '▲' : '▼'}
+                          {activeLogs.length} {activeLogs.length === 1 ? 'cambio' : 'cambios'} {isExpanded ? '▲' : '▼'}
                         </button>
                       )}
-                      {!r.voided && type !== 'produccion' && type !== 'reunion' && logs.length === 0 && r.cambios_count > 0 && (
+                      {!r.voided && type !== 'produccion' && type !== 'reunion' && logs.length === 0 && effectiveCambiosCount > 0 && (
                         <span className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded text-fm-on-surface-variant bg-fm-outline-variant/20">
-                          {r.cambios_count} {r.cambios_count === 1 ? 'cambio' : 'cambios'}
+                          {effectiveCambiosCount} {effectiveCambiosCount === 1 ? 'cambio' : 'cambios'}
                         </span>
                       )}
                     </p>
@@ -181,6 +218,19 @@ export function RequirementHistory({
                       <span className="text-fm-outline-variant">{CONTENT_TYPE_LABELS[type]}</span>
                       {r.notes && <span> — {r.notes}</span>}
                     </p>
+                    {/* Chip de multi-consumo (admin) */}
+                    {overrideEntries.length > 0 && !r.voided && (
+                      <p className="text-xs mt-0.5 flex items-center gap-1 flex-wrap">
+                        <span className="material-symbols-outlined text-fm-secondary text-[14px]">balance</span>
+                        <span className="text-fm-secondary font-bold">Consume:</span>
+                        {overrideEntries.map(([t, qty], idx) => (
+                          <span key={t} className="text-fm-on-surface-variant">
+                            {idx > 0 && <span className="text-fm-outline-variant">·</span>}{' '}
+                            <span className="font-semibold text-fm-on-surface">{qty}</span> {CONTENT_TYPE_LABELS[t]}
+                          </span>
+                        ))}
+                      </p>
+                    )}
                     <p className="text-xs text-fm-on-surface-variant mt-0.5">
                       {daysAgo(r.registered_at)}&nbsp;·&nbsp;por{' '}
                       <span className="font-semibold text-fm-on-surface">{userName}</span>
@@ -248,22 +298,46 @@ export function RequirementHistory({
               {/* Cambio logs list */}
               {isExpanded && logs.length > 0 && (
                 <div className="mt-3 ml-14 space-y-2">
-                  {logs.map((log, i) => (
-                    <div key={log.id} className="flex gap-2 items-start">
-                      <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-fm-outline-variant flex-shrink-0" />
-                      <div>
-                        <p className="text-[10px] text-fm-outline-variant">
-                          Cambio {logs.length - i} ·{' '}
-                          {new Date(log.created_at).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                        {log.notes ? (
-                          <p className="text-xs text-fm-on-surface mt-0.5">{log.notes}</p>
-                        ) : (
-                          <p className="text-xs text-fm-outline-variant italic">Sin descripción</p>
-                        )}
+                  {logs.map((log, i) => {
+                    const voidedAuthor = log.voided_by_user_id ? userMap[log.voided_by_user_id] : null
+                    return (
+                      <div key={log.id} className="flex gap-2 items-start">
+                        <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${log.voided ? 'bg-fm-outline-variant/40' : 'bg-fm-outline-variant'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <p className={`text-[10px] ${log.voided ? 'text-fm-outline-variant/60' : 'text-fm-outline-variant'}`}>
+                              Cambio {logs.length - i} ·{' '}
+                              {new Date(log.created_at).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            {!log.voided && isAdmin && (
+                              <button
+                                onClick={() => handleVoidLog(log.id, r.id)}
+                                disabled={voidingLogId === log.id}
+                                className="text-[10px] font-bold text-fm-error hover:underline disabled:opacity-30"
+                              >
+                                {voidingLogId === log.id ? '...' : 'Anular'}
+                              </button>
+                            )}
+                          </div>
+                          {log.notes ? (
+                            <p className={`text-xs mt-0.5 ${log.voided ? 'text-fm-outline-variant line-through' : 'text-fm-on-surface'}`}>
+                              {log.notes}
+                            </p>
+                          ) : (
+                            <p className={`text-xs italic mt-0.5 ${log.voided ? 'text-fm-outline-variant/60 line-through' : 'text-fm-outline-variant'}`}>
+                              Sin descripción
+                            </p>
+                          )}
+                          {log.voided && (
+                            <p className="text-[10px] text-fm-outline-variant/70 mt-0.5">
+                              Anulado{voidedAuthor ? ` por ${voidedAuthor}` : ''}
+                              {log.voided_at && ` · ${new Date(log.voided_at).toLocaleDateString('es', { day: 'numeric', month: 'short' })}`}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>

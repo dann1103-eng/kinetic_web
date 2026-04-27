@@ -15,7 +15,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { ClientWithPlan, BillingCycle, ContentType, Priority } from '@/types/db'
 import { PRIORITY_LABELS, PRIORITY_COLORS } from '@/types/db'
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
-import { canRegister, canRegisterWithContext, weekIndexInCycle } from '@/lib/domain/requirement'
+import { canRegisterWithContext, canRegisterBreakdown, weekIndexInCycle } from '@/lib/domain/requirement'
 import { insertInitialPhaseLog } from '@/lib/domain/pipeline'
 
 const CONTENT_ICONS: Record<ContentType, React.ReactNode> = {
@@ -69,6 +69,8 @@ interface RequirementModalProps {
   totals: Record<ContentType, number>
   limits: Record<ContentType, number>
   isAdmin: boolean
+  /** Admin estricto (rol = 'admin') puede definir consumo personalizado multi-tipo. */
+  isStrictAdmin?: boolean
   canAssign?: boolean
   assignableUsers?: { id: string; full_name: string; default_assignee?: boolean }[]
 }
@@ -81,6 +83,7 @@ export function RequirementModal({
   totals,
   limits,
   isAdmin,
+  isStrictAdmin = false,
   canAssign = false,
   assignableUsers = [],
 }: RequirementModalProps) {
@@ -94,6 +97,19 @@ export function RequirementModal({
   const [forceOverLimit, setForceOverLimit] = useState(false)
   const [deadline, setDeadline] = useState('')
   const [includesStory, setIncludesStory] = useState(true)
+
+  // Multi-consumo (solo admin estricto). Map ContentType -> cantidad. Vacío = legacy.
+  const [overridesOpen, setOverridesOpen] = useState(false)
+  const [consumptionOverrides, setConsumptionOverrides] = useState<Partial<Record<ContentType, number>>>({})
+
+  function setOverrideQty(type: ContentType, qty: number) {
+    setConsumptionOverrides((prev) => {
+      const next = { ...prev }
+      if (qty <= 0 || !Number.isFinite(qty)) delete next[type]
+      else next[type] = qty
+      return next
+    })
+  }
 
   // Pre-seleccionar usuarios con `default_assignee=true` cada vez que se abre el modal,
   // solo si el usuario aún no ha tocado la selección (assignedTo vacío).
@@ -142,10 +158,24 @@ export function RequirementModal({
       return
     }
 
-    const allowed = canRegister(selectedType, totals, limits)
+    // Construye el breakdown efectivo: si admin definió overrides, ese mapa manda;
+    // si no, comportamiento legacy (1 del tipo + 1 historia si aplica).
+    const hasOverrides = isStrictAdmin && Object.values(consumptionOverrides).some((v) => (v ?? 0) > 0)
+    const effectiveBreakdown: Partial<Record<ContentType, number>> = hasOverrides
+      ? Object.fromEntries(
+          Object.entries(consumptionOverrides).filter(([, v]) => (v ?? 0) > 0),
+        ) as Partial<Record<ContentType, number>>
+      : storyApplicable && includesStory
+        ? { [selectedType]: 1, historia: (selectedType === 'historia' ? 0 : 0) + 1 }
+        : { [selectedType]: 1 }
+
+    const breakdownCheck = canRegisterBreakdown(effectiveBreakdown, totals, limits)
+    const allowed = breakdownCheck.ok
 
     if (!allowed && !forceOverLimit) {
-      setError('Límite alcanzado. Solo un admin puede forzar un requerimiento extra.')
+      const exceeded = breakdownCheck.exceeded
+      const exceededLabel = exceeded ? CONTENT_TYPE_LABELS[exceeded] : 'el tipo seleccionado'
+      setError(`Límite de ${exceededLabel} alcanzado. Solo un admin puede forzar un requerimiento extra.`)
       setLoading(false)
       return
     }
@@ -226,6 +256,7 @@ export function RequirementModal({
         includes_story: storyApplicable ? includesStory : false,
         deadline: isScheduledType ? null : (deadline.trim() || null),
         starts_at: startsAtISO,
+        consumption_overrides_json: hasOverrides ? effectiveBreakdown : null,
       })
       .select('id')
       .single()
@@ -255,12 +286,26 @@ export function RequirementModal({
     setDeadline('')
     setStartsAt('')
     setIncludesStory(true)
+    setConsumptionOverrides({})
+    setOverridesOpen(false)
     onClose()
     router.refresh()
   }
 
+  // Breakdown efectivo computado para validación + preview (mismo que handleSubmit).
+  const hasActiveOverrides = isStrictAdmin && Object.values(consumptionOverrides).some((v) => (v ?? 0) > 0)
+  const effectiveBreakdown: Partial<Record<ContentType, number>> = selectedType === null
+    ? {}
+    : hasActiveOverrides
+      ? Object.fromEntries(
+          Object.entries(consumptionOverrides).filter(([, v]) => (v ?? 0) > 0),
+        ) as Partial<Record<ContentType, number>>
+      : storyApplicable && includesStory && selectedType !== 'historia'
+        ? { [selectedType]: 1, historia: 1 }
+        : { [selectedType]: 1 }
+
   const selectedAtLimit =
-    selectedType !== null && !canRegister(selectedType, totals, limits)
+    selectedType !== null && !canRegisterBreakdown(effectiveBreakdown, totals, limits).ok
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
@@ -494,29 +539,91 @@ export function RequirementModal({
             </>
           )}
 
-          {/* Impact preview */}
-          {selectedType && (
-            <div className="bg-fm-background rounded-xl p-3 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-fm-on-surface-variant">
-                  {CONTENT_TYPE_LABELS[selectedType]}
-                </span>
-                <span className="text-sm font-semibold text-fm-on-surface">
-                  {totals[selectedType]} → <span className="text-fm-primary">{totals[selectedType] + 1}</span>
-                  <span className="text-fm-on-surface-variant font-normal"> /{limits[selectedType]}</span>
-                </span>
-              </div>
-              {storyApplicable && includesStory && (
-                <div className="flex items-center justify-between pt-1 border-t border-fm-surface-container-high/60">
-                  <span className="text-sm text-fm-on-surface-variant">Historias (derivada)</span>
+          {/* Sección admin: consumo personalizado (multi-tipo) */}
+          {selectedType && isStrictAdmin && !isScheduledType && (
+            <div className="bg-fm-background rounded-xl border border-fm-surface-container-high overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setOverridesOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-fm-surface-container-low transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="material-symbols-outlined text-fm-secondary text-base">balance</span>
                   <span className="text-sm font-semibold text-fm-on-surface">
-                    {totals.historia} → <span className="text-fm-primary">{totals.historia + 1}</span>
-                    <span className="text-fm-on-surface-variant font-normal"> /{limits.historia}</span>
+                    Consumo personalizado <span className="text-fm-outline font-normal">(admin)</span>
                   </span>
+                  {Object.values(consumptionOverrides).some((v) => (v ?? 0) > 0) && (
+                    <span className="px-2 py-0.5 bg-fm-secondary/15 text-fm-secondary text-[10px] font-extrabold rounded-full uppercase tracking-wider">
+                      Activo
+                    </span>
+                  )}
+                </div>
+                <span className={`material-symbols-outlined text-fm-on-surface-variant text-base transition-transform ${overridesOpen ? 'rotate-180' : ''}`}>
+                  expand_more
+                </span>
+              </button>
+              {overridesOpen && (
+                <div className="px-3 pb-3 pt-1 space-y-2 border-t border-fm-surface-container-high">
+                  <p className="text-xs text-fm-outline">
+                    Define cuánto descuenta este requerimiento del paquete. Si dejas todo en 0,
+                    se usará el consumo normal (1 del tipo seleccionado).
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {activeTypes.map((type) => {
+                      const val = consumptionOverrides[type] ?? 0
+                      return (
+                        <label key={type} className="flex items-center gap-2 px-2 py-1.5 bg-fm-surface-container-lowest rounded-lg border border-fm-surface-container-high">
+                          <span className="text-xs text-fm-on-surface-variant flex-1 truncate">
+                            {CONTENT_TYPE_LABELS[type]}
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={val === 0 ? '' : val}
+                            onChange={(e) => {
+                              const n = e.target.value === '' ? 0 : parseInt(e.target.value, 10)
+                              setOverrideQty(type, isNaN(n) ? 0 : n)
+                            }}
+                            placeholder="0"
+                            className="w-14 px-2 py-1 text-sm text-right bg-fm-background border border-fm-surface-container-high rounded focus:outline-none focus:border-fm-primary text-fm-on-surface"
+                          />
+                        </label>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Impact preview (usa el effectiveBreakdown computado arriba) */}
+          {selectedType && (
+            <div className="bg-fm-background rounded-xl p-3 space-y-1">
+              {(Object.entries(effectiveBreakdown) as [ContentType, number][]).map(([type, qty], idx) => {
+                const isFirst = idx === 0
+                const next = (totals[type] ?? 0) + qty
+                const overLimit = next > (limits[type] ?? 0)
+                return (
+                  <div
+                    key={type}
+                    className={`flex items-center justify-between ${
+                      isFirst ? '' : 'pt-1 border-t border-fm-surface-container-high/60'
+                    }`}
+                  >
+                    <span className="text-sm text-fm-on-surface-variant">
+                      {CONTENT_TYPE_LABELS[type]}
+                      {qty > 1 && <span className="ml-1 text-fm-secondary font-bold">×{qty}</span>}
+                    </span>
+                    <span className="text-sm font-semibold text-fm-on-surface">
+                      {totals[type] ?? 0} →{' '}
+                      <span className={overLimit ? 'text-fm-error' : 'text-fm-primary'}>{next}</span>
+                      <span className="text-fm-on-surface-variant font-normal"> /{limits[type] ?? 0}</span>
+                    </span>
+                  </div>
+                )
+              })}
               {selectedType === 'reunion' && cycle.limits_snapshot_json.reunion_duracion_horas && (
-                <p className="text-xs text-fm-outline">
+                <p className="text-xs text-fm-outline pt-1 border-t border-fm-surface-container-high/60">
                   Duración por reunión: <span className="font-semibold">{cycle.limits_snapshot_json.reunion_duracion_horas}h</span>
                 </p>
               )}

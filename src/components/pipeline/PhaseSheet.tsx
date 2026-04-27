@@ -28,6 +28,7 @@ import { RequirementChat } from './RequirementChat'
 import { RequirementTimesheet } from './RequirementTimesheet'
 import { ShareRequirementDialog } from './ShareRequirementDialog'
 import { ContentReviewDialog } from '@/components/clients/review/ContentReviewDialog'
+import { voidCambioLog } from '@/app/actions/cambioLogs'
 
 type Tab = 'fases' | 'chat' | 'tiempo'
 
@@ -150,6 +151,7 @@ export function PhaseSheet({
   const [showCambioForm, setShowCambioForm] = useState(false)
   const [cambioNote, setCambioNote] = useState('')
   const [cambioLogs, setCambioLogs] = useState<RequirementCambioLog[]>([])
+  const [voidingLogId, setVoidingLogId] = useState<string | null>(null)
 
   // Passive timer (counts up while in any passive_timer phase)
   const [reviewElapsed, setReviewElapsed] = useState('')
@@ -318,12 +320,31 @@ export function PhaseSheet({
       notes: note,
       created_by: user?.id ?? null,
       created_at: new Date().toISOString(),
+      voided: false,
+      voided_by_user_id: null,
+      voided_at: null,
     }
     setCambioLogs(prev => [newLog, ...prev])
     setLocalCambios((n) => n + 1)
     setShowCambioForm(false)
     setCambioNote('')
     setIncrementing(false)
+    router.refresh()
+  }
+
+  async function handleVoidLog(logId: string) {
+    setVoidingLogId(logId)
+    const result = await voidCambioLog(logId)
+    if ('error' in result) {
+      alert(result.error)
+      setVoidingLogId(null)
+      return
+    }
+    setCambioLogs((prev) =>
+      prev.map((l) => (l.id === logId ? { ...l, voided: true, voided_at: new Date().toISOString() } : l)),
+    )
+    setLocalCambios((n) => Math.max(0, n - 1))
+    setVoidingLogId(null)
     router.refresh()
   }
 
@@ -789,16 +810,36 @@ export function PhaseSheet({
                   <div className="pt-1 border-t border-fm-surface-container-high space-y-2">
                     {cambioLogs.map((log, i) => (
                       <div key={log.id} className="flex gap-2 items-start">
-                        <span className="mt-1 w-1.5 h-1.5 rounded-full bg-fm-outline-variant flex-shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-[10px] text-fm-outline-variant">
-                            Cambio {cambioLogs.length - i} ·{' '}
-                            {new Date(log.created_at).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                          </p>
+                        <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${log.voided ? 'bg-fm-outline-variant/40' : 'bg-fm-outline-variant'}`} />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <p className={`text-[10px] ${log.voided ? 'text-fm-outline-variant/60' : 'text-fm-outline-variant'}`}>
+                              Cambio {cambioLogs.length - i} ·{' '}
+                              {new Date(log.created_at).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </p>
+                            {!log.voided && isAdmin && (
+                              <button
+                                onClick={() => handleVoidLog(log.id)}
+                                disabled={voidingLogId === log.id}
+                                className="text-[10px] font-bold text-fm-error hover:underline disabled:opacity-30"
+                              >
+                                {voidingLogId === log.id ? '...' : 'Anular'}
+                              </button>
+                            )}
+                          </div>
                           {log.notes ? (
-                            <p className="text-xs text-fm-on-surface mt-0.5">{log.notes}</p>
+                            <p className={`text-xs mt-0.5 ${log.voided ? 'text-fm-outline-variant line-through' : 'text-fm-on-surface'}`}>
+                              {log.notes}
+                            </p>
                           ) : (
-                            <p className="text-xs text-fm-outline-variant italic">Sin descripción</p>
+                            <p className={`text-xs italic mt-0.5 ${log.voided ? 'text-fm-outline-variant/60 line-through' : 'text-fm-outline-variant'}`}>
+                              Sin descripción
+                            </p>
+                          )}
+                          {log.voided && (
+                            <p className="text-[10px] text-fm-outline-variant/70 mt-0.5">
+                              Anulado{log.voided_at && ` · ${new Date(log.voided_at).toLocaleDateString('es', { day: 'numeric', month: 'short' })}`}
+                            </p>
                           )}
                         </div>
                       </div>

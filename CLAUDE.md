@@ -69,9 +69,14 @@ clients → client_users (tabla puente) → users (rol: owner | viewer)
 
 clients.max_cambios        — límite de cambios por requerimiento (default 2)
 requirements.title         — requerido en UI, DEFAULT '' en DB (legacy rows ok)
-requirements.cambios_count — contador, sin decremento por diseño
+requirements.cambios_count — contador. Se decrementa al anular un cambio
+                              (server action voidCambioLog en cambioLogs.ts).
 requirements.phase         — fase actual en pipeline (12 valores posibles)
 requirements.review_started_at — timestamp al entrar a revision_cliente
+requirements.consumption_overrides_json — JSONB. Map ContentType→cantidad. Solo admin.
+                              NULL = consumo legacy (1 del content_type + 1 historia
+                              si includes_story). Si tiene valores, reemplaza esa lógica.
+requirement_cambio_logs.voided/voided_by_user_id/voided_at — auditoría de anulación.
 requirement_messages.visible_to_client — true = visible en el portal del cliente
 ```
 
@@ -246,3 +251,4 @@ end $$;
 | 0056 | `requirement_messages` a publicación realtime |
 | 0057 | Automatización billing (auto_billing flag, ciclos scheduled) |
 | 0058 | Realtime para notificaciones |
+| 0059 | Multi-consumo (`requirements.consumption_overrides_json`) + anulación de cambios (`requirement_cambio_logs.voided/voided_by_user_id/voided_at`) |
