@@ -159,16 +159,22 @@ export function RequirementModal({
       return
     }
 
-    // Construye el breakdown efectivo: si admin definió overrides, ese mapa manda;
-    // si no, comportamiento legacy (1 del tipo + 1 historia si aplica).
+    // Construye el breakdown efectivo: siempre parte de la base (1 del tipo + historia si aplica)
+    // y fusiona los overrides encima (el admin modifica cantidades, no reemplaza todo el mapa).
+    // Debe coincidir exactamente con lo que computará consumptionOf() al leer el registro.
     const hasOverrides = isStrictAdmin && Object.values(consumptionOverrides).some((v) => (v ?? 0) > 0)
-    const effectiveBreakdown: Partial<Record<ContentType, number>> = hasOverrides
-      ? Object.fromEntries(
-          Object.entries(consumptionOverrides).filter(([, v]) => (v ?? 0) > 0),
-        ) as Partial<Record<ContentType, number>>
-      : storyApplicable && includesStory
-        ? { [selectedType]: 1, historia: (selectedType === 'historia' ? 0 : 0) + 1 }
-        : { [selectedType]: 1 }
+    const effectiveBreakdown: Partial<Record<ContentType, number>> = (() => {
+      const base: Partial<Record<ContentType, number>> = { [selectedType]: 1 }
+      if (storyApplicable && includesStory && selectedType !== 'historia') base.historia = 1
+      if (hasOverrides) {
+        for (const [type, qty] of Object.entries(consumptionOverrides)) {
+          const n = qty ?? 0
+          if (n <= 0) delete base[type as ContentType]
+          else base[type as ContentType] = n
+        }
+      }
+      return base
+    })()
 
     const breakdownCheck = canRegisterBreakdown(effectiveBreakdown, totals, limits)
     const allowed = breakdownCheck.ok

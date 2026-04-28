@@ -49,25 +49,38 @@ export function canRegisterWithContext(
 
 /**
  * Desglose efectivo de consumo de un requerimiento.
- * - Si tiene `consumption_overrides_json` con valores, ese map manda (admin).
- * - Si no, comportamiento legacy: 1 del `content_type` + 1 a historia si `includes_story`.
+ *
+ * Siempre parte de la base legacy (1 del content_type + 1 historia si includes_story)
+ * y fusiona el override encima: el admin modifica cantidades específicas sin tener
+ * que redeclarar los tipos que no cambian.
+ *
+ * Reglas:
+ * - `consumption_overrides_json` = null/vacío → comportamiento 100% legacy.
+ * - override[type] > 0 → ese tipo consume override[type] (reemplaza la base para ese tipo).
+ * - override[type] = 0 (explícito) → ese tipo no consume nada (elimina la base).
+ * - La historia de `includes_story` se incluye siempre salvo que el override la anule con 0.
  */
 export function consumptionOf(
   r: Pick<Requirement, 'content_type' | 'includes_story' | 'consumption_overrides_json'>
 ): Partial<Record<ContentType, number>> {
+  // Base siempre presente
+  const result: Partial<Record<ContentType, number>> = { [r.content_type]: 1 }
+  if (r.includes_story && r.content_type !== 'historia') result.historia = 1
+
   const o = r.consumption_overrides_json
   if (o && Object.keys(o).length > 0) {
-    // Filtra entradas con cantidad <= 0 para evitar consumos espurios
-    const out: Partial<Record<ContentType, number>> = {}
     for (const [type, qty] of Object.entries(o)) {
       const n = Number(qty)
-      if (Number.isFinite(n) && n > 0) out[type as ContentType] = n
+      if (!Number.isFinite(n)) continue
+      if (n <= 0) {
+        delete result[type as ContentType]   // override explícito a 0 → no cuenta
+      } else {
+        result[type as ContentType] = n      // override positivo → reemplaza la base para ese tipo
+      }
     }
-    if (Object.keys(out).length > 0) return out
   }
-  const def: Partial<Record<ContentType, number>> = { [r.content_type]: 1 }
-  if (r.includes_story && r.content_type !== 'historia') def.historia = 1
-  return def
+
+  return result
 }
 
 /**
@@ -284,9 +297,12 @@ export function computeWeeklyBreakdownWithCascade(
   }
 
   for (const r of sorted) {
-    fillCascade(r.content_type)
-    // Historias derivadas: un reel/video con includes_story consume un slot de historia
-    if (r.includes_story) fillCascade('historia')
+    const breakdown = consumptionOf(r)
+    for (const [type, qty] of Object.entries(breakdown)) {
+      for (let i = 0; i < (qty as number); i++) {
+        fillCascade(type as ContentType)
+      }
+    }
   }
 
   return WEEKS.map((w, i) => ({
