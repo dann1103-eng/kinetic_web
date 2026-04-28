@@ -80,8 +80,11 @@ export function N1coPayModal({ open, onOpenChange, paymentLinkUrl, invoiceId }: 
       aria-modal="true"
       aria-label="Pago con n1co"
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[480px] max-h-[92vh] flex flex-col overflow-hidden">
-        <header className="flex items-center justify-between px-4 py-3 border-b border-fm-surface-container-high bg-fm-surface-container-lowest">
+      <div
+        className="bg-white rounded-2xl shadow-2xl flex flex-col overflow-hidden w-full sm:w-[640px] md:w-[720px]"
+        style={{ height: 'min(94vh, 880px)' }}
+      >
+        <header className="flex items-center justify-between px-4 py-3 border-b border-fm-surface-container-high bg-fm-surface-container-lowest shrink-0">
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-fm-primary" style={{ fontSize: 18 }}>
               credit_card
@@ -98,7 +101,7 @@ export function N1coPayModal({ open, onOpenChange, paymentLinkUrl, invoiceId }: 
           </button>
         </header>
 
-        <div className="relative flex-1 min-h-[600px]">
+        <div className="relative flex-1 min-h-0">
           {status === 'loading' && (
             <div className="absolute inset-0 flex items-center justify-center bg-fm-surface-container-lowest z-10">
               <div className="text-center">
@@ -137,7 +140,7 @@ export function N1coPayModal({ open, onOpenChange, paymentLinkUrl, invoiceId }: 
           />
         </div>
 
-        <footer className="px-4 py-2 border-t border-fm-surface-container-high bg-fm-surface-container-lowest">
+        <footer className="px-4 py-2 border-t border-fm-surface-container-high bg-fm-surface-container-lowest shrink-0">
           <p className="text-[10px] text-fm-outline text-center">
             Procesado por n1co · Tus datos de tarjeta nunca pasan por nuestros servidores.
           </p>
