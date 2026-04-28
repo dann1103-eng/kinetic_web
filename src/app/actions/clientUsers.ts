@@ -60,6 +60,16 @@ export async function createClientUser(params: {
         await admin.from('users').update({ full_name: fullName }).eq('id', userId)
       }
     } else {
+      // Antes de crear, detectar y limpiar usuarios huérfanos en auth.users
+      // (existen en auth pero ya no en public.users — pasa cuando se borra un cliente sin limpiar auth)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: orphanId } = await (admin as any).rpc('get_auth_user_id_by_email', { p_email: clean }) as { data: string | null }
+      if (orphanId) {
+        await admin.auth.admin.deleteUser(orphanId).catch((err) =>
+          console.error(`[createClientUser] No se pudo eliminar auth huérfano ${orphanId}:`, err)
+        )
+      }
+
       const { data, error } = await admin.auth.admin.createUser({
         email: clean,
         password,

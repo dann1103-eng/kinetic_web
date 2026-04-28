@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 
 export async function deleteClient(clientId: string): Promise<void> {
@@ -13,21 +14,48 @@ export async function deleteClient(clientId: string): Promise<void> {
     .from('users').select('role').eq('id', user.id).single()
   if (appUser?.role !== 'admin') throw new Error('Solo admins pueden eliminar clientes')
 
-  // 1. Get cycle IDs
-  const { data: cycles } = await supabase
+  const admin = createAdminClient()
+
+  // ── 0. Limpiar usuarios de portal vinculados a este cliente ──────────────
+  const { data: clientUserRows } = await admin
+    .from('client_users')
+    .select('user_id')
+    .eq('client_id', clientId)
+
+  for (const { user_id } of clientUserRows ?? []) {
+    // ¿Este usuario tiene acceso a otros clientes?
+    const { data: otherLinks } = await admin
+      .from('client_users')
+      .select('id')
+      .eq('user_id', user_id)
+      .neq('client_id', clientId)
+      .limit(1)
+
+    if (!otherLinks || otherLinks.length === 0) {
+      // Solo estaba vinculado a este cliente → eliminar completamente
+      await admin.from('users').delete().eq('id', user_id)
+      await admin.auth.admin.deleteUser(user_id).catch((err) =>
+        console.error(`No se pudo eliminar auth user ${user_id}:`, err)
+      )
+    }
+  }
+
+  await admin.from('client_users').delete().eq('client_id', clientId)
+
+  // ── 1. Obtener IDs de ciclos ──────────────────────────────────────────────
+  const { data: cycles } = await admin
     .from('billing_cycles').select('id').eq('client_id', clientId)
   const cycleIds = (cycles ?? []).map((c) => c.id)
 
-  // 2. Get requirement IDs
+  // ── 2. Obtener IDs de requerimientos ─────────────────────────────────────
   let requirementIds: string[] = []
   if (cycleIds.length > 0) {
-    const { data: requirements } = await supabase
+    const { data: requirements } = await admin
       .from('requirements').select('id').in('billing_cycle_id', cycleIds)
     requirementIds = (requirements ?? []).map((r) => r.id)
   }
 
-  // 3. Cleanup de adjuntos del chat (bucket requirement-attachments).
-  // Se hace antes de borrar requirements para que los paths sigan resolviendo.
+  // ── 3. Cleanup de adjuntos del chat ──────────────────────────────────────
   if (requirementIds.length > 0) {
     for (const reqId of requirementIds) {
       try {
@@ -44,26 +72,26 @@ export async function deleteClient(clientId: string): Promise<void> {
     }
   }
 
-  // 4. Delete phase logs
+  // ── 4. Borrar logs de fases ───────────────────────────────────────────────
   if (requirementIds.length > 0) {
-    await supabase.from('requirement_phase_logs')
+    await admin.from('requirement_phase_logs')
       .delete().in('requirement_id', requirementIds)
   }
 
-  // 4. Delete requirements
+  // ── 5. Borrar requerimientos ──────────────────────────────────────────────
   if (cycleIds.length > 0) {
-    await supabase.from('requirements')
+    await admin.from('requirements')
       .delete().in('billing_cycle_id', cycleIds)
   }
 
-  // 5. Delete billing cycles
+  // ── 6. Borrar ciclos de facturación ──────────────────────────────────────
   if (cycleIds.length > 0) {
-    await supabase.from('billing_cycles')
+    await admin.from('billing_cycles')
       .delete().eq('client_id', clientId)
   }
 
-  // 6. Delete client
-  await supabase.from('clients').delete().eq('id', clientId)
+  // ── 7. Borrar cliente ─────────────────────────────────────────────────────
+  await admin.from('clients').delete().eq('id', clientId)
 
   redirect('/clients')
 }
