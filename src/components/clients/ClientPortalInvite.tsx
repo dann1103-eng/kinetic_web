@@ -28,29 +28,29 @@ export function ClientPortalInvite({ clientId, users }: Props) {
       return
     }
     startTransition(async () => {
-      try {
-        await createClientUser({ clientId, email, password, fullName: name || undefined })
-        setEmail('')
-        setName('')
-        setPassword('')
-        setMsg({
-          ok: true,
-          text: 'Credenciales creadas. Comparte el email y la contraseña con el cliente por WhatsApp o llamada.',
-        })
-      } catch (err) {
-        setMsg({ ok: false, text: err instanceof Error ? err.message : 'Error al crear credenciales' })
+      const result = await createClientUser({ clientId, email, password, fullName: name || undefined })
+      if (!result.ok) {
+        setMsg({ ok: false, text: result.error })
+        return
       }
+      setEmail('')
+      setName('')
+      setPassword('')
+      setMsg({
+        ok: true,
+        text: 'Credenciales creadas. Comparte el email y la contraseña con el cliente por WhatsApp o llamada.',
+      })
     })
   }
 
   function revoke(userId: string) {
     startTransition(async () => {
-      try {
-        await revokeClientUser({ clientId, userId })
-        setMsg({ ok: true, text: 'Acceso revocado. El usuario fue eliminado.' })
-      } catch (err) {
-        setMsg({ ok: false, text: err instanceof Error ? err.message : 'Error al revocar' })
+      const result = await revokeClientUser({ clientId, userId })
+      if (!result.ok) {
+        setMsg({ ok: false, text: result.error })
+        return
       }
+      setMsg({ ok: true, text: 'Acceso revocado. El usuario fue eliminado.' })
     })
   }
 
