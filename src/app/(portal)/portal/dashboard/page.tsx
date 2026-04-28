@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId } from '@/lib/supabase/active-client'
 import { RequirementPanel } from '@/components/clients/RequirementPanel'
 import { ClientPipelineBoard } from '@/components/portal/ClientPipelineBoard'
+import { RenewalBanner } from '@/components/portal/RenewalBanner'
+import { ExtrasSection } from '@/components/portal/ExtrasSection'
 import { computeTotals } from '@/lib/domain/requirement'
 import { effectiveLimits, applyContentLimitsWithOverride } from '@/lib/domain/plans'
 import { daysUntilEnd } from '@/lib/domain/cycles'
@@ -10,6 +12,7 @@ import { clientPhaseOf, PHASES } from '@/lib/domain/pipeline'
 import type { ClientPhase } from '@/lib/domain/pipeline'
 import type {
   BillingCycle,
+  CambiosPackage,
   ClientWithPlan,
   Phase,
   Requirement,
@@ -140,8 +143,51 @@ export default async function PortalDashboardPage() {
     : null
   const daysLeft = cycle ? daysUntilEnd(cycle.period_end) : null
 
+  // ── Banner de renovación: detectar factura del siguiente ciclo si ya existe ──
+  let scheduledLinkUrl: string | null = null
+  let scheduledInvoiceId: string | null = null
+  if (cycle) {
+    const { data: scheduled } = await supabase
+      .from('billing_cycles')
+      .select('id')
+      .eq('client_id', activeId)
+      .eq('status', 'scheduled')
+      .maybeSingle()
+    if (scheduled?.id) {
+      const { data: scheduledInv } = await supabase
+        .from('invoices')
+        .select('id, n1co_payment_link_url, status')
+        .eq('billing_cycle_id', scheduled.id)
+        .neq('status', 'void')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (scheduledInv?.status !== 'paid' && scheduledInv?.n1co_payment_link_url) {
+        scheduledLinkUrl = scheduledInv.n1co_payment_link_url as string
+        scheduledInvoiceId = scheduledInv.id as string
+      }
+    }
+  }
+
+  // Paquetes de cambios sugeridos: combina los del ciclo (con precio) + el estándar.
+  const cycleCambiosPkgs = ((cycle?.cambios_packages_json ?? []) as CambiosPackage[])
+    .filter((p) => p.price_usd && p.price_usd > 0)
+    .map((p) => ({ qty: p.qty, price: p.price_usd ?? 0, note: p.note }))
+  const cambiosOptions = cycleCambiosPkgs.length > 0 ? cycleCambiosPkgs : undefined
+
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-8">
+      {cycle && (
+        <RenewalBanner
+          currentPeriodEnd={cycle.period_end}
+          currentPaymentStatus={cycle.payment_status}
+          planName={client.plan?.name ?? null}
+          expectedAmount={client.plan?.price_usd ?? null}
+          existingScheduledLinkUrl={scheduledLinkUrl}
+          existingScheduledInvoiceId={scheduledInvoiceId}
+        />
+      )}
+
       {cycle && limits ? (
         <RequirementPanel
           client={client}
@@ -165,6 +211,10 @@ export default async function PortalDashboardPage() {
             No hay ciclo activo en este momento.
           </p>
         </div>
+      )}
+
+      {cycle && (
+        <ExtrasSection cambiosOptions={cambiosOptions} />
       )}
 
       {cycle && (
