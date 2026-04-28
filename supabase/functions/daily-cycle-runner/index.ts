@@ -155,6 +155,73 @@ function buildEmitterSnapshot(settings: Record<string, unknown> | null) {
   }
 }
 
+/**
+ * Llama a la CheckoutLink API de n1co para crear un link de pago para esta
+ * factura. Si falta el secret o falla la llamada, retorna null y el caller
+ * deja la factura en payment_provider='manual' (admin puede regenerar después).
+ */
+async function tryCreateN1coPaymentLink(args: {
+  invoiceId: string
+  invoiceNumber: string
+  amount: number
+  clientId: string
+  clientName: string
+  planName: string
+  cycleId: string
+  periodLabel: string
+}): Promise<{ url: string; orderId: number; shortId: string | null } | null> {
+  const checkoutSecret = Deno.env.get('N1CO_CHECKOUT_LINK_SECRET')
+  if (!checkoutSecret) return null
+
+  const env = Deno.env.get('N1CO_ENVIRONMENT') ?? 'sandbox'
+  const payBaseUrl = env === 'production'
+    ? 'https://api-pay.n1co.shop/api'
+    : 'https://api-pay-sandbox.n1co.shop/api'
+  const appUrl = (Deno.env.get('NEXT_PUBLIC_APP_URL') ?? Deno.env.get('APP_URL') ?? 'https://fm-full-y-connect.vercel.app').replace(/\/$/, '')
+
+  try {
+    const res = await fetch(`${payBaseUrl}/paymentlink/checkout`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${checkoutSecret}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        orderReference: args.invoiceId,
+        orderName: `FM Communications · Plan ${args.planName} (${args.periodLabel})`,
+        orderDescription: `Factura ${args.invoiceNumber} · Cliente: ${args.clientName}`,
+        amount: args.amount,
+        successUrl: `${appUrl}/n1co-callback?invoice=${encodeURIComponent(args.invoiceId)}&status=success`,
+        cancelUrl: `${appUrl}/n1co-callback?invoice=${encodeURIComponent(args.invoiceId)}&status=cancel`,
+        expirationMinutes: 4320,
+        metadata: [
+          { name: 'invoiceId', value: args.invoiceId },
+          { name: 'invoiceNumber', value: args.invoiceNumber },
+          { name: 'clientId', value: args.clientId },
+          { name: 'cycleId', value: args.cycleId },
+          { name: 'source', value: 'cron-auto-billing' },
+        ],
+      }),
+    })
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      console.error('[cron-n1co] payment link error', res.status, body)
+      return null
+    }
+    const json = await res.json() as { paymentLinkUrl: string; orderId: number; orderCode: string }
+    const m = /\/pl\/([^/?#]+)/.exec(json.paymentLinkUrl)
+    return {
+      url: json.paymentLinkUrl,
+      orderId: json.orderId,
+      shortId: m ? m[1] : null,
+    }
+  } catch (err) {
+    console.error('[cron-n1co] payment link exception', err)
+    return null
+  }
+}
+
 Deno.serve(async (_req) => {
   const today = todayStr()
   const log: string[] = []
@@ -313,7 +380,34 @@ Deno.serve(async (_req) => {
         continue
       }
 
-      log.push(`✓ Factura auto-emitida para ${client.name} (${half ?? 'monthly'})`)
+      // Generar payment link de n1co para esta factura, así el cliente puede pagar
+      // desde su portal sin esperar acción manual del admin.
+      const linkInfo = await tryCreateN1coPaymentLink({
+        invoiceId: invInsert.id,
+        invoiceNumber: numberRow as unknown as string,
+        amount: total,
+        clientId: client.id,
+        clientName: client.name,
+        planName: plan.name,
+        cycleId: scheduledCycleId,
+        periodLabel: label,
+      })
+
+      if (linkInfo) {
+        await supabase
+          .from('invoices')
+          .update({
+            n1co_payment_link_url: linkInfo.url,
+            n1co_payment_link_id: linkInfo.shortId ?? String(linkInfo.orderId),
+            n1co_order_reference: invInsert.id,
+            payment_provider: 'n1co_link',
+          })
+          .eq('id', invInsert.id)
+        log.push(`✓ Factura + link n1co para ${client.name} (${half ?? 'monthly'})`)
+      } else {
+        // Fallback: factura queda en payment_provider='manual' (default).
+        log.push(`✓ Factura auto-emitida para ${client.name} (${half ?? 'monthly'}) sin link n1co`)
+      }
     }
 
     // ========== STEP 2: EXPIRE / RENEW CYCLES ==========
@@ -366,7 +460,7 @@ Deno.serve(async (_req) => {
         // ¿Existe un ciclo scheduled? Promoverlo.
         const { data: scheduled } = await supabase
           .from('billing_cycles')
-          .select('id')
+          .select('id, plan_id_snapshot')
           .eq('client_id', client.id)
           .eq('status', 'scheduled')
           .maybeSingle()
@@ -376,6 +470,21 @@ Deno.serve(async (_req) => {
             .from('billing_cycles')
             .update({ status: 'current' })
             .eq('id', scheduled.id)
+
+          // Si admin cambió el plan al renovar anticipadamente, actualizar
+          // clients.current_plan_id ahora (no antes, porque el ciclo actual aún
+          // estaba activo con el plan anterior).
+          if (
+            scheduled.plan_id_snapshot &&
+            scheduled.plan_id_snapshot !== client.current_plan_id
+          ) {
+            await supabase
+              .from('clients')
+              .update({ current_plan_id: scheduled.plan_id_snapshot })
+              .eq('id', client.id)
+            log.push(`✓ Plan actualizado a ${scheduled.plan_id_snapshot} para cliente ${client.id}`)
+          }
+
           log.push(`✓ Scheduled cycle promovido a current para cliente ${client.id}`)
         } else {
           // Fallback histórico: crear ciclo nuevo en 'current' con semántica existente.

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TopNav } from '@/components/layout/TopNav'
-import { RenewalRow } from '@/components/renewals/RenewalRow'
+import { RenewalRow, type RenewalState } from '@/components/renewals/RenewalRow'
 import { RenewalsFilters } from '@/components/renewals/RenewalsFilters'
 import type { BillingCycle, ClientWithPlan } from '@/types/db'
 import { daysUntilEnd } from '@/lib/domain/cycles'
@@ -12,6 +12,7 @@ interface RenewalItem {
   cycle: BillingCycle
   client: ClientWithPlan
   daysLeft: number
+  renewalState: RenewalState
 }
 
 export default async function RenewalsPage({
@@ -79,12 +80,78 @@ export default async function RenewalsPage({
     .select('id, name, limits_json, cambios_included')
     .eq('active', true)
 
+  // Scheduled cycles + sus facturas para mostrar el estado real de la renovación
+  const { data: scheduledCycles } = await supabase
+    .from('billing_cycles')
+    .select('id, client_id, period_start, period_end')
+    .in('client_id', clientIds)
+    .eq('status', 'scheduled')
+
+  type ScheduledCycle = { id: string; client_id: string; period_start: string; period_end: string }
+  const scheduledByClient = new Map<string, ScheduledCycle>()
+  ;(scheduledCycles ?? []).forEach((sc) => {
+    scheduledByClient.set(sc.client_id as string, {
+      id: sc.id as string,
+      client_id: sc.client_id as string,
+      period_start: sc.period_start as string,
+      period_end: sc.period_end as string,
+    })
+  })
+
+  // Última factura no-anulada por scheduled cycle
+  const scheduledCycleIds = Array.from(scheduledByClient.values()).map((sc) => sc.id)
+  type ScheduledInvoice = { id: string; billing_cycle_id: string; status: string; total: number; n1co_payment_link_url: string | null }
+  const invByScheduledCycle = new Map<string, ScheduledInvoice>()
+  if (scheduledCycleIds.length > 0) {
+    const { data: scheduledInvoices } = await supabase
+      .from('invoices')
+      .select('id, billing_cycle_id, status, total, n1co_payment_link_url, created_at')
+      .in('billing_cycle_id', scheduledCycleIds)
+      .neq('status', 'void')
+      .order('created_at', { ascending: false })
+    for (const inv of scheduledInvoices ?? []) {
+      const cycleId = inv.billing_cycle_id as string
+      // Solo guardar la primera (más reciente) por cycle
+      if (!invByScheduledCycle.has(cycleId)) {
+        invByScheduledCycle.set(cycleId, {
+          id: inv.id as string,
+          billing_cycle_id: cycleId,
+          status: inv.status as string,
+          total: Number(inv.total),
+          n1co_payment_link_url: (inv.n1co_payment_link_url as string | null) ?? null,
+        })
+      }
+    }
+  }
+
+  function buildRenewalState(clientId: string): RenewalState {
+    const scheduled = scheduledByClient.get(clientId)
+    if (!scheduled) return { kind: 'no_invoice' }
+    const inv = invByScheduledCycle.get(scheduled.id)
+    if (!inv) return { kind: 'no_invoice', scheduledPeriodStart: scheduled.period_start }
+    if (inv.status === 'paid') {
+      return { kind: 'paid', scheduledPeriodStart: scheduled.period_start, invoiceId: inv.id, total: inv.total }
+    }
+    return {
+      kind: 'issued',
+      scheduledPeriodStart: scheduled.period_start,
+      invoiceId: inv.id,
+      total: inv.total,
+      paymentLinkUrl: inv.n1co_payment_link_url,
+    }
+  }
+
   // Build renewal items
   let items: RenewalItem[] = cycles
     .map((cycle) => {
       const client = clientMap.get(cycle.client_id)
       if (!client) return null
-      return { cycle, client, daysLeft: daysUntilEnd(cycle.period_end) }
+      return {
+        cycle,
+        client,
+        daysLeft: daysUntilEnd(cycle.period_end),
+        renewalState: buildRenewalState(cycle.client_id),
+      }
     })
     .filter(Boolean) as RenewalItem[]
 
@@ -151,6 +218,7 @@ export default async function RenewalsPage({
                 daysLeft={item.daysLeft}
                 isAdmin={isAdmin}
                 allPlans={plans ?? []}
+                renewalState={item.renewalState}
               />
             ))
           )}

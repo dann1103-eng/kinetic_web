@@ -4,7 +4,18 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import type { BillingCycle, BillingPeriod, CambiosPackage, ClientWithPlan, ContentType, ExtraContentItem, PlanLimits } from '@/types/db'
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS, EXTRA_CONTENT_PRICES, NON_CARRYOVER_TYPES, effectiveLimits } from '@/lib/domain/plans'
+import { formatDateEs } from '@/lib/domain/dates'
 import { renewCycle, markCyclePaid, pauseClient } from '@/app/actions/renewals'
+
+/**
+ * Estado real de la renovación (factura del próximo ciclo). Distinto de
+ * `cycle.payment_status` (que es del ciclo actual y normalmente está pagado
+ * porque el cliente ya pagó al inicio del ciclo).
+ */
+export type RenewalState =
+  | { kind: 'no_invoice'; scheduledPeriodStart?: string }
+  | { kind: 'issued'; scheduledPeriodStart: string; invoiceId: string; total: number; paymentLinkUrl: string | null }
+  | { kind: 'paid'; scheduledPeriodStart: string; invoiceId: string; total: number }
 
 const avatarGradients = [
   'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)',
@@ -30,9 +41,10 @@ interface RenewalRowProps {
   daysLeft: number
   isAdmin: boolean
   allPlans: Plan[]
+  renewalState: RenewalState
 }
 
-export function RenewalRow({ cycle, client, daysLeft, isAdmin, allPlans }: RenewalRowProps) {
+export function RenewalRow({ cycle, client, daysLeft, isAdmin, allPlans, renewalState }: RenewalRowProps) {
   const [expanded, setExpanded] = useState(false)
   const [mode, setMode] = useState<PanelMode>(null)
   const [isPending, startTransition] = useTransition()
@@ -176,31 +188,37 @@ export function RenewalRow({ cycle, client, daysLeft, isAdmin, allPlans }: Renew
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+          <RenewalStateBadge renewalState={renewalState} />
+          <span className={`text-[10px] px-2 py-0.5 rounded-full ${
             cycle.payment_status === 'paid'
               ? 'bg-fm-primary/10 text-fm-primary'
               : 'bg-fm-error/10 text-fm-error'
           }`}>
-            {cycle.payment_status === 'paid' ? 'Pagado' : 'Sin pago'}
+            Ciclo actual: {cycle.payment_status === 'paid' ? 'pagado' : 'sin pago'}
           </span>
 
+          {renewalState.kind === 'no_invoice' && isAdmin && (
+            <Link
+              href={`/billing/invoices/new?client_id=${client.id}&next_cycle=1`}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all border border-fm-error/40 text-fm-error bg-fm-error/5 hover:bg-fm-error/10"
+            >
+              Emitir factura próximo ciclo
+            </Link>
+          )}
+
+          {renewalState.kind === 'issued' && isAdmin && renewalState.paymentLinkUrl && (
+            <CopyLinkButton url={renewalState.paymentLinkUrl} />
+          )}
+
           {cycle.payment_status === 'unpaid' && isAdmin && (
-            <>
-              <Link
-                href={`/billing/invoices/new?client_id=${client.id}&cycle_id=${cycle.id}`}
-                className="text-xs font-medium px-3 py-1.5 rounded-lg transition-all border border-fm-primary/30 text-fm-primary bg-fm-primary/10 hover:bg-fm-primary/15"
-              >
-                Emitir factura
-              </Link>
-              <button
-                onClick={markPaid}
-                disabled={isPending}
-                className="text-xs text-white font-medium px-3 py-1.5 rounded-lg transition-all hover:opacity-90"
-                style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
-              >
-                Marcar pagado
-              </button>
-            </>
+            <button
+              onClick={markPaid}
+              disabled={isPending}
+              className="text-xs text-white font-medium px-3 py-1.5 rounded-lg transition-all hover:opacity-90"
+              style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+            >
+              Marcar pagado (manual)
+            </button>
           )}
 
           {isAdmin && (
@@ -645,5 +663,52 @@ export function RenewalRow({ cycle, client, daysLeft, isAdmin, allPlans }: Renew
         </div>
       )}
     </div>
+  )
+}
+
+// ── Subcomponents ─────────────────────────────────────────────────────────
+
+function RenewalStateBadge({ renewalState }: { renewalState: RenewalState }) {
+  if (renewalState.kind === 'paid') {
+    return (
+      <span
+        className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/30"
+        title={`Ciclo nuevo inicia el ${formatDateEs(renewalState.scheduledPeriodStart)}`}
+      >
+        Renovación pagada · inicia {formatDateEs(renewalState.scheduledPeriodStart, { withYear: false })}
+      </span>
+    )
+  }
+  if (renewalState.kind === 'issued') {
+    return (
+      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 border border-amber-500/30">
+        Renovación pendiente de pago · ${renewalState.total.toFixed(2)}
+      </span>
+    )
+  }
+  // no_invoice
+  return (
+    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-fm-surface-container-high text-fm-on-surface-variant border border-fm-outline-variant/40">
+      Sin factura emitida
+    </span>
+  )
+}
+
+function CopyLinkButton({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false)
+  function copy() {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-fm-primary/30 text-fm-primary bg-fm-primary/5 hover:bg-fm-primary/10"
+    >
+      {copied ? 'Copiado ✓' : 'Copiar link'}
+    </button>
   )
 }

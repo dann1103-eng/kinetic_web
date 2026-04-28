@@ -117,6 +117,8 @@ export async function routeN1coEvent(
   if (isPaymentSuccess && match.invoiceId) {
     try {
       await applyPaid(match.invoiceId, payload)
+      // Si es factura oneoff (extra autoservicio), reflejar en el ciclo + desglose semanal
+      await registerExtraIntoCycleIfApplicable(supabase, match.invoiceId, payload)
       return { ...match, processed: true, error: null }
     } catch (err) {
       return {
@@ -153,6 +155,143 @@ export async function routeN1coEvent(
   // Eventos informativos: registrar pero no aplicar cambios
   // (PaymentError, SuccessReverse, ThreeDSecure*, Created, Updated, etc.)
   return { ...match, processed: true, error: null }
+}
+
+// ── Registrar compras de extras en el ciclo + desglose semanal ──
+
+const CONTENT_TYPES_VALID = new Set([
+  'historia',
+  'estatico',
+  'video_corto',
+  'reel',
+  'short',
+  'produccion',
+  'reunion',
+  'matriz_contenido',
+])
+
+const WEEK_KEYS = ['S1', 'S2', 'S3', 'S4'] as const
+type WeekKey = typeof WEEK_KEYS[number]
+
+function currentWeekKey(periodStart: string, today = new Date()): WeekKey {
+  const start = new Date(periodStart)
+  const diffMs = today.getTime() - start.getTime()
+  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  const idx = Math.max(0, Math.min(3, Math.floor(days / 7)))
+  return WEEK_KEYS[idx]
+}
+
+/**
+ * Si la factura recién pagada es un extra oneoff, registra el extra en el
+ * ciclo activo del cliente:
+ *  - cambios extras → push a billing_cycles.cambios_packages_json + sumar cambios_budget
+ *  - content extras → push a extra_content_json + sumar al weekly_distribution_override_json
+ *                     de la semana actual
+ *
+ * Idempotente: si ya hay un entry con el mismo invoiceId en notes/metadata, skip.
+ */
+async function registerExtraIntoCycleIfApplicable(
+  supabase: SupabaseClient,
+  invoiceId: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const { data: invRow } = await supabase
+    .from('invoices')
+    .select('id, client_id, billing_cycle_id, payment_provider')
+    .eq('id', invoiceId)
+    .maybeSingle()
+  if (!invRow) return
+  if (invRow.payment_provider !== 'n1co_link_oneoff') return
+
+  const md = (payload as { metadata?: Record<string, unknown> }).metadata ?? null
+  const extraKind = mdString(md, 'extraKind')
+  if (!extraKind) return
+
+  // Encontrar el ciclo activo del cliente (preferentemente el current; fallback al
+  // billing_cycle_id de la factura si existe).
+  let cycleId = invRow.billing_cycle_id as string | null
+  if (!cycleId) {
+    const { data: current } = await supabase
+      .from('billing_cycles')
+      .select('id')
+      .eq('client_id', invRow.client_id)
+      .eq('status', 'current')
+      .maybeSingle()
+    cycleId = (current?.id as string) ?? null
+  }
+  if (!cycleId) return
+
+  const { data: cycleRow } = await supabase
+    .from('billing_cycles')
+    .select('id, period_start, cambios_budget, cambios_packages_json, extra_content_json, weekly_distribution_override_json')
+    .eq('id', cycleId)
+    .maybeSingle()
+  if (!cycleRow) return
+
+  const nowIso = new Date().toISOString()
+
+  if (extraKind === 'cambios') {
+    const qty = Number(mdString(md, 'extraQty') ?? '0')
+    const price = Number(mdString(md, 'extraPrice') ?? '0')
+    if (!Number.isFinite(qty) || qty <= 0) return
+
+    const existing = (cycleRow.cambios_packages_json ?? []) as Array<Record<string, unknown>>
+    // Idempotencia: ya registrado para esta factura
+    if (existing.some((p) => p.invoice_id === invoiceId)) return
+
+    const next = [...existing, {
+      qty,
+      price_usd: Number.isFinite(price) && price > 0 ? price : null,
+      note: 'Compra desde portal del cliente',
+      created_at: nowIso,
+      invoice_id: invoiceId,
+    }]
+    await supabase
+      .from('billing_cycles')
+      .update({
+        cambios_packages_json: next,
+        cambios_budget: (Number(cycleRow.cambios_budget) || 0) + qty,
+      })
+      .eq('id', cycleId)
+    return
+  }
+
+  if (extraKind === 'content') {
+    const contentType = mdString(md, 'extraContentType')
+    const qty = Number(mdString(md, 'extraQty') ?? '0')
+    const price = Number(mdString(md, 'extraPrice') ?? '0')
+    if (!contentType || !CONTENT_TYPES_VALID.has(contentType)) return
+    if (!Number.isFinite(qty) || qty <= 0) return
+
+    const existing = (cycleRow.extra_content_json ?? []) as Array<Record<string, unknown>>
+    if (existing.some((p) => p.invoice_id === invoiceId)) return
+
+    const next = [...existing, {
+      content_type: contentType,
+      label: contentType,
+      qty,
+      price_per_unit: Number.isFinite(price) ? price : 0,
+      note: 'Compra desde portal del cliente',
+      created_at: nowIso,
+      invoice_id: invoiceId,
+    }]
+
+    // Sumar al desglose semanal de la semana en curso
+    const week = currentWeekKey(cycleRow.period_start as string)
+    const wd = (cycleRow.weekly_distribution_override_json ?? {}) as Record<string, Record<string, number>>
+    const weekMap = { ...(wd[week] ?? {}) }
+    weekMap[contentType] = (weekMap[contentType] ?? 0) + qty
+    const nextWd = { ...wd, [week]: weekMap }
+
+    await supabase
+      .from('billing_cycles')
+      .update({
+        extra_content_json: next,
+        weekly_distribution_override_json: nextWd,
+      })
+      .eq('id', cycleId)
+    return
+  }
 }
 
 // ── helpers ──────────────────────────────────────────────────

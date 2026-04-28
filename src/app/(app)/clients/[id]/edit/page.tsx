@@ -14,6 +14,7 @@ import { effectiveWeeklyTarget } from '@/lib/domain/requirement'
 import { limitsToRecord, CONTENT_TYPE_LABELS, EXTRA_CONTENT_PRICES } from '@/lib/domain/plans'
 import { augmentDistribution, buildProrateOverride, buildAccumulateOverride } from '@/lib/domain/weekly-distribution'
 import { LogoUploader } from '@/components/clients/LogoUploader'
+import { updateCycleDates } from '@/app/actions/renewals'
 
 export default function ClientEditPage() {
   const router = useRouter()
@@ -73,6 +74,18 @@ export default function ClientEditPage() {
   const [contentOverride, setContentOverride] = useState<Partial<Record<ContentType, number>>>({})
   type DistStrategy = { mode: 'prorate' } | { mode: 'accumulate'; week: WeekKey }
   const [distStrategy, setDistStrategy] = useState<Partial<Record<ContentType, DistStrategy>>>({})
+
+  // Estado para fechas y pagos del ciclo
+  const [cycleStart, setCycleStart] = useState('')
+  const [cycleEnd, setCycleEnd] = useState('')
+  const [cyclePayStatus, setCyclePayStatus] = useState<'paid' | 'unpaid'>('unpaid')
+  const [cyclePayDate, setCyclePayDate] = useState('')
+  const [cyclePayStatus2, setCyclePayStatus2] = useState<'paid' | 'unpaid' | ''>('')
+  const [cyclePayDate2, setCyclePayDate2] = useState('')
+  const [cycleDatesSaving, setCycleDatesSaving] = useState(false)
+  const [cycleDatesError, setCycleDatesError] = useState<string | null>(null)
+  const [cycleDatesOk, setCycleDatesOk] = useState(false)
+
   const [pkgQty, setPkgQty] = useState('5')
   const [pkgPrice, setPkgPrice] = useState('')
   const [pkgNote, setPkgNote] = useState('')
@@ -84,6 +97,7 @@ export default function ClientEditPage() {
   const [extraPrice, setExtraPrice] = useState('')
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>('monthly')
   const [billingDay2, setBillingDay2] = useState('')
+  const isBiweekly = billingPeriod === 'biweekly'
 
   const limits = useMemo(() => {
     const selected = plans.find((p) => p.id === form.current_plan_id)
@@ -154,6 +168,12 @@ export default function ClientEditPage() {
         setCambiosPackages((cycle.cambios_packages_json as CambiosPackage[]) ?? [])
         setExtraContent((cycle.extra_content_json as ExtraContentItem[]) ?? [])
         setContentOverride((cycle.content_limits_override_json as Partial<Record<ContentType, number>>) ?? {})
+        setCycleStart(cycle.period_start)
+        setCycleEnd(cycle.period_end)
+        setCyclePayStatus(cycle.payment_status)
+        setCyclePayDate(cycle.payment_date ?? '')
+        setCyclePayStatus2((cycle.payment_status_2 as 'paid' | 'unpaid' | null) ?? '')
+        setCyclePayDate2(cycle.payment_date_2 ?? '')
       }
       setFetching(false)
     }
@@ -240,6 +260,26 @@ export default function ClientEditPage() {
     if (error) { setFiscalError('Error al guardar datos fiscales.'); return }
     setFiscalOk(true)
     setTimeout(() => setFiscalOk(false), 3000)
+  }
+
+  async function handleSaveCycleDates() {
+    if (!currentCycle) return
+    setCycleDatesSaving(true)
+    setCycleDatesError(null)
+    const result = await updateCycleDates({
+      cycleId: currentCycle.id,
+      clientId: id,
+      periodStart: cycleStart,
+      periodEnd: cycleEnd,
+      paymentStatus: cyclePayStatus,
+      paymentDate: cyclePayDate || null,
+      paymentStatus2: isBiweekly && cyclePayStatus2 ? cyclePayStatus2 : null,
+      paymentDate2: isBiweekly && cyclePayStatus2 === 'paid' ? (cyclePayDate2 || null) : null,
+    })
+    setCycleDatesSaving(false)
+    if ('error' in result) { setCycleDatesError((result as { error: string }).error); return }
+    setCycleDatesOk(true)
+    setTimeout(() => setCycleDatesOk(false), 3000)
   }
 
   const baseDistForOverride = useMemo<WeeklyDistribution>(() => {
@@ -789,6 +829,104 @@ export default function ClientEditPage() {
                     </Button>
                   </div>
                 </>
+              )}
+
+              {/* ── Fechas y pagos del ciclo (solo admin) ── */}
+              {isAdmin && currentCycle && (
+                <div>
+                  <div className="h-[38px] flex items-center gap-2">
+                    <span className="material-symbols-outlined text-fm-error text-lg">event</span>
+                    <span className="text-sm font-semibold text-fm-on-surface">Fechas y pagos del ciclo</span>
+                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-fm-error/8 text-fm-error border border-fm-error/15">Solo admin</span>
+                  </div>
+
+                  <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-error/15 p-6 space-y-4">
+
+                    {/* Periodo */}
+                    <div>
+                      <p className="text-[11px] font-bold text-fm-outline-variant uppercase tracking-wider mb-3">Período del ciclo</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>Inicio</Label>
+                          <Input type="date" value={cycleStart} onChange={(e) => setCycleStart(e.target.value)}
+                            className="rounded-xl bg-fm-background border-fm-surface-container-high" />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Fin</Label>
+                          <Input type="date" value={cycleEnd} onChange={(e) => setCycleEnd(e.target.value)}
+                            className="rounded-xl bg-fm-background border-fm-surface-container-high" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="h-px bg-fm-surface-container-high" />
+
+                    {/* Pago principal (Ciclo 1 en quincenal) */}
+                    <div>
+                      <p className="text-[11px] font-bold text-fm-outline-variant uppercase tracking-wider mb-3">
+                        {isBiweekly ? 'Pago — Ciclo 1' : 'Pago'}
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1.5">
+                          <Label>Estado</Label>
+                          <select value={cyclePayStatus} onChange={(e) => setCyclePayStatus(e.target.value as 'paid' | 'unpaid')}
+                            className="w-full py-2 px-3 text-sm bg-fm-background border border-fm-surface-container-high rounded-xl text-fm-on-surface focus:outline-none focus:border-fm-primary">
+                            <option value="unpaid">Pendiente</option>
+                            <option value="paid">Pagado</option>
+                          </select>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Fecha de pago</Label>
+                          <Input type="date" value={cyclePayDate} onChange={(e) => setCyclePayDate(e.target.value)}
+                            disabled={cyclePayStatus !== 'paid'}
+                            className="rounded-xl bg-fm-background border-fm-surface-container-high disabled:opacity-40" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pago secundario (solo quincenal) */}
+                    {isBiweekly && (
+                      <>
+                        <div className="h-px bg-fm-surface-container-high" />
+                        <div>
+                          <p className="text-[11px] font-bold text-fm-outline-variant uppercase tracking-wider mb-3">Pago — Ciclo 2</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                              <Label>Estado</Label>
+                              <select value={cyclePayStatus2} onChange={(e) => setCyclePayStatus2(e.target.value as 'paid' | 'unpaid' | '')}
+                                className="w-full py-2 px-3 text-sm bg-fm-background border border-fm-surface-container-high rounded-xl text-fm-on-surface focus:outline-none focus:border-fm-primary">
+                                <option value="">— N/A —</option>
+                                <option value="unpaid">Pendiente</option>
+                                <option value="paid">Pagado</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label>Fecha de pago</Label>
+                              <Input type="date" value={cyclePayDate2} onChange={(e) => setCyclePayDate2(e.target.value)}
+                                disabled={cyclePayStatus2 !== 'paid'}
+                                className="rounded-xl bg-fm-background border-fm-surface-container-high disabled:opacity-40" />
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {cycleDatesError && (
+                      <p className="text-sm text-fm-error bg-fm-error/5 rounded-xl px-3 py-2 border border-fm-error/20">{cycleDatesError}</p>
+                    )}
+                    {cycleDatesOk && (
+                      <p className="text-sm text-fm-primary bg-fm-primary/5 rounded-xl px-3 py-2 border border-fm-primary/20">
+                        Fechas y pagos actualizados correctamente.
+                      </p>
+                    )}
+
+                    <Button type="button" onClick={handleSaveCycleDates} disabled={cycleDatesSaving}
+                      className="w-full rounded-xl text-white font-semibold"
+                      style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}>
+                      {cycleDatesSaving ? 'Guardando...' : 'Guardar fechas y pagos'}
+                    </Button>
+                  </div>
+                </div>
               )}
 
               {/* ── Datos fiscales (solo admin estricto) ── */}

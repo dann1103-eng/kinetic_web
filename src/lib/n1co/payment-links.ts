@@ -30,6 +30,8 @@ export async function createInvoicePaymentLink(args: {
   /** Default 4320 (3 días). */
   expirationMinutes?: number
   locationCode?: string
+  /** Metadata adicional para el webhook (ej. extraType, extraQty para autoservicio). */
+  extraMetadata?: N1coMetadataItem[]
 }): Promise<CreatePaymentLinkResponse> {
   const { invoice, client, plan, periodLabel } = args
 
@@ -46,6 +48,9 @@ export async function createInvoicePaymentLink(args: {
   ]
   if (invoice.billing_cycle_id) {
     metadata.push({ name: 'cycleId', value: invoice.billing_cycle_id })
+  }
+  if (args.extraMetadata?.length) {
+    metadata.push(...args.extraMetadata)
   }
 
   const appUrl = getAppUrl()

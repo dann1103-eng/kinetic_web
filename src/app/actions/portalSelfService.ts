@@ -74,182 +74,6 @@ async function loadClientWithPlan(
   return { ok: true, client, plan }
 }
 
-// ── Renovar mi plan (crea ciclo siguiente + factura + payment link) ──
-
-/**
- * El cliente solicita renovar su plan al siguiente período.
- * Crea (o reutiliza) un billing_cycle scheduled, una factura issued y un
- * payment link dinámico. Devuelve la URL para abrir el modal de pago.
- */
-export async function selfRenewMyCycle(): Promise<ActionResult> {
-  const auth = await requireClientUser()
-  if ('error' in auth) return auth
-
-  const admin = createAdminClient()
-  const loaded = await loadClientWithPlan(admin, auth.clientId)
-  if (!loaded.ok) return { error: loaded.error }
-  const { client, plan } = loaded
-  if (!plan) return { error: 'No tienes un plan asignado. Contacta a tu agencia.' }
-
-  const emitter = await loadEmitter()
-  if (!emitter) return { error: 'Configuración del emisor no inicializada' }
-
-  // Obtener ciclo actual para calcular fechas del siguiente.
-  const { data: currentRow } = await admin
-    .from('billing_cycles')
-    .select('id, period_start, period_end')
-    .eq('client_id', client.id)
-    .eq('status', 'current')
-    .maybeSingle()
-  const current = currentRow as Pick<BillingCycle, 'id' | 'period_start' | 'period_end'> | null
-  if (!current) return { error: 'No tienes un ciclo activo. Contacta a tu agencia.' }
-
-  // Crear o reutilizar scheduled.
-  const { data: existingScheduled } = await admin
-    .from('billing_cycles')
-    .select('id, period_start, period_end')
-    .eq('client_id', client.id)
-    .eq('status', 'scheduled')
-    .maybeSingle()
-
-  let cycleId: string
-  let periodStart: string
-  let periodEnd: string
-
-  if (existingScheduled) {
-    cycleId = existingScheduled.id as string
-    periodStart = existingScheduled.period_start as string
-    periodEnd = existingScheduled.period_end as string
-  } else {
-    const dates = nextCycleDates(current.period_end, { billingPeriod: client.billing_period })
-    periodStart = dates.periodStart
-    periodEnd = dates.periodEnd
-    const snapshot = plan.unified_content_limit != null
-      ? { ...(plan.limits_json ?? {}), unified_content_limit: plan.unified_content_limit }
-      : plan.limits_json
-    const { data: newCycle, error: cycleErr } = await admin
-      .from('billing_cycles')
-      .insert({
-        client_id: client.id,
-        plan_id_snapshot: plan.id,
-        limits_snapshot_json: snapshot,
-        rollover_from_previous_json: null,
-        period_start: periodStart,
-        period_end: periodEnd,
-        status: 'scheduled',
-        payment_status: 'unpaid',
-      })
-      .select('id')
-      .single()
-    if (cycleErr || !newCycle) return { error: 'Error al crear el ciclo programado' }
-    cycleId = newCycle.id as string
-  }
-
-  // ¿Ya hay factura issued para ese ciclo? La reutilizamos en vez de crear duplicada.
-  const { data: existingInvoice } = await admin
-    .from('invoices')
-    .select('id, n1co_payment_link_url, status')
-    .eq('billing_cycle_id', cycleId)
-    .neq('status', 'void')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
-  if (existingInvoice && existingInvoice.n1co_payment_link_url && existingInvoice.status !== 'paid') {
-    return {
-      ok: true,
-      paymentLinkUrl: existingInvoice.n1co_payment_link_url as string,
-      invoiceId: existingInvoice.id as string,
-    }
-  }
-
-  // Crear factura nueva con payment link n1co.
-  const half: 'first' | null = client.billing_period === 'biweekly' ? 'first' : null
-  const periodLabel = invoicePeriodLabel(periodStart, periodEnd, client.billing_period, half)
-  const items = suggestItemsFromPlan(plan, periodLabel)
-  const totals = calculateTotals({
-    items,
-    tax_rate: client.default_tax_rate ?? 0.13,
-    discount_amount: 0,
-  })
-
-  const { data: numberRow, error: numberErr } = await admin.rpc('next_invoice_number')
-  if (numberErr || !numberRow) return { error: 'Error al generar correlativo' }
-
-  const { data: inserted, error: insertErr } = await admin
-    .from('invoices')
-    .insert({
-      invoice_number: numberRow as unknown as string,
-      client_id: client.id,
-      billing_cycle_id: cycleId,
-      issue_date: todayString(),
-      currency: 'USD',
-      subtotal: totals.subtotal,
-      discount_amount: totals.discount_amount,
-      tax_rate: client.default_tax_rate ?? 0.13,
-      tax_amount: totals.tax_amount,
-      total: totals.total,
-      status: 'issued',
-      client_snapshot_json: buildClientSnapshot(client),
-      emitter_snapshot_json: buildEmitterSnapshot(emitter),
-      created_by: null,
-      biweekly_half: half,
-      payment_provider: 'n1co_link',
-    })
-    .select('id, invoice_number, total, currency, billing_cycle_id')
-    .single()
-  if (insertErr || !inserted) return { error: 'Error al crear la factura' }
-
-  await admin.from('invoice_items').insert(
-    totals.items.map((it) => ({
-      invoice_id: inserted.id,
-      description: it.description,
-      quantity: it.quantity,
-      unit_price: it.unit_price,
-      line_total: it.line_total,
-      sort_order: it.sort_order,
-    })),
-  )
-
-  let paymentLinkUrl = ''
-  try {
-    const link = await createInvoicePaymentLink({
-      invoice: {
-        id: inserted.id as string,
-        invoice_number: inserted.invoice_number as string,
-        total: inserted.total as number,
-        currency: inserted.currency as string,
-        billing_cycle_id: inserted.billing_cycle_id as string | null,
-      },
-      client: { id: client.id, name: client.name },
-      plan: { id: plan.id, name: plan.name },
-      periodLabel,
-      locationCode: emitter.n1co_location_code ?? undefined,
-    })
-    paymentLinkUrl = link.paymentLinkUrl
-    await admin
-      .from('invoices')
-      .update({
-        n1co_payment_link_url: link.paymentLinkUrl,
-        n1co_payment_link_id: extractPaymentLinkId(link.paymentLinkUrl) ?? String(link.orderId),
-        n1co_order_reference: inserted.id as string,
-      })
-      .eq('id', inserted.id)
-  } catch (err) {
-    if (err instanceof N1coApiError) {
-      console.error('[selfRenew] n1co api error', err.status, err.body)
-    } else {
-      console.error('[selfRenew] error creando link', err)
-    }
-    // Mantener factura sin link — admin puede regenerar
-    return { error: 'No se pudo conectar con la pasarela. Intenta de nuevo en un momento.' }
-  }
-
-  revalidatePath('/portal/dashboard')
-  revalidatePath('/portal/facturacion')
-  return { ok: true, paymentLinkUrl, invoiceId: inserted.id as string }
-}
-
 // ── Comprar paquete de cambios extras ──
 
 /**
@@ -345,6 +169,11 @@ export async function purchaseExtraCambios(args: {
       client: { id: client.id, name: client.name },
       plan: plan ? { id: plan.id, name: `${plan.name} · cambios extras` } : null,
       locationCode: emitter.n1co_location_code ?? undefined,
+      extraMetadata: [
+        { name: 'extraKind', value: 'cambios' },
+        { name: 'extraQty', value: String(args.qty) },
+        { name: 'extraPrice', value: String(args.pricePerPackage) },
+      ],
     })
     paymentLinkUrl = link.paymentLinkUrl
     await admin
@@ -453,6 +282,12 @@ export async function purchaseExtraContent(args: {
       client: { id: client.id, name: client.name },
       plan: plan ? { id: plan.id, name: `${label} adicional` } : null,
       locationCode: emitter.n1co_location_code ?? undefined,
+      extraMetadata: [
+        { name: 'extraKind', value: 'content' },
+        { name: 'extraContentType', value: args.contentType },
+        { name: 'extraQty', value: String(args.qty) },
+        { name: 'extraPrice', value: String(unitPrice) },
+      ],
     })
     paymentLinkUrl = link.paymentLinkUrl
     await admin

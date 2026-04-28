@@ -143,28 +143,46 @@ export default async function PortalDashboardPage() {
     : null
   const daysLeft = cycle ? daysUntilEnd(cycle.period_end) : null
 
-  // ── Banner de renovación: detectar factura del siguiente ciclo si ya existe ──
-  let scheduledLinkUrl: string | null = null
-  let scheduledInvoiceId: string | null = null
+  // ── Banner de renovación: cargar facturas pendientes + estado scheduled ──
+  // 1. Facturas issued no anuladas del cliente (= "pendientes de pago")
+  const { data: pendingInvoicesRows } = await supabase
+    .from('invoices')
+    .select('id, invoice_number, total, n1co_payment_link_url')
+    .eq('client_id', activeId)
+    .eq('status', 'issued')
+    .order('issue_date', { ascending: true })
+  const pendingInvoices = (pendingInvoicesRows ?? []).map((inv) => ({
+    id: inv.id as string,
+    invoice_number: inv.invoice_number as string,
+    total: Number(inv.total),
+    n1co_payment_link_url: (inv.n1co_payment_link_url as string | null) ?? null,
+  }))
+
+  // 2. Scheduled cycle (renovación) y si ya está pagado
+  let scheduledCycleForBanner: { period_start: string; paid: boolean } | null = null
   if (cycle) {
     const { data: scheduled } = await supabase
       .from('billing_cycles')
-      .select('id')
+      .select('id, period_start, payment_status')
       .eq('client_id', activeId)
       .eq('status', 'scheduled')
       .maybeSingle()
     if (scheduled?.id) {
+      // El payment_status del cycle se sincroniza al pagar la factura, pero verificamos
+      // también la última factura no-void del scheduled cycle para confirmar.
       const { data: scheduledInv } = await supabase
         .from('invoices')
-        .select('id, n1co_payment_link_url, status')
+        .select('status')
         .eq('billing_cycle_id', scheduled.id)
         .neq('status', 'void')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      if (scheduledInv?.status !== 'paid' && scheduledInv?.n1co_payment_link_url) {
-        scheduledLinkUrl = scheduledInv.n1co_payment_link_url as string
-        scheduledInvoiceId = scheduledInv.id as string
+      const paidByInvoice = scheduledInv?.status === 'paid'
+      const paidByCycle = scheduled.payment_status === 'paid'
+      scheduledCycleForBanner = {
+        period_start: scheduled.period_start as string,
+        paid: paidByInvoice || paidByCycle,
       }
     }
   }
@@ -181,10 +199,9 @@ export default async function PortalDashboardPage() {
         <RenewalBanner
           currentPeriodEnd={cycle.period_end}
           currentPaymentStatus={cycle.payment_status}
-          planName={client.plan?.name ?? null}
-          expectedAmount={client.plan?.price_usd ?? null}
-          existingScheduledLinkUrl={scheduledLinkUrl}
-          existingScheduledInvoiceId={scheduledInvoiceId}
+          autoBillingEnabled={client.auto_billing}
+          pendingInvoices={pendingInvoices}
+          scheduledCycle={scheduledCycleForBanner}
         />
       )}
 
