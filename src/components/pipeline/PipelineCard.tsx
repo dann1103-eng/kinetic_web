@@ -22,6 +22,8 @@ interface PipelineCardProps {
   onDoubleClick?: () => void
   canAssign?: boolean
   isAdmin?: boolean
+  /** true si el usuario es admin o supervisor (puede aprobar/rechazar cambios) */
+  isApprover?: boolean
   /** Timestamp (ms) used to compute phase-timer color. Passed from a
    *  board-level tick so all cards update in sync without each running its own interval. */
   nowMs?: number
@@ -205,6 +207,7 @@ export function PipelineCard({
   onDoubleClick,
   canAssign = false,
   isAdmin = false,
+  isApprover = false,
   nowMs,
   initialOpen = false,
   initialReviewOpen = false,
@@ -298,6 +301,7 @@ export function PipelineCard({
         includesStory={item.includes_story}
         deadline={item.deadline}
         isAdmin={isAdmin}
+        isApprover={isApprover}
         initialReviewOpen={initialReviewOpen}
         initialReviewPinId={initialReviewPinId}
       />

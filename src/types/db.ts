@@ -1555,7 +1555,7 @@ export const PAYMENT_METHOD_LABELS: Record<InvoicePaymentMethod, string> = {
 
 /** Item unificado para el dropdown de notificaciones (TopNav). */
 export interface NotificationItem {
-  kind: 'mention' | 'dm' | 'channel' | 'overdue' | 'calendar' | 'invoice_auto'
+  kind: 'mention' | 'dm' | 'channel' | 'overdue' | 'calendar' | 'invoice_auto' | 'cambio_pending'
   /** mention.id | conversation.id | requirement.id */
   id: string
   created_at: string
@@ -1595,6 +1595,13 @@ export interface NotificationItem {
   invoice_client_name?: string
   invoice_total?: number
   invoice_currency?: string
+  /* Para 'cambio_pending' */
+  cambio_log_id?: string
+  cambio_requirement_id?: string
+  cambio_requirement_title?: string
+  cambio_client_name?: string
+  cambio_client_id?: string
+  cambio_notes?: string
 }
 
 /** Mensaje enriquecido con autor y adjuntos para UI */

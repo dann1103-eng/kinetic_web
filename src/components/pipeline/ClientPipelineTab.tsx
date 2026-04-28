@@ -14,9 +14,11 @@ interface ClientPipelineTabProps {
   currentUserId: string
   canAssign?: boolean
   isAdmin?: boolean
+  /** true si el usuario es admin o supervisor (puede aprobar/rechazar cambios) */
+  isApprover?: boolean
 }
 
-export function ClientPipelineTab({ items, scheduledItems = [], logsMap, currentUserId, canAssign = false, isAdmin = false }: ClientPipelineTabProps) {
+export function ClientPipelineTab({ items, scheduledItems = [], logsMap, currentUserId, canAssign = false, isAdmin = false, isApprover = false }: ClientPipelineTabProps) {
   const [nowMs, setNowMs] = useState<number>(() => new Date().getTime())
   const searchParams = useSearchParams()
   const deepReq = searchParams.get('req')
@@ -63,6 +65,7 @@ export function ClientPipelineTab({ items, scheduledItems = [], logsMap, current
                 showClient={false}
                 canAssign={canAssign}
                 isAdmin={isAdmin}
+                isApprover={isApprover}
                 nowMs={nowMs}
                 initialOpen={deepReq === item.id}
                 initialReviewOpen={deepReq === item.id && deepTab === 'revision'}
@@ -91,6 +94,7 @@ export function ClientPipelineTab({ items, scheduledItems = [], logsMap, current
                 showClient={false}
                 canAssign={canAssign}
                 isAdmin={isAdmin}
+                isApprover={isApprover}
                 nowMs={nowMs}
               />
             ))}

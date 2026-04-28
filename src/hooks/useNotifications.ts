@@ -110,6 +110,8 @@ export function useNotifications() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'time_entries' }, scheduleFetch)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'time_entries' }, scheduleFetch)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'invoices' }, scheduleFetch)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requirement_cambio_logs' }, scheduleFetch)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'requirement_cambio_logs' }, scheduleFetch)
       .subscribe()
 
     safetyTimer = setInterval(fetchItems, SAFETY_POLL_MS)
@@ -197,6 +199,7 @@ export function useNotifications() {
     if (it.kind === 'mention') return sum + (it.read ? 0 : 1)
     if (it.kind === 'calendar') return sum + 1
     if (it.kind === 'invoice_auto') return sum + 1
+    if (it.kind === 'cambio_pending') return sum + 1
     return sum + (it.unread_count ?? 0)
   }, 0)
 

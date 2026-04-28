@@ -289,6 +289,7 @@ export default async function ClientDetailPage({
               currentUserId={authUser?.id ?? ''}
               canAssign={canCreate}
               isAdmin={isAdmin}
+              isApprover={isApprover}
             />
           </div>
         )}

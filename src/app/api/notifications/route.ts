@@ -397,8 +397,54 @@ export async function GET() {
     }
   }
 
+  /* ── Cambios pendientes de aprobación (solo admin/supervisor) ── */
+  const cambioPendingItems: NotificationItem[] = []
+  if (isAdminOrSupervisor) {
+    type CambioRow = {
+      id: string
+      requirement_id: string
+      notes: string | null
+      created_at: string
+      requirement: {
+        title: string
+        billing_cycle: { client: { id: string; name: string } | null } | null
+      } | null
+    }
+    const { data: pendingCambios } = await supabase
+      .from('requirement_cambio_logs')
+      .select(`
+        id, requirement_id, notes, created_at,
+        requirement:requirements!requirement_cambio_logs_requirement_id_fkey(
+          title,
+          billing_cycle:billing_cycles!requirements_billing_cycle_id_fkey(
+            client:clients!billing_cycles_client_id_fkey(id, name)
+          )
+        )
+      `)
+      .eq('status', 'pending')
+      .eq('voided', false)
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    for (const log of (pendingCambios ?? []) as unknown as CambioRow[]) {
+      const client = log.requirement?.billing_cycle?.client
+      cambioPendingItems.push({
+        kind: 'cambio_pending',
+        id: `cambio-${log.id}`,
+        created_at: log.created_at,
+        read: false,
+        cambio_log_id: log.id,
+        cambio_requirement_id: log.requirement_id,
+        cambio_requirement_title: log.requirement?.title || 'Requerimiento',
+        cambio_client_name: client?.name ?? '',
+        cambio_client_id: client?.id,
+        cambio_notes: log.notes ?? '',
+      })
+    }
+  }
+
   /* ── Merge y sort: vencidos al frente, luego por fecha ─────── */
-  const items = [...overdueItems, ...mentionItems, ...reviewMentionItems, ...invoiceAutoItems, ...calendarItems, ...convItems].sort((a, b) => {
+  const items = [...overdueItems, ...cambioPendingItems, ...mentionItems, ...reviewMentionItems, ...invoiceAutoItems, ...calendarItems, ...convItems].sort((a, b) => {
     if (a.kind === 'overdue' && b.kind !== 'overdue') return -1
     if (a.kind !== 'overdue' && b.kind === 'overdue') return 1
     return a.created_at < b.created_at ? 1 : -1
