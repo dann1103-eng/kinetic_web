@@ -3,8 +3,9 @@ import { getActiveClientId } from '@/lib/supabase/active-client'
 import { redirect } from 'next/navigation'
 import { PortalCalendarioClient } from '@/components/portal/PortalCalendarioClient'
 import { requirementToCalendarEvent } from '@/lib/domain/calendar'
+import { clientPhaseOf, CLIENT_PHASE_LABELS } from '@/lib/domain/pipeline'
 import type { CalendarEventKind } from '@/lib/domain/calendar'
-import type { ContentType } from '@/types/db'
+import type { ContentType, Phase } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,15 +32,15 @@ export default async function PortalCalendarioPage() {
     )
   }
 
-  // Query requirements with a deadline or starts_at
+  // Query requirements with a deadline or starts_at — include phase and notes for popup
   const { data: reqs } = await supabase
     .from('requirements')
-    .select('id, content_type, title, starts_at, deadline, estimated_time_minutes, assigned_to, billing_cycle_id')
+    .select('id, content_type, title, starts_at, deadline, estimated_time_minutes, assigned_to, billing_cycle_id, phase, notes')
     .eq('billing_cycle_id', cycle.id)
     .eq('voided', false)
     .or('deadline.not.is.null,starts_at.not.is.null')
 
-  // Convert to serializable event shape (ISO strings, not Date objects — server component)
+  // Serializable event shape (ISO strings, not Date objects — server component)
   type SerialEvent = {
     id: string
     kind: CalendarEventKind
@@ -47,10 +48,17 @@ export default async function PortalCalendarioPage() {
     start: string
     end: string
     allDay: boolean
+    phaseLabel: string | null
+    notes: string | null
+    deadline: string | null
   }
 
   const events: SerialEvent[] = []
+
   for (const req of reqs ?? []) {
+    const clientPhase = req.phase ? clientPhaseOf(req.phase as Phase) : null
+    const phaseLabel = clientPhase ? CLIENT_PHASE_LABELS[clientPhase] : null
+
     const ev = requirementToCalendarEvent(
       {
         id: req.id,
@@ -64,6 +72,7 @@ export default async function PortalCalendarioPage() {
       },
       null, null, null
     )
+
     if (ev) {
       events.push({
         id: ev.id,
@@ -72,6 +81,24 @@ export default async function PortalCalendarioPage() {
         start: ev.start.toISOString(),
         end: ev.end.toISOString(),
         allDay: ev.allDay,
+        phaseLabel,
+        notes: req.notes ?? null,
+        deadline: req.deadline ?? null,
+      })
+    } else if (req.deadline) {
+      // Fallback: any content_type with a deadline that the domain function doesn't map
+      // (e.g. campaña, copy, etc.) still appears on the deadline date
+      const start = new Date(req.deadline + 'T00:00:00')
+      events.push({
+        id: `req-${req.id}`,
+        kind: 'arte' as CalendarEventKind,
+        title: req.title || req.content_type,
+        start: start.toISOString(),
+        end: start.toISOString(),
+        allDay: true,
+        phaseLabel,
+        notes: req.notes ?? null,
+        deadline: req.deadline,
       })
     }
   }

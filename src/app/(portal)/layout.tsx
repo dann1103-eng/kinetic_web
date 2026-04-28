@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId, getActiveClientIds } from '@/lib/supabase/active-client'
 import { PortalSidebar } from '@/components/portal/PortalSidebar'
+import { PortalTopNav } from '@/components/portal/PortalTopNav'
 import { UserProvider } from '@/contexts/UserContext'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -59,6 +60,7 @@ export default async function PortalLayout({ children }: { children: React.React
           clientDisplayName={clientDisplayName}
         />
         <div className="flex flex-col flex-1 md:ml-64 overflow-hidden">
+          <PortalTopNav clientDisplayName={clientDisplayName} />
           <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
       </div>
