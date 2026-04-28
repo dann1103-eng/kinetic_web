@@ -26,6 +26,19 @@ function baseUrl(): string {
   return process.env.N1CO_API_BASE_URL ?? 'https://api-sandbox.n1co.shop'
 }
 
+/**
+ * CheckoutLink API tiene base URL distinta a Integration API.
+ *  - sandbox:   https://api-pay-sandbox.n1co.shop/api
+ *  - producción: https://api-pay.n1co.shop/api
+ * Override con N1CO_PAY_BASE_URL si fuera necesario.
+ */
+function payBaseUrl(): string {
+  if (process.env.N1CO_PAY_BASE_URL) return process.env.N1CO_PAY_BASE_URL
+  return process.env.N1CO_ENVIRONMENT === 'production'
+    ? 'https://api-pay.n1co.shop/api'
+    : 'https://api-pay-sandbox.n1co.shop/api'
+}
+
 function requireEnv(name: string): string {
   const v = process.env[name]
   if (!v) throw new Error(`Falta variable de entorno: ${name}`)
@@ -78,9 +91,14 @@ export interface N1coRequestOptions {
  * Llama a un endpoint n1co con autenticación automática.
  * Si recibe 401, reintenta una vez con un token nuevo.
  * Lanza N1coApiError en cualquier respuesta no-2xx.
+ *
+ * Routing de base URL:
+ *   - paths que empiezan con `/paymentlink/` → CheckoutLink API (api-pay-sandbox|api-pay.n1co.shop/api)
+ *   - resto → Integration API (api-sandbox|api.n1co.com)
  */
 export async function n1coRequest<T = unknown>(opts: N1coRequestOptions): Promise<T> {
-  const url = `${baseUrl()}${opts.path}`
+  const isCheckoutLink = opts.path.startsWith('/paymentlink/')
+  const url = `${isCheckoutLink ? payBaseUrl() : baseUrl()}${opts.path}`
   let token = await getToken()
 
   const doFetch = (t: string) =>
