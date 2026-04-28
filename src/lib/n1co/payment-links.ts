@@ -24,6 +24,7 @@ export async function createInvoicePaymentLink(args: {
   client: Pick<Client, 'id' | 'name'>
   plan?: Pick<Plan, 'id' | 'name'> | null
   periodLabel?: string
+  /** Si no se pasa, se deriva de APP_URL + /n1co-callback?invoice=...&status=success. */
   successUrl?: string
   cancelUrl?: string
   /** Default 4320 (3 días). */
@@ -47,13 +48,19 @@ export async function createInvoicePaymentLink(args: {
     metadata.push({ name: 'cycleId', value: invoice.billing_cycle_id })
   }
 
+  const appUrl = getAppUrl()
+  const successUrl = args.successUrl
+    ?? `${appUrl}/n1co-callback?invoice=${encodeURIComponent(invoice.id)}&status=success`
+  const cancelUrl = args.cancelUrl
+    ?? `${appUrl}/n1co-callback?invoice=${encodeURIComponent(invoice.id)}&status=cancel`
+
   const input: CreatePaymentLinkInput = {
     orderReference: invoice.id,
     orderName,
     orderDescription,
     amount: invoice.total,
-    successUrl: args.successUrl,
-    cancelUrl: args.cancelUrl,
+    successUrl,
+    cancelUrl,
     expirationMinutes: args.expirationMinutes ?? 4320,
     locationCode: args.locationCode,
     metadata,
@@ -64,6 +71,20 @@ export async function createInvoicePaymentLink(args: {
     path: '/paymentlink/checkout',
     body: input,
   })
+}
+
+/**
+ * URL absoluta de la app, para construir successUrl/cancelUrl que n1co
+ * usa al redirigir el iframe post-pago.
+ *  - APP_URL (preferido, configurado a mano)
+ *  - VERCEL_URL (auto en Vercel; sin protocolo, hay que añadir https://)
+ *  - http://localhost:3000 (fallback dev)
+ */
+function getAppUrl(): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, '')
+  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '')
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  return 'http://localhost:3000'
 }
 
 /**

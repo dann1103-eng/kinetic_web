@@ -29,6 +29,12 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next({ request })
   }
 
+  // Callback público para flujo de pago embebido n1co — n1co redirige el iframe
+  // a /n1co-callback y necesita cargarse sin auth (el iframe no tiene cookies).
+  if (request.nextUrl.pathname.startsWith('/n1co-callback')) {
+    return NextResponse.next({ request })
+  }
+
   try {
     let supabaseResponse = NextResponse.next({ request })
 

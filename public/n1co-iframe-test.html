@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>n1co iframe test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #f4f4f4;
+      padding: 24px;
+    }
+    h1 { font-size: 18px; margin: 0 0 8px; }
+    p { font-size: 14px; color: #666; margin: 0 0 16px; }
+    .row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    button {
+      padding: 8px 14px;
+      background: #00675c;
+      color: white;
+      border: 0;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #004d44; }
+    iframe {
+      width: 100%;
+      height: 700px;
+      border: 2px solid #00675c;
+      border-radius: 12px;
+      background: white;
+    }
+    .status {
+      padding: 8px 12px;
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+    .status.ok { background: #d4edda; border-color: #28a745; }
+    .status.fail { background: #f8d7da; border-color: #dc3545; }
+    code { background: #eee; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>n1co — Test de embebido en iframe</h1>
+  <p>
+    Si el iframe carga el formulario de pago de n1co correctamente, podemos integrar pago embebido en el CRM.
+    Si sale en blanco o redirige a una URL externa, n1co bloquea iframes via JavaScript.
+  </p>
+
+  <div class="row">
+    <button onclick="loadIframe('2PGRcv1q', 'Básico')">Cargar plan Básico</button>
+    <button onclick="loadIframe('KEj9c0YV', 'Pro')">Cargar plan Pro</button>
+    <button onclick="loadIframe('Q2O5Fdkw', 'Premium')">Cargar plan Premium</button>
+  </div>
+
+  <div id="status" class="status">Selecciona un link arriba para probar.</div>
+
+  <iframe id="checkout" src="about:blank" title="n1co checkout"></iframe>
+
+  <script>
+    const iframe = document.getElementById('checkout')
+    const status = document.getElementById('status')
+    let timer
+
+    function loadIframe(id, planName) {
+      const url = `https://pay-sandbox.n1co.shop/pl/${id}`
+      iframe.src = url
+      status.className = 'status'
+      status.textContent = `Cargando ${planName} (${url})…`
+
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        // Intentar leer si el iframe sigue en n1co.shop (frame busting cambiaría top.location)
+        if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.location.pathname.includes('n1co-iframe-test')) {
+          status.className = 'status fail'
+          status.textContent = '❌ Frame busting detectado: n1co cambió la URL del top window. No se puede embeber.'
+        } else {
+          status.className = 'status ok'
+          status.textContent = `✓ Iframe cargado. Top window sigue siendo: ${window.location.href}. Mira el iframe arriba — si ves el formulario de pago, ¡funciona el embed!`
+        }
+      }, 3000)
+    }
+
+    // Detectar si n1co intenta hacer frame-busting via window.top redirect
+    // Si la página redirige fuera de localhost, este script no correrá más
+    window.addEventListener('load', () => {
+      console.log('[test] page loaded, top.location:', window.location.href)
+    })
+
+    // Capturar mensajes postMessage del iframe (si n1co usa postMessage para señalar pago exitoso)
+    window.addEventListener('message', (event) => {
+      console.log('[test] postMessage received from iframe:', event.origin, event.data)
+      const log = document.createElement('div')
+      log.style.cssText = 'background:#e3f2fd;border:1px solid #2196f3;padding:8px;border-radius:6px;margin-top:8px;font-size:12px;font-family:monospace'
+      log.textContent = `📨 postMessage from ${event.origin}: ${JSON.stringify(event.data).slice(0, 200)}`
+      document.body.insertBefore(log, iframe)
+    })
+  </script>
+</body>
+</html>

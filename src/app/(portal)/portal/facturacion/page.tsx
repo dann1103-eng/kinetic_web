@@ -5,6 +5,7 @@ import { getActiveClientId } from '@/lib/supabase/active-client'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { InvoiceStatusBadge, QuoteStatusBadge } from '@/components/billing/StatusBadge'
+import { N1coPayButton } from '@/components/billing/N1coPayModal'
 import type { InvoiceStatus, QuoteStatus } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -83,15 +84,14 @@ export default async function PortalFacturacionPage() {
                     <td className="py-2.5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {inv.status === 'issued' && inv.n1co_payment_link_url && (
-                          <a
-                            href={inv.n1co_payment_link_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <N1coPayButton
+                            paymentLinkUrl={inv.n1co_payment_link_url}
+                            invoiceId={inv.id}
                             className="inline-flex items-center gap-1 rounded-full bg-fm-primary px-3 py-1 text-[11px] font-semibold text-white hover:bg-fm-primary/90"
                           >
                             <span className="material-symbols-outlined" style={{ fontSize: 13 }}>credit_card</span>
                             Pagar
-                          </a>
+                          </N1coPayButton>
                         )}
                         <Link
                           href={`/portal/facturacion/${inv.id}`}

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { regenerateN1coLink } from '@/app/actions/invoices'
+import { N1coPayButton } from './N1coPayModal'
 import { PAYMENT_PROVIDER_LABELS, type Invoice, type PaymentProvider } from '@/types/db'
 
 interface Props {
@@ -72,32 +73,36 @@ export function N1coStatusPanel({ invoice, isAdmin }: Props) {
         <p><strong className="text-fm-on-surface">Método:</strong> {PAYMENT_PROVIDER_LABELS[invoice.payment_provider as PaymentProvider]}</p>
       </div>
 
-      {isLinkBased && url && (
+      {isLinkBased && url && !isPaid && (
         <div className="space-y-2">
+          <N1coPayButton
+            paymentLinkUrl={url}
+            invoiceId={invoice.id}
+          />
           <div className="rounded-xl bg-fm-background border border-fm-surface-container-high p-2">
-            <p className="text-[10px] uppercase tracking-wider text-fm-outline-variant mb-1">Link de pago</p>
+            <p className="text-[10px] uppercase tracking-wider text-fm-outline-variant mb-1">O comparte el link</p>
             <p className="text-xs font-mono break-all text-fm-on-surface">{url}</p>
+            <div className="flex gap-2 mt-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={copyLink}
+                className="flex-1 rounded-xl text-xs"
+              >
+                {copied ? 'Copiado ✓' : 'Copiar'}
+              </Button>
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 text-center rounded-xl border border-fm-primary/30 text-fm-primary text-xs font-semibold py-1.5 hover:bg-fm-primary/5"
+              >
+                Abrir externo
+              </a>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={copyLink}
-              className="flex-1 rounded-xl text-xs"
-            >
-              {copied ? 'Copiado ✓' : 'Copiar link'}
-            </Button>
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 text-center rounded-xl border border-fm-primary/30 text-fm-primary text-xs font-semibold py-1.5 hover:bg-fm-primary/5"
-            >
-              Abrir
-            </a>
-          </div>
-          {isAdmin && !isPaid && (
+          {isAdmin && (
             <Button
               type="button"
               size="sm"
@@ -109,6 +114,12 @@ export function N1coStatusPanel({ invoice, isAdmin }: Props) {
               {pending ? 'Regenerando…' : 'Regenerar link'}
             </Button>
           )}
+        </div>
+      )}
+      {isLinkBased && url && isPaid && (
+        <div className="rounded-xl bg-fm-background border border-fm-surface-container-high p-2">
+          <p className="text-[10px] uppercase tracking-wider text-fm-outline-variant mb-1">Link usado</p>
+          <p className="text-xs font-mono break-all text-fm-on-surface">{url}</p>
         </div>
       )}
 
