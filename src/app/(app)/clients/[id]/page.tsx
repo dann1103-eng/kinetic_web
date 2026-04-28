@@ -220,7 +220,14 @@ export default async function ClientDetailPage({
     : { data: null }
   const isAdmin = appUser?.role === 'admin'
   const isApprover = appUser?.role === 'admin' || appUser?.role === 'supervisor'
-  const portalUsers = isAdmin ? await listClientUsers(id) : []
+  let portalUsers: Awaited<ReturnType<typeof listClientUsers>> = []
+  if (isAdmin) {
+    try {
+      portalUsers = await listClientUsers(id)
+    } catch (e) {
+      console.error('[ClientDetailPage] listClientUsers error:', e)
+    }
+  }
   const canCreate = appUser?.role === 'admin' || appUser?.role === 'supervisor'
 
   return (
