@@ -7,13 +7,22 @@ import {
   buildClientSnapshot,
   buildEmitterSnapshot,
   calculateTotals,
-  suggestItemsFromPlan,
   type LineItemInput,
 } from '@/lib/domain/invoices'
-import { invoicePeriodLabel } from '@/lib/domain/billing'
+import { markInvoicePaidCore } from '@/lib/domain/invoice-paid'
 import { nextCycleDates } from '@/lib/domain/cycles'
 import { today as todayString } from '@/lib/domain/dates'
-import type { Client, CompanySettings, InvoicePaymentMethod, Plan, BillingCycle } from '@/types/db'
+import { createInvoicePaymentLink, extractPaymentLinkId } from '@/lib/n1co/payment-links'
+import { N1coApiError } from '@/lib/n1co/types'
+import type {
+  Client,
+  CompanySettings,
+  DteTipo,
+  InvoicePaymentMethod,
+  PaymentProvider,
+  Plan,
+  BillingCycle,
+} from '@/types/db'
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -40,13 +49,14 @@ export interface CreateInvoiceInput {
   dueDate?: string | null
   notes?: string | null
   biweeklyHalf?: 'first' | 'second' | null
+  paymentProvider?: PaymentProvider
 }
 
 export async function createInvoice(
   input: CreateInvoiceInput
 ): Promise<
   | { error: string }
-  | { ok: true; invoiceId: string; invoiceNumber: string }
+  | { ok: true; invoiceId: string; invoiceNumber: string; n1coPaymentLinkUrl?: string | null }
 > {
   const auth = await requireAdmin()
   if ('error' in auth) return { error: auth.error as string }
@@ -74,6 +84,8 @@ export async function createInvoice(
   if (numberErr || !numberRow) return { error: 'Error al generar el correlativo' as const }
   const invoiceNumber = numberRow as unknown as string
 
+  const paymentProvider: PaymentProvider = input.paymentProvider ?? 'manual'
+
   const { data: inserted, error: insertErr } = await admin
     .from('invoices')
     .insert({
@@ -95,6 +107,7 @@ export async function createInvoice(
       emitter_snapshot_json: buildEmitterSnapshot(emitter),
       created_by: auth.userId,
       biweekly_half: input.biweeklyHalf ?? null,
+      payment_provider: paymentProvider,
     })
     .select('id')
     .single()
@@ -116,10 +129,88 @@ export async function createInvoice(
     return { error: 'Error al guardar los ítems de la factura' as const }
   }
 
+  // Si el método de cobro es n1co_link: generar payment link dinámico ahora.
+  let paymentLinkUrl: string | null = null
+  if (paymentProvider === 'n1co_link') {
+    const planRow = client.current_plan_id
+      ? (await admin.from('plans').select('id, name').eq('id', client.current_plan_id).maybeSingle()).data
+      : null
+    const link = await createPaymentLinkSafe({
+      invoiceId: inserted.id as string,
+      invoiceNumber,
+      total: totals.total,
+      currency: 'USD',
+      billingCycleId: input.billingCycleId ?? null,
+      clientId: client.id,
+      clientName: client.name,
+      plan: planRow as { id: string; name: string } | null,
+      locationCode: emitter.n1co_location_code ?? undefined,
+    })
+    if (link) {
+      paymentLinkUrl = link.paymentLinkUrl
+      await admin
+        .from('invoices')
+        .update({
+          n1co_payment_link_url: link.paymentLinkUrl,
+          n1co_payment_link_id: extractPaymentLinkId(link.paymentLinkUrl) ?? String(link.orderId),
+          n1co_order_reference: inserted.id as string,
+        })
+        .eq('id', inserted.id)
+    } else {
+      // Si falló la creación del link, dejamos el provider en manual y notificamos por revalidate
+      await admin
+        .from('invoices')
+        .update({ payment_provider: 'manual' as const })
+        .eq('id', inserted.id)
+    }
+  }
+
   revalidatePath('/billing')
   revalidatePath('/billing/invoices')
   revalidatePath(`/billing/invoices/${inserted.id}`)
-  return { ok: true as const, invoiceId: inserted.id, invoiceNumber }
+  return {
+    ok: true as const,
+    invoiceId: inserted.id,
+    invoiceNumber,
+    n1coPaymentLinkUrl: paymentLinkUrl,
+  }
+}
+
+interface SafeLinkArgs {
+  invoiceId: string
+  invoiceNumber: string
+  total: number
+  currency: string
+  billingCycleId: string | null
+  clientId: string
+  clientName: string
+  plan: { id: string; name: string } | null
+  locationCode?: string
+}
+
+async function createPaymentLinkSafe(args: SafeLinkArgs) {
+  try {
+    const link = await createInvoicePaymentLink({
+      invoice: {
+        id: args.invoiceId,
+        invoice_number: args.invoiceNumber,
+        total: args.total,
+        currency: args.currency,
+        billing_cycle_id: args.billingCycleId,
+      },
+      client: { id: args.clientId, name: args.clientName },
+      plan: args.plan,
+      locationCode: args.locationCode,
+    })
+    return link
+  } catch (err) {
+    if (err instanceof N1coApiError) {
+      console.error('[n1co] error creando payment link', err.status, err.body)
+    } else {
+      console.error('[n1co] error creando payment link', err)
+    }
+    return null
+  }
 }
 
 export async function issueInvoice(id: string): Promise<{ error: string } | { ok: true }> {
@@ -147,143 +238,21 @@ export async function markInvoicePaid(args: {
   if ('error' in auth) return { error: auth.error as string }
   const admin = createAdminClient()
 
-  const { data: inv } = await admin
-    .from('invoices')
-    .select('id, client_id, billing_cycle_id, biweekly_half')
-    .eq('id', args.id)
-    .single()
-  if (!inv) return { error: 'Factura no encontrada' as const }
-
-  const payDate = args.paymentDate ?? todayString()
-  const { error } = await admin
-    .from('invoices')
-    .update({
-      status: 'paid',
-      payment_method: args.paymentMethod,
-      payment_date: payDate,
-      payment_reference: args.paymentReference ?? null,
-    })
-    .eq('id', args.id)
-  if (error) return { error: 'Error al marcar la factura como pagada' as const }
-
-  // Sincroniza con billing_cycles según biweekly_half.
-  if (inv.billing_cycle_id) {
-    const halfUpdate =
-      inv.biweekly_half === 'second'
-        ? { payment_status_2: 'paid' as const, payment_date_2: payDate }
-        : inv.biweekly_half === 'first'
-          ? { payment_status: 'paid' as const, payment_date: payDate }
-          : {
-              payment_status: 'paid' as const,
-              payment_date: payDate,
-              payment_status_2: 'paid' as const,
-              payment_date_2: payDate,
-            }
-    await admin.from('billing_cycles').update(halfUpdate).eq('id', inv.billing_cycle_id)
-    revalidatePath('/renewals')
-
-    // Si fue la primera quincena: generar reactivamente la factura 'second' si no existe.
-    if (inv.biweekly_half === 'first') {
-      await generateBiweeklySecondIfNeeded({
-        cycleId: inv.billing_cycle_id,
-        clientId: inv.client_id,
-        issuedBy: auth.userId,
-      })
-    }
-  }
+  const result = await markInvoicePaidCore(admin, {
+    invoiceId: args.id,
+    paymentMethod: args.paymentMethod,
+    paymentDate: args.paymentDate,
+    paymentReference: args.paymentReference,
+  })
+  if (!result.ok) return { error: result.error ?? 'Error al marcar la factura como pagada' }
 
   revalidatePath('/billing')
   revalidatePath('/billing/invoices')
   revalidatePath(`/billing/invoices/${args.id}`)
-  revalidatePath(`/clients/${inv.client_id}`)
+  if (result.clientId) revalidatePath(`/clients/${result.clientId}`)
+  if (result.cycleId) revalidatePath('/renewals')
   revalidatePath('/dashboard')
   return { ok: true as const }
-}
-
-async function generateBiweeklySecondIfNeeded(args: {
-  cycleId: string
-  clientId: string
-  issuedBy: string
-}) {
-  const admin = createAdminClient()
-
-  const { data: existingSecond } = await admin
-    .from('invoices')
-    .select('id')
-    .eq('billing_cycle_id', args.cycleId)
-    .eq('biweekly_half', 'second')
-    .neq('status', 'void')
-    .maybeSingle()
-  if (existingSecond) return
-
-  const [{ data: cycle }, { data: client }, emitter] = await Promise.all([
-    admin
-      .from('billing_cycles')
-      .select('id, period_start, period_end, plan_id_snapshot')
-      .eq('id', args.cycleId)
-      .single(),
-    admin.from('clients').select('*').eq('id', args.clientId).single(),
-    loadEmitter(),
-  ])
-  if (!cycle || !client || !emitter) return
-
-  const { data: plan } = await admin
-    .from('plans')
-    .select('*')
-    .eq('id', (cycle as BillingCycle).plan_id_snapshot)
-    .single()
-  if (!plan) return
-
-  // Computar periodo de la segunda quincena: medio del ciclo → period_end.
-  const start = new Date((cycle as BillingCycle).period_start)
-  const secondHalfStart = new Date(start)
-  secondHalfStart.setDate(start.getDate() + 7)
-  const secondStartISO = secondHalfStart.toISOString().split('T')[0]
-  const secondEndISO = (cycle as BillingCycle).period_end
-
-  const label = invoicePeriodLabel(secondStartISO, secondEndISO, 'biweekly', 'second')
-  const items = suggestItemsFromPlan(plan as Plan, label)
-  const totals = calculateTotals({ items, tax_rate: 0, discount_amount: 0 })
-
-  const { data: numberRow, error: numberErr } = await admin.rpc('next_invoice_number')
-  if (numberErr || !numberRow) return
-
-  const { data: inserted, error: insertErr } = await admin
-    .from('invoices')
-    .insert({
-      invoice_number: numberRow as unknown as string,
-      client_id: (client as Client).id,
-      billing_cycle_id: args.cycleId,
-      quote_id: null,
-      issue_date: todayString(),
-      currency: 'USD',
-      subtotal: totals.subtotal,
-      discount_amount: totals.discount_amount,
-      tax_rate: 0,
-      tax_amount: totals.tax_amount,
-      total: totals.total,
-      status: 'issued',
-      client_snapshot_json: buildClientSnapshot(client as Client),
-      emitter_snapshot_json: buildEmitterSnapshot(emitter),
-      created_by: null,
-      biweekly_half: 'second',
-    })
-    .select('id')
-    .single()
-  if (insertErr || !inserted) return
-
-  await admin.from('invoice_items').insert(
-    totals.items.map((it) => ({
-      invoice_id: inserted.id,
-      description: it.description,
-      quantity: it.quantity,
-      unit_price: it.unit_price,
-      line_total: it.line_total,
-      sort_order: it.sort_order,
-    }))
-  )
-  // El issuedBy queda registrado implícitamente por ser una acción del admin que pagó la 1ra.
-  void args.issuedBy
 }
 
 export async function voidInvoice(id: string, reason: string): Promise<{ error: string } | { ok: true }> {
@@ -317,7 +286,6 @@ export async function ensureScheduledCycle(
   if ('error' in auth) return { error: auth.error as string }
   const admin = createAdminClient()
 
-  // Reusar si ya hay uno scheduled
   const { data: existing } = await admin
     .from('billing_cycles')
     .select('id')
@@ -326,7 +294,6 @@ export async function ensureScheduledCycle(
     .maybeSingle()
   if (existing?.id) return { ok: true as const, cycleId: existing.id as string }
 
-  // Cargar cliente + ciclo actual + plan
   const [{ data: clientRow }, { data: currentRow }] = await Promise.all([
     admin.from('clients').select('*').eq('id', clientId).single(),
     admin
@@ -386,5 +353,152 @@ export async function deleteInvoiceDraft(id: string): Promise<{ error: string } 
   const { error } = await admin.from('invoices').delete().eq('id', id)
   if (error) return { error: 'Error al eliminar el borrador' as const }
   revalidatePath('/billing/invoices')
+  return { ok: true as const }
+}
+
+// ── n1co-specific actions ────────────────────────────────────
+
+/**
+ * Regenera un payment link n1co para una factura existente.
+ * Útil cuando el link expiró o el monto cambió.
+ */
+export async function regenerateN1coLink(
+  invoiceId: string,
+): Promise<{ error: string } | { ok: true; paymentLinkUrl: string }> {
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error as string }
+  const admin = createAdminClient()
+
+  const { data: inv } = await admin
+    .from('invoices')
+    .select('id, invoice_number, total, currency, billing_cycle_id, client_id, status')
+    .eq('id', invoiceId)
+    .single()
+  if (!inv) return { error: 'Factura no encontrada' as const }
+  if (inv.status === 'paid' || inv.status === 'void') {
+    return { error: 'No se puede regenerar el link de una factura pagada o anulada' as const }
+  }
+
+  const [{ data: clientRow }, emitter] = await Promise.all([
+    admin.from('clients').select('id, name, current_plan_id').eq('id', inv.client_id).single(),
+    loadEmitter(),
+  ])
+  if (!clientRow) return { error: 'Cliente no encontrado' as const }
+
+  const { data: planRow } = clientRow.current_plan_id
+    ? await admin.from('plans').select('id, name').eq('id', clientRow.current_plan_id).maybeSingle()
+    : { data: null }
+
+  const link = await createPaymentLinkSafe({
+    invoiceId: inv.id,
+    invoiceNumber: inv.invoice_number,
+    total: inv.total,
+    currency: inv.currency,
+    billingCycleId: inv.billing_cycle_id,
+    clientId: clientRow.id,
+    clientName: clientRow.name,
+    plan: planRow as { id: string; name: string } | null,
+    locationCode: emitter?.n1co_location_code ?? undefined,
+  })
+
+  if (!link) return { error: 'No se pudo generar el link en n1co' as const }
+
+  await admin
+    .from('invoices')
+    .update({
+      n1co_payment_link_url: link.paymentLinkUrl,
+      n1co_payment_link_id: extractPaymentLinkId(link.paymentLinkUrl) ?? String(link.orderId),
+      n1co_order_reference: inv.id,
+      payment_provider: 'n1co_link',
+    })
+    .eq('id', invoiceId)
+
+  revalidatePath(`/billing/invoices/${invoiceId}`)
+  return { ok: true as const, paymentLinkUrl: link.paymentLinkUrl }
+}
+
+/**
+ * Asigna manualmente un evento de pago huérfano a una factura.
+ * Llama al core de "marcar pagada" reusando los datos del payload original.
+ */
+export async function assignOrphanPayment(
+  args: { eventId: string; invoiceId: string },
+): Promise<{ error: string } | { ok: true }> {
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error as string }
+  const admin = createAdminClient()
+
+  const { data: event } = await admin
+    .from('n1co_payment_events')
+    .select('id, raw_payload_json, processed, order_id, buyer_email, buyer_name')
+    .eq('id', args.eventId)
+    .single()
+  if (!event) return { error: 'Evento no encontrado' as const }
+
+  const result = await markInvoicePaidCore(admin, {
+    invoiceId: args.invoiceId,
+    paymentMethod: 'card',
+    paymentReference: event.order_id as string | null,
+    n1co: {
+      orderId: event.order_id as string | null,
+      buyerEmail: event.buyer_email as string | null,
+      buyerName: event.buyer_name as string | null,
+      paidAt: new Date().toISOString(),
+    },
+  })
+  if (!result.ok) return { error: result.error ?? 'Error al marcar la factura como pagada' }
+
+  await admin
+    .from('n1co_payment_events')
+    .update({
+      matched_invoice_id: args.invoiceId,
+      matched_client_id: result.clientId ?? null,
+      matching_strategy: 'manual',
+      processed: true,
+      process_error: null,
+    })
+    .eq('id', args.eventId)
+
+  revalidatePath('/billing/orphan-payments')
+  revalidatePath(`/billing/invoices/${args.invoiceId}`)
+  return { ok: true as const }
+}
+
+/**
+ * Registra manualmente los datos del DTE emitido por n1co (o por otro proveedor)
+ * sobre una factura ya pagada. El admin entra al portal de n1co, copia los datos
+ * y los pega en el form del CRM.
+ */
+export async function registerDteData(args: {
+  invoiceId: string
+  codigoGeneracion: string | null
+  numeroControl: string | null
+  selloRecepcion: string | null
+  tipo: DteTipo | null
+  pdfUrl: string | null
+}): Promise<{ error: string } | { ok: true }> {
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error as string }
+  const admin = createAdminClient()
+
+  // Validación mínima de UUID en codigoGeneracion (formato MH)
+  if (args.codigoGeneracion && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(args.codigoGeneracion)) {
+    return { error: 'Código de generación con formato inválido (debe ser UUID v4)' }
+  }
+
+  const { error } = await admin
+    .from('invoices')
+    .update({
+      dte_codigo_generacion: args.codigoGeneracion,
+      dte_numero_control: args.numeroControl,
+      dte_sello_recepcion: args.selloRecepcion,
+      dte_tipo: args.tipo,
+      dte_pdf_url: args.pdfUrl,
+      dte_received_at: args.codigoGeneracion ? new Date().toISOString() : null,
+    })
+    .eq('id', args.invoiceId)
+  if (error) return { error: 'Error al guardar los datos del DTE' as const }
+
+  revalidatePath(`/billing/invoices/${args.invoiceId}`)
   return { ok: true as const }
 }

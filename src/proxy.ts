@@ -23,6 +23,12 @@ function startsWithAny(pathname: string, prefixes: string[]): boolean {
 }
 
 export async function proxy(request: NextRequest) {
+  // Webhooks de proveedores externos (n1co, etc.) no usan auth de Supabase —
+  // se autentican vía firma HMAC dentro del handler. Bypass total del middleware.
+  if (request.nextUrl.pathname.startsWith('/api/webhooks/')) {
+    return NextResponse.next({ request })
+  }
+
   try {
     let supabaseResponse = NextResponse.next({ request })
 

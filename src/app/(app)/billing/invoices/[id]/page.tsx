@@ -5,6 +5,8 @@ import { TopNav } from '@/components/layout/TopNav'
 import { InvoiceStatusBadge } from '@/components/billing/StatusBadge'
 import { InvoiceActions } from '@/components/billing/InvoiceActions'
 import { MarkPaidButton } from '@/components/billing/MarkPaidButton'
+import { N1coStatusPanel } from '@/components/billing/N1coStatusPanel'
+import { DteRegisterForm } from '@/components/billing/DteRegisterForm'
 import { formatCurrency, formatTaxRate } from '@/lib/domain/invoices'
 import type {
   ClientFiscalSnapshot,
@@ -162,6 +164,10 @@ export default async function InvoiceDetailPage({
                 Factura ligada a un ciclo de facturación.
               </div>
             )}
+
+            <N1coStatusPanel invoice={invoice} isAdmin={isAdmin} />
+
+            {isAdmin && invoice.status === 'paid' && <DteRegisterForm invoice={invoice} />}
 
             {isAdmin && invoice.status === 'issued' && (
               <MarkPaidButton invoiceId={invoice.id} linkedToCycle={!!invoice.billing_cycle_id} />

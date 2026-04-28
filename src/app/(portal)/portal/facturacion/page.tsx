@@ -17,7 +17,7 @@ export default async function PortalFacturacionPage() {
 
   const { data: invoices } = await supabase
     .from('invoices')
-    .select('id, invoice_number, status, issue_date, due_date, total, currency')
+    .select('id, invoice_number, status, issue_date, due_date, total, currency, n1co_payment_link_url, payment_provider')
     .eq('client_id', activeId)
     .order('issue_date', { ascending: false })
 
@@ -81,15 +81,28 @@ export default async function PortalFacturacionPage() {
                       <InvoiceStatusBadge status={inv.status as InvoiceStatus} />
                     </td>
                     <td className="py-2.5 text-right">
-                      <Link
-                        href={`/portal/facturacion/${inv.id}`}
-                        className="text-xs text-fm-on-surface-variant hover:text-fm-primary"
-                        aria-label={`Ver factura ${inv.invoice_number}`}
-                      >
-                        <span className="material-symbols-outlined text-base align-middle">
-                          chevron_right
-                        </span>
-                      </Link>
+                      <div className="flex items-center justify-end gap-2">
+                        {inv.status === 'issued' && inv.n1co_payment_link_url && (
+                          <a
+                            href={inv.n1co_payment_link_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-full bg-fm-primary px-3 py-1 text-[11px] font-semibold text-white hover:bg-fm-primary/90"
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>credit_card</span>
+                            Pagar
+                          </a>
+                        )}
+                        <Link
+                          href={`/portal/facturacion/${inv.id}`}
+                          className="text-xs text-fm-on-surface-variant hover:text-fm-primary"
+                          aria-label={`Ver factura ${inv.invoice_number}`}
+                        >
+                          <span className="material-symbols-outlined text-base align-middle">
+                            chevron_right
+                          </span>
+                        </Link>
+                      </div>
                     </td>
                   </tr>
                 ))}

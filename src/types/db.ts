@@ -84,6 +84,38 @@ export type InvoiceStatus = 'draft' | 'issued' | 'paid' | 'void'
 export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired'
 export type InvoicePaymentMethod = 'cash' | 'transfer' | 'check' | 'card' | 'other'
 
+// ── n1co (migración 0060) ────────────────────────────────────
+export type PaymentProvider =
+  | 'manual'              // efectivo, transferencia, cheque (markInvoicePaid manual)
+  | 'n1co_subscription'   // suscripción recurrente n1co
+  | 'n1co_link'           // payment link dinámico por factura
+  | 'n1co_link_oneoff'    // paquete extra (cambios/contenido) cobrado fuera del ciclo
+  | 'n1co_static'         // link estático por plan (fallback)
+
+export type N1coSubscriptionStatus =
+  | 'Pending' | 'Active' | 'Inactive' | 'Blocked' | 'Error' | 'Cancelled'
+
+export type N1coEnvironment = 'sandbox' | 'production'
+
+/** Tipo de DTE según el catálogo del Ministerio de Hacienda de El Salvador. */
+export type DteTipo = '01' | '03' | '05' | '06' | '14'
+
+export const DTE_TIPO_LABELS: Record<DteTipo, string> = {
+  '01': 'Factura de Consumidor Final',
+  '03': 'Comprobante de Crédito Fiscal',
+  '05': 'Nota de Crédito',
+  '06': 'Nota de Débito',
+  '14': 'Factura de Sujeto Excluido',
+}
+
+export const PAYMENT_PROVIDER_LABELS: Record<PaymentProvider, string> = {
+  manual:             'Manual',
+  n1co_subscription:  'Suscripción n1co',
+  n1co_link:          'Link n1co (por factura)',
+  n1co_link_oneoff:   'Link n1co (paquete extra)',
+  n1co_static:        'Link n1co (estático)',
+}
+
 export interface PaymentMethodConfig {
   id: string
   type: 'bank' | 'card' | 'other'
@@ -206,6 +238,10 @@ export interface Database {
           created_at: string
           default_weekly_distribution_json: WeeklyDistribution | null
           unified_content_limit: number | null
+          n1co_plan_id: string | null
+          n1co_payment_link_static_sandbox: string | null
+          n1co_payment_link_static_prod: string | null
+          n1co_synced_at: string | null
         }
         Insert: {
           id?: string
@@ -216,6 +252,10 @@ export interface Database {
           active?: boolean
           default_weekly_distribution_json?: WeeklyDistribution | null
           unified_content_limit?: number | null
+          n1co_plan_id?: string | null
+          n1co_payment_link_static_sandbox?: string | null
+          n1co_payment_link_static_prod?: string | null
+          n1co_synced_at?: string | null
         }
         Update: {
           name?: string
@@ -225,6 +265,10 @@ export interface Database {
           active?: boolean
           default_weekly_distribution_json?: WeeklyDistribution | null
           unified_content_limit?: number | null
+          n1co_plan_id?: string | null
+          n1co_payment_link_static_sandbox?: string | null
+          n1co_payment_link_static_prod?: string | null
+          n1co_synced_at?: string | null
         }
         Relationships: []
       }
@@ -264,6 +308,12 @@ export interface Database {
           default_tax_rate: number | null
           auto_billing: boolean
           is_foreign: boolean
+          n1co_customer_id: string | null
+          n1co_subscription_id: string | null
+          n1co_payment_method_id: string | null
+          n1co_subscription_status: N1coSubscriptionStatus | null
+          n1co_subscription_started_at: string | null
+          n1co_subscription_cancelled_at: string | null
         }
         Insert: {
           id?: string
@@ -298,6 +348,12 @@ export interface Database {
           default_tax_rate?: number | null
           auto_billing?: boolean
           is_foreign?: boolean
+          n1co_customer_id?: string | null
+          n1co_subscription_id?: string | null
+          n1co_payment_method_id?: string | null
+          n1co_subscription_status?: N1coSubscriptionStatus | null
+          n1co_subscription_started_at?: string | null
+          n1co_subscription_cancelled_at?: string | null
         }
         Update: {
           name?: string
@@ -331,6 +387,12 @@ export interface Database {
           default_tax_rate?: number | null
           auto_billing?: boolean
           is_foreign?: boolean
+          n1co_customer_id?: string | null
+          n1co_subscription_id?: string | null
+          n1co_payment_method_id?: string | null
+          n1co_subscription_status?: N1coSubscriptionStatus | null
+          n1co_subscription_started_at?: string | null
+          n1co_subscription_cancelled_at?: string | null
         }
         Relationships: [
           {
@@ -1023,6 +1085,10 @@ export interface Database {
           terms_and_conditions_json: TermAndCondition[]
           updated_at: string
           updated_by: string | null
+          n1co_environment: N1coEnvironment
+          n1co_location_code: string | null
+          n1co_location_id: number | null
+          n1co_webhook_secret_hint: string | null
         }
         Insert: {
           id?: string
@@ -1040,6 +1106,10 @@ export interface Database {
           terms_and_conditions_json?: TermAndCondition[]
           updated_at?: string
           updated_by?: string | null
+          n1co_environment?: N1coEnvironment
+          n1co_location_code?: string | null
+          n1co_location_id?: number | null
+          n1co_webhook_secret_hint?: string | null
         }
         Update: {
           legal_name?: string
@@ -1056,6 +1126,10 @@ export interface Database {
           terms_and_conditions_json?: TermAndCondition[]
           updated_at?: string
           updated_by?: string | null
+          n1co_environment?: N1coEnvironment
+          n1co_location_code?: string | null
+          n1co_location_id?: number | null
+          n1co_webhook_secret_hint?: string | null
         }
         Relationships: []
       }
@@ -1088,6 +1162,20 @@ export interface Database {
           created_at: string
           updated_at: string
           biweekly_half: 'first' | 'second' | null
+          payment_provider: PaymentProvider
+          n1co_payment_link_id: string | null
+          n1co_payment_link_url: string | null
+          n1co_order_reference: string | null
+          n1co_order_id: string | null
+          n1co_buyer_email: string | null
+          n1co_buyer_name: string | null
+          n1co_paid_at: string | null
+          dte_codigo_generacion: string | null
+          dte_numero_control: string | null
+          dte_sello_recepcion: string | null
+          dte_tipo: DteTipo | null
+          dte_pdf_url: string | null
+          dte_received_at: string | null
         }
         Insert: {
           id?: string
@@ -1115,6 +1203,20 @@ export interface Database {
           void_at?: string | null
           created_by?: string | null
           biweekly_half?: 'first' | 'second' | null
+          payment_provider?: PaymentProvider
+          n1co_payment_link_id?: string | null
+          n1co_payment_link_url?: string | null
+          n1co_order_reference?: string | null
+          n1co_order_id?: string | null
+          n1co_buyer_email?: string | null
+          n1co_buyer_name?: string | null
+          n1co_paid_at?: string | null
+          dte_codigo_generacion?: string | null
+          dte_numero_control?: string | null
+          dte_sello_recepcion?: string | null
+          dte_tipo?: DteTipo | null
+          dte_pdf_url?: string | null
+          dte_received_at?: string | null
         }
         Update: {
           invoice_number?: string
@@ -1139,6 +1241,74 @@ export interface Database {
           void_by?: string | null
           void_at?: string | null
           biweekly_half?: 'first' | 'second' | null
+          payment_provider?: PaymentProvider
+          n1co_payment_link_id?: string | null
+          n1co_payment_link_url?: string | null
+          n1co_order_reference?: string | null
+          n1co_order_id?: string | null
+          n1co_buyer_email?: string | null
+          n1co_buyer_name?: string | null
+          n1co_paid_at?: string | null
+          dte_codigo_generacion?: string | null
+          dte_numero_control?: string | null
+          dte_sello_recepcion?: string | null
+          dte_tipo?: DteTipo | null
+          dte_pdf_url?: string | null
+          dte_received_at?: string | null
+        }
+        Relationships: []
+      }
+      n1co_payment_events: {
+        Row: {
+          id: string
+          event_type: string
+          order_id: string | null
+          order_reference: string | null
+          payment_link_id: string | null
+          subscription_id: string | null
+          buyer_email: string | null
+          buyer_name: string | null
+          buyer_phone: string | null
+          buyer_external_id: string | null
+          metadata_json: Record<string, unknown> | null
+          raw_payload_json: Record<string, unknown>
+          hmac_signature: string | null
+          signature_valid: boolean | null
+          matched_invoice_id: string | null
+          matched_client_id: string | null
+          matching_strategy: string | null
+          processed: boolean
+          process_error: string | null
+          received_at: string
+        }
+        Insert: {
+          id?: string
+          event_type: string
+          order_id?: string | null
+          order_reference?: string | null
+          payment_link_id?: string | null
+          subscription_id?: string | null
+          buyer_email?: string | null
+          buyer_name?: string | null
+          buyer_phone?: string | null
+          buyer_external_id?: string | null
+          metadata_json?: Record<string, unknown> | null
+          raw_payload_json: Record<string, unknown>
+          hmac_signature?: string | null
+          signature_valid?: boolean | null
+          matched_invoice_id?: string | null
+          matched_client_id?: string | null
+          matching_strategy?: string | null
+          processed?: boolean
+          process_error?: string | null
+          received_at?: string
+        }
+        Update: {
+          matched_invoice_id?: string | null
+          matched_client_id?: string | null
+          matching_strategy?: string | null
+          processed?: boolean
+          process_error?: string | null
         }
         Relationships: []
       }
@@ -1344,6 +1514,9 @@ export type Invoice = Database['public']['Tables']['invoices']['Row']
 export type InvoiceItem = Database['public']['Tables']['invoice_items']['Row']
 export type Quote = Database['public']['Tables']['quotes']['Row']
 export type QuoteItem = Database['public']['Tables']['quote_items']['Row']
+export type N1coPaymentEvent = Database['public']['Tables']['n1co_payment_events']['Row']
+
+export type N1coMatchingStrategy = 'order_reference' | 'subscription_id' | 'email' | 'name' | 'manual' | 'orphan'
 
 export interface InvoiceWithItems extends Invoice {
   items: InvoiceItem[]

@@ -15,7 +15,7 @@ import { EXTRA_CONTENT_PRICES, CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
 import { createInvoice, ensureScheduledCycle } from '@/app/actions/invoices'
 import { createQuote } from '@/app/actions/quotes'
 import { LineItemsEditor } from './LineItemsEditor'
-import type { Client, Plan, BillingCycle, CambiosPackage, ExtraContentItem, Invoice } from '@/types/db'
+import type { Client, Plan, BillingCycle, CambiosPackage, ExtraContentItem, Invoice, PaymentProvider } from '@/types/db'
 
 interface CatalogItem {
   label: string
@@ -53,6 +53,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
   const [biweeklyHalf, setBiweeklyHalf] = useState<'first' | 'second' | null>(null)
   const [isFirstInvoice, setIsFirstInvoice] = useState(false)
   const [nextPeriod, setNextPeriod] = useState<{ periodStart: string; periodEnd: string } | null>(null)
+  const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>('manual')
 
   useEffect(() => {
     async function load() {
@@ -276,6 +277,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           dueDate: dueDate || null,
           notes: notes || null,
           biweeklyHalf: cycleId && selectedClient?.billing_period === 'biweekly' ? biweeklyHalf : null,
+          paymentProvider,
         })
       : await createQuote({
           clientId,
@@ -395,6 +397,36 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
               <p><strong className="text-fm-on-surface">Dirección:</strong> {selectedClient.fiscal_address ?? '—'}</p>
             </div>
           )}
+
+          {mode === 'invoice' && selectedClient && (() => {
+            const plan = plans.find(p => p.id === selectedClient.current_plan_id)
+            const env: 'sandbox' | 'production' = (process.env.NEXT_PUBLIC_N1CO_ENV === 'production' ? 'production' : 'sandbox')
+            const staticLink = env === 'production' ? plan?.n1co_payment_link_static_prod : plan?.n1co_payment_link_static_sandbox
+            return (
+              <div className="col-span-2 space-y-1.5">
+                <Label>Método de cobro</Label>
+                <select
+                  value={paymentProvider}
+                  onChange={(e) => setPaymentProvider(e.target.value as PaymentProvider)}
+                  className="w-full py-2 px-3 text-sm bg-fm-background border border-fm-surface-container-high rounded-xl text-fm-on-surface focus:outline-none focus:border-fm-primary"
+                >
+                  <option value="manual">Manual (efectivo / transferencia / cheque)</option>
+                  <option value="n1co_link">Link n1co dinámico (recomendado)</option>
+                  {staticLink && <option value="n1co_static">Link n1co estático ({plan?.name})</option>}
+                </select>
+                {paymentProvider === 'n1co_link' && (
+                  <p className="text-xs text-fm-outline">
+                    Se generará un payment link único con el monto exacto de esta factura. n1co cobra y emite el DTE.
+                  </p>
+                )}
+                {paymentProvider === 'n1co_static' && staticLink && (
+                  <p className="text-xs text-fm-outline">
+                    Se enviará el link estático del plan: <span className="font-mono break-all">{staticLink}</span>
+                  </p>
+                )}
+              </div>
+            )
+          })()}
 
           <div className="space-y-1.5">
             <Label>Impuesto (IVA)</Label>
