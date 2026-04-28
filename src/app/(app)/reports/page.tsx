@@ -9,6 +9,7 @@ import { computeTotals } from '@/lib/domain/requirement'
 import { effectiveLimits } from '@/lib/domain/plans'
 import { daysUntilEnd } from '@/lib/domain/cycles'
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
+import { today as todayGMT6, APP_TZ } from '@/lib/domain/dates'
 import { PIPELINE_CONTENT_TYPES, PHASES, PHASE_LABELS } from '@/lib/domain/pipeline'
 import type { BillingCycle, Requirement, ContentType } from '@/types/db'
 
@@ -137,8 +138,17 @@ export default async function ReportsPage() {
 
   // ── Aggregates ──
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Fecha/hora actual en GMT-6
+  const todayStr = todayGMT6()                       // "YYYY-MM-DD" en GMT-6
+  const today = new Date(`${todayStr}T00:00:00`)     // para comparaciones de Date
+
+  // Primer y último día del mes actual en GMT-6
+  const nowGMT6Parts = new Intl.DateTimeFormat('en-CA', { timeZone: APP_TZ, year: 'numeric', month: '2-digit' })
+    .format(new Date()).split('-')
+  const [curYear, curMonth] = [parseInt(nowGMT6Parts[0]), parseInt(nowGMT6Parts[1])]
+  const firstOfMonth = `${curYear}-${String(curMonth).padStart(2, '0')}-01`
+  const lastOfMonthDate = new Date(curYear, curMonth, 0).getDate()
+  const lastOfMonth = `${curYear}-${String(curMonth).padStart(2, '0')}-${String(lastOfMonthDate).padStart(2, '0')}`
 
   // Summary counts
   const totalActive = clients.filter((cl) => cl.status === 'active').length
@@ -149,10 +159,6 @@ export default async function ReportsPage() {
     if (!cycle) return false
     return new Date(cycle.period_end) < today && cycle.payment_status === 'unpaid'
   }).length
-
-  // MRR (paid this month)
-  const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0]
-  const lastOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0]
   let mrrCobrado = 0
   let ingresosPendientes = 0
   for (const cycle of currentCycles) {

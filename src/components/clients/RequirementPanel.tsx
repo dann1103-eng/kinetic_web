@@ -19,6 +19,7 @@ import { socialUrl, type SocialNetwork } from '@/lib/domain/social'
 import { RequirementModal } from './RequirementModal'
 import { RequirementHistory } from './RequirementHistory'
 import { renewContentPackage } from '@/app/actions/contentPackage'
+import { isoDateStr } from '@/lib/domain/time'
 
 // Simple (non-pipeline) content types — counters only, sin distribución semanal
 const SIMPLE_TYPES: ContentType[] = ['produccion', 'reunion']
@@ -138,7 +139,7 @@ export function RequirementPanel({
     const supabase = createClient()
     await supabase
       .from('billing_cycles')
-      .update({ payment_status: 'paid', payment_date: new Date().toISOString().split('T')[0] })
+      .update({ payment_status: 'paid', payment_date: isoDateStr(new Date()) })
       .eq('id', cycle.id)
     setMarkingPaid(false)
     router.refresh()
@@ -149,7 +150,7 @@ export function RequirementPanel({
     const supabase = createClient()
     await supabase
       .from('billing_cycles')
-      .update({ payment_status_2: 'paid', payment_date_2: new Date().toISOString() })
+      .update({ payment_status_2: 'paid', payment_date_2: isoDateStr(new Date()) })
       .eq('id', cycle.id)
     setMarkingPaid(false)
     router.refresh()

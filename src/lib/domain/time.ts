@@ -17,18 +17,29 @@ export function formatDurationHMS(seconds: number): string {
   return [h, m, ss].map(n => n.toString().padStart(2, '0')).join(':')
 }
 
+/** Zona horaria oficial de la operación. Todas las conversiones de display la usan. */
+export const APP_TZ = 'America/El_Salvador' // GMT-6, sin DST
+
 export function formatTime(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit', hour12: false })
+  return new Intl.DateTimeFormat('es-SV', {
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    timeZone: APP_TZ,
+  }).format(new Date(iso))
 }
 
 export function formatDayLabel(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleDateString('es-SV', { weekday: 'short', day: 'numeric', month: 'short' })
+  return new Intl.DateTimeFormat('es-SV', {
+    weekday: 'short', day: 'numeric', month: 'short',
+    timeZone: APP_TZ,
+  }).format(new Date(iso))
 }
 
+/**
+ * Retorna la fecha local (YYYY-MM-DD) de un Date en la zona GMT-6.
+ * Usar SIEMPRE en lugar de toISOString().split('T')[0] que retorna UTC.
+ */
 export function isoDateStr(d: Date): string {
-  return d.toISOString().split('T')[0]
+  return new Intl.DateTimeFormat('en-CA', { timeZone: APP_TZ }).format(d)
 }
 
 export const ADMIN_CATEGORY_LABELS: Record<AdminCategory, string> = {

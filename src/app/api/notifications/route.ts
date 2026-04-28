@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { NotificationItem } from '@/types/db'
+import { today as todayGMT6 } from '@/lib/domain/dates'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -279,7 +280,7 @@ export async function GET() {
   /* ── Requerimientos vencidos (solo admin/supervisor) ───────── */
   const overdueItems: NotificationItem[] = []
   if (isAdminOrSupervisor) {
-    const today = new Date().toISOString().split('T')[0]
+    const today = todayGMT6()
     const { data: overdueRaw } = await supabase
       .from('requirements')
       .select('id, title, deadline, billing_cycle:billing_cycles!requirements_billing_cycle_id_fkey(client:clients!billing_cycles_client_id_fkey(name))')

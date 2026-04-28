@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { cleanupCycleStorage } from '@/lib/supabase/cleanup-cycle-storage'
+import { today as todayGMT6, addDaysString } from '@/lib/domain/dates'
 
 /**
  * Archiva el ciclo Contenido actual y crea uno nuevo con los mismos límites.
@@ -35,9 +36,8 @@ export async function renewContentPackage(
     .from('plans').select('*').eq('id', planId).single()
   if (planError || !plan) return { error: 'Plan no encontrado' }
 
-  const today = new Date().toISOString().split('T')[0]
-  const farFuture = new Date(new Date().getTime() + 10 * 365 * 24 * 60 * 60 * 1000)
-    .toISOString().split('T')[0]
+  const today = todayGMT6()
+  const farFuture = addDaysString(today, 10 * 365)
 
   const snapshot = plan.unified_content_limit != null
     ? { ...plan.limits_json, unified_content_limit: plan.unified_content_limit }

@@ -19,8 +19,16 @@ export function formatDate(d: Date): DateString {
   return format(d, 'yyyy-MM-dd')
 }
 
+/** Timezone de la operación (GMT-6, El Salvador, sin DST). */
+export const APP_TZ = 'America/El_Salvador'
+
+/**
+ * Fecha actual en zona GMT-6, formato YYYY-MM-DD.
+ * Usar en server actions en lugar de formatDate(new Date()),
+ * que en Vercel retorna la fecha UTC (puede diferir de la local a partir de las 6 PM).
+ */
 export function today(): DateString {
-  return formatDate(new Date())
+  return new Intl.DateTimeFormat('en-CA', { timeZone: APP_TZ }).format(new Date())
 }
 
 export function addMonthsClamped(d: DateString, months: number): DateString {
