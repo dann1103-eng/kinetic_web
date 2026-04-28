@@ -19,6 +19,9 @@ export async function GET() {
     N1CO_CLIENT_SECRET_length: process.env.N1CO_CLIENT_SECRET?.length ?? 0,
     N1CO_WEBHOOK_SECRET_present: !!process.env.N1CO_WEBHOOK_SECRET,
     N1CO_WEBHOOK_SECRET_length: process.env.N1CO_WEBHOOK_SECRET?.length ?? 0,
+    N1CO_CHECKOUT_LINK_SECRET_present: !!process.env.N1CO_CHECKOUT_LINK_SECRET,
+    N1CO_CHECKOUT_LINK_SECRET_length: process.env.N1CO_CHECKOUT_LINK_SECRET?.length ?? 0,
+    N1CO_PAY_BASE_URL: process.env.N1CO_PAY_BASE_URL ?? null,
     NODE_ENV: process.env.NODE_ENV,
     VERCEL_ENV: process.env.VERCEL_ENV,
     // Lista todas las keys que empiezan con N1CO_ — útil si hay typos

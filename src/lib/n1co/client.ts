@@ -89,32 +89,53 @@ export interface N1coRequestOptions {
 
 /**
  * Llama a un endpoint n1co con autenticación automática.
- * Si recibe 401, reintenta una vez con un token nuevo.
- * Lanza N1coApiError en cualquier respuesta no-2xx.
  *
- * Routing de base URL:
- *   - paths que empiezan con `/paymentlink/` → CheckoutLink API (api-pay-sandbox|api-pay.n1co.shop/api)
+ * Routing y auth:
+ *   - paths `/paymentlink/*` → CheckoutLink API (api-pay-sandbox|api-pay.n1co.shop/api)
+ *     + auth: secret estático en `N1CO_CHECKOUT_LINK_SECRET` (Bearer)
  *   - resto → Integration API (api-sandbox|api.n1co.com)
+ *     + auth: OAuth dinámico (clientId+clientSecret → Bearer con TTL ~3598s)
+ *
+ * Para Integration API: si recibe 401, reintenta una vez con token refrescado.
+ * Lanza N1coApiError en cualquier respuesta no-2xx.
  */
 export async function n1coRequest<T = unknown>(opts: N1coRequestOptions): Promise<T> {
   const isCheckoutLink = opts.path.startsWith('/paymentlink/')
   const url = `${isCheckoutLink ? payBaseUrl() : baseUrl()}${opts.path}`
-  let token = await getToken()
+
+  const buildHeaders = (token: string): HeadersInit => ({
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    Authorization: `Bearer ${token}`,
+  })
 
   const doFetch = (t: string) =>
     fetch(url, {
       method: opts.method,
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${t}`,
-      },
+      headers: buildHeaders(t),
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
       cache: 'no-store',
     })
 
+  // CheckoutLink: secret estático, sin retry de auth.
+  if (isCheckoutLink) {
+    const secret = requireEnv('N1CO_CHECKOUT_LINK_SECRET')
+    const res = await doFetch(secret)
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      let parsed: unknown = body
+      try { parsed = JSON.parse(body) } catch { /* keep raw */ }
+      throw new N1coApiError(res.status, parsed)
+    }
+    const text = await res.text()
+    if (!text) return undefined as T
+    try { return JSON.parse(text) as T } catch { return text as unknown as T }
+  }
+
+  // Integration API: OAuth dinámico con retry.
+  let token = await getToken()
   let res = await doFetch(token)
   if (res.status === 401) {
-    // Token expirado mid-request — refrescar y reintentar una vez.
     token = await getToken(true)
     res = await doFetch(token)
   }
