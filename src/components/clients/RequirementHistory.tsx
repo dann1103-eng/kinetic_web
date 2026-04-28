@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Requirement, RequirementCambioLog, ContentType } from '@/types/db'
 import { CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
 import { CONTENT_ICONS } from '@/lib/domain/content-icons'
-import { voidCambioLog, approveCambioLog, rejectCambioLog } from '@/app/actions/cambioLogs'
+import { voidCambioLog, approveCambioLog, rejectCambioLog, addCambioLog } from '@/app/actions/cambioLogs'
 
 const TYPE_ACTION: Record<ContentType, string> = {
   historia: 'Historia registrada',
@@ -168,56 +168,36 @@ export function RequirementHistory({
     }
 
     setIncrementingId(requirementId)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    // Usar server action para obtener ID real de BD y evitar problemas de RLS
+    const result = await addCambioLog(requirementId, note)
 
-    // Determina el rol del usuario actual para decidir si se auto-aprueba
-    const { data: appUser } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user?.id ?? '')
-      .single()
-    const selfApprove = isApprover || appUser?.role === 'admin' || appUser?.role === 'supervisor'
-    const status: 'pending' | 'approved' = selfApprove ? 'approved' : 'pending'
-
-    const currentCount = requirements.find(r => r.id === requirementId)?.cambios_count ?? 0
-
-    if (selfApprove) {
-      // Admin/supervisor: aprueba de inmediato y sube el contador
-      await Promise.all([
-        supabase.from('requirements').update({ cambios_count: currentCount + 1 }).eq('id', requirementId),
-        supabase.from('requirement_cambio_logs').insert({
-          requirement_id: requirementId,
-          notes: note,
-          created_by: user?.id ?? null,
-          status: 'approved',
-        }),
-      ])
-    } else {
-      // Operador: queda pendiente de aprobación, no toca el contador
-      await supabase.from('requirement_cambio_logs').insert({
-        requirement_id: requirementId,
-        notes: note,
-        created_by: user?.id ?? null,
-        status: 'pending',
-      })
+    if ('error' in result) {
+      setCambioError(result.error)
+      setIncrementingId(null)
+      return
     }
 
     const newLog: RequirementCambioLog = {
-      id: crypto.randomUUID(),
+      id: result.log.id,
       requirement_id: requirementId,
       notes: note,
-      created_by: user?.id ?? null,
-      created_at: new Date().toISOString(),
+      created_by: null, // el server action conoce el usuario
+      created_at: result.log.created_at,
       voided: false,
       voided_by_user_id: null,
       voided_at: null,
-      status,
+      status: result.log.status,
     }
     setCambioLogsMap(prev => ({
       ...prev,
       [requirementId]: [newLog, ...(prev[requirementId] ?? [])],
     }))
+    if (result.log.status === 'approved') {
+      setCambiosCountOverride(prev => {
+        const current = prev[requirementId] ?? requirements.find(r => r.id === requirementId)?.cambios_count ?? 0
+        return { ...prev, [requirementId]: current + 1 }
+      })
+    }
     setCambioFormId(null)
     setCambioNote('')
     setCambioError(null)

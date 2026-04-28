@@ -28,7 +28,7 @@ import { RequirementChat } from './RequirementChat'
 import { RequirementTimesheet } from './RequirementTimesheet'
 import { ShareRequirementDialog } from './ShareRequirementDialog'
 import { ContentReviewDialog } from '@/components/clients/review/ContentReviewDialog'
-import { voidCambioLog, approveCambioLog, rejectCambioLog } from '@/app/actions/cambioLogs'
+import { voidCambioLog, approveCambioLog, rejectCambioLog, addCambioLog } from '@/app/actions/cambioLogs'
 
 type Tab = 'fases' | 'chat' | 'tiempo'
 
@@ -314,50 +314,28 @@ export function PhaseSheet({
     }
 
     setIncrementing(true)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const result = await addCambioLog(requirementId, note)
 
-    // Determina si el usuario puede auto-aprobar
-    const { data: appUser } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user?.id ?? '')
-      .single()
-    const selfApprove = isApprover || appUser?.role === 'admin' || appUser?.role === 'supervisor'
-    const status: 'pending' | 'approved' = selfApprove ? 'approved' : 'pending'
-
-    if (selfApprove) {
-      await Promise.all([
-        supabase.from('requirements').update({ cambios_count: localCambios + 1 }).eq('id', requirementId),
-        supabase.from('requirement_cambio_logs').insert({
-          requirement_id: requirementId,
-          notes: note,
-          created_by: user?.id ?? null,
-          status: 'approved',
-        }),
-      ])
-    } else {
-      await supabase.from('requirement_cambio_logs').insert({
-        requirement_id: requirementId,
-        notes: note,
-        created_by: user?.id ?? null,
-        status: 'pending',
-      })
+    if ('error' in result) {
+      setCambioNoteError(result.error)
+      setIncrementing(false)
+      return
     }
 
+    // Usar el ID real devuelto por la BD para que approve/reject funcionen
     const newLog: RequirementCambioLog = {
-      id: crypto.randomUUID(),
+      id: result.log.id,
       requirement_id: requirementId,
       notes: note,
-      created_by: user?.id ?? null,
-      created_at: new Date().toISOString(),
+      created_by: currentUserId,
+      created_at: result.log.created_at,
       voided: false,
       voided_by_user_id: null,
       voided_at: null,
-      status,
+      status: result.log.status,
     }
     setCambioLogs(prev => [newLog, ...prev])
-    if (selfApprove) setLocalCambios((n) => n + 1)
+    if (result.log.status === 'approved') setLocalCambios((n) => n + 1)
     setShowCambioForm(false)
     setCambioNote('')
     setCambioNoteError(null)
