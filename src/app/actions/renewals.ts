@@ -256,3 +256,80 @@ export async function updateCycleDates(args: UpdateCycleDatesArgs) {
   revalidatePath('/dashboard')
   return { ok: true }
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Crear un ciclo 'current' desde cero (cliente sin ciclo activo)
+// ─────────────────────────────────────────────────────────────────
+export interface CreateCurrentCycleArgs {
+  clientId: string
+  periodStart: string          // YYYY-MM-DD
+  periodEnd: string            // YYYY-MM-DD
+  paymentStatus: PaymentStatus
+  paymentDate: string | null
+  paymentStatus2?: PaymentStatus | null
+  paymentDate2?: string | null
+}
+
+export async function createCurrentCycle(args: CreateCurrentCycleArgs) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+  const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
+  if (appUser?.role !== 'admin' && appUser?.role !== 'supervisor') {
+    return { error: 'Solo admin o supervisor puede crear ciclos' }
+  }
+
+  if (!args.periodStart || !args.periodEnd) {
+    return { error: 'Las fechas de inicio y fin son obligatorias.' }
+  }
+
+  const admin = createAdminClient()
+
+  // Leer plan actual del cliente
+  const { data: clientRow } = await admin
+    .from('clients')
+    .select('current_plan_id')
+    .eq('id', args.clientId)
+    .single()
+  if (!clientRow) return { error: 'Cliente no encontrado.' }
+
+  const { data: planRow } = await admin
+    .from('plans')
+    .select('*')
+    .eq('id', clientRow.current_plan_id)
+    .single()
+  if (!planRow) return { error: 'Plan del cliente no encontrado.' }
+
+  const planLimits: PlanLimits = planRow.unified_content_limit != null
+    ? { ...planRow.limits_json, unified_content_limit: planRow.unified_content_limit }
+    : planRow.limits_json
+
+  const { error: insertErr } = await admin
+    .from('billing_cycles')
+    .insert({
+      client_id:              args.clientId,
+      plan_id_snapshot:       clientRow.current_plan_id,
+      limits_snapshot_json:   planLimits,
+      period_start:           args.periodStart,
+      period_end:             args.periodEnd,
+      status:                 'current',
+      payment_status:         args.paymentStatus,
+      payment_date:           args.paymentStatus === 'paid' ? (args.paymentDate || todayString()) : null,
+      payment_status_2:       args.paymentStatus2 ?? null,
+      payment_date_2:         args.paymentStatus2 === 'paid' ? (args.paymentDate2 || null) : null,
+      cambios_budget:         planRow.cambios_included,
+      cambios_packages_json:  [],
+      extra_content_json:     [],
+    })
+
+  if (insertErr) return { error: 'Error al crear el ciclo.' }
+
+  // Activar el cliente
+  await admin.from('clients').update({ status: 'active' }).eq('id', args.clientId)
+
+  revalidatePath(`/clients/${args.clientId}`)
+  revalidatePath(`/clients/${args.clientId}/edit`)
+  revalidatePath('/renewals')
+  revalidatePath('/dashboard')
+  return { ok: true }
+}

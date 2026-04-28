@@ -14,7 +14,7 @@ import { effectiveWeeklyTarget } from '@/lib/domain/requirement'
 import { limitsToRecord, CONTENT_TYPE_LABELS, EXTRA_CONTENT_PRICES } from '@/lib/domain/plans'
 import { augmentDistribution, buildProrateOverride, buildAccumulateOverride } from '@/lib/domain/weekly-distribution'
 import { LogoUploader } from '@/components/clients/LogoUploader'
-import { updateCycleDates } from '@/app/actions/renewals'
+import { updateCycleDates, createCurrentCycle } from '@/app/actions/renewals'
 
 export default function ClientEditPage() {
   const router = useRouter()
@@ -263,23 +263,39 @@ export default function ClientEditPage() {
   }
 
   async function handleSaveCycleDates() {
-    if (!currentCycle) return
     setCycleDatesSaving(true)
     setCycleDatesError(null)
-    const result = await updateCycleDates({
-      cycleId: currentCycle.id,
-      clientId: id,
-      periodStart: cycleStart,
-      periodEnd: cycleEnd,
-      paymentStatus: cyclePayStatus,
-      paymentDate: cyclePayDate || null,
-      paymentStatus2: isBiweekly && cyclePayStatus2 ? cyclePayStatus2 : null,
-      paymentDate2: isBiweekly && cyclePayStatus2 === 'paid' ? (cyclePayDate2 || null) : null,
-    })
+
+    let result: { ok?: boolean; error?: string }
+
+    if (currentCycle) {
+      result = await updateCycleDates({
+        cycleId: currentCycle.id,
+        clientId: id,
+        periodStart: cycleStart,
+        periodEnd: cycleEnd,
+        paymentStatus: cyclePayStatus,
+        paymentDate: cyclePayDate || null,
+        paymentStatus2: isBiweekly && cyclePayStatus2 ? cyclePayStatus2 : null,
+        paymentDate2: isBiweekly && cyclePayStatus2 === 'paid' ? (cyclePayDate2 || null) : null,
+      })
+    } else {
+      result = await createCurrentCycle({
+        clientId: id,
+        periodStart: cycleStart,
+        periodEnd: cycleEnd,
+        paymentStatus: cyclePayStatus,
+        paymentDate: cyclePayDate || null,
+        paymentStatus2: isBiweekly && cyclePayStatus2 ? cyclePayStatus2 : null,
+        paymentDate2: isBiweekly && cyclePayStatus2 === 'paid' ? (cyclePayDate2 || null) : null,
+      })
+    }
+
     setCycleDatesSaving(false)
-    if ('error' in result) { setCycleDatesError((result as { error: string }).error); return }
+    if (result.error) { setCycleDatesError(result.error); return }
     setCycleDatesOk(true)
     setTimeout(() => setCycleDatesOk(false), 3000)
+    if (!currentCycle) router.refresh()
   }
 
   const baseDistForOverride = useMemo<WeeklyDistribution>(() => {
@@ -832,15 +848,26 @@ export default function ClientEditPage() {
               )}
 
               {/* ── Fechas y pagos del ciclo (solo admin) ── */}
-              {isAdmin && currentCycle && (
+              {isAdmin && (
                 <div>
                   <div className="h-[38px] flex items-center gap-2">
                     <span className="material-symbols-outlined text-fm-error text-lg">event</span>
-                    <span className="text-sm font-semibold text-fm-on-surface">Fechas y pagos del ciclo</span>
+                    <span className="text-sm font-semibold text-fm-on-surface">
+                      {currentCycle ? 'Fechas y pagos del ciclo' : 'Crear ciclo activo'}
+                    </span>
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-fm-error/8 text-fm-error border border-fm-error/15">Solo admin</span>
                   </div>
 
                   <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-error/15 p-6 space-y-4">
+
+                    {!currentCycle && (
+                      <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
+                        <span className="material-symbols-outlined text-amber-500 text-base mt-0.5">info</span>
+                        <p className="text-xs text-amber-800">
+                          Este cliente no tiene un ciclo activo. Completa las fechas y el estado de pago para crear uno basado en su plan actual (<strong>{plans.find(p => p.id === form.current_plan_id)?.name ?? '—'}</strong>).
+                        </p>
+                      </div>
+                    )}
 
                     {/* Periodo */}
                     <div>
@@ -923,7 +950,9 @@ export default function ClientEditPage() {
                     <Button type="button" onClick={handleSaveCycleDates} disabled={cycleDatesSaving}
                       className="w-full rounded-xl text-white font-semibold"
                       style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}>
-                      {cycleDatesSaving ? 'Guardando...' : 'Guardar fechas y pagos'}
+                      {cycleDatesSaving
+                        ? 'Guardando...'
+                        : currentCycle ? 'Guardar fechas y pagos' : 'Crear ciclo activo'}
                     </Button>
                   </div>
                 </div>
