@@ -28,7 +28,7 @@ import { RequirementChat } from './RequirementChat'
 import { RequirementTimesheet } from './RequirementTimesheet'
 import { ShareRequirementDialog } from './ShareRequirementDialog'
 import { ContentReviewDialog } from '@/components/clients/review/ContentReviewDialog'
-import { voidCambioLog } from '@/app/actions/cambioLogs'
+import { voidCambioLog, approveCambioLog, rejectCambioLog } from '@/app/actions/cambioLogs'
 
 type Tab = 'fases' | 'chat' | 'tiempo'
 
@@ -66,6 +66,8 @@ interface PhaseSheetProps {
   includesStory?: boolean
   deadline?: string | null
   isAdmin?: boolean
+  /** true si el usuario es admin o supervisor (puede aprobar/rechazar cambios) */
+  isApprover?: boolean
   initialReviewOpen?: boolean
   initialReviewPinId?: string | null
 }
@@ -93,6 +95,7 @@ export function PhaseSheet({
   includesStory: initialIncludesStory = false,
   deadline: initialDeadline = null,
   isAdmin = false,
+  isApprover = false,
   initialReviewOpen = false,
   initialReviewPinId = null,
 }: PhaseSheetProps) {
@@ -150,8 +153,11 @@ export function PhaseSheet({
   const [incrementing, setIncrementing] = useState(false)
   const [showCambioForm, setShowCambioForm] = useState(false)
   const [cambioNote, setCambioNote] = useState('')
+  const [cambioNoteError, setCambioNoteError] = useState<string | null>(null)
   const [cambioLogs, setCambioLogs] = useState<RequirementCambioLog[]>([])
   const [voidingLogId, setVoidingLogId] = useState<string | null>(null)
+  const [approvingLogId, setApprovingLogId] = useState<string | null>(null)
+  const [rejectingLogId, setRejectingLogId] = useState<string | null>(null)
 
   // Passive timer (counts up while in any passive_timer phase)
   const [reviewElapsed, setReviewElapsed] = useState('')
@@ -300,19 +306,44 @@ export function PhaseSheet({
   }
 
   async function handleAddCambio() {
+    setCambioNoteError(null)
+    const note = cambioNote.trim()
+    if (!note) {
+      setCambioNoteError('La descripción del cambio es obligatoria.')
+      return
+    }
+
     setIncrementing(true)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    const note = cambioNote.trim() || null
 
-    await Promise.all([
-      supabase.from('requirements').update({ cambios_count: localCambios + 1 }).eq('id', requirementId),
-      supabase.from('requirement_cambio_logs').insert({
+    // Determina si el usuario puede auto-aprobar
+    const { data: appUser } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user?.id ?? '')
+      .single()
+    const selfApprove = isApprover || appUser?.role === 'admin' || appUser?.role === 'supervisor'
+    const status: 'pending' | 'approved' = selfApprove ? 'approved' : 'pending'
+
+    if (selfApprove) {
+      await Promise.all([
+        supabase.from('requirements').update({ cambios_count: localCambios + 1 }).eq('id', requirementId),
+        supabase.from('requirement_cambio_logs').insert({
+          requirement_id: requirementId,
+          notes: note,
+          created_by: user?.id ?? null,
+          status: 'approved',
+        }),
+      ])
+    } else {
+      await supabase.from('requirement_cambio_logs').insert({
         requirement_id: requirementId,
         notes: note,
         created_by: user?.id ?? null,
-      }),
-    ])
+        status: 'pending',
+      })
+    }
 
     const newLog: RequirementCambioLog = {
       id: crypto.randomUUID(),
@@ -323,11 +354,13 @@ export function PhaseSheet({
       voided: false,
       voided_by_user_id: null,
       voided_at: null,
+      status,
     }
     setCambioLogs(prev => [newLog, ...prev])
-    setLocalCambios((n) => n + 1)
+    if (selfApprove) setLocalCambios((n) => n + 1)
     setShowCambioForm(false)
     setCambioNote('')
+    setCambioNoteError(null)
     setIncrementing(false)
     router.refresh()
   }
@@ -345,6 +378,37 @@ export function PhaseSheet({
     )
     setLocalCambios((n) => Math.max(0, n - 1))
     setVoidingLogId(null)
+    router.refresh()
+  }
+
+  async function handleApproveLog(logId: string) {
+    setApprovingLogId(logId)
+    const result = await approveCambioLog(logId)
+    if ('error' in result) {
+      alert(result.error)
+      setApprovingLogId(null)
+      return
+    }
+    setCambioLogs((prev) =>
+      prev.map((l) => (l.id === logId ? { ...l, status: 'approved' as const } : l)),
+    )
+    setLocalCambios((n) => n + 1)
+    setApprovingLogId(null)
+    router.refresh()
+  }
+
+  async function handleRejectLog(logId: string) {
+    setRejectingLogId(logId)
+    const result = await rejectCambioLog(logId)
+    if ('error' in result) {
+      alert(result.error)
+      setRejectingLogId(null)
+      return
+    }
+    setCambioLogs((prev) =>
+      prev.map((l) => (l.id === logId ? { ...l, status: 'rejected' as const } : l)),
+    )
+    setRejectingLogId(null)
     router.refresh()
   }
 
@@ -780,16 +844,25 @@ export function PhaseSheet({
                 {/* Inline form for new cambio */}
                 {showCambioForm && (
                   <div className="space-y-2 pt-1 border-t border-fm-surface-container-high">
+                    {!isApprover && (
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                        <span className="material-symbols-outlined text-sm">info</span>
+                        Quedará pendiente de aprobación.
+                      </p>
+                    )}
                     <Textarea
                       value={cambioNote}
-                      onChange={e => setCambioNote(e.target.value)}
-                      placeholder="Descripción del cambio (opcional)"
-                      className="resize-none text-xs bg-fm-surface-container-lowest border-fm-surface-container-high focus:border-fm-primary rounded-lg"
+                      onChange={e => { setCambioNote(e.target.value); setCambioNoteError(null) }}
+                      placeholder="¿Qué cambió? (obligatorio)"
+                      className={`resize-none text-xs bg-fm-surface-container-lowest rounded-lg ${cambioNoteError ? 'border-fm-error focus:border-fm-error' : 'border-fm-surface-container-high focus:border-fm-primary'}`}
                       rows={2}
                     />
+                    {cambioNoteError && (
+                      <p className="text-[10px] text-fm-error font-medium">{cambioNoteError}</p>
+                    )}
                     <div className="flex gap-2">
                       <button
-                        onClick={() => { setShowCambioForm(false); setCambioNote('') }}
+                        onClick={() => { setShowCambioForm(false); setCambioNote(''); setCambioNoteError(null) }}
                         className="flex-1 py-1.5 text-xs font-semibold border border-fm-surface-container-high rounded-lg text-fm-on-surface-variant hover:bg-fm-surface-container-lowest"
                       >
                         Cancelar
@@ -808,42 +881,78 @@ export function PhaseSheet({
                 {/* Past cambio logs */}
                 {cambioLogs.length > 0 && (
                   <div className="pt-1 border-t border-fm-surface-container-high space-y-2">
-                    {cambioLogs.map((log, i) => (
-                      <div key={log.id} className="flex gap-2 items-start">
-                        <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${log.voided ? 'bg-fm-outline-variant/40' : 'bg-fm-outline-variant'}`} />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline gap-2 flex-wrap">
-                            <p className={`text-[10px] ${log.voided ? 'text-fm-outline-variant/60' : 'text-fm-outline-variant'}`}>
-                              Cambio {cambioLogs.length - i} ·{' '}
-                              {new Date(log.created_at).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                            </p>
-                            {!log.voided && isAdmin && (
-                              <button
-                                onClick={() => handleVoidLog(log.id)}
-                                disabled={voidingLogId === log.id}
-                                className="text-[10px] font-bold text-fm-error hover:underline disabled:opacity-30"
-                              >
-                                {voidingLogId === log.id ? '...' : 'Anular'}
-                              </button>
+                    {cambioLogs.map((log, i) => {
+                      const isPending = log.status === 'pending'
+                      const isRejected = log.status === 'rejected'
+                      const isApprovedLog = log.status === 'approved'
+                      const isDimmed = log.voided || isRejected
+                      return (
+                        <div key={log.id} className="flex gap-2 items-start">
+                          <span className={`mt-1 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            isDimmed ? 'bg-fm-outline-variant/40' : isPending ? 'bg-amber-400' : 'bg-fm-outline-variant'
+                          }`} />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-baseline gap-2 flex-wrap">
+                              <p className={`text-[10px] ${isDimmed ? 'text-fm-outline-variant/60' : 'text-fm-outline-variant'}`}>
+                                Cambio {cambioLogs.length - i} ·{' '}
+                                {new Date(log.created_at).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                              {isPending && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-400/15 text-amber-700 dark:text-amber-400">
+                                  Pendiente
+                                </span>
+                              )}
+                              {isRejected && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-fm-error/10 text-fm-error">
+                                  Rechazado
+                                </span>
+                              )}
+                              {isPending && isApprover && (
+                                <>
+                                  <button
+                                    onClick={() => handleApproveLog(log.id)}
+                                    disabled={approvingLogId === log.id || rejectingLogId === log.id}
+                                    className="text-[10px] font-bold text-fm-primary hover:underline disabled:opacity-30"
+                                  >
+                                    {approvingLogId === log.id ? '...' : 'Aprobar'}
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectLog(log.id)}
+                                    disabled={approvingLogId === log.id || rejectingLogId === log.id}
+                                    className="text-[10px] font-bold text-fm-error hover:underline disabled:opacity-30"
+                                  >
+                                    {rejectingLogId === log.id ? '...' : 'Rechazar'}
+                                  </button>
+                                </>
+                              )}
+                              {isApprovedLog && !log.voided && isAdmin && (
+                                <button
+                                  onClick={() => handleVoidLog(log.id)}
+                                  disabled={voidingLogId === log.id}
+                                  className="text-[10px] font-bold text-fm-error hover:underline disabled:opacity-30"
+                                >
+                                  {voidingLogId === log.id ? '...' : 'Anular'}
+                                </button>
+                              )}
+                            </div>
+                            {log.notes ? (
+                              <p className={`text-xs mt-0.5 ${isDimmed ? 'text-fm-outline-variant line-through' : 'text-fm-on-surface'}`}>
+                                {log.notes}
+                              </p>
+                            ) : (
+                              <p className={`text-xs italic mt-0.5 ${isDimmed ? 'text-fm-outline-variant/60 line-through' : 'text-fm-outline-variant'}`}>
+                                Sin descripción
+                              </p>
+                            )}
+                            {log.voided && (
+                              <p className="text-[10px] text-fm-outline-variant/70 mt-0.5">
+                                Anulado{log.voided_at && ` · ${new Date(log.voided_at).toLocaleDateString('es', { day: 'numeric', month: 'short' })}`}
+                              </p>
                             )}
                           </div>
-                          {log.notes ? (
-                            <p className={`text-xs mt-0.5 ${log.voided ? 'text-fm-outline-variant line-through' : 'text-fm-on-surface'}`}>
-                              {log.notes}
-                            </p>
-                          ) : (
-                            <p className={`text-xs italic mt-0.5 ${log.voided ? 'text-fm-outline-variant/60 line-through' : 'text-fm-outline-variant'}`}>
-                              Sin descripción
-                            </p>
-                          )}
-                          {log.voided && (
-                            <p className="text-[10px] text-fm-outline-variant/70 mt-0.5">
-                              Anulado{log.voided_at && ` · ${new Date(log.voided_at).toLocaleDateString('es', { day: 'numeric', month: 'short' })}`}
-                            </p>
-                          )}
                         </div>
-                      </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>

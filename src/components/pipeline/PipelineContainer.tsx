@@ -17,6 +17,7 @@ interface PipelineContainerProps {
   currentUserId: string
   canAssign: boolean
   isAdmin: boolean
+  isApprover?: boolean
   clients: { id: string; name: string }[]
   initialOpenRequirementId?: string | null
 }
@@ -27,6 +28,7 @@ export function PipelineContainer({
   currentUserId,
   canAssign,
   isAdmin,
+  isApprover = false,
   clients,
   initialOpenRequirementId = null,
 }: PipelineContainerProps) {
@@ -171,6 +173,7 @@ export function PipelineContainer({
             currentUserId={currentUserId}
             canAssign={canAssign}
             isAdmin={isAdmin}
+            isApprover={isApprover}
             initialOpenRequirementId={initialOpenRequirementId}
           />
         </div>

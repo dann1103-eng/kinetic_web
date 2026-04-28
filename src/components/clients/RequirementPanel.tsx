@@ -91,6 +91,8 @@ interface RequirementPanelProps {
   /** Admin estricto (rol = 'admin'). Default: igual a `isAdmin`.
    *  Pasar explícitamente cuando isAdmin agrega supervisor (ej. portal). */
   isStrictAdmin?: boolean
+  /** true si el usuario puede aprobar/rechazar cambios (admin o supervisor). */
+  isApprover?: boolean
   canCreate?: boolean
   canAssign?: boolean
   userMap: Record<string, string>
@@ -113,6 +115,7 @@ export function RequirementPanel({
   daysLeft,
   isAdmin,
   isStrictAdmin,
+  isApprover,
   canCreate = false,
   canAssign = false,
   userMap,
@@ -880,6 +883,7 @@ export function RequirementPanel({
             <RequirementHistory
               requirements={requirements}
               isAdmin={isAdmin}
+              isApprover={isApprover ?? isAdmin}
               cycleId={cycle.id}
               userMap={userMap}
               cambioLogsMap={cambioLogsMap}

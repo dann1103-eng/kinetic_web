@@ -14,6 +14,7 @@ interface KanbanAccordionProps {
   currentUserId: string
   canAssign?: boolean
   isAdmin?: boolean
+  isApprover?: boolean
   nowMs?: number
   initialOpenRequirementId?: string | null
 }
@@ -24,6 +25,7 @@ export function KanbanAccordion({
   currentUserId,
   canAssign = false,
   isAdmin = false,
+  isApprover = false,
   nowMs,
   initialOpenRequirementId = null,
 }: KanbanAccordionProps) {
@@ -138,6 +140,7 @@ export function KanbanAccordion({
           includesStory={deepLinkItem.includes_story}
           deadline={deepLinkItem.deadline}
           isAdmin={isAdmin}
+          isApprover={isApprover}
         />
       )}
     </div>

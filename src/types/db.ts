@@ -603,6 +603,8 @@ export interface Database {
           voided: boolean
           voided_by_user_id: string | null
           voided_at: string | null
+          /** 'pending' = esperando aprobación; 'approved' = contabilizado; 'rejected' = rechazado */
+          status: 'pending' | 'approved' | 'rejected'
         }
         Insert: {
           id?: string
@@ -613,11 +615,13 @@ export interface Database {
           voided?: boolean
           voided_by_user_id?: string | null
           voided_at?: string | null
+          status?: 'pending' | 'approved' | 'rejected'
         }
         Update: {
           voided?: boolean
           voided_by_user_id?: string | null
           voided_at?: string | null
+          status?: 'pending' | 'approved' | 'rejected'
         }
         Relationships: [
           {

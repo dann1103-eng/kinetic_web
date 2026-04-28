@@ -48,9 +48,10 @@ interface TableViewProps {
   currentUserId: string
   canAssign: boolean
   isAdmin?: boolean
+  isApprover?: boolean
 }
 
-export function TableView({ items, logsMap, currentUserId, canAssign, isAdmin = false }: TableViewProps) {
+export function TableView({ items, logsMap, currentUserId, canAssign, isAdmin = false, isApprover = false }: TableViewProps) {
   const [sortField, setSortField] = useState<SortField>('last_moved')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [selectedItem, setSelectedItem] = useState<PipelineItem | null>(null)
@@ -273,6 +274,7 @@ export function TableView({ items, logsMap, currentUserId, canAssign, isAdmin = 
           includesStory={selectedItem.includes_story}
           deadline={selectedItem.deadline}
           isAdmin={isAdmin}
+          isApprover={isApprover}
         />
       )}
     </>

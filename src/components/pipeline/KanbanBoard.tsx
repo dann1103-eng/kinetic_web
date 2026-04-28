@@ -35,6 +35,8 @@ interface KanbanBoardProps {
   currentUserId: string
   canAssign?: boolean
   isAdmin?: boolean
+  /** true si el usuario puede aprobar/rechazar cambios (admin o supervisor) */
+  isApprover?: boolean
   initialOpenRequirementId?: string | null
 }
 
@@ -44,6 +46,7 @@ export function KanbanBoard({
   currentUserId,
   canAssign = false,
   isAdmin = false,
+  isApprover = false,
   initialOpenRequirementId = null,
 }: KanbanBoardProps) {
   const router = useRouter()
@@ -132,6 +135,8 @@ export function KanbanBoard({
         logsMap={logsMap}
         currentUserId={currentUserId}
         canAssign={canAssign}
+        isAdmin={isAdmin}
+        isApprover={isApprover}
         nowMs={nowMs}
         initialOpenRequirementId={initialOpenRequirementId}
       />
@@ -204,6 +209,7 @@ export function KanbanBoard({
           includesStory={activeDetailItem.includes_story}
           deadline={activeDetailItem.deadline}
           isAdmin={isAdmin}
+          isApprover={isApprover}
         />
       )}
 

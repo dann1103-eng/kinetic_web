@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Requirement, RequirementCambioLog, ContentType } from '@/types/db'
 import { CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
 import { CONTENT_ICONS } from '@/lib/domain/content-icons'
-import { voidCambioLog } from '@/app/actions/cambioLogs'
+import { voidCambioLog, approveCambioLog, rejectCambioLog } from '@/app/actions/cambioLogs'
 
 const TYPE_ACTION: Record<ContentType, string> = {
   historia: 'Historia registrada',
@@ -34,6 +34,8 @@ function daysAgo(dateStr: string): string {
 interface RequirementHistoryProps {
   requirements: Requirement[]
   isAdmin: boolean
+  /** true si el usuario es admin o supervisor (puede aprobar/rechazar cambios) */
+  isApprover?: boolean
   cycleId: string
   userMap: Record<string, string>
   cambioLogsMap: Record<string, RequirementCambioLog[]>
@@ -42,6 +44,7 @@ interface RequirementHistoryProps {
 export function RequirementHistory({
   requirements,
   isAdmin,
+  isApprover = false,
   userMap,
   cambioLogsMap: initialCambioLogsMap,
 }: RequirementHistoryProps) {
@@ -49,16 +52,20 @@ export function RequirementHistory({
   const [voidingId, setVoidingId] = useState<string | null>(null)
   const [incrementingId, setIncrementingId] = useState<string | null>(null)
   const [voidingLogId, setVoidingLogId] = useState<string | null>(null)
-  // Which requirement's cambio form is open
+  const [approvingLogId, setApprovingLogId] = useState<string | null>(null)
+  const [rejectingLogId, setRejectingLogId] = useState<string | null>(null)
+  // Formulario de nuevo cambio abierto
   const [cambioFormId, setCambioFormId] = useState<string | null>(null)
   const [cambioNote, setCambioNote] = useState('')
-  // Local cambio logs (optimistic update)
+  const [cambioError, setCambioError] = useState<string | null>(null)
+  // Logs locales (actualización optimista)
   const [cambioLogsMap, setCambioLogsMap] = useState(initialCambioLogsMap)
-  // Local cambios_count override (optimistic decrement on void)
+  // Override del contador para decrementos optimistas (anular)
   const [cambiosCountOverride, setCambiosCountOverride] = useState<Record<string, number>>({})
-  // Which requirement's log list is expanded
+  // Historial expandido
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
+  // ─────────────────────── Anular log aprobado (solo admin) ───────────────────────
   async function handleVoidLog(logId: string, requirementId: string) {
     setVoidingLogId(logId)
     const result = await voidCambioLog(logId)
@@ -67,7 +74,6 @@ export function RequirementHistory({
       setVoidingLogId(null)
       return
     }
-    // Optimistic: marca el log como anulado y decrementa el contador local
     setCambioLogsMap((prev) => ({
       ...prev,
       [requirementId]: (prev[requirementId] ?? []).map((l) =>
@@ -82,6 +88,50 @@ export function RequirementHistory({
     router.refresh()
   }
 
+  // ─────────────────────── Aprobar cambio pendiente ───────────────────────
+  async function handleApproveLog(logId: string, requirementId: string) {
+    setApprovingLogId(logId)
+    const result = await approveCambioLog(logId)
+    if ('error' in result) {
+      alert(result.error)
+      setApprovingLogId(null)
+      return
+    }
+    setCambioLogsMap((prev) => ({
+      ...prev,
+      [requirementId]: (prev[requirementId] ?? []).map((l) =>
+        l.id === logId ? { ...l, status: 'approved' } : l,
+      ),
+    }))
+    // El contador sube en 1 (el servidor lo hizo; actualizamos local)
+    setCambiosCountOverride((prev) => {
+      const current = prev[requirementId] ?? requirements.find((r) => r.id === requirementId)?.cambios_count ?? 0
+      return { ...prev, [requirementId]: current + 1 }
+    })
+    setApprovingLogId(null)
+    router.refresh()
+  }
+
+  // ─────────────────────── Rechazar cambio pendiente ───────────────────────
+  async function handleRejectLog(logId: string, requirementId: string) {
+    setRejectingLogId(logId)
+    const result = await rejectCambioLog(logId)
+    if ('error' in result) {
+      alert(result.error)
+      setRejectingLogId(null)
+      return
+    }
+    setCambioLogsMap((prev) => ({
+      ...prev,
+      [requirementId]: (prev[requirementId] ?? []).map((l) =>
+        l.id === logId ? { ...l, status: 'rejected' } : l,
+      ),
+    }))
+    setRejectingLogId(null)
+    router.refresh()
+  }
+
+  // ─────────────────────── Anular requerimiento completo ───────────────────────
   async function handleVoid(requirementId: string) {
     setVoidingId(requirementId)
     const supabase = createClient()
@@ -92,7 +142,6 @@ export function RequirementHistory({
       voided_at: new Date().toISOString(),
     }).eq('id', requirementId)
 
-    // Cleanup de adjuntos del chat — presupuesto 50MB total en Supabase Free.
     try {
       const { data: files } = await supabase.storage
         .from('requirement-attachments')
@@ -109,21 +158,50 @@ export function RequirementHistory({
     router.refresh()
   }
 
+  // ─────────────────────── Registrar nuevo cambio ───────────────────────
   async function handleAddCambio(requirementId: string) {
+    setCambioError(null)
+    const note = cambioNote.trim()
+    if (!note) {
+      setCambioError('La descripción del cambio es obligatoria.')
+      return
+    }
+
     setIncrementingId(requirementId)
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    const note = cambioNote.trim() || null
+
+    // Determina el rol del usuario actual para decidir si se auto-aprueba
+    const { data: appUser } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user?.id ?? '')
+      .single()
+    const selfApprove = isApprover || appUser?.role === 'admin' || appUser?.role === 'supervisor'
+    const status: 'pending' | 'approved' = selfApprove ? 'approved' : 'pending'
+
     const currentCount = requirements.find(r => r.id === requirementId)?.cambios_count ?? 0
 
-    await Promise.all([
-      supabase.from('requirements').update({ cambios_count: currentCount + 1 }).eq('id', requirementId),
-      supabase.from('requirement_cambio_logs').insert({
+    if (selfApprove) {
+      // Admin/supervisor: aprueba de inmediato y sube el contador
+      await Promise.all([
+        supabase.from('requirements').update({ cambios_count: currentCount + 1 }).eq('id', requirementId),
+        supabase.from('requirement_cambio_logs').insert({
+          requirement_id: requirementId,
+          notes: note,
+          created_by: user?.id ?? null,
+          status: 'approved',
+        }),
+      ])
+    } else {
+      // Operador: queda pendiente de aprobación, no toca el contador
+      await supabase.from('requirement_cambio_logs').insert({
         requirement_id: requirementId,
         notes: note,
         created_by: user?.id ?? null,
-      }),
-    ])
+        status: 'pending',
+      })
+    }
 
     const newLog: RequirementCambioLog = {
       id: crypto.randomUUID(),
@@ -134,6 +212,7 @@ export function RequirementHistory({
       voided: false,
       voided_by_user_id: null,
       voided_at: null,
+      status,
     }
     setCambioLogsMap(prev => ({
       ...prev,
@@ -141,6 +220,7 @@ export function RequirementHistory({
     }))
     setCambioFormId(null)
     setCambioNote('')
+    setCambioError(null)
     setExpandedId(requirementId)
     setIncrementingId(null)
     router.refresh()
@@ -161,11 +241,13 @@ export function RequirementHistory({
           const type = r.content_type as ContentType
           const userName = userMap[r.registered_by_user_id] ?? 'Operador'
           const logs = cambioLogsMap[r.id] ?? []
-          const activeLogs = logs.filter((l) => !l.voided)
+          // Logs visibles: no-voided y no-rejected (pending + approved)
+          const visibleLogs = logs.filter((l) => !l.voided && l.status !== 'rejected')
+          const approvedLogs = visibleLogs.filter((l) => l.status === 'approved')
+          const pendingLogs = visibleLogs.filter((l) => l.status === 'pending')
           const effectiveCambiosCount = cambiosCountOverride[r.id] ?? r.cambios_count
           const isExpanded = expandedId === r.id
           const isCambioOpen = cambioFormId === r.id
-          // Multi-consumo: muestra chip si admin definió consumption_overrides_json
           const overrides = r.consumption_overrides_json
           const overrideEntries = overrides
             ? (Object.entries(overrides) as [ContentType, number][]).filter(([, qty]) => (qty ?? 0) > 0)
@@ -199,26 +281,36 @@ export function RequirementHistory({
                           Excedente
                         </span>
                       )}
-                      {/* Cambios badge — clickable to expand logs */}
-                      {!r.voided && type !== 'produccion' && type !== 'reunion' && logs.length > 0 && (
+                      {/* Badge de cambios aprobados (clickable) */}
+                      {!r.voided && type !== 'produccion' && type !== 'reunion' && logs.length > 0 && approvedLogs.length > 0 && (
                         <button
                           onClick={() => setExpandedId(isExpanded ? null : r.id)}
                           className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded text-fm-on-surface-variant bg-fm-outline-variant/20 hover:bg-fm-outline-variant/40 transition-colors"
                         >
-                          {activeLogs.length} {activeLogs.length === 1 ? 'cambio' : 'cambios'} {isExpanded ? '▲' : '▼'}
+                          {approvedLogs.length} {approvedLogs.length === 1 ? 'cambio' : 'cambios'} {isExpanded ? '▲' : '▼'}
                         </button>
                       )}
+                      {/* Badge de cambios sin logs (legacy) */}
                       {!r.voided && type !== 'produccion' && type !== 'reunion' && logs.length === 0 && effectiveCambiosCount > 0 && (
                         <span className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded text-fm-on-surface-variant bg-fm-outline-variant/20">
                           {effectiveCambiosCount} {effectiveCambiosCount === 1 ? 'cambio' : 'cambios'}
                         </span>
+                      )}
+                      {/* Badge de pendientes */}
+                      {!r.voided && type !== 'produccion' && type !== 'reunion' && pendingLogs.length > 0 && (
+                        <button
+                          onClick={() => setExpandedId(isExpanded ? null : r.id)}
+                          className="ml-1.5 text-xs font-medium px-1.5 py-0.5 rounded text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-400/15 hover:bg-amber-200 dark:hover:bg-amber-400/25 transition-colors"
+                        >
+                          ⏳ {pendingLogs.length} pendiente{pendingLogs.length > 1 ? 's' : ''}
+                        </button>
                       )}
                     </p>
                     <p className="text-xs text-fm-on-surface-variant mt-0.5">
                       <span className="text-fm-outline-variant">{CONTENT_TYPE_LABELS[type]}</span>
                       {r.notes && <span> — {r.notes}</span>}
                     </p>
-                    {/* Chip de multi-consumo (admin) */}
+                    {/* Chip multi-consumo (admin) */}
                     {overrideEntries.length > 0 && !r.voided && (
                       <p className="text-xs mt-0.5 flex items-center gap-1 flex-wrap">
                         <span className="material-symbols-outlined text-fm-secondary text-[14px]">balance</span>
@@ -238,14 +330,14 @@ export function RequirementHistory({
                   </div>
                 </div>
 
-                {/* Action buttons */}
+                {/* Botones de acción */}
                 <div className="flex items-center gap-3 flex-shrink-0 ml-4">
-                  {/* +1 cambio */}
                   {!r.voided && type !== 'produccion' && type !== 'reunion' && (
                     <button
                       onClick={() => {
                         setCambioFormId(isCambioOpen ? null : r.id)
                         setCambioNote('')
+                        setCambioError(null)
                       }}
                       disabled={incrementingId === r.id}
                       className="text-xs font-bold transition-colors disabled:opacity-30 text-fm-primary hover:underline"
@@ -253,7 +345,6 @@ export function RequirementHistory({
                       {incrementingId === r.id ? '...' : '+1 cambio'}
                     </button>
                   )}
-                  {/* Void button */}
                   {!r.voided && (
                     <button
                       onClick={() => handleVoid(r.id)}
@@ -266,20 +357,33 @@ export function RequirementHistory({
                 </div>
               </div>
 
-              {/* Inline cambio form */}
+              {/* Formulario inline de nuevo cambio */}
               {isCambioOpen && (
                 <div className="mt-3 ml-14 space-y-2 p-3 bg-fm-background rounded-xl border border-fm-surface-container-high">
-                  <p className="text-xs font-semibold text-fm-on-surface-variant">Descripción del cambio</p>
+                  <p className="text-xs font-semibold text-fm-on-surface-variant">
+                    Descripción del cambio <span className="text-fm-error">*</span>
+                  </p>
+                  {!isApprover && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-sm">info</span>
+                      Quedará pendiente de aprobación por un supervisor o admin.
+                    </p>
+                  )}
                   <textarea
                     value={cambioNote}
-                    onChange={e => setCambioNote(e.target.value)}
-                    placeholder="¿Qué cambió? (opcional)"
+                    onChange={e => { setCambioNote(e.target.value); setCambioError(null) }}
+                    placeholder="¿Qué cambió? (obligatorio)"
                     rows={2}
-                    className="w-full text-xs bg-fm-surface-container-lowest border border-fm-surface-container-high rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-fm-primary text-fm-on-surface"
+                    className={`w-full text-xs bg-fm-surface-container-lowest border rounded-lg px-3 py-2 resize-none focus:outline-none text-fm-on-surface transition-colors ${
+                      cambioError ? 'border-fm-error focus:border-fm-error' : 'border-fm-surface-container-high focus:border-fm-primary'
+                    }`}
                   />
+                  {cambioError && (
+                    <p className="text-[10px] text-fm-error font-medium">{cambioError}</p>
+                  )}
                   <div className="flex gap-2">
                     <button
-                      onClick={() => { setCambioFormId(null); setCambioNote('') }}
+                      onClick={() => { setCambioFormId(null); setCambioNote(''); setCambioError(null) }}
                       className="flex-1 py-1.5 text-xs font-semibold border border-fm-surface-container-high rounded-lg text-fm-on-surface-variant hover:bg-fm-surface-container-lowest bg-transparent"
                     >
                       Cancelar
@@ -295,21 +399,66 @@ export function RequirementHistory({
                 </div>
               )}
 
-              {/* Cambio logs list */}
+              {/* Lista de logs (expandible) */}
               {isExpanded && logs.length > 0 && (
                 <div className="mt-3 ml-14 space-y-2">
                   {logs.map((log, i) => {
                     const voidedAuthor = log.voided_by_user_id ? userMap[log.voided_by_user_id] : null
+                    const isPending = log.status === 'pending'
+                    const isRejected = log.status === 'rejected'
+                    const isApproved = log.status === 'approved'
+                    const isDimmed = log.voided || isRejected
+
                     return (
                       <div key={log.id} className="flex gap-2 items-start">
-                        <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${log.voided ? 'bg-fm-outline-variant/40' : 'bg-fm-outline-variant'}`} />
+                        <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          isDimmed
+                            ? 'bg-fm-outline-variant/40'
+                            : isPending
+                              ? 'bg-amber-400'
+                              : 'bg-fm-outline-variant'
+                        }`} />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-baseline gap-2 flex-wrap">
-                            <p className={`text-[10px] ${log.voided ? 'text-fm-outline-variant/60' : 'text-fm-outline-variant'}`}>
+                            <p className={`text-[10px] ${isDimmed ? 'text-fm-outline-variant/60' : 'text-fm-outline-variant'}`}>
                               Cambio {logs.length - i} ·{' '}
                               {new Date(log.created_at).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                             </p>
-                            {!log.voided && isAdmin && (
+
+                            {/* Badge de estado */}
+                            {isPending && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-400/15 text-amber-700 dark:text-amber-400">
+                                Pendiente
+                              </span>
+                            )}
+                            {isRejected && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-fm-error/10 text-fm-error">
+                                Rechazado
+                              </span>
+                            )}
+
+                            {/* Botones de aprobación (solo si es aprobador y el log está pendiente) */}
+                            {isPending && isApprover && (
+                              <>
+                                <button
+                                  onClick={() => handleApproveLog(log.id, r.id)}
+                                  disabled={approvingLogId === log.id || rejectingLogId === log.id}
+                                  className="text-[10px] font-bold text-fm-primary hover:underline disabled:opacity-30"
+                                >
+                                  {approvingLogId === log.id ? '...' : 'Aprobar'}
+                                </button>
+                                <button
+                                  onClick={() => handleRejectLog(log.id, r.id)}
+                                  disabled={approvingLogId === log.id || rejectingLogId === log.id}
+                                  className="text-[10px] font-bold text-fm-error hover:underline disabled:opacity-30"
+                                >
+                                  {rejectingLogId === log.id ? '...' : 'Rechazar'}
+                                </button>
+                              </>
+                            )}
+
+                            {/* Anular (solo admin, solo logs aprobados) */}
+                            {isApproved && !log.voided && isAdmin && (
                               <button
                                 onClick={() => handleVoidLog(log.id, r.id)}
                                 disabled={voidingLogId === log.id}
@@ -319,15 +468,19 @@ export function RequirementHistory({
                               </button>
                             )}
                           </div>
+
+                          {/* Descripción */}
                           {log.notes ? (
-                            <p className={`text-xs mt-0.5 ${log.voided ? 'text-fm-outline-variant line-through' : 'text-fm-on-surface'}`}>
+                            <p className={`text-xs mt-0.5 ${isDimmed ? 'text-fm-outline-variant line-through' : 'text-fm-on-surface'}`}>
                               {log.notes}
                             </p>
                           ) : (
-                            <p className={`text-xs italic mt-0.5 ${log.voided ? 'text-fm-outline-variant/60 line-through' : 'text-fm-outline-variant'}`}>
+                            <p className={`text-xs italic mt-0.5 ${isDimmed ? 'text-fm-outline-variant/60 line-through' : 'text-fm-outline-variant'}`}>
                               Sin descripción
                             </p>
                           )}
+
+                          {/* Info de anulación */}
                           {log.voided && (
                             <p className="text-[10px] text-fm-outline-variant/70 mt-0.5">
                               Anulado{voidedAuthor ? ` por ${voidedAuthor}` : ''}

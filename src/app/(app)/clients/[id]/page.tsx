@@ -219,6 +219,7 @@ export default async function ClientDetailPage({
     ? await supabase.from('users').select('role').eq('id', authUser.id).single()
     : { data: null }
   const isAdmin = appUser?.role === 'admin'
+  const isApprover = appUser?.role === 'admin' || appUser?.role === 'supervisor'
   const portalUsers = isAdmin ? await listClientUsers(id) : []
   const canCreate = appUser?.role === 'admin' || appUser?.role === 'supervisor'
 
@@ -250,6 +251,7 @@ export default async function ClientDetailPage({
             limits={limits}
             daysLeft={daysLeft}
             isAdmin={isAdmin}
+            isApprover={isApprover}
             canCreate={canCreate}
             userMap={userMap}
             assignableUsers={(users ?? []).filter(u => u.role !== 'client').map(u => ({
