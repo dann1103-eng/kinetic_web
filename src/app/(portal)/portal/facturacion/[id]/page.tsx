@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId } from '@/lib/supabase/active-client'
 import { InvoiceStatusBadge } from '@/components/billing/StatusBadge'
+import { N1coPayButton } from '@/components/billing/N1coPayModal'
 import { formatCurrency, formatTaxRate } from '@/lib/domain/invoices'
 import type {
   ClientFiscalSnapshot,
@@ -179,6 +180,37 @@ export default async function PortalInvoiceDetailPage({
 
         {/* Panel lateral — acciones del cliente */}
         <div className="space-y-4">
+          {invoice.status === 'issued' && invoice.n1co_payment_link_url && (
+            <div className="bg-fm-surface-container-lowest rounded-2xl border-2 border-fm-primary/30 p-4 space-y-3">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-outline-variant">
+                  Total a pagar
+                </p>
+                <p className="text-2xl font-bold text-fm-primary mt-0.5">
+                  {formatCurrency(invoice.total)}
+                </p>
+              </div>
+              <N1coPayButton
+                paymentLinkUrl={invoice.n1co_payment_link_url}
+                invoiceId={invoice.id}
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-fm-primary text-white text-sm font-semibold py-2.5 hover:bg-fm-primary/90 transition-colors"
+              >
+                <span className="material-symbols-outlined text-base">credit_card</span>
+                Pagar ahora
+              </N1coPayButton>
+              <p className="text-[10px] text-fm-outline text-center">
+                Pago seguro · n1co · Tu tarjeta no pasa por nuestros servidores
+              </p>
+            </div>
+          )}
+
+          {invoice.status === 'issued' && !invoice.n1co_payment_link_url && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl px-3 py-3 text-xs text-amber-800">
+              <p className="font-semibold mb-0.5">Pendiente de link de pago</p>
+              <p>Tu agencia generará el link de pago en breve.</p>
+            </div>
+          )}
+
           <a
             href={`/api/invoices/${invoice.id}/pdf`}
             target="_blank"
