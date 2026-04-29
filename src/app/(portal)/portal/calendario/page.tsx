@@ -78,8 +78,16 @@ export default async function PortalCalendarioPage() {
         id: ev.id,
         kind: ev.kind,
         title: ev.title,
-        start: ev.start.toISOString(),
-        end: ev.end.toISOString(),
+        // All-day (deadline-based) events: serializar SIN sufijo 'Z' para que el
+        // browser los interprete en hora local y no haya desfase de timezone
+        // (el servidor corre en UTC; .toISOString() añadiría 'Z' y el browser
+        // mostraría el evento un día antes en zonas UTC-N).
+        start: ev.allDay && req.deadline
+          ? req.deadline + 'T00:00:00'
+          : ev.start.toISOString(),
+        end: ev.allDay && req.deadline
+          ? req.deadline + 'T23:59:59'
+          : ev.end.toISOString(),
         allDay: ev.allDay,
         phaseLabel,
         notes: req.notes ?? null,
@@ -87,14 +95,14 @@ export default async function PortalCalendarioPage() {
       })
     } else if (req.deadline) {
       // Fallback: any content_type with a deadline that the domain function doesn't map
-      // (e.g. campaña, copy, etc.) still appears on the deadline date
-      const start = new Date(req.deadline + 'T00:00:00')
+      // (e.g. campaña, copy, etc.) still appears on the deadline date.
+      // Sin 'Z' → hora local en el browser.
       events.push({
         id: `req-${req.id}`,
         kind: 'arte' as CalendarEventKind,
         title: req.title || req.content_type,
-        start: start.toISOString(),
-        end: start.toISOString(),
+        start: req.deadline + 'T00:00:00',
+        end: req.deadline + 'T23:59:59',
         allDay: true,
         phaseLabel,
         notes: req.notes ?? null,

@@ -57,13 +57,14 @@ export function requirementToCalendarEvent(
     // Legacy: sin starts_at → all-day en deadline
     if (req.deadline) {
       const start = new Date(req.deadline + 'T00:00:00')
+      const end = new Date(req.deadline + 'T23:59:59')
       return {
         id: `req-${req.id}`,
         source: 'requirement',
         kind: req.content_type as 'reunion' | 'produccion',
         title: req.title || req.content_type,
         start,
-        end: start,
+        end,
         allDay: true,
         clientId,
         clientName,
@@ -77,13 +78,14 @@ export function requirementToCalendarEvent(
 
   if (ART_TYPES.includes(req.content_type) && req.deadline) {
     const start = new Date(req.deadline + 'T00:00:00')
+    const end = new Date(req.deadline + 'T23:59:59')
     return {
       id: `req-${req.id}`,
       source: 'requirement',
       kind: 'arte',
       title: req.title || req.content_type,
       start,
-      end: start,
+      end,
       allDay: true,
       clientId,
       clientName,
