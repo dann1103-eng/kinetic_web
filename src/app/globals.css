@@ -325,11 +325,25 @@
     padding: 6px 0;
     background: var(--color-fm-surface-container-lowest);
   }
-  .calendar-wrapper .rbc-month-view,
+  /* Month view: scrollable so zoomed-in screens can see all weeks */
+  .calendar-wrapper .rbc-month-view {
+    border-color: var(--color-fm-surface-container-high);
+    border-radius: 12px;
+    overflow-y: auto;
+    background: var(--color-fm-surface-container-lowest);
+  }
+  /* Week/day time view: clipped — internal .rbc-time-content handles its own scroll */
   .calendar-wrapper .rbc-time-view {
     border-color: var(--color-fm-surface-container-high);
     border-radius: 12px;
     overflow: hidden;
+    background: var(--color-fm-surface-container-lowest);
+  }
+  /* Sticky weekday-name header so it stays visible while scrolling month rows */
+  .calendar-wrapper .rbc-month-view .rbc-row.rbc-month-header {
+    position: sticky;
+    top: 0;
+    z-index: 4;
     background: var(--color-fm-surface-container-lowest);
   }
   .calendar-wrapper .rbc-day-bg,
@@ -430,6 +444,9 @@
   }
   .dark .calendar-wrapper .rbc-month-view,
   .dark .calendar-wrapper .rbc-time-view {
+    background: var(--color-fm-surface-container-lowest) !important;
+  }
+  .dark .calendar-wrapper .rbc-month-view .rbc-row.rbc-month-header {
     background: var(--color-fm-surface-container-lowest) !important;
   }
 
