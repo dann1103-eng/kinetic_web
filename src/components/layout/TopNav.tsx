@@ -7,6 +7,7 @@ import { useUser } from '@/contexts/UserContext'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { useMobileSidebar } from '@/components/layout/MobileSidebarProvider'
 import { NotificationsDropdown } from '@/components/layout/NotificationsDropdown'
+import { ShiftStatusWidget } from '@/components/layout/ShiftStatusWidget'
 
 interface TopNavProps {
   title: string
@@ -58,6 +59,7 @@ export function TopNav({ title }: TopNavProps) {
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
+        <ShiftStatusWidget />
         <ThemeToggle />
         <NotificationsDropdown />
         <Link

@@ -7,6 +7,7 @@ import { startShift, endShift, startBreak, endBreak, getMyActiveShift } from '@/
 import { stopActiveEntry } from '@/app/actions/time'
 import { formatDuration } from '@/lib/domain/time'
 import type { WorkSession, WorkSessionBreak } from '@/types/db'
+import { EndShiftConfirmDialog } from './EndShiftConfirmDialog'
 
 function elapsedSeconds(from: string, to?: Date): number {
   const end = to ?? new Date()
@@ -211,34 +212,12 @@ export function ShiftPanel() {
 
       {error && <p className="text-xs text-fm-error">{error}</p>}
 
-      {endConfirm.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4 border border-fm-surface-container-high">
-            <p className="text-sm font-semibold text-fm-on-surface">Finalizar jornada</p>
-            <p className="text-sm text-fm-on-surface-variant">
-              Tienes un timer activo:{' '}
-              <strong className="text-fm-on-surface">&ldquo;{endConfirm.label}&rdquo;</strong>.
-              Si finalizas la jornada, se detendrá automáticamente.
-            </p>
-            <div className="flex gap-3 justify-end pt-1">
-              <button
-                type="button"
-                onClick={() => setEndConfirm({ open: false, label: null })}
-                className="px-4 py-2 rounded-full text-sm font-semibold text-fm-on-surface-variant border border-fm-surface-container-high hover:bg-fm-surface-container-low transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmEndShift}
-                className="px-4 py-2 rounded-full bg-fm-error/10 text-fm-error border border-fm-error/30 text-sm font-bold hover:bg-fm-error/15 transition-colors"
-              >
-                Finalizar jornada
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <EndShiftConfirmDialog
+        open={endConfirm.open}
+        timerLabel={endConfirm.label}
+        onConfirm={confirmEndShift}
+        onCancel={() => setEndConfirm({ open: false, label: null })}
+      />
     </div>
   )
 }

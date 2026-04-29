@@ -964,6 +964,8 @@ export function RequirementPanel({
         totals={totals}
         limits={effectiveLimitsMap}
         availableCredits={availableCredits}
+        isUnifiedPool={isUnifiedPool}
+        poolUsage={poolUsage}
         isAdmin={isAdmin}
         isStrictAdmin={isStrictAdmin ?? isAdmin}
         canAssign={canAssign}

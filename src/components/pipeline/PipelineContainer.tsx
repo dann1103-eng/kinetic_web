@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { KanbanBoard } from './KanbanBoard'
 import { TableView } from './TableView'
 import { NewRequirementFromPipeline } from './NewRequirementFromPipeline'
+import { SyncedScrollbar } from './SyncedScrollbar'
 import { PHASES, PHASE_LABELS } from '@/lib/domain/pipeline'
 import type { PipelineItem } from '@/lib/domain/pipeline'
 import type { Phase, Priority, RequirementPhaseLog } from '@/types/db'
@@ -40,6 +41,7 @@ export function PipelineContainer({
   const [filterPhase, setFilterPhase] = useState('')
   const [filterAssigneeId, setFilterAssigneeId] = useState('')
   const [search, setSearch] = useState('')
+  const kanbanScrollRef = useRef<HTMLDivElement>(null)
 
   const hasFilters = filterClientId || filterPriority || filterPhase || filterAssigneeId || search.trim()
 
@@ -187,16 +189,19 @@ export function PipelineContainer({
 
       {/* View */}
       {view === 'kanban' ? (
-        <div className="flex-1 overflow-auto">
-          <KanbanBoard
-            byPhase={byPhase}
-            logsMap={logsMap}
-            currentUserId={currentUserId}
-            canAssign={canAssign}
-            isAdmin={isAdmin}
-            isApprover={isApprover}
-            initialOpenRequirementId={initialOpenRequirementId}
-          />
+        <div className="flex-1 flex flex-col min-h-0">
+          <SyncedScrollbar targetRef={kanbanScrollRef} />
+          <div ref={kanbanScrollRef} className="flex-1 overflow-auto">
+            <KanbanBoard
+              byPhase={byPhase}
+              logsMap={logsMap}
+              currentUserId={currentUserId}
+              canAssign={canAssign}
+              isAdmin={isAdmin}
+              isApprover={isApprover}
+              initialOpenRequirementId={initialOpenRequirementId}
+            />
+          </div>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">

@@ -6,6 +6,8 @@ import { MobileSidebarProvider } from '@/components/layout/MobileSidebarProvider
 import { UserProvider } from '@/contexts/UserContext'
 import { NotificationToastHost } from '@/components/notifications/NotificationToastHost'
 import { FloatingChatDock } from '@/components/inbox/floating/FloatingChatDock'
+import { LoginWelcomeDialog } from '@/components/layout/LoginWelcomeDialog'
+import { IdleSchedulerWrapper } from '@/components/layout/IdleSchedulerWrapper'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -65,6 +67,8 @@ export default async function AppLayout({ children }: AppLayoutProps) {
         </div>
         <NotificationToastHost />
         <FloatingChatDock />
+        <LoginWelcomeDialog />
+        <IdleSchedulerWrapper />
       </MobileSidebarProvider>
     </UserProvider>
   )

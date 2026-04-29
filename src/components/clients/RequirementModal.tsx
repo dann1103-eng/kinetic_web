@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { createClient } from '@/lib/supabase/client'
 import type { ClientWithPlan, BillingCycle, ContentType, Priority } from '@/types/db'
 import { PRIORITY_LABELS, PRIORITY_COLORS } from '@/types/db'
-import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
+import { CONTENT_TYPES, CONTENT_TYPE_LABELS, TIPPABLE_CONTENT_TYPES } from '@/lib/domain/plans'
 import { canRegisterWithContext, canRegisterBreakdown, weekIndexInCycle } from '@/lib/domain/requirement'
 import { insertInitialPhaseLog } from '@/lib/domain/pipeline'
 import { consumeContentCreditForRequirement } from '@/app/actions/credits'
@@ -71,6 +71,11 @@ interface RequirementModalProps {
   limits: Record<ContentType, number>
   /** Créditos sin caducidad disponibles para el cliente, por content_type. Se suman al límite del ciclo al validar. */
   availableCredits?: Partial<Record<ContentType, number>>
+  /** Cliente con plan "Licencia de Contenido Avanzada" — pool unificado entre tipos tippables.
+   *  Cuando true, el modal valida contra el pool y oculta contadores individuales por tipo. */
+  isUnifiedPool?: boolean
+  /** Uso del pool unificado (used/limit). Solo aplica cuando isUnifiedPool=true. */
+  poolUsage?: { used: number; limit: number } | null
   isAdmin: boolean
   /** Admin estricto (rol = 'admin') puede definir consumo personalizado multi-tipo. */
   isStrictAdmin?: boolean
@@ -86,6 +91,8 @@ export function RequirementModal({
   totals,
   limits,
   availableCredits = {},
+  isUnifiedPool = false,
+  poolUsage = null,
   isAdmin,
   isStrictAdmin = false,
   canAssign = false,
@@ -196,13 +203,29 @@ export function RequirementModal({
       const t = type as ContentType
       limitsWithCredits[t] = (limits[t] ?? 0) + (qty ?? 0)
     }
-    const breakdownCheck = canRegisterBreakdown(effectiveBreakdown, totals, limitsWithCredits)
-    const allowed = breakdownCheck.ok
+
+    // En pool unificado el blocker es el pool, no los límites por tipo.
+    let allowed: boolean
+    let blockReason: string | null = null
+    if (isUnifiedPool && poolUsage !== null) {
+      const sum = TIPPABLE_CONTENT_TYPES.reduce((s, t) => s + (effectiveBreakdown[t] ?? 0), 0)
+      const overflows = poolUsage.used + sum > poolUsage.limit
+      allowed = !overflows
+      if (!allowed) {
+        blockReason = 'Paquete completo. Contrata otro paquete o anula un requerimiento existente.'
+      }
+    } else {
+      const breakdownCheck = canRegisterBreakdown(effectiveBreakdown, totals, limitsWithCredits)
+      allowed = breakdownCheck.ok
+      if (!allowed) {
+        const exceeded = breakdownCheck.exceeded
+        const exceededLabel = exceeded ? CONTENT_TYPE_LABELS[exceeded] : 'el tipo seleccionado'
+        blockReason = `Límite de ${exceededLabel} alcanzado. Solo un admin puede forzar un requerimiento extra.`
+      }
+    }
 
     if (!allowed && !forceOverLimit) {
-      const exceeded = breakdownCheck.exceeded
-      const exceededLabel = exceeded ? CONTENT_TYPE_LABELS[exceeded] : 'el tipo seleccionado'
-      setError(`Límite de ${exceededLabel} alcanzado. Solo un admin puede forzar un requerimiento extra.`)
+      setError(blockReason ?? 'No se puede registrar este requerimiento.')
       setLoading(false)
       return
     }
@@ -364,9 +387,21 @@ export function RequirementModal({
         ? { [selectedType]: 1, historia: 1 }
         : { [selectedType]: 1 }
 
-  // Para el warning: solo dispara si NI el plan NI los créditos pueden cubrir.
+  // En pool unificado: el blocker es el pool, no los límites individuales por tipo.
+  const tippableSumInBreakdown = TIPPABLE_CONTENT_TYPES.reduce(
+    (s, t) => s + (effectiveBreakdown[t] ?? 0),
+    0,
+  )
+  const poolWouldOverflow =
+    isUnifiedPool && poolUsage !== null && poolUsage.used + tippableSumInBreakdown > poolUsage.limit
+
+  // Para el warning: en pool unificado dispara solo si el pool se llena.
+  // En plan normal, dispara si ni el plan ni los créditos pueden cubrir.
   const selectedAtLimit =
-    selectedType !== null && !canRegisterBreakdown(effectiveBreakdown, totals, limitsWithCredits).ok
+    selectedType !== null &&
+    (isUnifiedPool
+      ? poolWouldOverflow
+      : !canRegisterBreakdown(effectiveBreakdown, totals, limitsWithCredits).ok)
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
@@ -379,6 +414,24 @@ export function RequirementModal({
         </DialogHeader>
 
         <div className="px-6 pt-4 pb-4 space-y-4 overflow-y-auto flex-1 min-h-0">
+          {/* Pool unificado banner — solo Plan Licencia de Contenido Avanzada */}
+          {isUnifiedPool && poolUsage && (
+            <div className="rounded-xl bg-fm-primary/5 border border-fm-primary/20 p-4 flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-fm-primary">
+                  Contenidos del paquete
+                </p>
+                <p className="text-2xl font-black text-fm-on-surface mt-0.5 tabular-nums">
+                  {poolUsage.used}{' '}
+                  <span className="text-base font-medium text-fm-outline">/ {poolUsage.limit}</span>
+                </p>
+              </div>
+              <p className="text-xs font-bold text-fm-primary">
+                {Math.max(0, poolUsage.limit - poolUsage.used)} disponibles
+              </p>
+            </div>
+          )}
+
           {/* Type selector */}
           <div>
             <Label className="text-sm font-medium text-fm-on-surface mb-2 block">
@@ -392,15 +445,24 @@ export function RequirementModal({
                 const totalAvailable = planLimit + credits
                 const atLimit = consumed >= totalAvailable
                 const isSelected = selectedType === type
+                const isTippableInPool = isUnifiedPool && TIPPABLE_CONTENT_TYPES.includes(type)
                 // Etiqueta del contador:
+                //   - Pool unificado (tippable): sin contador (el pool se muestra arriba)
                 //   - Solo créditos (sin plan): "+N créditos"
                 //   - Solo plan: "consumido/limite"
                 //   - Mixto: "consumido/limite (+N)"
-                const counterLabel = planLimit === 0 && credits > 0
-                  ? `+${credits} crédito${credits === 1 ? '' : 's'}`
-                  : credits > 0
-                    ? `${consumed}/${planLimit} (+${credits})`
-                    : `${consumed}/${planLimit}`
+                const counterLabel = isTippableInPool
+                  ? ''
+                  : planLimit === 0 && credits > 0
+                    ? `+${credits} crédito${credits === 1 ? '' : 's'}`
+                    : credits > 0
+                      ? `${consumed}/${planLimit} (+${credits})`
+                      : `${consumed}/${planLimit}`
+
+                // En pool unificado, el atLimit visual de tippables se basa en el pool global.
+                const visualAtLimit = isTippableInPool
+                  ? (poolUsage?.used ?? 0) >= (poolUsage?.limit ?? 0)
+                  : atLimit
 
                 return (
                   <button
@@ -409,7 +471,7 @@ export function RequirementModal({
                     className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all text-center ${
                       isSelected
                         ? 'border-fm-primary bg-fm-primary/5 text-fm-primary'
-                        : atLimit
+                        : visualAtLimit
                         ? 'border-fm-error/30 bg-fm-error/5 text-fm-error/70'
                         : 'border-fm-surface-container-high bg-fm-surface-container-lowest text-fm-on-surface-variant hover:border-fm-primary/40'
                     }`}
@@ -418,9 +480,11 @@ export function RequirementModal({
                     <span className="text-xs font-medium leading-tight">
                       {CONTENT_TYPE_LABELS[type]}
                     </span>
-                    <span className={`text-xs font-semibold ${atLimit ? 'text-fm-error' : ''}`}>
-                      {counterLabel}
-                    </span>
+                    {counterLabel && (
+                      <span className={`text-xs font-semibold ${visualAtLimit ? 'text-fm-error' : ''}`}>
+                        {counterLabel}
+                      </span>
+                    )}
                   </button>
                 )
               })}
@@ -430,9 +494,13 @@ export function RequirementModal({
           {/* At-limit warning */}
           {selectedAtLimit && (
             <div className="bg-fm-error/5 border border-fm-error/20 rounded-xl p-3">
-              <p className="text-sm text-fm-error font-medium mb-1">Límite alcanzado</p>
+              <p className="text-sm text-fm-error font-medium mb-1">
+                {isUnifiedPool ? 'Paquete completo' : 'Límite alcanzado'}
+              </p>
               <p className="text-xs text-fm-error/80 mb-2">
-                Este tipo de contenido ha alcanzado su límite mensual.
+                {isUnifiedPool
+                  ? 'El paquete de contenidos del cliente está completo. Contrata otro paquete o anula un requerimiento existente.'
+                  : 'Este tipo de contenido ha alcanzado su límite mensual.'}
                 {isAdmin && ' Como admin, puedes forzar el registro (quedará marcado como excedente).'}
               </p>
               {isAdmin && (
@@ -687,8 +755,24 @@ export function RequirementModal({
           {/* Impact preview (usa el effectiveBreakdown computado arriba) */}
           {selectedType && (
             <div className="bg-fm-background rounded-xl p-3 space-y-1">
-              {(Object.entries(effectiveBreakdown) as [ContentType, number][]).map(([type, qty], idx) => {
-                const isFirst = idx === 0
+              {/* Pool unificado: una sola línea con el pool global */}
+              {isUnifiedPool && poolUsage && tippableSumInBreakdown > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-fm-on-surface-variant">Paquete (contenidos)</span>
+                  <span className="text-sm font-semibold text-fm-on-surface">
+                    {poolUsage.used} →{' '}
+                    <span className={poolWouldOverflow ? 'text-fm-error' : 'text-fm-primary'}>
+                      {poolUsage.used + tippableSumInBreakdown}
+                    </span>
+                    <span className="text-fm-on-surface-variant font-normal"> /{poolUsage.limit}</span>
+                  </span>
+                </div>
+              )}
+              {/* Tipos no tippables (historia, matriz, produccion, reunion) o plan normal */}
+              {(Object.entries(effectiveBreakdown) as [ContentType, number][])
+                .filter(([type]) => !(isUnifiedPool && TIPPABLE_CONTENT_TYPES.includes(type)))
+                .map(([type, qty], idx) => {
+                const isFirst = idx === 0 && !(isUnifiedPool && tippableSumInBreakdown > 0)
                 const next = (totals[type] ?? 0) + qty
                 const effectiveLimit = limitsWithCredits[type] ?? 0
                 const overLimit = next > effectiveLimit

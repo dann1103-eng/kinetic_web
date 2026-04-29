@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { PlusIcon, DownloadIcon, ChevronLeftIcon, Trash2Icon } from 'lucide-react'
 import type { ReviewAsset, ReviewVersion, ReviewPin } from '@/types/db'
 import { AssetThumbnail } from './AssetThumbnail'
-import { getSignedDownloadUrl, deleteReviewVersion } from '@/app/actions/content-review'
+import { deleteReviewVersion } from '@/app/actions/content-review'
 import { useUserOrNull } from '@/contexts/UserContext'
 
 interface ReviewLeftColumnProps {
@@ -47,17 +47,11 @@ export function ReviewLeftColumn({
 
   async function handleDownload() {
     if (!latestVersion) return
-    const ext = latestVersion.storage_path.split('.').pop() ?? ''
-    const baseName = selectedAsset
-      ? `${selectedAsset.name}-v${latestVersion.version_number}`
-      : `archivo-v${latestVersion.version_number}`
-    const res = await getSignedDownloadUrl({
-      storagePath: latestVersion.storage_path,
-      fileName: ext ? `${baseName}.${ext}` : baseName,
-    })
-    if ('ok' in res) {
-      window.open(res.data.url, '_blank', 'noopener,noreferrer')
-    }
+    // Siempre intentar el ZIP server-side: si la versión tiene 1 archivo, igual
+    // funciona (un zip de 1) — pero el usuario espera "toda la galería".
+    window.location.assign(
+      `/api/review/download-zip?versionId=${encodeURIComponent(latestVersion.id)}`,
+    )
   }
 
   async function handleDeleteVersion(version: ReviewVersion) {

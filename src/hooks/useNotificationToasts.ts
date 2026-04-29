@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useNotifications } from './useNotifications'
+import { useBrowserNotifications } from './useBrowserNotifications'
 import { useUser } from '@/contexts/UserContext'
 import { createClient } from '@/lib/supabase/client'
 import type { NotificationItem } from '@/types/db'
@@ -10,6 +11,41 @@ export interface ToastItem {
   id: string
   notification: NotificationItem
   href: string
+}
+
+function buildBrowserNotifPayload(item: NotificationItem): { title: string; body: string } {
+  if (item.kind === 'dm') {
+    return {
+      title: item.counterpart?.full_name ?? 'Nuevo mensaje',
+      body: item.last_message_preview ?? 'Te envió un mensaje directo',
+    }
+  }
+  if (item.kind === 'channel') {
+    return {
+      title: item.conversation_name ? `#${item.conversation_name}` : 'Canal',
+      body: item.last_message_preview ?? 'Nuevo mensaje en canal',
+    }
+  }
+  if (item.kind === 'mention') {
+    return {
+      title: item.mentioned_by?.full_name ? `${item.mentioned_by.full_name} te mencionó` : 'Nueva mención',
+      body: item.message_preview ?? item.requirement_title ?? '',
+    }
+  }
+  if (item.kind === 'calendar') {
+    const calendarReason = (item as { calendar_reason?: string }).calendar_reason
+    return {
+      title: calendarReason === 'assigned' ? 'Te asignaron a un evento' : 'Evento próximo',
+      body: (item as { calendar_title?: string }).calendar_title ?? '',
+    }
+  }
+  if (item.kind === 'overdue') {
+    return {
+      title: 'Requerimiento vencido',
+      body: item.requirement_title ?? 'Tienes un requerimiento vencido',
+    }
+  }
+  return { title: 'Notificación FM CRM', body: '' }
 }
 
 function buildHref(item: NotificationItem): string {
@@ -38,6 +74,7 @@ const INBOX_SOUND = '/sounds/inbox.mp3'
 export function useNotificationToasts() {
   const user = useUser()
   const { items, loading, refresh } = useNotifications()
+  const { dispatch: dispatchBrowserNotif } = useBrowserNotifications()
   const [toasts, setToasts] = useState<ToastItem[]>([])
   const seenIdsRef = useRef<Set<string>>(new Set())
   const initializedRef = useRef(false)
@@ -99,13 +136,24 @@ export function useNotificationToasts() {
     }
 
     const incoming: ToastItem[] = newItems.map((it) => ({
-      id: `toast-${it.id}-${Date.now()}`,
+      id: `toast-${it.id}-${new Date().getTime()}`,
       notification: it,
       href: buildHref(it),
     }))
 
+    // Disparar también browser notifs (solo si la pestaña no tiene foco).
+    for (const it of newItems) {
+      const payload = buildBrowserNotifPayload(it)
+      dispatchBrowserNotif({
+        title: payload.title,
+        body: payload.body,
+        tag: it.id,
+        href: buildHref(it),
+      })
+    }
+
     setToasts((prev) => [...prev, ...incoming].slice(-3))
-  }, [items])
+  }, [items, dispatchBrowserNotif])
 
   const dismiss = (toastId: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== toastId))

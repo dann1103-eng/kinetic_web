@@ -123,14 +123,25 @@ export function useConversationMessages(
     }
   }, [conversationId])
 
+  // ID estable del canal por mount (evita suscripciones huérfanas en StrictMode).
+  const channelIdRef = useRef<string>('')
+  if (!channelIdRef.current) {
+    channelIdRef.current =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2)
+  }
+
   useEffect(() => {
     if (!visible) return
     const supabase = createClient()
 
-    fetchIncremental()
+    // Hidratar de una sola vez (refresh) — evita race con INSERTs realtime tempranos
+    // y deja `lastCreatedAtRef` con timestamp actual para fetchIncremental subsiguientes.
+    refresh()
 
     const channel = supabase
-      .channel(`conv-messages-${conversationId}-${Math.random().toString(36).slice(2)}`)
+      .channel(`conv-messages-${conversationId}-${channelIdRef.current}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
