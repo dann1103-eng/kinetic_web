@@ -14,7 +14,7 @@ export function ActiveClientSwitcher({ options, activeId }: Props) {
 
   return (
     <select
-      className="w-full text-sm rounded-lg border border-fm-outline-variant/40 bg-white px-2 py-1.5"
+      className="w-full text-sm rounded-lg border border-fm-outline-variant/40 bg-fm-surface-container-lowest text-fm-on-surface px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-fm-primary/30"
       defaultValue={activeId}
       disabled={isPending}
       onChange={(e) => {

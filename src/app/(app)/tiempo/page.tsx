@@ -52,6 +52,7 @@ export default async function TiempoPage() {
     const { data: usersRaw } = await supabase
       .from('users')
       .select('*')
+      .neq('role', 'client')
       .order('full_name')
     allUsers = (usersRaw ?? []) as AppUser[]
   }
