@@ -33,6 +33,8 @@ export interface CreateQuoteInput {
   items: LineItemInput[]
   taxRate: number
   discountAmount?: number
+  /** Si se omite, se hereda de clients.aplica_renta_retenida (10% si true). */
+  retentionRate?: number
   validUntil?: string | null
   notes?: string | null
 }
@@ -59,10 +61,13 @@ export async function createQuote(
   if (!client) return { error: 'Cliente no encontrado' as const }
   if (!emitter) return { error: 'Configuración del emisor no inicializada (company_settings)' as const }
 
+  const retentionRate = input.retentionRate ?? (client.aplica_renta_retenida ? 0.1 : 0)
+
   const totals = calculateTotals({
     items: input.items,
     tax_rate: input.taxRate,
     discount_amount: input.discountAmount ?? 0,
+    retention_rate: retentionRate,
   })
 
   const { data: numberRow, error: numberErr } = await admin.rpc('next_quote_number')
@@ -83,7 +88,10 @@ export async function createQuote(
       discount_amount: totals.discount_amount,
       tax_rate: input.taxRate,
       tax_amount: totals.tax_amount,
+      retention_rate: totals.retention_rate,
+      retencion_renta_amount: totals.retencion_renta_amount,
       total: totals.total,
+      total_a_pagar: totals.total_a_pagar,
       status: 'draft',
       notes: input.notes ?? null,
       client_snapshot_json: buildClientSnapshot(client),
@@ -200,6 +208,7 @@ export async function convertQuoteToInvoice(
     items,
     taxRate: Number(quote.tax_rate),
     discountAmount: Number(quote.discount_amount) || 0,
+    retentionRate: Number(quote.retention_rate) || 0,
     notes: quote.notes,
   })
   if ('error' in result) return result

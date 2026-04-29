@@ -19,6 +19,7 @@ interface PipelineContainerProps {
   isAdmin: boolean
   isApprover?: boolean
   clients: { id: string; name: string }[]
+  assignableUsers?: { id: string; full_name: string }[]
   initialOpenRequirementId?: string | null
 }
 
@@ -30,15 +31,17 @@ export function PipelineContainer({
   isAdmin,
   isApprover = false,
   clients,
+  assignableUsers = [],
   initialOpenRequirementId = null,
 }: PipelineContainerProps) {
   const [view, setView] = useState<ViewMode>('kanban')
   const [filterClientId, setFilterClientId] = useState('')
   const [filterPriority, setFilterPriority] = useState('')
   const [filterPhase, setFilterPhase] = useState('')
+  const [filterAssigneeId, setFilterAssigneeId] = useState('')
   const [search, setSearch] = useState('')
 
-  const hasFilters = filterClientId || filterPriority || filterPhase || search.trim()
+  const hasFilters = filterClientId || filterPriority || filterPhase || filterAssigneeId || search.trim()
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -46,6 +49,10 @@ export function PipelineContainer({
       if (filterClientId && item.client_id !== filterClientId) return false
       if (filterPriority && item.priority !== filterPriority) return false
       if (filterPhase && item.phase !== filterPhase) return false
+      if (filterAssigneeId) {
+        const assigned = (item.assigned_to ?? []) as string[]
+        if (!assigned.includes(filterAssigneeId)) return false
+      }
       if (q) {
         const matches =
           item.title?.toLowerCase().includes(q) ||
@@ -55,7 +62,7 @@ export function PipelineContainer({
       }
       return true
     })
-  }, [items, filterClientId, filterPriority, filterPhase, search])
+  }, [items, filterClientId, filterPriority, filterPhase, filterAssigneeId, search])
 
   const byPhase = useMemo(() => {
     const map = Object.fromEntries(PHASES.map(p => [p, [] as PipelineItem[]])) as Record<Phase, PipelineItem[]>
@@ -152,9 +159,23 @@ export function PipelineContainer({
           ))}
         </select>
 
+        {/* Assignee filter */}
+        {assignableUsers.length > 0 && (
+          <select
+            value={filterAssigneeId}
+            onChange={e => setFilterAssigneeId(e.target.value)}
+            className="text-sm border border-fm-surface-container-high rounded-xl px-3 py-1.5 bg-fm-surface-container-lowest text-fm-on-surface"
+          >
+            <option value="">Todos los asignados</option>
+            {assignableUsers.map(u => (
+              <option key={u.id} value={u.id}>{u.full_name}</option>
+            ))}
+          </select>
+        )}
+
         {hasFilters && (
           <button
-            onClick={() => { setFilterClientId(''); setFilterPriority(''); setFilterPhase(''); setSearch('') }}
+            onClick={() => { setFilterClientId(''); setFilterPriority(''); setFilterPhase(''); setFilterAssigneeId(''); setSearch('') }}
             className="text-xs text-fm-on-surface-variant hover:text-fm-error px-2.5 py-1.5 rounded-lg border border-fm-surface-container-high transition-colors"
           >
             Limpiar

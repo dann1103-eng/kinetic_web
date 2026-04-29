@@ -20,7 +20,13 @@ import type { Client, Invoice, Plan } from '@/types/db'
  * y los items de `metadata`, permitiendo match directo.
  */
 export async function createInvoicePaymentLink(args: {
-  invoice: Pick<Invoice, 'id' | 'invoice_number' | 'total' | 'currency' | 'billing_cycle_id'>
+  /**
+   * El campo `total` de invoice es ignorado para el link — usa `args.amount`
+   * (que debe ser el `total_a_pagar`, no el `total` del DTE).
+   */
+  invoice: Pick<Invoice, 'id' | 'invoice_number' | 'currency' | 'billing_cycle_id'>
+  /** Monto a cobrar — siempre `total_a_pagar` (subtotal − descuento − renta + IVA). */
+  amount: number
   client: Pick<Client, 'id' | 'name'>
   plan?: Pick<Plan, 'id' | 'name'> | null
   periodLabel?: string
@@ -63,7 +69,7 @@ export async function createInvoicePaymentLink(args: {
     orderReference: invoice.id,
     orderName,
     orderDescription,
-    amount: invoice.total,
+    amount: args.amount,
     successUrl,
     cancelUrl,
     expirationMinutes: args.expirationMinutes ?? 4320,

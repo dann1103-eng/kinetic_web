@@ -46,6 +46,8 @@ export interface CreateInvoiceInput {
   items: LineItemInput[]
   taxRate: number
   discountAmount?: number
+  /** Si se omite, se hereda de clients.aplica_renta_retenida (10% si true). */
+  retentionRate?: number
   dueDate?: string | null
   notes?: string | null
   biweeklyHalf?: 'first' | 'second' | null
@@ -74,10 +76,13 @@ export async function createInvoice(
   if (!client) return { error: 'Cliente no encontrado' as const }
   if (!emitter) return { error: 'Configuración del emisor no inicializada (company_settings)' as const }
 
+  const retentionRate = input.retentionRate ?? (client.aplica_renta_retenida ? 0.1 : 0)
+
   const totals = calculateTotals({
     items: input.items,
     tax_rate: input.taxRate,
     discount_amount: input.discountAmount ?? 0,
+    retention_rate: retentionRate,
   })
 
   const { data: numberRow, error: numberErr } = await admin.rpc('next_invoice_number')
@@ -100,7 +105,10 @@ export async function createInvoice(
       discount_amount: totals.discount_amount,
       tax_rate: input.taxRate,
       tax_amount: totals.tax_amount,
+      retention_rate: totals.retention_rate,
+      retencion_renta_amount: totals.retencion_renta_amount,
       total: totals.total,
+      total_a_pagar: totals.total_a_pagar,
       status: 'draft',
       notes: input.notes ?? null,
       client_snapshot_json: buildClientSnapshot(client),
@@ -138,7 +146,7 @@ export async function createInvoice(
     const link = await createPaymentLinkSafe({
       invoiceId: inserted.id as string,
       invoiceNumber,
-      total: totals.total,
+      amount: totals.total_a_pagar,
       currency: 'USD',
       billingCycleId: input.billingCycleId ?? null,
       clientId: client.id,
@@ -179,7 +187,8 @@ export async function createInvoice(
 interface SafeLinkArgs {
   invoiceId: string
   invoiceNumber: string
-  total: number
+  /** Monto a cobrar (total_a_pagar, no total del DTE). */
+  amount: number
   currency: string
   billingCycleId: string | null
   clientId: string
@@ -194,10 +203,10 @@ async function createPaymentLinkSafe(args: SafeLinkArgs) {
       invoice: {
         id: args.invoiceId,
         invoice_number: args.invoiceNumber,
-        total: args.total,
         currency: args.currency,
         billing_cycle_id: args.billingCycleId,
       },
+      amount: args.amount,
       client: { id: args.clientId, name: args.clientName },
       plan: args.plan,
       locationCode: args.locationCode,
@@ -356,6 +365,31 @@ export async function deleteInvoiceDraft(id: string): Promise<{ error: string } 
   return { ok: true as const }
 }
 
+/**
+ * Borra permanentemente una factura anulada (status='void').
+ * Borra primero invoice_items para no dejar huérfanos.
+ * Solo admins.
+ */
+export async function deleteVoidInvoice(id: string): Promise<{ error: string } | { ok: true }> {
+  const auth = await requireAdmin()
+  if ('error' in auth) return { error: auth.error as string }
+  const admin = createAdminClient()
+  const { data: inv } = await admin.from('invoices').select('status').eq('id', id).single()
+  if (!inv) return { error: 'Factura no encontrada' as const }
+  if (inv.status !== 'void') {
+    return { error: 'Solo se pueden borrar facturas anuladas' as const }
+  }
+
+  const { error: itemsErr } = await admin.from('invoice_items').delete().eq('invoice_id', id)
+  if (itemsErr) return { error: 'Error al borrar los ítems de la factura' as const }
+
+  const { error } = await admin.from('invoices').delete().eq('id', id)
+  if (error) return { error: 'Error al borrar la factura anulada' as const }
+
+  revalidatePath('/billing/invoices')
+  return { ok: true as const }
+}
+
 // ── n1co-specific actions ────────────────────────────────────
 
 /**
@@ -371,7 +405,7 @@ export async function regenerateN1coLink(
 
   const { data: inv } = await admin
     .from('invoices')
-    .select('id, invoice_number, total, currency, billing_cycle_id, client_id, status')
+    .select('id, invoice_number, total, total_a_pagar, currency, billing_cycle_id, client_id, status')
     .eq('id', invoiceId)
     .single()
   if (!inv) return { error: 'Factura no encontrada' as const }
@@ -392,7 +426,7 @@ export async function regenerateN1coLink(
   const link = await createPaymentLinkSafe({
     invoiceId: inv.id,
     invoiceNumber: inv.invoice_number,
-    total: inv.total,
+    amount: inv.total_a_pagar ?? inv.total,
     currency: inv.currency,
     billingCycleId: inv.billing_cycle_id,
     clientId: clientRow.id,

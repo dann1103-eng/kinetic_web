@@ -21,19 +21,32 @@ export interface TotalsInput {
   items: LineItemInput[]
   tax_rate: number
   discount_amount?: number
+  retention_rate?: number
 }
 
 export interface TotalsResult {
   subtotal: number
   discount_amount: number
   tax_amount: number
+  retention_rate: number
+  retencion_renta_amount: number
   total: number
+  total_a_pagar: number
   items: LineItemComputed[]
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
-export function calculateTotals({ items, tax_rate, discount_amount = 0 }: TotalsInput): TotalsResult {
+/**
+ * Cálculo fiscal:
+ *  - subtotal       = sum(quantity × unit_price)
+ *  - taxable_base   = max(0, subtotal − discount)        ← base para renta retenida
+ *  - tax_amount     = subtotal × tax_rate                ← IVA SOBRE SUBTOTAL ORIGINAL (no recalculado tras renta)
+ *  - retencion      = taxable_base × retention_rate
+ *  - total          = taxable_base + tax_amount          ← Total en DTE (lo fiscal)
+ *  - total_a_pagar  = taxable_base − retencion + tax_amount   ← Lo que cobra el payment link
+ */
+export function calculateTotals({ items, tax_rate, discount_amount = 0, retention_rate = 0 }: TotalsInput): TotalsResult {
   const computedItems: LineItemComputed[] = items.map((it, idx) => ({
     description: it.description,
     quantity: it.quantity,
@@ -44,9 +57,20 @@ export function calculateTotals({ items, tax_rate, discount_amount = 0 }: Totals
   const subtotal = round2(computedItems.reduce((acc, it) => acc + it.line_total, 0))
   const discount = round2(Math.max(0, discount_amount))
   const taxable = Math.max(0, subtotal - discount)
-  const tax_amount = round2(taxable * tax_rate)
+  const tax_amount = round2(subtotal * tax_rate)
+  const retention = round2(taxable * Math.max(0, retention_rate))
   const total = round2(taxable + tax_amount)
-  return { subtotal, discount_amount: discount, tax_amount, total, items: computedItems }
+  const total_a_pagar = round2(taxable - retention + tax_amount)
+  return {
+    subtotal,
+    discount_amount: discount,
+    tax_amount,
+    retention_rate: Math.max(0, retention_rate),
+    retencion_renta_amount: retention,
+    total,
+    total_a_pagar,
+    items: computedItems,
+  }
 }
 
 export function buildClientSnapshot(client: Client): ClientFiscalSnapshot {
@@ -90,14 +114,22 @@ export const STANDARD_CAMBIOS_PACKAGES: { label: string; description: string; qu
 /**
  * Sugiere ítems por defecto a partir del plan actual del cliente.
  * FM no usa dualidad impl/mensual — una sola línea por plan.
+ *
+ * Si `half` es 'first' o 'second', el monto se divide entre 2
+ * (los clientes biweekly pagan la mitad del plan mensual cada quincena).
  */
-export function suggestItemsFromPlan(plan: Plan, periodLabel?: string): LineItemInput[] {
+export function suggestItemsFromPlan(
+  plan: Plan,
+  periodLabel?: string,
+  half: 'first' | 'second' | null = null,
+): LineItemInput[] {
   const label = periodLabel ? `Plan ${plan.name} — ${periodLabel}` : `Plan ${plan.name}`
+  const unit_price = half ? Math.round((plan.price_usd / 2) * 100) / 100 : plan.price_usd
   return [
     {
       description: label,
       quantity: 1,
-      unit_price: plan.price_usd,
+      unit_price,
     },
   ]
 }

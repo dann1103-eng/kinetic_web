@@ -104,6 +104,8 @@ interface ClientRow {
   current_plan_id: string
   billing_period: 'monthly' | 'biweekly'
   auto_billing: boolean
+  aplica_renta_retenida: boolean
+  default_tax_rate: number | null
   legal_name: string | null
   person_type: string | null
   nit: string | null
@@ -323,12 +325,16 @@ Deno.serve(async (_req) => {
       const label = periodLabel(scheduledPeriodStart, scheduledPeriodEnd, client.billing_period, half)
       const description = `Plan ${plan.name} — ${label}`
 
+      // Biweekly: cobrar la mitad del plan mensual cada quincena.
       const quantity = 1
-      const unit_price = plan.price_usd
+      const unit_price = half ? round2(plan.price_usd / 2) : plan.price_usd
       const subtotal = round2(quantity * unit_price)
-      const taxRate = 0
-      const taxAmount = 0
-      const total = subtotal
+      const taxRate = client.default_tax_rate ?? 0
+      const retentionRate = client.aplica_renta_retenida ? 0.1 : 0
+      const taxAmount = round2(subtotal * taxRate)
+      const retencion = round2(subtotal * retentionRate)
+      const total = round2(subtotal + taxAmount)
+      const totalAPagar = round2(subtotal - retencion + taxAmount)
 
       const { data: numberRow, error: numberErr } = await supabase.rpc('next_invoice_number')
       if (numberErr || !numberRow) {
@@ -350,7 +356,10 @@ Deno.serve(async (_req) => {
           discount_amount: 0,
           tax_rate: taxRate,
           tax_amount: taxAmount,
+          retention_rate: retentionRate,
+          retencion_renta_amount: retencion,
           total,
+          total_a_pagar: totalAPagar,
           status: 'issued',
           notes: null,
           client_snapshot_json: buildClientSnapshot(client),
@@ -382,10 +391,11 @@ Deno.serve(async (_req) => {
 
       // Generar payment link de n1co para esta factura, así el cliente puede pagar
       // desde su portal sin esperar acción manual del admin.
+      // El monto del link es total_a_pagar (con retención aplicada), no el total del DTE.
       const linkInfo = await tryCreateN1coPaymentLink({
         invoiceId: invInsert.id,
         invoiceNumber: numberRow as unknown as string,
-        amount: total,
+        amount: totalAPagar,
         clientId: client.id,
         clientName: client.name,
         planName: plan.name,

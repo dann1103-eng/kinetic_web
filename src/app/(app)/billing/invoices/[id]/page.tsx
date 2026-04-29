@@ -114,15 +114,44 @@ export default async function InvoiceDetailPage({
             <div className="flex justify-end">
               <div className="w-72 space-y-1.5 text-sm">
                 <Row label="Subtotal" value={formatCurrency(invoice.subtotal)} />
-                <Row label="Descuento" value={`−${formatCurrency(invoice.discount_amount)}`} />
+                {invoice.discount_amount > 0 && (
+                  <Row label="Descuento" value={`−${formatCurrency(invoice.discount_amount)}`} />
+                )}
                 <Row label={`IVA (${formatTaxRate(invoice.tax_rate)})`} value={invoice.tax_rate === 0 ? '—' : formatCurrency(invoice.tax_amount)} />
                 <div className="h-px bg-fm-surface-container-high my-2" />
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-fm-on-surface">Total (USD)</span>
+                  <span className="font-semibold text-fm-on-surface">
+                    {invoice.retencion_renta_amount > 0 ? 'Total en DTE' : 'Total (USD)'}
+                  </span>
                   <span className="text-xl font-bold text-fm-primary">{formatCurrency(invoice.total)}</span>
                 </div>
+
+                {invoice.retencion_renta_amount > 0 && (
+                  <>
+                    <div className="h-px bg-fm-surface-container-high mt-3 mb-2" />
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-outline">A cobrar</p>
+                    <Row label="Subtotal" value={formatCurrency(invoice.subtotal)} />
+                    {invoice.discount_amount > 0 && (
+                      <Row label="Descuento" value={`−${formatCurrency(invoice.discount_amount)}`} />
+                    )}
+                    <Row
+                      label={`Renta retenida (${formatTaxRate(invoice.retention_rate)})`}
+                      value={`−${formatCurrency(invoice.retencion_renta_amount)}`}
+                    />
+                    <Row label={`IVA (${formatTaxRate(invoice.tax_rate)})`} value={formatCurrency(invoice.tax_amount)} />
+                    <div className="h-px bg-fm-surface-container-high my-2" />
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-fm-on-surface">TOTAL A PAGAR</span>
+                      <span className="text-xl font-bold text-fm-primary">{formatCurrency(invoice.total_a_pagar)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
+
+            <p className="text-xs text-fm-outline-variant italic text-right">
+              Este documento es una preforma. Su DTE será enviado al correo asociado a su cuenta.
+            </p>
 
             {invoice.notes && (
               <div>

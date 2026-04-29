@@ -125,6 +125,16 @@ const navItems: NavItem[] = [
       </svg>
     ),
   },
+  {
+    href: '/users/portal',
+    label: 'Usuarios portal',
+    allowedRoles: ['admin'],
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 13c-2.4 0-4.55-1.18-5.85-3 .03-1.99 4-3.08 5.85-3.08 1.84 0 5.82 1.09 5.85 3.08-1.3 1.82-3.45 3-5.85 3z"/>
+      </svg>
+    ),
+  },
 ]
 
 interface SidebarProps {

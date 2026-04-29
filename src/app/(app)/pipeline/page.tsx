@@ -132,6 +132,14 @@ export default async function PipelinePage({ searchParams }: PipelinePageProps) 
     ? await supabase.from('clients').select('id, name').in('id', cycleClientIds).order('name')
     : { data: [] }
 
+  // Staff (admin/supervisor/operator) para el filtro de asignados — excluye usuarios cliente.
+  const { data: staffUsers } = await supabase
+    .from('users')
+    .select('id, full_name, role')
+    .neq('role', 'client')
+    .order('full_name')
+  const assignableUsers = (staffUsers ?? []).map(u => ({ id: u.id, full_name: u.full_name }))
+
   return (
     <div className="flex flex-col min-h-full">
       <TopNav title="Pipeline" />
@@ -144,6 +152,7 @@ export default async function PipelinePage({ searchParams }: PipelinePageProps) 
           isAdmin={isAdmin}
           isApprover={isApprover}
           clients={pipelineClients ?? []}
+          assignableUsers={assignableUsers}
           initialOpenRequirementId={initialOpenRequirementId}
         />
       </div>

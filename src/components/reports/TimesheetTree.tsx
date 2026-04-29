@@ -119,7 +119,7 @@ function EntryRow({
         <div className="min-w-0">
           <p className="text-sm text-fm-on-surface truncate">{label}</p>
           {entry.notes && entry.notes.trim().length > 0 && (
-            <p className="text-xs text-fm-on-surface-variant mt-0.5 line-clamp-1 sm:line-clamp-2 truncate">
+            <p className="text-xs text-fm-on-surface-variant mt-0.5 whitespace-pre-wrap break-words">
               {entry.notes}
             </p>
           )}

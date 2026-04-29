@@ -50,6 +50,8 @@ const styles = StyleSheet.create({
   grandTotal: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4, paddingTop: 6, borderTopWidth: 1, borderColor: BORDER },
   grandTotalLabel: { fontSize: 10, color: '#1e293b', fontFamily: 'Helvetica-Bold' },
   grandTotalValue: { fontSize: 14, color: RED, fontFamily: 'Helvetica-Bold' },
+  sectionLabel: { fontSize: 7, color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginTop: 12, marginBottom: 4 },
+  preformaNote: { marginTop: 16, marginLeft: 'auto', width: 220, fontSize: 8, color: GRAY, fontStyle: 'italic', textAlign: 'right', lineHeight: 1.4 },
   section: { marginTop: 20, paddingTop: 12, borderTopWidth: 0.5, borderColor: BORDER },
   sectionTitle: { fontSize: 10, color: TEAL, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 },
   pmBox: { backgroundColor: BG_SOFT, padding: 10, borderRadius: 6, marginBottom: 6 },
@@ -150,10 +152,12 @@ export function QuotePDF({ quote, items }: QuotePDFProps) {
             <Text style={styles.totalsLabel}>Subtotal</Text>
             <Text style={styles.totalsValue}>${formatMoney(Number(quote.subtotal))}</Text>
           </View>
-          <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Descuento</Text>
-            <Text style={styles.totalsValue}>-${formatMoney(Number(quote.discount_amount))}</Text>
-          </View>
+          {Number(quote.discount_amount) > 0 && (
+            <View style={styles.totalsRow}>
+              <Text style={styles.totalsLabel}>Descuento</Text>
+              <Text style={styles.totalsValue}>-${formatMoney(Number(quote.discount_amount))}</Text>
+            </View>
+          )}
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>IVA ({(Number(quote.tax_rate) * 100).toFixed(0)}%)</Text>
             <Text style={styles.totalsValue}>
@@ -162,10 +166,47 @@ export function QuotePDF({ quote, items }: QuotePDFProps) {
           </View>
           <View style={styles.totalsDivider} />
           <View style={styles.grandTotal}>
-            <Text style={styles.grandTotalLabel}>Total (USD)</Text>
+            <Text style={styles.grandTotalLabel}>
+              {Number(quote.retencion_renta_amount) > 0 ? 'Total en DTE' : 'Total (USD)'}
+            </Text>
             <Text style={styles.grandTotalValue}>${formatMoney(Number(quote.total))}</Text>
           </View>
+
+          {Number(quote.retencion_renta_amount) > 0 && (
+            <>
+              <Text style={styles.sectionLabel}>A cobrar</Text>
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>Subtotal</Text>
+                <Text style={styles.totalsValue}>${formatMoney(Number(quote.subtotal))}</Text>
+              </View>
+              {Number(quote.discount_amount) > 0 && (
+                <View style={styles.totalsRow}>
+                  <Text style={styles.totalsLabel}>Descuento</Text>
+                  <Text style={styles.totalsValue}>-${formatMoney(Number(quote.discount_amount))}</Text>
+                </View>
+              )}
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>
+                  Renta retenida ({(Number(quote.retention_rate) * 100).toFixed(0)}%)
+                </Text>
+                <Text style={styles.totalsValue}>-${formatMoney(Number(quote.retencion_renta_amount))}</Text>
+              </View>
+              <View style={styles.totalsRow}>
+                <Text style={styles.totalsLabel}>IVA ({(Number(quote.tax_rate) * 100).toFixed(0)}%)</Text>
+                <Text style={styles.totalsValue}>${formatMoney(Number(quote.tax_amount))}</Text>
+              </View>
+              <View style={styles.totalsDivider} />
+              <View style={styles.grandTotal}>
+                <Text style={styles.grandTotalLabel}>TOTAL A PAGAR</Text>
+                <Text style={styles.grandTotalValue}>${formatMoney(Number(quote.total_a_pagar))}</Text>
+              </View>
+            </>
+          )}
         </View>
+
+        <Text style={styles.preformaNote}>
+          Este documento es una preforma. Su DTE será enviado al correo asociado a su cuenta.
+        </Text>
 
         {paymentMethods.length > 0 && (
           <View style={styles.section}>

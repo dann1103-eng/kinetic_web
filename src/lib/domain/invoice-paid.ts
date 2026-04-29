@@ -106,12 +106,20 @@ export async function markInvoicePaidCore(
             }
     await admin.from('billing_cycles').update(halfUpdate).eq('id', inv.billing_cycle_id)
 
-    // Si se pagó la primera quincena: generar reactivamente la segunda
+    // Si se pagó la primera quincena: generar reactivamente la segunda SOLO si el cliente
+    // tiene auto_billing activado. De lo contrario, el admin la creará manualmente.
     if (inv.biweekly_half === 'first') {
-      generatedSecondInvoiceId = await generateBiweeklySecondIfNeeded(admin, {
-        cycleId: inv.billing_cycle_id as string,
-        clientId: inv.client_id as string,
-      })
+      const { data: clientFlags } = await admin
+        .from('clients')
+        .select('auto_billing')
+        .eq('id', inv.client_id as string)
+        .single()
+      if (clientFlags?.auto_billing) {
+        generatedSecondInvoiceId = await generateBiweeklySecondIfNeeded(admin, {
+          cycleId: inv.billing_cycle_id as string,
+          clientId: inv.client_id as string,
+        })
+      }
     }
   }
 
@@ -167,8 +175,10 @@ export async function generateBiweeklySecondIfNeeded(
   const secondEndISO = (cycle as BillingCycle).period_end
 
   const label = invoicePeriodLabel(secondStartISO, secondEndISO, 'biweekly', 'second')
-  const items = suggestItemsFromPlan(plan as Plan, label)
-  const totals = calculateTotals({ items, tax_rate: 0, discount_amount: 0 })
+  const items = suggestItemsFromPlan(plan as Plan, label, 'second')
+  const taxRate = (client as Client).default_tax_rate ?? 0
+  const retentionRate = (client as Client).aplica_renta_retenida ? 0.1 : 0
+  const totals = calculateTotals({ items, tax_rate: taxRate, discount_amount: 0, retention_rate: retentionRate })
 
   const { data: numberRow, error: numberErr } = await admin.rpc('next_invoice_number')
   if (numberErr || !numberRow) return null
@@ -184,9 +194,12 @@ export async function generateBiweeklySecondIfNeeded(
       currency: 'USD',
       subtotal: totals.subtotal,
       discount_amount: totals.discount_amount,
-      tax_rate: 0,
+      tax_rate: taxRate,
       tax_amount: totals.tax_amount,
+      retention_rate: totals.retention_rate,
+      retencion_renta_amount: totals.retencion_renta_amount,
       total: totals.total,
+      total_a_pagar: totals.total_a_pagar,
       status: 'issued',
       client_snapshot_json: buildClientSnapshot(client as Client),
       emitter_snapshot_json: buildEmitterSnapshot(emitter as CompanySettings),

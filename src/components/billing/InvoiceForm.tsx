@@ -46,6 +46,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
   const [cycleId, setCycleId] = useState(initialCycleId ?? '')
   const [items, setItems] = useState<LineItemInput[]>([{ description: '', quantity: 1, unit_price: 0 }])
   const [taxRate, setTaxRate] = useState(0.13)
+  const [retentionRate, setRetentionRate] = useState(0)
   const [discount, setDiscount] = useState(0)
   const [notes, setNotes] = useState('')
   const [dueDate, setDueDate] = useState('')
@@ -69,12 +70,13 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
     load()
   }, [])
 
-  // Precarga plan + IVA + ciclo al seleccionar cliente
+  // Precarga plan + IVA + retención + ciclo al seleccionar cliente
   useEffect(() => {
     if (!clientId || loading) return
     const client = clients.find(c => c.id === clientId)
     if (!client) return
     setTaxRate(client.default_tax_rate ?? 0.13)
+    setRetentionRate(client.aplica_renta_retenida ? 0.1 : 0)
 
     const supabase = createClient()
     Promise.all([
@@ -115,7 +117,14 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
 
         // Resetear selector de quincena según billing_period y si hay ciclo (no en ad-hoc).
         if (client.billing_period === 'biweekly' && (initialCycleId || defaultCycleId)) {
-          setBiweeklyHalf('first')
+          // Si el ciclo destino es el actual y ya está la primera quincena pagada
+          // (o existe factura 'first' no anulada), sugerimos 'second'. De lo contrario, 'first'.
+          const targetCycleId = defaultCycleId === 'next' ? null : defaultCycleId
+          const hasFirstForCycle = targetCycleId
+            ? nonVoid.some(i => i.billing_cycle_id === targetCycleId && i.biweekly_half === 'first')
+            : false
+          const firstAlreadyPaid = cyc && targetCycleId === cyc.id && cyc.payment_status === 'paid'
+          setBiweeklyHalf(hasFirstForCycle || firstAlreadyPaid ? 'second' : 'first')
         } else {
           setBiweeklyHalf(null)
         }
@@ -132,7 +141,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           const label = targetPeriod
             ? invoicePeriodLabel(targetPeriod.periodStart, targetPeriod.periodEnd, client.billing_period, half)
             : undefined
-          setItems(suggestItemsFromPlan(plan, label))
+          setItems(suggestItemsFromPlan(plan, label, half))
         }
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,13 +173,13 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
     const label = targetPeriod
       ? invoicePeriodLabel(targetPeriod.periodStart, targetPeriod.periodEnd, client.billing_period, half)
       : undefined
-    setItems(suggestItemsFromPlan(plan, label))
+    setItems(suggestItemsFromPlan(plan, label, half))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [biweeklyHalf, cycleId])
 
   const totals = useMemo(
-    () => calculateTotals({ items, tax_rate: taxRate, discount_amount: discount }),
-    [items, taxRate, discount]
+    () => calculateTotals({ items, tax_rate: taxRate, discount_amount: discount, retention_rate: retentionRate }),
+    [items, taxRate, discount, retentionRate]
   )
 
   const selectedClient = useMemo(() => clients.find(c => c.id === clientId), [clients, clientId])
@@ -274,6 +283,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           items: validItems,
           taxRate,
           discountAmount: discount,
+          retentionRate,
           dueDate: dueDate || null,
           notes: notes || null,
           biweeklyHalf: cycleId && selectedClient?.billing_period === 'biweekly' ? biweeklyHalf : null,
@@ -284,6 +294,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           items: validItems,
           taxRate,
           discountAmount: discount,
+          retentionRate,
           validUntil: validUntil || null,
           notes: notes || null,
         })
@@ -372,7 +383,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
                       : 'bg-fm-background border-fm-surface-container-high text-fm-on-surface hover:border-fm-primary/40')
                   }
                 >
-                  1ª quincena (01–15)
+                  1ª quincena
                 </button>
                 <button
                   type="button"
@@ -384,7 +395,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
                       : 'bg-fm-background border-fm-surface-container-high text-fm-on-surface hover:border-fm-primary/40')
                   }
                 >
-                  2ª quincena (16–fin)
+                  2ª quincena
                 </button>
               </div>
             </div>
@@ -450,6 +461,24 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
             <Input type="number" min={0} step="0.01" value={discount}
               onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
               className="rounded-xl bg-fm-background border-fm-surface-container-high" />
+          </div>
+
+          <div className="col-span-2 flex items-center gap-3 rounded-xl bg-fm-background border border-fm-surface-container-high px-3 py-2.5">
+            <input
+              id="retention-toggle"
+              type="checkbox"
+              checked={retentionRate > 0}
+              onChange={(e) => setRetentionRate(e.target.checked ? 0.1 : 0)}
+              className="h-4 w-4 accent-fm-primary"
+            />
+            <label htmlFor="retention-toggle" className="text-sm text-fm-on-surface flex-1 cursor-pointer">
+              Aplicar renta retenida (10%)
+              <span className="block text-xs text-fm-outline">
+                {selectedClient?.aplica_renta_retenida
+                  ? 'Heredado del perfil del cliente. Puedes desmarcarlo para esta factura.'
+                  : 'Marcar solo si esta factura específica aplica retención.'}
+              </span>
+            </label>
           </div>
 
           {mode === 'invoice' ? (
@@ -535,19 +564,53 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
             <span className="text-fm-on-surface-variant">Subtotal</span>
             <span className="font-medium text-fm-on-surface">{formatCurrency(totals.subtotal)}</span>
           </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-fm-on-surface-variant">Descuento</span>
-            <span className="font-medium text-fm-on-surface">−{formatCurrency(totals.discount_amount)}</span>
-          </div>
+          {totals.discount_amount > 0 && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-fm-on-surface-variant">Descuento</span>
+              <span className="font-medium text-fm-on-surface">−{formatCurrency(totals.discount_amount)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between text-sm">
             <span className="text-fm-on-surface-variant">IVA ({(taxRate * 100).toFixed(0)}%)</span>
             <span className="font-medium text-fm-on-surface">{formatCurrency(totals.tax_amount)}</span>
           </div>
           <div className="h-px bg-fm-surface-container-high" />
           <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-fm-on-surface">Total (USD)</span>
+            <span className="text-sm font-semibold text-fm-on-surface">
+              {totals.retencion_renta_amount > 0 ? 'Total en DTE' : 'Total (USD)'}
+            </span>
             <span className="text-xl font-bold text-fm-primary">{formatCurrency(totals.total)}</span>
           </div>
+
+          {totals.retencion_renta_amount > 0 && (
+            <>
+              <div className="h-px bg-fm-surface-container-high mt-3" />
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-outline">A cobrar</p>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-fm-on-surface-variant">Subtotal</span>
+                <span className="font-medium text-fm-on-surface">{formatCurrency(totals.subtotal)}</span>
+              </div>
+              {totals.discount_amount > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-fm-on-surface-variant">Descuento</span>
+                  <span className="font-medium text-fm-on-surface">−{formatCurrency(totals.discount_amount)}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-fm-on-surface-variant">Renta retenida ({(totals.retention_rate * 100).toFixed(0)}%)</span>
+                <span className="font-medium text-fm-on-surface">−{formatCurrency(totals.retencion_renta_amount)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-fm-on-surface-variant">IVA ({(taxRate * 100).toFixed(0)}%)</span>
+                <span className="font-medium text-fm-on-surface">{formatCurrency(totals.tax_amount)}</span>
+              </div>
+              <div className="h-px bg-fm-surface-container-high" />
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-fm-on-surface">TOTAL A PAGAR</span>
+                <span className="text-xl font-bold text-fm-primary">{formatCurrency(totals.total_a_pagar)}</span>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="space-y-2">

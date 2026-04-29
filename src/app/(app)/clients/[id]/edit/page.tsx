@@ -68,6 +68,7 @@ export default function ClientEditPage() {
     default_tax_rate: '0.13',
   })
   const [autoBilling, setAutoBilling] = useState(false)
+  const [aplicaRentaRetenida, setAplicaRentaRetenida] = useState(false)
 
   const [cambiosPackages, setCambiosPackages] = useState<CambiosPackage[]>([])
   const [extraContent, setExtraContent] = useState<ExtraContentItem[]>([])
@@ -158,6 +159,7 @@ export default function ClientEditPage() {
         default_tax_rate: (clientData.default_tax_rate ?? 0.13).toString(),
       })
       setAutoBilling((clientData as Client & { auto_billing?: boolean }).auto_billing ?? false)
+      setAplicaRentaRetenida((clientData as Client & { aplica_renta_retenida?: boolean }).aplica_renta_retenida ?? false)
       setWeeklyTargets(clientData.weekly_targets_json ?? {})
       setWeeklyDist((clientData as Client & { weekly_distribution_json?: WeeklyDistribution | null }).weekly_distribution_json ?? {})
       setBillingPeriod(clientData.billing_period)
@@ -254,6 +256,7 @@ export default function ClientEditPage() {
         default_tax_rate: Number.isFinite(parseFloat(fiscal.default_tax_rate))
                             ? parseFloat(fiscal.default_tax_rate) : 0.13,
         auto_billing:     autoBilling,
+        aplica_renta_retenida: aplicaRentaRetenida,
       })
       .eq('id', id)
     setFiscalSaving(false)
@@ -1035,6 +1038,16 @@ export default function ClientEditPage() {
                         </label>
                         <p className="text-xs text-fm-outline-variant mt-1">
                           Genera la factura del siguiente ciclo automáticamente 10 días antes del cierre del ciclo actual.
+                        </p>
+                      </div>
+                      <div className="col-span-2 pt-2 border-t border-fm-surface-container-high">
+                        <label className="flex items-center gap-2 text-sm text-fm-on-surface cursor-pointer">
+                          <input type="checkbox" checked={aplicaRentaRetenida}
+                            onChange={(e) => setAplicaRentaRetenida(e.target.checked)} />
+                          Aplica renta retenida (10%)
+                        </label>
+                        <p className="text-xs text-fm-outline-variant mt-1">
+                          Activa para clientes que actúan como agentes de retención. El payment link se genera por el monto neto (subtotal − retención + IVA).
                         </p>
                       </div>
                     </div>

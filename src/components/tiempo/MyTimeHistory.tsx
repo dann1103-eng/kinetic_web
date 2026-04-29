@@ -288,7 +288,7 @@ function EntryRow({ entry, onOpenReq }: { entry: TimeEntryWithContext; onOpenReq
         </p>
       )}
       {entry.notes && (
-        <p className="text-xs text-fm-outline mt-1 ml-5 pl-0.5 truncate">{entry.notes}</p>
+        <p className="text-xs text-fm-outline mt-1 ml-5 pl-0.5 whitespace-pre-wrap break-words">{entry.notes}</p>
       )}
     </>
   )

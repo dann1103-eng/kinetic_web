@@ -307,6 +307,7 @@ export interface Database {
           country_code: string | null
           default_tax_rate: number | null
           auto_billing: boolean
+          aplica_renta_retenida: boolean
           is_foreign: boolean
           n1co_customer_id: string | null
           n1co_subscription_id: string | null
@@ -347,6 +348,7 @@ export interface Database {
           country_code?: string | null
           default_tax_rate?: number | null
           auto_billing?: boolean
+          aplica_renta_retenida?: boolean
           is_foreign?: boolean
           n1co_customer_id?: string | null
           n1co_subscription_id?: string | null
@@ -386,6 +388,7 @@ export interface Database {
           country_code?: string | null
           default_tax_rate?: number | null
           auto_billing?: boolean
+          aplica_renta_retenida?: boolean
           is_foreign?: boolean
           n1co_customer_id?: string | null
           n1co_subscription_id?: string | null
@@ -1151,7 +1154,10 @@ export interface Database {
           discount_amount: number
           tax_rate: number
           tax_amount: number
+          retention_rate: number
+          retencion_renta_amount: number
           total: number
+          total_a_pagar: number
           status: InvoiceStatus
           payment_date: string | null
           payment_method: InvoicePaymentMethod | null
@@ -1194,7 +1200,10 @@ export interface Database {
           discount_amount?: number
           tax_rate?: number
           tax_amount?: number
+          retention_rate?: number
+          retencion_renta_amount?: number
           total?: number
+          total_a_pagar?: number
           status?: InvoiceStatus
           payment_date?: string | null
           payment_method?: InvoicePaymentMethod | null
@@ -1233,7 +1242,10 @@ export interface Database {
           discount_amount?: number
           tax_rate?: number
           tax_amount?: number
+          retention_rate?: number
+          retencion_renta_amount?: number
           total?: number
+          total_a_pagar?: number
           status?: InvoiceStatus
           payment_date?: string | null
           payment_method?: InvoicePaymentMethod | null
@@ -1356,7 +1368,10 @@ export interface Database {
           discount_amount: number
           tax_rate: number
           tax_amount: number
+          retention_rate: number
+          retencion_renta_amount: number
           total: number
+          total_a_pagar: number
           status: QuoteStatus
           notes: string | null
           client_snapshot_json: ClientFiscalSnapshot
@@ -1378,7 +1393,10 @@ export interface Database {
           discount_amount?: number
           tax_rate?: number
           tax_amount?: number
+          retention_rate?: number
+          retencion_renta_amount?: number
           total?: number
+          total_a_pagar?: number
           status?: QuoteStatus
           notes?: string | null
           client_snapshot_json: ClientFiscalSnapshot
@@ -1396,7 +1414,10 @@ export interface Database {
           discount_amount?: number
           tax_rate?: number
           tax_amount?: number
+          retention_rate?: number
+          retencion_renta_amount?: number
           total?: number
+          total_a_pagar?: number
           status?: QuoteStatus
           notes?: string | null
           terms_snapshot_json?: TermAndCondition[]

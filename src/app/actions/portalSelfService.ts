@@ -110,10 +110,12 @@ export async function purchaseExtraCambios(args: {
 
   const description = `Paquete de ${args.qty} cambios adicionales`
   const items = [{ description, quantity: 1, unit_price: args.pricePerPackage }]
+  const retentionRate = client.aplica_renta_retenida ? 0.1 : 0
   const totals = calculateTotals({
     items,
     tax_rate: client.default_tax_rate ?? 0.13,
     discount_amount: 0,
+    retention_rate: retentionRate,
   })
 
   const { data: numberRow, error: numberErr } = await admin.rpc('next_invoice_number')
@@ -131,14 +133,17 @@ export async function purchaseExtraCambios(args: {
       discount_amount: totals.discount_amount,
       tax_rate: client.default_tax_rate ?? 0.13,
       tax_amount: totals.tax_amount,
+      retention_rate: totals.retention_rate,
+      retencion_renta_amount: totals.retencion_renta_amount,
       total: totals.total,
+      total_a_pagar: totals.total_a_pagar,
       status: 'issued',
       notes: `Paquete extra solicitado por el cliente desde el portal · Plan ${plan?.name ?? '—'}`,
       client_snapshot_json: buildClientSnapshot(client),
       emitter_snapshot_json: buildEmitterSnapshot(emitter),
       payment_provider: 'n1co_link_oneoff',
     })
-    .select('id, invoice_number, total, currency, billing_cycle_id')
+    .select('id, invoice_number, total, total_a_pagar, currency, billing_cycle_id')
     .single()
   if (insertErr || !inserted) return { error: 'Error al crear la factura' }
 
@@ -162,10 +167,10 @@ export async function purchaseExtraCambios(args: {
       invoice: {
         id: inserted.id as string,
         invoice_number: inserted.invoice_number as string,
-        total: inserted.total as number,
         currency: inserted.currency as string,
         billing_cycle_id: inserted.billing_cycle_id as string | null,
       },
+      amount: (inserted.total_a_pagar ?? inserted.total) as number,
       client: { id: client.id, name: client.name },
       plan: plan ? { id: plan.id, name: `${plan.name} · cambios extras` } : null,
       locationCode: emitter.n1co_location_code ?? undefined,
@@ -226,10 +231,12 @@ export async function purchaseExtraContent(args: {
   const label = CONTENT_TYPE_LABELS[args.contentType]
   const description = `${label} adicional${args.qty > 1 ? ` (×${args.qty})` : ''}`
   const items = [{ description, quantity: args.qty, unit_price: unitPrice }]
+  const retentionRate = client.aplica_renta_retenida ? 0.1 : 0
   const totals = calculateTotals({
     items,
     tax_rate: client.default_tax_rate ?? 0.13,
     discount_amount: 0,
+    retention_rate: retentionRate,
   })
 
   const { data: numberRow, error: numberErr } = await admin.rpc('next_invoice_number')
@@ -247,14 +254,17 @@ export async function purchaseExtraContent(args: {
       discount_amount: totals.discount_amount,
       tax_rate: client.default_tax_rate ?? 0.13,
       tax_amount: totals.tax_amount,
+      retention_rate: totals.retention_rate,
+      retencion_renta_amount: totals.retencion_renta_amount,
       total: totals.total,
+      total_a_pagar: totals.total_a_pagar,
       status: 'issued',
       notes: `Contenido extra solicitado por el cliente desde el portal · Plan ${plan?.name ?? '—'}`,
       client_snapshot_json: buildClientSnapshot(client),
       emitter_snapshot_json: buildEmitterSnapshot(emitter),
       payment_provider: 'n1co_link_oneoff',
     })
-    .select('id, invoice_number, total, currency, billing_cycle_id')
+    .select('id, invoice_number, total, total_a_pagar, currency, billing_cycle_id')
     .single()
   if (insertErr || !inserted) return { error: 'Error al crear la factura' }
 
@@ -275,10 +285,10 @@ export async function purchaseExtraContent(args: {
       invoice: {
         id: inserted.id as string,
         invoice_number: inserted.invoice_number as string,
-        total: inserted.total as number,
         currency: inserted.currency as string,
         billing_cycle_id: inserted.billing_cycle_id as string | null,
       },
+      amount: (inserted.total_a_pagar ?? inserted.total) as number,
       client: { id: client.id, name: client.name },
       plan: plan ? { id: plan.id, name: `${label} adicional` } : null,
       locationCode: emitter.n1co_location_code ?? undefined,

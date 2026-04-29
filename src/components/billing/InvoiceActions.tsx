@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { issueInvoice, voidInvoice, deleteInvoiceDraft } from '@/app/actions/invoices'
+import { issueInvoice, voidInvoice, deleteInvoiceDraft, deleteVoidInvoice } from '@/app/actions/invoices'
 
 interface InvoiceActionsProps {
   invoiceId: string
@@ -49,6 +49,16 @@ export function InvoiceActions({ invoiceId, status }: InvoiceActionsProps) {
     })
   }
 
+  function handleDeleteVoid() {
+    if (!confirm('¿Borrar definitivamente esta factura anulada? Se eliminará de la base de datos. Esta acción no se puede deshacer.')) return
+    setError(null)
+    startTransition(async () => {
+      const result = await deleteVoidInvoice(invoiceId)
+      if ('error' in result) { setError(result.error); return }
+      router.push('/billing/invoices')
+    })
+  }
+
   return (
     <div className="space-y-3">
       {error && (
@@ -76,6 +86,12 @@ export function InvoiceActions({ invoiceId, status }: InvoiceActionsProps) {
       {(status === 'issued' || status === 'paid') && !showVoid && (
         <Button onClick={() => setShowVoid(true)} variant="outline" className="rounded-xl text-fm-error border-fm-error/30 hover:bg-fm-error/5">
           Anular factura
+        </Button>
+      )}
+
+      {status === 'void' && (
+        <Button onClick={handleDeleteVoid} disabled={isPending} variant="outline" className="rounded-xl text-fm-error border-fm-error/30 hover:bg-fm-error/5">
+          Borrar factura anulada
         </Button>
       )}
 
