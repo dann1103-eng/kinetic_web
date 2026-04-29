@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ClockInPanel } from '@/components/tiempo/ClockInPanel'
 import { MyTimeHistory } from '@/components/tiempo/MyTimeHistory'
 import { AdminTimePanel } from '@/components/tiempo/AdminTimePanel'
+import { ShiftPanel } from '@/components/tiempo/ShiftPanel'
 import type { TimeEntry, AppUser } from '@/types/db'
 
 interface Props {
@@ -37,6 +38,7 @@ export function TiempoTabs({ userId, activeEntry, entries, year, month, allUsers
 
       {tab === 'personal' ? (
         <div className="space-y-5">
+          <ShiftPanel />
           <ClockInPanel initialActive={activeEntry} />
           <MyTimeHistory userId={userId} initialEntries={entries} initialYear={year} initialMonth={month} />
         </div>

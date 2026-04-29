@@ -18,6 +18,9 @@ import { RequirementHistory } from '@/components/clients/RequirementHistory'
 import { ClientNotesPanel } from '@/components/clients/ClientNotesPanel'
 import { ClientPortalInvite } from '@/components/clients/ClientPortalInvite'
 import { listClientUsers } from '@/app/actions/clientUsers'
+import { listClientCredits } from '@/app/actions/credits'
+import { ClientCreditsCard } from '@/components/clients/ClientCreditsCard'
+import { MatrixContentCard } from '@/components/clients/MatrixContentCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -202,6 +205,7 @@ export default async function ClientDetailPage({
   const cycle = currentCycle as BillingCycle | null
   const reqs = (requirements ?? []) as Requirement[]
   const totals = computeTotals(reqs)
+  const credits = await listClientCredits(id)
   const baseLimits = cycle
     ? effectiveLimits(cycle.limits_snapshot_json, cycle.rollover_from_previous_json)
     : null
@@ -248,6 +252,30 @@ export default async function ClientDetailPage({
           <span className="font-semibold text-fm-on-surface">{client.name}</span>
         </nav>
 
+        {/* 0 — Créditos sin caducidad disponibles */}
+        {(credits.cambios > 0 || Object.values(credits.content).some((q) => (q ?? 0) > 0)) && (
+          <ClientCreditsCard cambios={credits.cambios} content={credits.content} />
+        )}
+
+        {/* 0.5 — Matrices de contenido (timer rápido) */}
+        {(() => {
+          const matrices = reqs.filter((r) => r.content_type === 'matriz_contenido' && !r.voided)
+          if (matrices.length === 0 || !authUser) return null
+          return (
+            <MatrixContentCard
+              matrices={matrices.map((m) => ({
+                id: m.id,
+                title: m.title,
+                notes: m.notes,
+                phase: m.phase,
+                deadline: m.deadline,
+                registered_at: m.registered_at,
+              }))}
+              currentUserId={authUser.id}
+            />
+          )
+        })()}
+
         {/* 1 — Requerimientos del ciclo (sin historial al final) */}
         {cycle && limits ? (
           <RequirementPanel
@@ -256,6 +284,7 @@ export default async function ClientDetailPage({
             requirements={reqs}
             totals={totals}
             limits={limits}
+            availableCredits={credits.content}
             daysLeft={daysLeft}
             isAdmin={isAdmin}
             isApprover={isApprover}

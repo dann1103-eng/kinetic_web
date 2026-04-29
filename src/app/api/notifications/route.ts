@@ -307,7 +307,11 @@ export async function GET() {
     }
   }
 
-  /* ── Eventos de calendario (asignaciones recientes + próximos 24h) ── */
+  /* ── Eventos de calendario (asignaciones recientes + próximos 24h) ──
+   * Cubre 2 fuentes:
+   *   a. time_entries con scheduled_attendees (reuniones internas).
+   *   b. requirements con content_type='reunion'|'produccion' y assigned_to (reuniones / producciones convocadas).
+   */
   const calendarItems: NotificationItem[] = []
   {
     const now = new Date()
@@ -331,6 +335,28 @@ export async function GET() {
       .contains('scheduled_attendees', [user.id])
       .gte('created_at', last7d)
       .order('created_at', { ascending: false })
+      .limit(50)
+
+    // Reuniones / producciones convocadas como requerimientos (assigned_to)
+    const { data: reqUpcomingRaw } = await supabase
+      .from('requirements')
+      .select('id, title, starts_at, assigned_to, content_type, registered_at, voided')
+      .in('content_type', ['reunion', 'produccion'])
+      .contains('assigned_to', [user.id])
+      .eq('voided', false)
+      .gte('starts_at', now.toISOString())
+      .lte('starts_at', in24h)
+      .order('starts_at', { ascending: true })
+      .limit(50)
+
+    const { data: reqAssignedRaw } = await supabase
+      .from('requirements')
+      .select('id, title, starts_at, assigned_to, content_type, registered_at, voided')
+      .in('content_type', ['reunion', 'produccion'])
+      .contains('assigned_to', [user.id])
+      .eq('voided', false)
+      .gte('registered_at', last7d)
+      .order('registered_at', { ascending: false })
       .limit(50)
 
     const seen = new Set<string>()
@@ -358,6 +384,33 @@ export async function GET() {
         calendar_entry_id: r.id,
         calendar_title: r.title,
         calendar_scheduled_at: r.scheduled_at ?? undefined,
+        calendar_reason: 'assigned',
+      })
+    }
+    for (const r of (reqUpcomingRaw ?? []) as Array<{ id: string; title: string; starts_at: string | null; content_type: string; registered_at: string }>) {
+      if (!r.starts_at) continue
+      seen.add(`req-${r.id}`)
+      calendarItems.push({
+        kind: 'calendar',
+        id: `cal-req-upcoming-${r.id}`,
+        created_at: r.starts_at,
+        read: false,
+        calendar_entry_id: r.id,
+        calendar_title: r.title || (r.content_type === 'reunion' ? 'Reunión' : 'Producción'),
+        calendar_scheduled_at: r.starts_at,
+        calendar_reason: 'upcoming',
+      })
+    }
+    for (const r of (reqAssignedRaw ?? []) as Array<{ id: string; title: string; starts_at: string | null; content_type: string; registered_at: string }>) {
+      if (seen.has(`req-${r.id}`)) continue
+      calendarItems.push({
+        kind: 'calendar',
+        id: `cal-req-assigned-${r.id}`,
+        created_at: r.registered_at,
+        read: false,
+        calendar_entry_id: r.id,
+        calendar_title: r.title || (r.content_type === 'reunion' ? 'Reunión' : 'Producción'),
+        calendar_scheduled_at: r.starts_at ?? undefined,
         calendar_reason: 'assigned',
       })
     }

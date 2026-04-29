@@ -17,6 +17,7 @@ import { PRIORITY_LABELS, PRIORITY_COLORS } from '@/types/db'
 import { CONTENT_TYPES, CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
 import { canRegisterWithContext, canRegisterBreakdown, weekIndexInCycle } from '@/lib/domain/requirement'
 import { insertInitialPhaseLog } from '@/lib/domain/pipeline'
+import { consumeContentCreditForRequirement } from '@/app/actions/credits'
 
 const CONTENT_ICONS: Record<ContentType, React.ReactNode> = {
   historia: (
@@ -68,6 +69,8 @@ interface RequirementModalProps {
   cycle: BillingCycle
   totals: Record<ContentType, number>
   limits: Record<ContentType, number>
+  /** Créditos sin caducidad disponibles para el cliente, por content_type. Se suman al límite del ciclo al validar. */
+  availableCredits?: Partial<Record<ContentType, number>>
   isAdmin: boolean
   /** Admin estricto (rol = 'admin') puede definir consumo personalizado multi-tipo. */
   isStrictAdmin?: boolean
@@ -82,6 +85,7 @@ export function RequirementModal({
   cycle,
   totals,
   limits,
+  availableCredits = {},
   isAdmin,
   isStrictAdmin = false,
   canAssign = false,
@@ -176,7 +180,14 @@ export function RequirementModal({
       return base
     })()
 
-    const breakdownCheck = canRegisterBreakdown(effectiveBreakdown, totals, limits)
+    // Créditos sin caducidad amplían el límite efectivo: si tienes 3 shorts en créditos y el plan permite 5,
+    // el "techo" para validar este insert es 8.
+    const limitsWithCredits: Record<ContentType, number> = { ...limits }
+    for (const [type, qty] of Object.entries(availableCredits)) {
+      const t = type as ContentType
+      limitsWithCredits[t] = (limits[t] ?? 0) + (qty ?? 0)
+    }
+    const breakdownCheck = canRegisterBreakdown(effectiveBreakdown, totals, limitsWithCredits)
     const allowed = breakdownCheck.ok
 
     if (!allowed && !forceOverLimit) {
@@ -285,6 +296,25 @@ export function RequirementModal({
       setError('Error al registrar el requerimiento. Intenta de nuevo.')
       setLoading(false)
       return
+    }
+
+    // Si este requerimiento excede el cupo del ciclo pero hay créditos disponibles para su content_type,
+    // consumir un crédito y limpiar el flag over_limit. Si falla, anular el requerimiento.
+    if (newRequirement?.id) {
+      const wouldOverflowCycle = (totals[selectedType] ?? 0) >= (limits[selectedType] ?? 0)
+      const creditsForType = availableCredits[selectedType] ?? 0
+      if (wouldOverflowCycle && creditsForType > 0) {
+        const r = await consumeContentCreditForRequirement({
+          requirementId: newRequirement.id,
+          contentType: selectedType,
+        })
+        if (!r.ok) {
+          await supabase.from('requirements').delete().eq('id', newRequirement.id)
+          setError('No se pudo aplicar el crédito disponible. Intenta de nuevo.')
+          setLoading(false)
+          return
+        }
+      }
     }
 
     // Crear log inicial del pipeline (solo tipos que tienen fases; excluye produccion y reunion)

@@ -18,6 +18,7 @@ import type {
   Client,
   CompanySettings,
   DteTipo,
+  InvoiceExtrasMetadata,
   InvoicePaymentMethod,
   PaymentProvider,
   Plan,
@@ -52,6 +53,8 @@ export interface CreateInvoiceInput {
   notes?: string | null
   biweeklyHalf?: 'first' | 'second' | null
   paymentProvider?: PaymentProvider
+  /** Si la factura corresponde a un paquete extra (cambios o contenido). Se materializa como crédito al pagar. */
+  extrasMetadata?: InvoiceExtrasMetadata | null
 }
 
 export async function createInvoice(
@@ -116,6 +119,7 @@ export async function createInvoice(
       created_by: auth.userId,
       biweekly_half: input.biweeklyHalf ?? null,
       payment_provider: paymentProvider,
+      extras_metadata: input.extrasMetadata ?? null,
     })
     .select('id')
     .single()

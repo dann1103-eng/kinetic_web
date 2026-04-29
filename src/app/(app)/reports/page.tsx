@@ -5,6 +5,7 @@ import { TopNav } from '@/components/layout/TopNav'
 import { CsvDownloadButton } from '@/components/reports/CsvDownloadButton'
 import { TimesheetReport } from '@/components/reports/TimesheetReport'
 import { TimeByRequirementPhaseReport } from '@/components/reports/TimeByRequirementPhaseReport'
+import { ShiftsReport } from '@/components/reports/ShiftsReport'
 import { computeTotals } from '@/lib/domain/requirement'
 import { effectiveLimits } from '@/lib/domain/plans'
 import { daysUntilEnd } from '@/lib/domain/cycles'
@@ -447,6 +448,11 @@ export default async function ReportsPage() {
             users={(usersList ?? []).map(u => ({ id: u.id, full_name: u.full_name }))}
             clients={clientsList ?? []}
           />
+        </AccordionSection>
+
+        {/* ── Section 7: Jornadas (clock in/out) ── */}
+        <AccordionSection title="Jornadas — comparativa online vs productivo" subtitle="Últimos 14 días">
+          <ShiftsReport users={(usersList ?? []).map(u => ({ id: u.id, full_name: u.full_name }))} />
         </AccordionSection>
 
         {/* Empty state — no cycles at all */}

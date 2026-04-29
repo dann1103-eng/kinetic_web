@@ -14,6 +14,7 @@ import {
   calculateTotals,
   suggestItemsFromPlan,
 } from '@/lib/domain/invoices'
+import { grantCreditsFromInvoice } from '@/lib/domain/credits'
 import { invoicePeriodLabel } from '@/lib/domain/billing'
 import { today as todayString } from '@/lib/domain/dates'
 import type {
@@ -88,6 +89,12 @@ export async function markInvoicePaidCore(
 
   const { error } = await admin.from('invoices').update(updatePayload).eq('id', input.invoiceId)
   if (error) return { ok: false, error: 'Error al marcar la factura como pagada' }
+
+  // Si la factura corresponde a un paquete extra, materializar los créditos.
+  // Idempotente: el unique index `(source_invoice_id, kind)` evita duplicados si se re-ejecuta.
+  await grantCreditsFromInvoice(admin, input.invoiceId).catch((err) => {
+    console.error('[invoice-paid] grantCreditsFromInvoice falló', err)
+  })
 
   let generatedSecondInvoiceId: string | null = null
 

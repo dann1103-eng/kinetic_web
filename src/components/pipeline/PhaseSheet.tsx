@@ -333,6 +333,7 @@ export function PhaseSheet({
       voided_by_user_id: null,
       voided_at: null,
       status: result.log.status,
+      paid_from_credit_id: null,
     }
     setCambioLogs(prev => [newLog, ...prev])
     if (result.log.status === 'approved') setLocalCambios((n) => n + 1)

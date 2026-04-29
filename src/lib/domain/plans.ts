@@ -2,9 +2,9 @@ import type { PlanLimits, ContentType } from '@/types/db'
 
 /** Tipos vendibles como contenido extra y su precio unitario (USD) */
 export const EXTRA_CONTENT_PRICES: Partial<Record<ContentType, number>> = {
-  video_corto: 25,
+  video_corto: 20,
   reel: 25,
-  short: 25,
+  short: 15,
   estatico: 15,
 }
 
@@ -12,9 +12,9 @@ export const EXTRA_CONTENT_PRICES: Partial<Record<ContentType, number>> = {
 export const CONTENT_TYPE_LABELS: Record<ContentType, string> = {
   historia: 'Historias',
   estatico: 'Estáticos',
-  video_corto: 'Videos Cortos',
-  reel: 'Video Largo',
-  short: 'Shorts',
+  video_corto: 'Videos cortos (30 seg)',
+  reel: 'Videos largos (90 seg)',
+  short: 'Shorts (10 seg)',
   produccion: 'Producciones',
   reunion: 'Reuniones',
   matriz_contenido: 'Matriz de contenido',

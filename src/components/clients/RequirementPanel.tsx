@@ -87,6 +87,8 @@ interface RequirementPanelProps {
   requirements: Requirement[]
   totals: Record<ContentType, number>
   limits: Record<ContentType, number>
+  /** Créditos sin caducidad disponibles por content_type. Se suman al límite al validar. */
+  availableCredits?: Partial<Record<ContentType, number>>
   daysLeft: number | null
   isAdmin: boolean
   /** Admin estricto (rol = 'admin'). Default: igual a `isAdmin`.
@@ -113,6 +115,7 @@ export function RequirementPanel({
   requirements,
   totals,
   limits,
+  availableCredits = {},
   daysLeft,
   isAdmin,
   isStrictAdmin,
@@ -930,6 +933,7 @@ export function RequirementPanel({
         cycle={cycle}
         totals={totals}
         limits={effectiveLimitsMap}
+        availableCredits={availableCredits}
         isAdmin={isAdmin}
         isStrictAdmin={isStrictAdmin ?? isAdmin}
         canAssign={canAssign}

@@ -142,6 +142,7 @@ export async function purchaseExtraCambios(args: {
       client_snapshot_json: buildClientSnapshot(client),
       emitter_snapshot_json: buildEmitterSnapshot(emitter),
       payment_provider: 'n1co_link_oneoff',
+      extras_metadata: { kind: 'cambios', qty: args.qty },
     })
     .select('id, invoice_number, total, total_a_pagar, currency, billing_cycle_id')
     .single()
@@ -263,6 +264,7 @@ export async function purchaseExtraContent(args: {
       client_snapshot_json: buildClientSnapshot(client),
       emitter_snapshot_json: buildEmitterSnapshot(emitter),
       payment_provider: 'n1co_link_oneoff',
+      extras_metadata: { kind: 'content', content_type: args.contentType, qty: args.qty },
     })
     .select('id, invoice_number, total, total_a_pagar, currency, billing_cycle_id')
     .single()

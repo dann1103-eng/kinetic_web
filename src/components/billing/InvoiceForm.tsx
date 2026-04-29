@@ -15,13 +15,15 @@ import { EXTRA_CONTENT_PRICES, CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
 import { createInvoice, ensureScheduledCycle } from '@/app/actions/invoices'
 import { createQuote } from '@/app/actions/quotes'
 import { LineItemsEditor } from './LineItemsEditor'
-import type { Client, Plan, BillingCycle, CambiosPackage, ExtraContentItem, Invoice, PaymentProvider } from '@/types/db'
+import type { Client, Plan, BillingCycle, CambiosPackage, ContentType, ExtraContentItem, InvoiceExtrasMetadata, Invoice, PaymentProvider } from '@/types/db'
 
 interface CatalogItem {
   label: string
   description: string
   unit_price: number
   quantity: number
+  /** Si está presente, marca la factura como paquete extra (cambios o contenido) → genera créditos al pagar. */
+  extrasMetadata?: InvoiceExtrasMetadata
 }
 
 type Mode = 'invoice' | 'quote'
@@ -55,6 +57,8 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
   const [isFirstInvoice, setIsFirstInvoice] = useState(false)
   const [nextPeriod, setNextPeriod] = useState<{ periodStart: string; periodEnd: string } | null>(null)
   const [paymentProvider, setPaymentProvider] = useState<PaymentProvider>('manual')
+  /** Metadata de paquete extra; se establece al agregar un item del catálogo de extras. Solo una factura puede ser un paquete (no se mezclan con plan). */
+  const [extrasMetadata, setExtrasMetadata] = useState<InvoiceExtrasMetadata | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -188,18 +192,22 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
   const catalog = useMemo<{ group: string; items: CatalogItem[] }[]>(() => {
     const groups: { group: string; items: CatalogItem[] }[] = []
 
-    // Contenido extra estándar
+    // Contenido extra estándar — cada item del catálogo lleva su `extrasMetadata`
+    // para que al pagar la factura se materialice como crédito de contenido.
     const contentItems: CatalogItem[] = (Object.entries(EXTRA_CONTENT_PRICES) as [keyof typeof EXTRA_CONTENT_PRICES, number][])
       .map(([type, price]) => ({
         label: CONTENT_TYPE_LABELS[type],
         description: `${CONTENT_TYPE_LABELS[type]} adicional`,
         unit_price: price,
         quantity: 1,
+        extrasMetadata: { kind: 'content' as const, content_type: type as ContentType, qty: 1 },
       }))
     if (contentItems.length) groups.push({ group: 'Contenido extra', items: contentItems })
 
     {
-      // Paquetes de cambios: estándar + personalizados del ciclo
+      // Paquetes de cambios: estándar + personalizados del ciclo.
+      // El paquete estándar de 5 cambios tiene quantity=1 (1 línea $25 total) y
+      // extrasMetadata.qty=5 (cantidad real de cambios → se convierten en créditos).
       const cambiosPkgs = (cycle?.cambios_packages_json ?? []) as CambiosPackage[]
       const cycleItems: CatalogItem[] = cambiosPkgs
         .filter(p => p.price_usd && p.price_usd > 0)
@@ -208,10 +216,16 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           description: `Paquete de cambios adicionales${p.note ? ` — ${p.note}` : ''} (${p.qty} cambios)`,
           unit_price: p.price_usd ?? 0,
           quantity: 1,
+          extrasMetadata: { kind: 'cambios' as const, qty: p.qty },
         }))
 
+      const standardCambios: CatalogItem[] = STANDARD_CAMBIOS_PACKAGES.map((p) => ({
+        ...p,
+        extrasMetadata: { kind: 'cambios' as const, qty: 5 },
+      }))
+
       const allCambios: CatalogItem[] = [
-        ...STANDARD_CAMBIOS_PACKAGES,
+        ...standardCambios,
         ...cycleItems,
       ]
       groups.push({ group: 'Paquetes de cambios', items: allCambios })
@@ -240,6 +254,10 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
   const [catalogOpen, setCatalogOpen] = useState(false)
 
   function addFromCatalog(item: CatalogItem) {
+    if (item.extrasMetadata) {
+      // Una factura solo puede materializar UN paquete extra (la última que se agrega gana).
+      setExtrasMetadata(item.extrasMetadata)
+    }
     setItems(prev => {
       // Si ya existe una línea con la misma descripción, incrementa cantidad
       const existing = prev.findIndex(it => it.description === item.description)
@@ -288,6 +306,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           notes: notes || null,
           biweeklyHalf: cycleId && selectedClient?.billing_period === 'biweekly' ? biweeklyHalf : null,
           paymentProvider,
+          extrasMetadata,
         })
       : await createQuote({
           clientId,

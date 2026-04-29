@@ -164,6 +164,7 @@ export function useReviewData(
       }
       setCommentsByPin(commentsByPinNext)
     } catch (e) {
+      console.error('[useReviewData] error loading review data', e)
       setError(e instanceof Error ? e.message : 'Error al cargar la revisión.')
     } finally {
       setLoading(false)

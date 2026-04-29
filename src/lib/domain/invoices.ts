@@ -106,9 +106,11 @@ export function buildEmitterSnapshot(settings: CompanySettings): EmitterSnapshot
   }
 }
 
-/** Paquetes de cambios estándar que siempre aparecen en el catálogo rápido. */
+/** Paquetes de cambios estándar que siempre aparecen en el catálogo rápido.
+ *  La factura registra una sola línea ($25 total). La cantidad real (5 cambios)
+ *  queda en `extras_metadata` y se materializa como crédito al pagar. */
 export const STANDARD_CAMBIOS_PACKAGES: { label: string; description: string; quantity: number; unit_price: number }[] = [
-  { label: '5 cambios adicionales', description: 'Paquete de 5 cambios adicionales', quantity: 5, unit_price: 25 },
+  { label: 'Paquete de 5 cambios', description: 'Paquete de 5 cambios adicionales', quantity: 1, unit_price: 25 },
 ]
 
 /**

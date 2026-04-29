@@ -29,9 +29,9 @@ const DEFAULT_CAMBIOS: { qty: number; price: number }[] = [
 
 const DEFAULT_CONTENT: { contentType: ContentType; price: number; label: string }[] = [
   { contentType: 'estatico', price: 15, label: 'Estático' },
-  { contentType: 'video_corto', price: 25, label: 'Video corto' },
-  { contentType: 'reel', price: 25, label: 'Reel' },
-  { contentType: 'short', price: 25, label: 'Short' },
+  { contentType: 'video_corto', price: 20, label: 'Video corto (30 seg)' },
+  { contentType: 'reel', price: 25, label: 'Video largo (90 seg)' },
+  { contentType: 'short', price: 15, label: 'Short (10 seg)' },
 ]
 
 export function ExtrasSection({ cambiosOptions, contentOptions }: Props) {

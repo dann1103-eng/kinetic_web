@@ -187,6 +187,7 @@ export function RequirementHistory({
       voided_by_user_id: null,
       voided_at: null,
       status: result.log.status,
+      paid_from_credit_id: null,
     }
     setCambioLogsMap(prev => ({
       ...prev,

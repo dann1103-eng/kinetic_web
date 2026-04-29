@@ -34,6 +34,70 @@ export type Phase =
 
 export type Priority = 'baja' | 'media' | 'alta'
 
+export type CreditKind =
+  | 'cambios'
+  | 'content_estatico'
+  | 'content_video_corto'
+  | 'content_reel'
+  | 'content_short'
+
+/** Mapping de ContentType vendible → CreditKind. */
+export const CONTENT_TYPE_TO_CREDIT_KIND: Partial<Record<ContentType, CreditKind>> = {
+  estatico: 'content_estatico',
+  video_corto: 'content_video_corto',
+  reel: 'content_reel',
+  short: 'content_short',
+}
+
+export const CREDIT_KIND_TO_CONTENT_TYPE: Partial<Record<CreditKind, ContentType>> = {
+  content_estatico: 'estatico',
+  content_video_corto: 'video_corto',
+  content_reel: 'reel',
+  content_short: 'short',
+}
+
+export interface ClientCredit {
+  id: string
+  client_id: string
+  kind: CreditKind
+  qty_initial: number
+  qty_remaining: number
+  unit_price_usd: number
+  source_invoice_id: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface InvoiceExtrasMetadata {
+  kind: 'cambios' | 'content'
+  content_type?: ContentType
+  qty: number
+}
+
+export type WorkSessionStatus = 'active' | 'on_lunch' | 'on_away' | 'ended'
+
+export type ShiftBreakType = 'lunch' | 'away'
+
+export interface WorkSessionBreak {
+  type: ShiftBreakType
+  started_at: string
+  ended_at?: string
+}
+
+export interface WorkSession {
+  id: string
+  user_id: string
+  started_at: string
+  ended_at: string | null
+  status: WorkSessionStatus
+  notes: string | null
+  breaks_json: WorkSessionBreak[]
+  total_seconds: number | null
+  productive_seconds: number | null
+  created_at: string
+}
+
 export const PRIORITY_LABELS: Record<Priority, string> = {
   baja:  'Baja',
   media: 'Media',
@@ -308,6 +372,7 @@ export interface Database {
           default_tax_rate: number | null
           auto_billing: boolean
           aplica_renta_retenida: boolean
+          max_cambios: number
           is_foreign: boolean
           n1co_customer_id: string | null
           n1co_subscription_id: string | null
@@ -349,6 +414,7 @@ export interface Database {
           default_tax_rate?: number | null
           auto_billing?: boolean
           aplica_renta_retenida?: boolean
+          max_cambios?: number
           is_foreign?: boolean
           n1co_customer_id?: string | null
           n1co_subscription_id?: string | null
@@ -389,6 +455,7 @@ export interface Database {
           default_tax_rate?: number | null
           auto_billing?: boolean
           aplica_renta_retenida?: boolean
+          max_cambios?: number
           is_foreign?: boolean
           n1co_customer_id?: string | null
           n1co_subscription_id?: string | null
@@ -499,6 +566,7 @@ export interface Database {
           deadline: string | null
           starts_at: string | null
           consumption_overrides_json: Partial<Record<ContentType, number>> | null
+          paid_from_credit_id: string | null
         }
         Insert: {
           id?: string
@@ -523,6 +591,7 @@ export interface Database {
           deadline?: string | null
           starts_at?: string | null
           consumption_overrides_json?: Partial<Record<ContentType, number>> | null
+          paid_from_credit_id?: string | null
         }
         Update: {
           billing_cycle_id?: string
@@ -545,6 +614,7 @@ export interface Database {
           deadline?: string | null
           starts_at?: string | null
           consumption_overrides_json?: Partial<Record<ContentType, number>> | null
+          paid_from_credit_id?: string | null
         }
         Relationships: [
           {
@@ -608,6 +678,7 @@ export interface Database {
           voided_at: string | null
           /** 'pending' = esperando aprobación; 'approved' = contabilizado; 'rejected' = rechazado */
           status: 'pending' | 'approved' | 'rejected'
+          paid_from_credit_id: string | null
         }
         Insert: {
           id?: string
@@ -619,12 +690,14 @@ export interface Database {
           voided_by_user_id?: string | null
           voided_at?: string | null
           status?: 'pending' | 'approved' | 'rejected'
+          paid_from_credit_id?: string | null
         }
         Update: {
           voided?: boolean
           voided_by_user_id?: string | null
           voided_at?: string | null
           status?: 'pending' | 'approved' | 'rejected'
+          paid_from_credit_id?: string | null
         }
         Relationships: [
           {
@@ -1186,6 +1259,7 @@ export interface Database {
           dte_tipo: DteTipo | null
           dte_pdf_url: string | null
           dte_received_at: string | null
+          extras_metadata: InvoiceExtrasMetadata | null
         }
         Insert: {
           id?: string
@@ -1230,6 +1304,7 @@ export interface Database {
           dte_tipo?: DteTipo | null
           dte_pdf_url?: string | null
           dte_received_at?: string | null
+          extras_metadata?: InvoiceExtrasMetadata | null
         }
         Update: {
           invoice_number?: string
@@ -1271,6 +1346,7 @@ export interface Database {
           dte_tipo?: DteTipo | null
           dte_pdf_url?: string | null
           dte_received_at?: string | null
+          extras_metadata?: InvoiceExtrasMetadata | null
         }
         Relationships: []
       }
@@ -1470,6 +1546,69 @@ export interface Database {
         }
         Update: {
           role?: ClientUserRole
+        }
+        Relationships: []
+      }
+      client_credits: {
+        Row: {
+          id: string
+          client_id: string
+          kind: CreditKind
+          qty_initial: number
+          qty_remaining: number
+          unit_price_usd: number
+          source_invoice_id: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          kind: CreditKind
+          qty_initial: number
+          qty_remaining: number
+          unit_price_usd?: number
+          source_invoice_id?: string | null
+          notes?: string | null
+        }
+        Update: {
+          qty_remaining?: number
+          notes?: string | null
+        }
+        Relationships: []
+      }
+      work_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          started_at: string
+          ended_at: string | null
+          status: WorkSessionStatus
+          notes: string | null
+          breaks_json: WorkSessionBreak[]
+          total_seconds: number | null
+          productive_seconds: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          started_at?: string
+          ended_at?: string | null
+          status?: WorkSessionStatus
+          notes?: string | null
+          breaks_json?: WorkSessionBreak[]
+          total_seconds?: number | null
+          productive_seconds?: number | null
+        }
+        Update: {
+          ended_at?: string | null
+          status?: WorkSessionStatus
+          notes?: string | null
+          breaks_json?: WorkSessionBreak[]
+          total_seconds?: number | null
+          productive_seconds?: number | null
         }
         Relationships: []
       }
