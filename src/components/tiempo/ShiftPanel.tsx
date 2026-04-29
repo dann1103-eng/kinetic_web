@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { startShift, endShift, startBreak, endBreak, getMyActiveShift } from '@/app/actions/work-sessions'
+import { stopActiveEntry } from '@/app/actions/time'
 import { formatDuration } from '@/lib/domain/time'
 import type { WorkSession, WorkSessionBreak } from '@/types/db'
 
@@ -62,6 +64,43 @@ export function ShiftPanel() {
       refresh()
       router.refresh()
     })
+  }
+
+  /**
+   * Antes de finalizar la jornada, verifica si hay un time entry (requerimiento o
+   * administrativo) activo. Si lo hay, avisa al usuario y le permite detenerlo
+   * automáticamente o cancelar.
+   */
+  async function handleEndShift() {
+    setError(null)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      setError('No autenticado')
+      return
+    }
+    const { data: activeEntry } = await supabase
+      .from('time_entries')
+      .select('id, title, entry_type')
+      .eq('user_id', user.id)
+      .is('ended_at', null)
+      .maybeSingle()
+
+    if (activeEntry) {
+      const label = activeEntry.title || (activeEntry.entry_type === 'requirement' ? 'requerimiento' : 'tarea administrativa')
+      const ok = confirm(
+        `Tienes un timer activo: "${label}". ` +
+        `Si finalizas la jornada, se detendrá automáticamente. ¿Continuar?`,
+      )
+      if (!ok) return
+      const stopRes = await stopActiveEntry()
+      if ('error' in stopRes) {
+        setError(stopRes.error ?? 'No se pudo detener el timer activo')
+        return
+      }
+    }
+
+    handle(() => endShift())
   }
 
   if (loading) {
@@ -163,7 +202,7 @@ export function ShiftPanel() {
           </button>
           <button
             type="button"
-            onClick={() => handle(() => endShift())}
+            onClick={handleEndShift}
             disabled={isPending}
             className="ml-auto px-3 py-1.5 rounded-full bg-fm-error/10 text-fm-error border border-fm-error/30 text-xs font-bold hover:bg-fm-error/15 disabled:opacity-60"
           >

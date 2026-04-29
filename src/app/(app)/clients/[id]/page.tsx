@@ -20,7 +20,6 @@ import { ClientPortalInvite } from '@/components/clients/ClientPortalInvite'
 import { listClientUsers } from '@/app/actions/clientUsers'
 import { listClientCredits } from '@/app/actions/credits'
 import { ClientCreditsCard } from '@/components/clients/ClientCreditsCard'
-import { MatrixContentCard } from '@/components/clients/MatrixContentCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -257,25 +256,6 @@ export default async function ClientDetailPage({
           <ClientCreditsCard cambios={credits.cambios} content={credits.content} />
         )}
 
-        {/* 0.5 — Matrices de contenido (timer rápido) */}
-        {(() => {
-          const matrices = reqs.filter((r) => r.content_type === 'matriz_contenido' && !r.voided)
-          if (matrices.length === 0 || !authUser) return null
-          return (
-            <MatrixContentCard
-              matrices={matrices.map((m) => ({
-                id: m.id,
-                title: m.title,
-                notes: m.notes,
-                phase: m.phase,
-                deadline: m.deadline,
-                registered_at: m.registered_at,
-              }))}
-              currentUserId={authUser.id}
-            />
-          )
-        })()}
-
         {/* 1 — Requerimientos del ciclo (sin historial al final) */}
         {cycle && limits ? (
           <RequirementPanel
@@ -285,6 +265,7 @@ export default async function ClientDetailPage({
             totals={totals}
             limits={limits}
             availableCredits={credits.content}
+            currentUserId={authUser?.id}
             daysLeft={daysLeft}
             isAdmin={isAdmin}
             isApprover={isApprover}

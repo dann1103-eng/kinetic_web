@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { UploadCloudIcon } from 'lucide-react'
 import type {
   ReviewAsset,
@@ -12,6 +13,7 @@ import type {
 import { ImageViewer } from './ImageViewer'
 import { VideoViewer } from './VideoViewer'
 import { FileThumbnailStrip } from './FileThumbnailStrip'
+import { diagnoseClientReview, type ClientReviewDiagnostic } from '@/app/actions/diagnoseReview'
 
 interface UserMini {
   id: string
@@ -37,6 +39,8 @@ interface ReviewCenterViewerProps {
   onPinCreated: (pin: ReviewPin, comment: ReviewComment) => void
   onEmptyAddFiles: () => void
   clientMode?: boolean
+  /** Para diagnosticar el bug de RLS cuando clientMode y no hay assets visibles. */
+  requirementId?: string
 }
 
 export function ReviewCenterViewer({
@@ -56,7 +60,22 @@ export function ReviewCenterViewer({
   onPinCreated,
   onEmptyAddFiles,
   clientMode = false,
+  requirementId,
 }: ReviewCenterViewerProps) {
+  const [diag, setDiag] = useState<ClientReviewDiagnostic | null>(null)
+
+  useEffect(() => {
+    // Solo en modo cliente: si terminó de cargar y no hay asset/version, diagnosticar.
+    if (!clientMode || loading || asset || version || !requirementId) return
+    let cancelled = false
+    diagnoseClientReview(requirementId).then((d) => {
+      if (!cancelled) setDiag(d)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [clientMode, loading, asset, version, requirementId])
+
   if (loading) {
     return (
       <div className="flex-1 flex items-center justify-center text-fm-on-surface-variant text-sm">
@@ -76,7 +95,7 @@ export function ReviewCenterViewer({
   if (!asset || !version) {
     return (
       <div className="flex-1 flex items-center justify-center px-8">
-        <div className="max-w-sm text-center">
+        <div className="max-w-md text-center">
           <div className="w-14 h-14 rounded-full bg-fm-primary/10 flex items-center justify-center mx-auto mb-3">
             <UploadCloudIcon className="w-7 h-7 text-fm-primary" />
           </div>
@@ -95,6 +114,22 @@ export function ReviewCenterViewer({
             >
               Agregar archivos
             </button>
+          )}
+
+          {clientMode && diag && diag.totalAssets > diag.visibleAssets && (
+            <div className="mt-4 text-left rounded-xl border border-fm-error/30 bg-fm-error/5 p-3 text-xs">
+              <p className="font-semibold text-fm-error mb-1.5">Diagnóstico</p>
+              <ul className="space-y-0.5 text-fm-error/90">
+                <li>Archivos en el sistema: <strong>{diag.totalAssets}</strong></li>
+                <li>Archivos visibles para ti: <strong>{diag.visibleAssets}</strong></li>
+                <li>Fase del requerimiento: <strong>{diag.phase ?? '—'}</strong></li>
+                <li>Acceso al cliente (is_client_of): <strong>{String(diag.isClientOf)}</strong></li>
+              </ul>
+              <p className="mt-2 text-[10px] text-fm-error/70">
+                Si la fase no es <code>revision_cliente</code> o &quot;is_client_of&quot; es <code>false</code>,
+                el RLS bloquea la lectura. Reporta esto al equipo de FM.
+              </p>
+            </div>
           )}
         </div>
       </div>

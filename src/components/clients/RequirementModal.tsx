@@ -132,7 +132,16 @@ export function RequirementModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const activeTypes = CONTENT_TYPES.filter((t) => limits[t] > 0)
+  // Límite efectivo = límite del plan + créditos sin caducidad disponibles para ese tipo.
+  // Esto permite que clientes con paquetes (sin plan) o que ya consumieron su plan
+  // puedan registrar requerimientos contra los créditos.
+  const limitsWithCredits = CONTENT_TYPES.reduce((acc, t) => {
+    acc[t] = (limits[t] ?? 0) + (availableCredits[t] ?? 0)
+    return acc
+  }, {} as Record<ContentType, number>)
+
+  // Tipos visibles: los que tengan límite del plan O créditos disponibles.
+  const activeTypes = CONTENT_TYPES.filter((t) => limitsWithCredits[t] > 0)
   const isSimpleType = selectedType === 'produccion' || selectedType === 'reunion'
   const isScheduledType = isSimpleType
   const STORY_APPLICABLE_TYPES: ContentType[] = ['estatico', 'video_corto', 'reel', 'short']
@@ -355,8 +364,9 @@ export function RequirementModal({
         ? { [selectedType]: 1, historia: 1 }
         : { [selectedType]: 1 }
 
+  // Para el warning: solo dispara si NI el plan NI los créditos pueden cubrir.
   const selectedAtLimit =
-    selectedType !== null && !canRegisterBreakdown(effectiveBreakdown, totals, limits).ok
+    selectedType !== null && !canRegisterBreakdown(effectiveBreakdown, totals, limitsWithCredits).ok
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose() }}>
@@ -377,9 +387,20 @@ export function RequirementModal({
             <div className="grid grid-cols-3 gap-2">
               {activeTypes.map((type) => {
                 const consumed = totals[type]
-                const limit = limits[type]
-                const atLimit = consumed >= limit
+                const planLimit = limits[type] ?? 0
+                const credits = availableCredits[type] ?? 0
+                const totalAvailable = planLimit + credits
+                const atLimit = consumed >= totalAvailable
                 const isSelected = selectedType === type
+                // Etiqueta del contador:
+                //   - Solo créditos (sin plan): "+N créditos"
+                //   - Solo plan: "consumido/limite"
+                //   - Mixto: "consumido/limite (+N)"
+                const counterLabel = planLimit === 0 && credits > 0
+                  ? `+${credits} crédito${credits === 1 ? '' : 's'}`
+                  : credits > 0
+                    ? `${consumed}/${planLimit} (+${credits})`
+                    : `${consumed}/${planLimit}`
 
                 return (
                   <button
@@ -398,7 +419,7 @@ export function RequirementModal({
                       {CONTENT_TYPE_LABELS[type]}
                     </span>
                     <span className={`text-xs font-semibold ${atLimit ? 'text-fm-error' : ''}`}>
-                      {consumed}/{limit}
+                      {counterLabel}
                     </span>
                   </button>
                 )

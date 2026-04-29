@@ -18,6 +18,7 @@ import { CONTENT_ICONS } from '@/lib/domain/content-icons'
 import { socialUrl, type SocialNetwork } from '@/lib/domain/social'
 import { RequirementModal } from './RequirementModal'
 import { RequirementHistory } from './RequirementHistory'
+import { MatrixContentCard } from './MatrixContentCard'
 import { renewContentPackage } from '@/app/actions/contentPackage'
 import { isoDateStr } from '@/lib/domain/time'
 
@@ -89,6 +90,8 @@ interface RequirementPanelProps {
   limits: Record<ContentType, number>
   /** Créditos sin caducidad disponibles por content_type. Se suman al límite al validar. */
   availableCredits?: Partial<Record<ContentType, number>>
+  /** UID del usuario logueado — necesario para mostrar timer en tarjetas de matriz_contenido. */
+  currentUserId?: string
   daysLeft: number | null
   isAdmin: boolean
   /** Admin estricto (rol = 'admin'). Default: igual a `isAdmin`.
@@ -116,6 +119,7 @@ export function RequirementPanel({
   totals,
   limits,
   availableCredits = {},
+  currentUserId,
   daysLeft,
   isAdmin,
   isStrictAdmin,
@@ -833,8 +837,11 @@ export function RequirementPanel({
               const simpleEntries = requirements
                 .filter((r) => simpleTypes.includes(r.content_type as ContentType) && !r.voided)
                 .sort((a, b) => new Date(b.registered_at).getTime() - new Date(a.registered_at).getTime())
+              const matrices = requirements
+                .filter((r) => r.content_type === 'matriz_contenido' && !r.voided)
+                .sort((a, b) => new Date(b.registered_at).getTime() - new Date(a.registered_at).getTime())
 
-              if (simpleEntries.length === 0) {
+              if (simpleEntries.length === 0 && matrices.length === 0) {
                 return (
                   <div className="p-8 text-center">
                     <p className="text-sm text-fm-on-surface-variant">Sin registros este ciclo.</p>
@@ -843,32 +850,52 @@ export function RequirementPanel({
               }
 
               return (
-                <div className="divide-y divide-fm-surface-container-high/60">
-                  {simpleEntries.map((r) => {
-                    const type = r.content_type as ContentType
-                    const date = new Date(r.registered_at)
-                    const dateStr = `${date.getDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][date.getMonth()]} ${date.getFullYear()}`
-                    return (
-                      <div key={r.id} className="px-6 py-4 flex items-start gap-4">
-                        <div className="p-2 bg-fm-primary-container/30 rounded-xl flex-shrink-0 mt-0.5">
-                          <span className="material-symbols-outlined text-fm-primary text-base">
-                            {CONTENT_ICONS[type]}
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-fm-on-surface">
-                            {CONTENT_TYPE_LABELS[type]} — {dateStr}
-                          </p>
-                          {r.notes && (
-                            <p className="text-xs text-fm-on-surface-variant mt-0.5">{r.notes}</p>
-                          )}
-                          {r.title && (
-                            <p className="text-xs text-fm-outline mt-0.5 italic">{r.title}</p>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
+                <div>
+                  {matrices.length > 0 && currentUserId && (
+                    <div className="p-4 sm:p-6 border-b border-fm-surface-container-high/60">
+                      <MatrixContentCard
+                        matrices={matrices.map((m) => ({
+                          id: m.id,
+                          title: m.title,
+                          notes: m.notes,
+                          phase: m.phase,
+                          deadline: m.deadline,
+                          registered_at: m.registered_at,
+                        }))}
+                        currentUserId={currentUserId}
+                        embedded
+                      />
+                    </div>
+                  )}
+                  {simpleEntries.length > 0 && (
+                    <div className="divide-y divide-fm-surface-container-high/60">
+                      {simpleEntries.map((r) => {
+                        const type = r.content_type as ContentType
+                        const date = new Date(r.registered_at)
+                        const dateStr = `${date.getDate()} ${['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][date.getMonth()]} ${date.getFullYear()}`
+                        return (
+                          <div key={r.id} className="px-6 py-4 flex items-start gap-4">
+                            <div className="p-2 bg-fm-primary-container/30 rounded-xl flex-shrink-0 mt-0.5">
+                              <span className="material-symbols-outlined text-fm-primary text-base">
+                                {CONTENT_ICONS[type]}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-fm-on-surface">
+                                {CONTENT_TYPE_LABELS[type]} — {dateStr}
+                              </p>
+                              {r.notes && (
+                                <p className="text-xs text-fm-on-surface-variant mt-0.5">{r.notes}</p>
+                              )}
+                              {r.title && (
+                                <p className="text-xs text-fm-outline mt-0.5 italic">{r.title}</p>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             })()}

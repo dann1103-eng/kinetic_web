@@ -276,6 +276,7 @@ export function ContentReviewPanel({
           }}
           onEmptyAddFiles={openAddFilesForNewAsset}
           clientMode={clientMode}
+          requirementId={requirementId}
         />
       </div>
 
