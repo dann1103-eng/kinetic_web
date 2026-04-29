@@ -193,6 +193,9 @@ export function RequirementPanel({
   const poolUsage = unifiedPoolUsage(cycle.limits_snapshot_json, totals)
   const isUnifiedPool = poolUsage !== null
   const isContentExhausted = isUnifiedPool && poolUsage !== null && poolUsage.used >= poolUsage.limit
+  // Si quedan créditos sin caducidad, el pool agotado no bloquea el registro.
+  const hasAnyCredits = Object.values(availableCredits).some((q) => (q ?? 0) > 0)
+  const blockRegistration = isContentExhausted && !hasAnyCredits
 
   async function handleRenewContentPackage() {
     if (!confirm('¿Confirmar nuevo paquete de 10 contenidos?')) return
@@ -211,7 +214,7 @@ export function RequirementPanel({
     ? applyUnifiedPool(limits, cycle.limits_snapshot_json, totals)
     : limits
 
-  // Active content types (limit > 0)
+  // Active content types (limit > 0 OR credits > 0)
   // En plan unificado, todos los tipos tippables se consideran activos mientras quede pool.
   const activeTypes = isUnifiedPool
     ? CONTENT_TYPES.filter((t) =>
@@ -219,7 +222,7 @@ export function RequirementPanel({
           ? (poolUsage!.limit - poolUsage!.used) > 0 || (totals[t] ?? 0) > 0
           : effectiveLimitsMap[t] > 0
       )
-    : CONTENT_TYPES.filter((t) => limits[t] > 0)
+    : CONTENT_TYPES.filter((t) => (limits[t] ?? 0) + (availableCredits[t] ?? 0) > 0)
   const pipelineTypes = activeTypes.filter((t) => !COUNTER_ONLY_TYPES.includes(t))
   const simpleTypes = activeTypes.filter((t) => SIMPLE_TYPES.includes(t))
   const hasMatriz = activeTypes.includes('matriz_contenido') && limits.matriz_contenido > 0
@@ -427,13 +430,13 @@ export function RequirementPanel({
             </Link>
             {canCreate && (
               <button
-                onClick={() => !isOverdue && !isContentExhausted && setModalOpen(true)}
-                disabled={isOverdue || isContentExhausted}
-                className={`flex-1 md:flex-none px-5 py-2.5 text-white font-bold rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-sm ${(isOverdue || isContentExhausted) ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110'}`}
-                style={{ background: (isOverdue || isContentExhausted) ? '#b31b25' : 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
+                onClick={() => !isOverdue && !blockRegistration && setModalOpen(true)}
+                disabled={isOverdue || blockRegistration}
+                className={`flex-1 md:flex-none px-5 py-2.5 text-white font-bold rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-sm ${(isOverdue || blockRegistration) ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110'}`}
+                style={{ background: (isOverdue || blockRegistration) ? '#b31b25' : 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
               >
-                <span className="material-symbols-outlined text-base">{(isOverdue || isContentExhausted) ? 'block' : 'add'}</span>
-                {isOverdue ? 'Cuenta vencida' : isContentExhausted ? 'Paquete agotado' : 'Registrar requerimiento'}
+                <span className="material-symbols-outlined text-base">{(isOverdue || blockRegistration) ? 'block' : 'add'}</span>
+                {isOverdue ? 'Cuenta vencida' : blockRegistration ? 'Paquete agotado' : 'Registrar requerimiento'}
               </button>
             )}
           </div>

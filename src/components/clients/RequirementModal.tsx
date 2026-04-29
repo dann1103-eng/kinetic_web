@@ -690,7 +690,9 @@ export function RequirementModal({
               {(Object.entries(effectiveBreakdown) as [ContentType, number][]).map(([type, qty], idx) => {
                 const isFirst = idx === 0
                 const next = (totals[type] ?? 0) + qty
-                const overLimit = next > (limits[type] ?? 0)
+                const effectiveLimit = limitsWithCredits[type] ?? 0
+                const overLimit = next > effectiveLimit
+                const hasCredit = (availableCredits[type] ?? 0) > 0
                 return (
                   <div
                     key={type}
@@ -701,11 +703,12 @@ export function RequirementModal({
                     <span className="text-sm text-fm-on-surface-variant">
                       {CONTENT_TYPE_LABELS[type]}
                       {qty > 1 && <span className="ml-1 text-fm-secondary font-bold">×{qty}</span>}
+                      {hasCredit && <span className="ml-1 text-[10px] text-fm-primary font-semibold">(crédito)</span>}
                     </span>
                     <span className="text-sm font-semibold text-fm-on-surface">
                       {totals[type] ?? 0} →{' '}
                       <span className={overLimit ? 'text-fm-error' : 'text-fm-primary'}>{next}</span>
-                      <span className="text-fm-on-surface-variant font-normal"> /{limits[type] ?? 0}</span>
+                      <span className="text-fm-on-surface-variant font-normal"> /{effectiveLimit}</span>
                     </span>
                   </div>
                 )

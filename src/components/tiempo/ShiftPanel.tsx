@@ -27,6 +27,7 @@ export function ShiftPanel() {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [, setNow] = useState(0)
+  const [endConfirm, setEndConfirm] = useState<{ open: boolean; label: string | null }>({ open: false, label: null })
 
   // Refrescar shift al montar
   useEffect(() => {
@@ -66,11 +67,6 @@ export function ShiftPanel() {
     })
   }
 
-  /**
-   * Antes de finalizar la jornada, verifica si hay un time entry (requerimiento o
-   * administrativo) activo. Si lo hay, avisa al usuario y le permite detenerlo
-   * automáticamente o cancelar.
-   */
   async function handleEndShift() {
     setError(null)
     const supabase = createClient()
@@ -88,18 +84,20 @@ export function ShiftPanel() {
 
     if (activeEntry) {
       const label = activeEntry.title || (activeEntry.entry_type === 'requirement' ? 'requerimiento' : 'tarea administrativa')
-      const ok = confirm(
-        `Tienes un timer activo: "${label}". ` +
-        `Si finalizas la jornada, se detendrá automáticamente. ¿Continuar?`,
-      )
-      if (!ok) return
-      const stopRes = await stopActiveEntry()
-      if ('error' in stopRes) {
-        setError(stopRes.error ?? 'No se pudo detener el timer activo')
-        return
-      }
+      setEndConfirm({ open: true, label })
+      return
     }
 
+    handle(() => endShift())
+  }
+
+  async function confirmEndShift() {
+    setEndConfirm({ open: false, label: null })
+    const stopRes = await stopActiveEntry()
+    if ('error' in stopRes) {
+      setError(stopRes.error ?? 'No se pudo detener el timer activo')
+      return
+    }
     handle(() => endShift())
   }
 
@@ -212,6 +210,35 @@ export function ShiftPanel() {
       )}
 
       {error && <p className="text-xs text-fm-error">{error}</p>}
+
+      {endConfirm.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl p-6 max-w-sm w-full space-y-4 border border-fm-surface-container-high">
+            <p className="text-sm font-semibold text-fm-on-surface">Finalizar jornada</p>
+            <p className="text-sm text-fm-on-surface-variant">
+              Tienes un timer activo:{' '}
+              <strong className="text-fm-on-surface">&ldquo;{endConfirm.label}&rdquo;</strong>.
+              Si finalizas la jornada, se detendrá automáticamente.
+            </p>
+            <div className="flex gap-3 justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setEndConfirm({ open: false, label: null })}
+                className="px-4 py-2 rounded-full text-sm font-semibold text-fm-on-surface-variant border border-fm-surface-container-high hover:bg-fm-surface-container-low transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmEndShift}
+                className="px-4 py-2 rounded-full bg-fm-error/10 text-fm-error border border-fm-error/30 text-sm font-bold hover:bg-fm-error/15 transition-colors"
+              >
+                Finalizar jornada
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

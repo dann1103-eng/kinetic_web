@@ -61,12 +61,18 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
 
     // client_id desde billing_cycles (vía admin para asegurar la lectura)
     if (result.cycleId) {
-      const { data: cyc } = await admin
+      const { data: cyc, error: cycErr } = await admin
         .from('billing_cycles')
         .select('client_id')
         .eq('id', result.cycleId)
         .maybeSingle()
+      if (cycErr) result.adminError = `billing_cycles: ${cycErr.message}`
       result.clientId = cyc?.client_id ?? null
+      if (!result.clientId && !cycErr) {
+        result.adminError = `billing_cycles: ciclo ${result.cycleId} no encontrado o sin client_id`
+      }
+    } else {
+      result.adminError = 'requirement.billing_cycle_id es null — el requerimiento no está asociado a un ciclo'
     }
 
     // is_client_of(client_id) — RPC que ya existe (mig 0052)
@@ -76,7 +82,8 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
         client_id: result.clientId,
       })
       if (icoErr) {
-        result.selfError = `is_client_of: ${icoErr.message}`
+        result.selfError = `is_client_of RPC: ${icoErr.message}`
+        result.isClientOf = false
       } else {
         result.isClientOf = Boolean(ico)
       }

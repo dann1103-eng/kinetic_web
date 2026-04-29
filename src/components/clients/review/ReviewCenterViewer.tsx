@@ -123,11 +123,13 @@ export function ReviewCenterViewer({
                 <li>Archivos en el sistema: <strong>{diag.totalAssets}</strong></li>
                 <li>Archivos visibles para ti: <strong>{diag.visibleAssets}</strong></li>
                 <li>Fase del requerimiento: <strong>{diag.phase ?? '—'}</strong></li>
-                <li>Acceso al cliente (is_client_of): <strong>{String(diag.isClientOf)}</strong></li>
+                <li>Acceso al cliente (is_client_of): <strong>{diag.isClientOf === null ? 'null (no determinado)' : String(diag.isClientOf)}</strong></li>
+                {diag.selfError && <li className="text-fm-error font-medium">Error sesión: {diag.selfError}</li>}
+                {diag.adminError && <li className="text-fm-error font-medium">Error admin: {diag.adminError}</li>}
               </ul>
               <p className="mt-2 text-[10px] text-fm-error/70">
-                Si la fase no es <code>revision_cliente</code> o &quot;is_client_of&quot; es <code>false</code>,
-                el RLS bloquea la lectura. Reporta esto al equipo de FM.
+                Si &quot;is_client_of&quot; es <code>false</code> o <code>null</code>,
+                el administrador debe re-vincular tu usuario al cliente en la sección &quot;Portal del cliente&quot;.
               </p>
             </div>
           )}
