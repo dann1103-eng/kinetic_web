@@ -13,18 +13,24 @@ export const REVIEW_VIDEO_TYPES = [
   'video/quicktime',
 ] as const
 
+export const REVIEW_PDF_TYPES = [
+  'application/pdf',
+] as const
+
 export const REVIEW_ALLOWED_TYPES = [
   ...REVIEW_IMAGE_TYPES,
   ...REVIEW_VIDEO_TYPES,
+  ...REVIEW_PDF_TYPES,
 ] as const
 
 export const REVIEW_MAX_BYTES = 200 * 1024 * 1024 // 200 MB
 
-export type ReviewUploadKind = 'image' | 'video'
+export type ReviewUploadKind = 'image' | 'video' | 'pdf'
 
 export function kindForMime(mime: string): ReviewUploadKind | null {
   if ((REVIEW_IMAGE_TYPES as readonly string[]).includes(mime)) return 'image'
   if ((REVIEW_VIDEO_TYPES as readonly string[]).includes(mime)) return 'video'
+  if ((REVIEW_PDF_TYPES as readonly string[]).includes(mime)) return 'pdf'
   return null
 }
 
@@ -66,7 +72,7 @@ export async function uploadReviewFile({
   const kind = kindForMime(file.type)
   if (!kind) {
     throw new Error(
-      'Formato no permitido. Usa JPG, PNG, WebP, GIF, MP4, WebM o MOV.'
+      'Formato no permitido. Usa JPG, PNG, WebP, GIF, MP4, WebM, MOV o PDF.'
     )
   }
   if (file.size > REVIEW_MAX_BYTES) {

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ImageIcon, VideoIcon } from 'lucide-react'
+import { FileTextIcon, ImageIcon, VideoIcon } from 'lucide-react'
 import type { ReviewAsset, ReviewVersion } from '@/types/db'
 import { getSignedViewUrl } from '@/app/actions/content-review'
 
@@ -52,6 +52,8 @@ export function AssetThumbnail({ asset, version }: AssetThumbnailProps) {
     <div className="w-full aspect-video bg-[#e8ebed] flex items-center justify-center text-[#8a8f93]">
       {asset.kind === 'video' ? (
         <VideoIcon className="w-6 h-6" />
+      ) : asset.kind === 'pdf' ? (
+        <FileTextIcon className="w-6 h-6 text-fm-primary opacity-60" />
       ) : (
         <ImageIcon className="w-6 h-6" />
       )}
