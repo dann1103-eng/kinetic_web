@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react'
 import { startAdminEntry, stopActiveEntry, updateMyActiveNotes } from '@/app/actions/time'
+import { getMyActiveShift } from '@/app/actions/work-sessions'
 import { ADMIN_CATEGORIES, ADMIN_CATEGORY_LABELS, formatDuration } from '@/lib/domain/time'
 import type { AdminCategory, TimeEntry } from '@/types/db'
 
@@ -18,6 +19,16 @@ export function ClockInPanel({ initialActive }: Props) {
   const [elapsed, setElapsed] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  const [hasActiveShift, setHasActiveShift] = useState<boolean | null>(null)
+
+  // Verificar jornada activa al montar
+  useEffect(() => {
+    let cancelled = false
+    getMyActiveShift().then((s) => {
+      if (!cancelled) setHasActiveShift(!!s)
+    })
+    return () => { cancelled = true }
+  }, [])
 
   // Live elapsed counter
   useEffect(() => {
@@ -162,13 +173,19 @@ export function ClockInPanel({ initialActive }: Props) {
             </select>
             <button
               onClick={handleStart}
-              disabled={isPending}
+              disabled={isPending || hasActiveShift === false}
+              title={hasActiveShift === false ? 'Debes iniciar tu jornada para registrar tiempo' : undefined}
               className="flex items-center gap-2 px-5 py-2.5 bg-fm-primary text-white font-bold rounded-full hover:bg-fm-primary-dim transition-all text-sm disabled:opacity-60 whitespace-nowrap"
             >
               <span className="material-symbols-outlined text-base">login</span>
               Marcar entrada
             </button>
           </div>
+          {hasActiveShift === false && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Inicia tu jornada desde el widget en el header antes de registrar tiempo.
+            </p>
+          )}
           <textarea
             value={notes}
             onChange={e => setNotes(e.target.value)}
