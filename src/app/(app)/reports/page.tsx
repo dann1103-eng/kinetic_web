@@ -451,7 +451,7 @@ export default async function ReportsPage() {
         </AccordionSection>
 
         {/* ── Section 7: Jornadas (clock in/out) ── */}
-        <AccordionSection title="Jornadas — comparativa online vs productivo" subtitle="Últimos 14 días">
+        <AccordionSection title="Jornadas — comparativa online vs productivo">
           <ShiftsReport users={(usersList ?? []).map(u => ({ id: u.id, full_name: u.full_name }))} />
         </AccordionSection>
 

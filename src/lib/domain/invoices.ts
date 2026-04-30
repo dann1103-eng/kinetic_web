@@ -66,9 +66,9 @@ export function calculateTotals({ items, tax_rate, discount_amount = 0, retentio
   const taxable = Math.max(0, subtotal - discount)                    // base imponible
   const retention = round2(taxable * Math.max(0, retention_rate))     // renta retenida
   const net = Math.max(0, taxable - retention)                        // base neta para el pago
-  const tax_amount = round2(taxable * tax_rate)                       // IVA del DTE
+  const tax_amount = round2(taxable * tax_rate)                       // IVA del DTE (se traslada al pago)
   const total = round2(taxable + tax_amount)                          // Total en DTE
-  const total_a_pagar = round2(net + round2(net * tax_rate))          // Total a pagar
+  const total_a_pagar = round2(net + tax_amount)                      // Total a pagar (mismo IVA trasladado)
   return {
     subtotal,
     discount_amount: discount,

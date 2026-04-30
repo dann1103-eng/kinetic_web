@@ -601,40 +601,35 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
             <span className="text-xl font-bold text-fm-primary">{formatCurrency(totals.total)}</span>
           </div>
 
-          {totals.retencion_renta_amount > 0 && (() => {
-            // IVA efectivo sobre la base neta (taxable − renta retenida)
-            const netAmt = Math.max(0, totals.subtotal - totals.discount_amount - totals.retencion_renta_amount)
-            const ivaPagarAmt = Math.round((totals.total_a_pagar - netAmt) * 100) / 100
-            return (
-              <>
-                <div className="h-px bg-fm-surface-container-high mt-3" />
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-outline">A cobrar</p>
+          {totals.retencion_renta_amount > 0 && (
+            <>
+              <div className="h-px bg-fm-surface-container-high mt-3" />
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-outline">A cobrar</p>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-fm-on-surface-variant">Subtotal</span>
+                <span className="font-medium text-fm-on-surface">{formatCurrency(totals.subtotal)}</span>
+              </div>
+              {totals.discount_amount > 0 && (
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-fm-on-surface-variant">Subtotal</span>
-                  <span className="font-medium text-fm-on-surface">{formatCurrency(totals.subtotal)}</span>
+                  <span className="text-fm-on-surface-variant">Descuento</span>
+                  <span className="font-medium text-fm-on-surface">−{formatCurrency(totals.discount_amount)}</span>
                 </div>
-                {totals.discount_amount > 0 && (
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-fm-on-surface-variant">Descuento</span>
-                    <span className="font-medium text-fm-on-surface">−{formatCurrency(totals.discount_amount)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-fm-on-surface-variant">Renta retenida ({(totals.retention_rate * 100).toFixed(0)}%)</span>
-                  <span className="font-medium text-fm-on-surface">−{formatCurrency(totals.retencion_renta_amount)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-fm-on-surface-variant">IVA ({(taxRate * 100).toFixed(0)}%)</span>
-                  <span className="font-medium text-fm-on-surface">{formatCurrency(ivaPagarAmt)}</span>
-                </div>
-                <div className="h-px bg-fm-surface-container-high" />
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-fm-on-surface">TOTAL A PAGAR</span>
-                  <span className="text-xl font-bold text-fm-primary">{formatCurrency(totals.total_a_pagar)}</span>
-                </div>
-              </>
-            )
-          })()}
+              )}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-fm-on-surface-variant">Renta retenida ({(totals.retention_rate * 100).toFixed(0)}%)</span>
+                <span className="font-medium text-fm-on-surface">−{formatCurrency(totals.retencion_renta_amount)}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-fm-on-surface-variant">IVA ({(taxRate * 100).toFixed(0)}%)</span>
+                <span className="font-medium text-fm-on-surface">{formatCurrency(totals.tax_amount)}</span>
+              </div>
+              <div className="h-px bg-fm-surface-container-high" />
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-fm-on-surface">TOTAL A PAGAR</span>
+                <span className="text-xl font-bold text-fm-primary">{formatCurrency(totals.total_a_pagar)}</span>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="space-y-2">

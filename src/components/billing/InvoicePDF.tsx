@@ -63,20 +63,10 @@ function formatMoney(n: number): string {
   return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 }
 
-function round2(n: number) { return Math.round(n * 100) / 100 }
-
 export function InvoicePDF({ invoice, items }: InvoicePDFProps) {
   const emitter = invoice.emitter_snapshot_json as EmitterSnapshot
   const client = invoice.client_snapshot_json as ClientFiscalSnapshot
   const logoUrl = emitter.logo_url ?? null
-
-  // IVA efectivo de la sección "A cobrar": se calcula sobre la base neta (taxable − renta retenida)
-  // net = subtotal − descuento − renta_retenida ; iva_pagar = total_a_pagar − net
-  const netAmount = Math.max(
-    0,
-    Number(invoice.subtotal) - Number(invoice.discount_amount) - Number(invoice.retencion_renta_amount),
-  )
-  const ivaPagar = round2(Number(invoice.total_a_pagar) - netAmount)
 
   return (
     <Document>
@@ -190,7 +180,7 @@ export function InvoicePDF({ invoice, items }: InvoicePDFProps) {
               </View>
               <View style={styles.totalsRow}>
                 <Text style={styles.totalsLabel}>IVA ({(Number(invoice.tax_rate) * 100).toFixed(0)}%)</Text>
-                <Text style={styles.totalsValue}>${formatMoney(ivaPagar)}</Text>
+                <Text style={styles.totalsValue}>${formatMoney(Number(invoice.tax_amount))}</Text>
               </View>
               <View style={styles.totalsDivider} />
               <View style={styles.grandTotal}>
