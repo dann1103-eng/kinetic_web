@@ -72,6 +72,8 @@ export function PdfViewer({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setUrl(null)
     setPdfDoc(null)
+    setPending(null)
+    setError(null)
     getSignedViewUrl({ storagePath: file.storage_path }).then((res) => {
       if (cancelled) return
       if ('ok' in res) setUrl(res.data.url)
@@ -112,8 +114,10 @@ export function PdfViewer({
     renderTaskRef.current?.cancel()
     void (async () => {
       setRendering(true)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let page: any = null
       try {
-        const page = await pdfDoc.getPage(currentPage + 1) // PDF.js es 1-based
+        page = await pdfDoc.getPage(currentPage + 1) // PDF.js es 1-based
         if (cancelled) { page.cleanup(); return }
         const canvas = canvasRef.current!
         const viewport = page.getViewport({ scale: 1.5 })
@@ -125,6 +129,7 @@ export function PdfViewer({
         await task.promise
         if (!cancelled) setRendering(false)
       } catch (e: unknown) {
+        page?.cleanup()
         if (
           !cancelled &&
           (e as { name?: string }).name !== 'RenderingCancelledException'
@@ -134,8 +139,17 @@ export function PdfViewer({
         if (!cancelled) setRendering(false)
       }
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      renderTaskRef.current?.cancel()
+    }
   }, [pdfDoc, currentPage])
+
+  // 4. Reset hover state when file changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHoveredPinId(null)
+  }, [file.id])
 
   function handleClick(e: React.MouseEvent<HTMLDivElement>) {
     if (selectedPinId) { onSelectPin(null); return }
