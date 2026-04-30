@@ -8,7 +8,12 @@ export interface ClientReviewDiagnostic {
   phase: string | null
   cycleId: string | null
   clientId: string | null
+  /** auth.uid() de la sesión actual (para que el admin pueda verificar en client_users). */
+  authUid: string | null
+  /** Resultado de is_client_of() vía RPC. */
   isClientOf: boolean | null
+  /** Filas en client_users para (user_id=authUid, client_id=clientId). Verificación directa sin RPC. */
+  clientUsersRows: number
   /** Cuenta de review_assets visibles bajo la sesión actual (RLS aplica). */
   visibleAssets: number
   /** Cuenta de review_assets totales en la BD (vista admin, sin RLS). */
@@ -24,7 +29,7 @@ export interface ClientReviewDiagnostic {
 /**
  * Diagnóstico para el bug del portal de revisión de clientes.
  * Compara lo que ve el usuario (con RLS) vs lo que existe en BD (admin).
- * Si visibleAssets < totalAssets, el problema es RLS.
+ * Incluye verificación directa de client_users y is_client_of() con parámetro correcto.
  */
 export async function diagnoseClientReview(requirementId: string): Promise<ClientReviewDiagnostic> {
   const result: ClientReviewDiagnostic = {
@@ -32,7 +37,9 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
     phase: null,
     cycleId: null,
     clientId: null,
+    authUid: null,
     isClientOf: null,
+    clientUsersRows: 0,
     visibleAssets: 0,
     totalAssets: 0,
     visibleVersions: 0,
@@ -45,7 +52,11 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
     const supabase = await createClient()
     const admin = createAdminClient()
 
-    // Lo que ve la sesión actual
+    // ── Sesión actual ──────────────────────────────────────────────────
+    const { data: { user: sessionUser } } = await supabase.auth.getUser()
+    result.authUid = sessionUser?.id ?? null
+
+    // ── Requerimiento (sesión del usuario, RLS aplica) ─────────────────
     const { data: req, error: reqErr } = await supabase
       .from('requirements')
       .select('id, phase, billing_cycle_id')
@@ -59,7 +70,7 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
       result.cycleId = req.billing_cycle_id as string
     }
 
-    // client_id desde billing_cycles (vía admin para asegurar la lectura)
+    // ── client_id desde billing_cycles (admin) ─────────────────────────
     if (result.cycleId) {
       const { data: cyc, error: cycErr } = await admin
         .from('billing_cycles')
@@ -71,15 +82,15 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
       if (!result.clientId && !cycErr) {
         result.adminError = `billing_cycles: ciclo ${result.cycleId} no encontrado o sin client_id`
       }
-    } else {
-      result.adminError = 'requirement.billing_cycle_id es null — el requerimiento no está asociado a un ciclo'
+    } else if (result.requirementFound) {
+      result.adminError = 'requirement.billing_cycle_id es null — el requerimiento no tiene ciclo de facturación asignado'
     }
 
-    // is_client_of(client_id) — RPC que ya existe (mig 0052)
+    // ── is_client_of() vía RPC (parámetro correcto: target_client_id) ──
     if (result.clientId) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: ico, error: icoErr } = await (supabase as any).rpc('is_client_of', {
-        client_id: result.clientId,
+        target_client_id: result.clientId,
       })
       if (icoErr) {
         result.selfError = `is_client_of RPC: ${icoErr.message}`
@@ -87,9 +98,19 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
       } else {
         result.isClientOf = Boolean(ico)
       }
+
+      // ── Verificación directa de client_users (admin, bypass RLS) ──────
+      if (result.authUid) {
+        const { count: cuCount } = await admin
+          .from('client_users')
+          .select('*', { count: 'exact', head: true })
+          .eq('client_id', result.clientId)
+          .eq('user_id', result.authUid)
+        result.clientUsersRows = cuCount ?? 0
+      }
     }
 
-    // Conteos: visible (usuario) vs total (admin)
+    // ── Conteos: visible (usuario) vs total (admin) ────────────────────
     const [
       { count: vAssets, error: vAssErr },
       { count: tAssets, error: tAssErr },
@@ -110,7 +131,7 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
     result.visibleAssets = vAssets ?? 0
     result.totalAssets = tAssets ?? 0
 
-    // Versiones (solo si hay assets en BD)
+    // ── Versiones (solo si hay assets en BD) ──────────────────────────
     if (result.totalAssets > 0) {
       const { data: assetIdsRows } = await admin
         .from('review_assets')
@@ -119,10 +140,7 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
         .is('archived_at', null)
       const ids = (assetIdsRows ?? []).map((r) => r.id as string)
       if (ids.length > 0) {
-        const [
-          { count: vVer },
-          { count: tVer },
-        ] = await Promise.all([
+        const [{ count: vVer }, { count: tVer }] = await Promise.all([
           supabase.from('review_versions').select('id', { count: 'exact', head: true }).in('asset_id', ids),
           admin.from('review_versions').select('id', { count: 'exact', head: true }).in('asset_id', ids),
         ])

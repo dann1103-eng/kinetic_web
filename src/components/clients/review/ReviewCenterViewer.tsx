@@ -116,23 +116,68 @@ export function ReviewCenterViewer({
             </button>
           )}
 
-          {clientMode && diag && diag.totalAssets > diag.visibleAssets && (
-            <div className="mt-4 text-left rounded-xl border border-fm-error/30 bg-fm-error/5 p-3 text-xs">
-              <p className="font-semibold text-fm-error mb-1.5">Diagnóstico</p>
-              <ul className="space-y-0.5 text-fm-error/90">
-                <li>Archivos en el sistema: <strong>{diag.totalAssets}</strong></li>
-                <li>Archivos visibles para ti: <strong>{diag.visibleAssets}</strong></li>
-                <li>Fase del requerimiento: <strong>{diag.phase ?? '—'}</strong></li>
-                <li>Acceso al cliente (is_client_of): <strong>{diag.isClientOf === null ? 'null (no determinado)' : String(diag.isClientOf)}</strong></li>
-                {diag.selfError && <li className="text-fm-error font-medium">Error sesión: {diag.selfError}</li>}
-                {diag.adminError && <li className="text-fm-error font-medium">Error admin: {diag.adminError}</li>}
-              </ul>
-              <p className="mt-2 text-[10px] text-fm-error/70">
-                Si &quot;is_client_of&quot; es <code>false</code> o <code>null</code>,
-                el administrador debe re-vincular tu usuario al cliente en la sección &quot;Portal del cliente&quot;.
-              </p>
-            </div>
-          )}
+          {clientMode && diag && diag.totalAssets > diag.visibleAssets && (() => {
+            const phaseOk = diag.phase === 'revision_cliente'
+            const linkOk = diag.clientUsersRows > 0
+            return (
+              <div className="mt-4 text-left rounded-xl border border-fm-error/30 bg-fm-error/5 p-3 text-xs space-y-2">
+                <p className="font-semibold text-fm-error">Diagnóstico de acceso</p>
+
+                {/* Causa 1: fase incorrecta */}
+                <div className={`rounded-lg px-2.5 py-2 border ${phaseOk ? 'border-green-500/30 bg-green-500/5' : 'border-fm-error/40 bg-fm-error/10'}`}>
+                  <p className={`font-semibold mb-0.5 ${phaseOk ? 'text-green-700 dark:text-green-400' : 'text-fm-error'}`}>
+                    {phaseOk ? '✓' : '✗'} Fase del requerimiento
+                  </p>
+                  <p className="text-fm-on-surface-variant">
+                    Fase actual: <strong>{diag.phase ?? '—'}</strong>
+                    {!phaseOk && ' — debe estar en "revision_cliente" para que puedas ver los archivos.'}
+                  </p>
+                </div>
+
+                {/* Causa 2: vinculación */}
+                <div className={`rounded-lg px-2.5 py-2 border ${linkOk ? 'border-green-500/30 bg-green-500/5' : 'border-fm-error/40 bg-fm-error/10'}`}>
+                  <p className={`font-semibold mb-0.5 ${linkOk ? 'text-green-700 dark:text-green-400' : 'text-fm-error'}`}>
+                    {linkOk ? '✓' : '✗'} Vinculación a esta marca
+                  </p>
+                  <p className="text-fm-on-surface-variant">
+                    Filas en client_users: <strong>{diag.clientUsersRows}</strong>
+                    {!linkOk && ' — tu usuario no está vinculado al cliente de este requerimiento.'}
+                  </p>
+                  {diag.isClientOf !== null && (
+                    <p className="text-fm-on-surface-variant mt-0.5">
+                      is_client_of(): <strong>{String(diag.isClientOf)}</strong>
+                    </p>
+                  )}
+                </div>
+
+                {/* Conteos */}
+                <div className="text-fm-on-surface-variant space-y-0.5 pt-1 border-t border-fm-error/20">
+                  <p>Archivos en BD: <strong>{diag.totalAssets}</strong> · Visibles para ti: <strong>{diag.visibleAssets}</strong></p>
+                  {diag.authUid && (
+                    <p className="text-[10px] break-all">Tu user ID: <code>{diag.authUid}</code></p>
+                  )}
+                  {diag.clientId && (
+                    <p className="text-[10px] break-all">Client ID del req: <code>{diag.clientId}</code></p>
+                  )}
+                </div>
+
+                {(diag.selfError || diag.adminError) && (
+                  <div className="pt-1 border-t border-fm-error/20 space-y-0.5">
+                    {diag.selfError && <p className="text-fm-error font-medium">Error sesión: {diag.selfError}</p>}
+                    {diag.adminError && <p className="text-fm-error font-medium">Error admin: {diag.adminError}</p>}
+                  </div>
+                )}
+
+                <p className="text-[10px] text-fm-on-surface-variant pt-1 border-t border-fm-error/20">
+                  {!phaseOk
+                    ? 'El administrador debe mover el requerimiento a la fase "Revisión cliente" para que puedas acceder.'
+                    : !linkOk
+                    ? 'El administrador debe vincular tu usuario a esta marca en /users/portal.'
+                    : 'Ambas condiciones parecen correctas — contacta al administrador para revisar las políticas de acceso.'}
+                </p>
+              </div>
+            )
+          })()}
         </div>
       </div>
     )
