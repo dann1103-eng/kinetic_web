@@ -9,6 +9,8 @@ import { ReviewLeftColumn } from './ReviewLeftColumn'
 import { ReviewCenterViewer } from './ReviewCenterViewer'
 import { ReviewRightColumn } from './ReviewRightColumn'
 import { AddFilesDialog } from './AddFilesDialog'
+import { AssetVersionStrip } from './AssetVersionStrip'
+import { MobileReviewDrawer } from './MobileReviewDrawer'
 
 export interface ContentReviewPanelProps {
   /** Controla cuándo activar las suscripciones realtime + fetch de usuarios. */
@@ -53,6 +55,7 @@ export function ContentReviewPanel({
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
   const [selectedPinId, setSelectedPinIdRaw] = useState<string | null>(null)
   const [addFilesOpen, setAddFilesOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [currentPdfPage, setCurrentPdfPage] = useState(0)
   const [addFilesMode, setAddFilesMode] = useState<
     { kind: 'new-asset' } | { kind: 'new-version'; assetId: string }
@@ -219,8 +222,10 @@ export function ContentReviewPanel({
   }
 
   return (
-    <div className="flex flex-1 min-h-0 bg-fm-surface-container-lowest">
-      <div className="w-[160px] border-r border-fm-surface-container-high flex-shrink-0 flex flex-col">
+    <div className="relative flex flex-col md:flex-row flex-1 min-h-0 bg-fm-surface-container-lowest">
+
+      {/* ── Desktop: columna izquierda (assets / versiones) ── */}
+      <div className="hidden md:flex w-[160px] border-r border-fm-surface-container-high flex-shrink-0 flex-col">
         <ReviewLeftColumn
           assets={data.assets}
           versionsByAsset={data.versionsByAsset}
@@ -243,7 +248,9 @@ export function ContentReviewPanel({
           onVersionDeleted={(versionId, assetId) => {
             data.removeVersion(versionId, assetId)
             if (selectedVersionId === versionId) {
-              const remaining = (data.versionsByAsset[assetId] ?? []).filter((v) => v.id !== versionId)
+              const remaining = (data.versionsByAsset[assetId] ?? []).filter(
+                (v) => v.id !== versionId,
+              )
               setSelectedVersionId(remaining[remaining.length - 1]?.id ?? null)
               if (remaining.length === 0) setSelectedAssetId(null)
             }
@@ -252,6 +259,23 @@ export function ContentReviewPanel({
         />
       </div>
 
+      {/* ── Mobile: strip horizontal de versiones ── */}
+      <div className="flex md:hidden border-b border-fm-surface-container-high flex-shrink-0">
+        <AssetVersionStrip
+          assets={data.assets}
+          versionsByAsset={data.versionsByAsset}
+          pinsByVersion={data.pinsByVersion}
+          selectedVersionId={selectedVersionId}
+          onSelectVersion={(assetId, versionId) => {
+            setSelectedAssetId(assetId)
+            setSelectedVersionId(versionId)
+            setSelectedPinId(null)
+          }}
+          clientMode={clientMode}
+        />
+      </div>
+
+      {/* ── Centro: visor siempre visible ── */}
       <div className="flex-1 min-w-0 flex flex-col bg-fm-background">
         <ReviewCenterViewer
           loading={data.loading}
@@ -283,7 +307,8 @@ export function ContentReviewPanel({
         />
       </div>
 
-      <div className="w-[340px] border-l border-fm-surface-container-high flex-shrink-0 flex flex-col">
+      {/* ── Desktop: columna derecha (pines / comentarios) ── */}
+      <div className="hidden md:flex w-[340px] border-l border-fm-surface-container-high flex-shrink-0 flex-col">
         <ReviewRightColumn
           pins={pinsOnVersion}
           commentsByPin={data.commentsByPin}
@@ -301,6 +326,26 @@ export function ContentReviewPanel({
           clientMode={clientMode}
         />
       </div>
+
+      {/* ── Mobile: drawer de pines desde abajo ── */}
+      <MobileReviewDrawer
+        open={drawerOpen}
+        onToggle={() => setDrawerOpen((o) => !o)}
+        pins={pinsOnVersion}
+        commentsByPin={data.commentsByPin}
+        selectedPinId={selectedPinId}
+        onSelectPin={setSelectedPinId}
+        clientId={clientId}
+        currentUserId={currentUserId}
+        users={users}
+        onPinUpdated={data.upsertPin}
+        onPinRemoved={(pinId) =>
+          selectedVersionId && data.removePin(pinId, selectedVersionId)
+        }
+        onCommentUpserted={data.upsertComment}
+        onCommentRemoved={data.removeComment}
+        clientMode={clientMode}
+      />
 
       {!clientMode && (
         <AddFilesDialog
