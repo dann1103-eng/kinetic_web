@@ -273,6 +273,7 @@ export interface Database {
           created_at: string
           avatar_url: string | null
           default_assignee: boolean
+          current_session_id: string | null
         }
         Insert: {
           id: string
@@ -281,6 +282,7 @@ export interface Database {
           role?: UserRole
           avatar_url?: string | null
           default_assignee?: boolean
+          current_session_id?: string | null
         }
         Update: {
           email?: string
@@ -288,6 +290,7 @@ export interface Database {
           role?: UserRole
           avatar_url?: string | null
           default_assignee?: boolean
+          current_session_id?: string | null
         }
         Relationships: []
       }

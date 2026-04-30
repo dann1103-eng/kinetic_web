@@ -19,6 +19,21 @@ async function handleSignout(request: NextRequest) {
     }
   )
 
+  // Limpiar current_session_id del usuario antes del signOut, para que ningún
+  // dispositivo huérfano siga apareciendo como "vigente". Si falla por RLS o
+  // por cualquier otro motivo, ignoramos para no bloquear el logout.
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase
+        .from('users')
+        .update({ current_session_id: null })
+        .eq('id', user.id)
+    }
+  } catch {
+    /* ignore */
+  }
+
   await supabase.auth.signOut()
   return response
 }

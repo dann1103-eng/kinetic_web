@@ -476,6 +476,7 @@ function CreateUserModal({ onClose, onCreated }: {
         created_at: new Date().toISOString(),
         avatar_url: null,
         default_assignee: false,
+        current_session_id: null,
       })
       onClose()
     })

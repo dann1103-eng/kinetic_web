@@ -5,6 +5,7 @@ import { getActiveClientId, getActiveClientIds } from '@/lib/supabase/active-cli
 import { PortalSidebar } from '@/components/portal/PortalSidebar'
 import { PortalTopNav } from '@/components/portal/PortalTopNav'
 import { UserProvider } from '@/contexts/UserContext'
+import { SessionSentinel } from '@/components/auth/SessionSentinel'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -39,6 +40,7 @@ export default async function PortalLayout({ children }: { children: React.React
         <div className="flex h-screen overflow-hidden bg-fm-background">
           <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
+        <SessionSentinel />
       </UserProvider>
     )
   }
@@ -64,6 +66,7 @@ export default async function PortalLayout({ children }: { children: React.React
           <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
       </div>
+      <SessionSentinel />
     </UserProvider>
   )
 }

@@ -8,6 +8,7 @@ import { NotificationToastHost } from '@/components/notifications/NotificationTo
 import { FloatingChatDock } from '@/components/inbox/floating/FloatingChatDock'
 import { LoginWelcomeDialog } from '@/components/layout/LoginWelcomeDialog'
 import { IdleSchedulerWrapper } from '@/components/layout/IdleSchedulerWrapper'
+import { SessionSentinel } from '@/components/auth/SessionSentinel'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -69,6 +70,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
         <FloatingChatDock />
         <LoginWelcomeDialog />
         <IdleSchedulerWrapper />
+        <SessionSentinel />
       </MobileSidebarProvider>
     </UserProvider>
   )
