@@ -1811,7 +1811,7 @@ export type EffectiveLimits = Record<ContentType, number>
 // Migraciones 0044_content_review.sql + 0045_review_files_bucket.sql
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type ReviewAssetKind = 'image' | 'video'
+export type ReviewAssetKind = 'image' | 'video' | 'pdf'
 export type ReviewPinStatus = 'active' | 'resolved'
 
 export interface ReviewAsset {
@@ -1847,6 +1847,7 @@ export interface ReviewPin {
   pos_x_pct: number
   pos_y_pct: number
   timestamp_ms: number | null
+  page_number: number | null   // nuevo: página del PDF (0-based), null para imagen/video
   status: ReviewPinStatus
   created_by: string | null
   created_at: string
