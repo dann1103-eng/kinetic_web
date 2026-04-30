@@ -40,11 +40,18 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 /**
  * Cálculo fiscal:
  *  - subtotal       = sum(quantity × unit_price)
- *  - taxable_base   = max(0, subtotal − discount)        ← base para renta retenida
- *  - tax_amount     = subtotal × tax_rate                ← IVA SOBRE SUBTOTAL ORIGINAL (no recalculado tras renta)
- *  - retencion      = taxable_base × retention_rate
- *  - total          = taxable_base + tax_amount          ← Total en DTE (lo fiscal)
- *  - total_a_pagar  = taxable_base − retencion + tax_amount   ← Lo que cobra el payment link
+ *  - taxable        = max(0, subtotal − discount)        ← base imponible (sin renta)
+ *  - retencion      = taxable × retention_rate           ← renta retenida
+ *  - net            = max(0, taxable − retencion)        ← base neta para el pago
+ *  - tax_amount     = taxable × tax_rate                 ← IVA del DTE (sobre base imponible)
+ *  - total          = taxable + tax_amount               ← Total en DTE (fiscal)
+ *  - total_a_pagar  = net + (net × tax_rate)             ← Lo que cobra el payment link (IVA sobre neto)
+ *
+ * Ejemplo con descuento y renta:
+ *   subtotal $200 − descuento $100 = taxable $100
+ *   renta 10% → $10  |  net $90
+ *   IVA DTE: $100 × 13% = $13  → Total DTE $113
+ *   IVA pago: $90  × 13% = $11.70 → Total a pagar $101.70
  */
 export function calculateTotals({ items, tax_rate, discount_amount = 0, retention_rate = 0 }: TotalsInput): TotalsResult {
   const computedItems: LineItemComputed[] = items.map((it, idx) => ({
@@ -56,11 +63,12 @@ export function calculateTotals({ items, tax_rate, discount_amount = 0, retentio
   }))
   const subtotal = round2(computedItems.reduce((acc, it) => acc + it.line_total, 0))
   const discount = round2(Math.max(0, discount_amount))
-  const taxable = Math.max(0, subtotal - discount)
-  const tax_amount = round2(subtotal * tax_rate)
-  const retention = round2(taxable * Math.max(0, retention_rate))
-  const total = round2(taxable + tax_amount)
-  const total_a_pagar = round2(taxable - retention + tax_amount)
+  const taxable = Math.max(0, subtotal - discount)                    // base imponible
+  const retention = round2(taxable * Math.max(0, retention_rate))     // renta retenida
+  const net = Math.max(0, taxable - retention)                        // base neta para el pago
+  const tax_amount = round2(taxable * tax_rate)                       // IVA del DTE
+  const total = round2(taxable + tax_amount)                          // Total en DTE
+  const total_a_pagar = round2(net + round2(net * tax_rate))          // Total a pagar
   return {
     subtotal,
     discount_amount: discount,
