@@ -14,6 +14,8 @@ export interface ClientReviewDiagnostic {
   isClientOf: boolean | null
   /** Filas en client_users para (user_id=authUid, client_id=clientId). Verificación directa sin RPC. */
   clientUsersRows: number
+  /** ¿Puede el cliente leer el billing_cycle de este requerimiento? */
+  billingCycleVisible: boolean
   /** Cuenta de review_assets visibles bajo la sesión actual (RLS aplica). */
   visibleAssets: number
   /** Cuenta de review_assets totales en la BD (vista admin, sin RLS). */
@@ -40,6 +42,7 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
     authUid: null,
     isClientOf: null,
     clientUsersRows: 0,
+    billingCycleVisible: false,
     visibleAssets: 0,
     totalAssets: 0,
     visibleVersions: 0,
@@ -97,6 +100,17 @@ export async function diagnoseClientReview(requirementId: string): Promise<Clien
         result.isClientOf = false
       } else {
         result.isClientOf = Boolean(ico)
+      }
+
+      // ── ¿Puede el cliente ver el billing_cycle directamente? ──────────
+      // Esto valida si el JOIN interno de la RLS policy de review_assets puede funcionar.
+      // Si es false, la policy EXISTS(requirements JOIN billing_cycles ...) retorna vacío.
+      if (result.cycleId) {
+        const { count: bcCount } = await supabase
+          .from('billing_cycles')
+          .select('id', { count: 'exact', head: true })
+          .eq('id', result.cycleId)
+        result.billingCycleVisible = (bcCount ?? 0) > 0
       }
 
       // ── Verificación directa de client_users (admin, bypass RLS) ──────

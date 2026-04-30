@@ -119,46 +119,48 @@ export function ReviewCenterViewer({
           {clientMode && diag && diag.totalAssets > diag.visibleAssets && (() => {
             const phaseOk = diag.phase === 'revision_cliente'
             const linkOk = diag.clientUsersRows > 0
+            const cycleOk = diag.billingCycleVisible
+            const allOk = phaseOk && linkOk && cycleOk
+
+            function Row({ ok, label, detail }: { ok: boolean; label: string; detail: string }) {
+              return (
+                <div className={`rounded-lg px-2.5 py-2 border ${ok ? 'border-green-500/30 bg-green-500/5' : 'border-fm-error/40 bg-fm-error/10'}`}>
+                  <p className={`font-semibold mb-0.5 ${ok ? 'text-green-700 dark:text-green-400' : 'text-fm-error'}`}>
+                    {ok ? '✓' : '✗'} {label}
+                  </p>
+                  <p className="text-fm-on-surface-variant">{detail}</p>
+                </div>
+              )
+            }
+
             return (
               <div className="mt-4 text-left rounded-xl border border-fm-error/30 bg-fm-error/5 p-3 text-xs space-y-2">
                 <p className="font-semibold text-fm-error">Diagnóstico de acceso</p>
 
-                {/* Causa 1: fase incorrecta */}
-                <div className={`rounded-lg px-2.5 py-2 border ${phaseOk ? 'border-green-500/30 bg-green-500/5' : 'border-fm-error/40 bg-fm-error/10'}`}>
-                  <p className={`font-semibold mb-0.5 ${phaseOk ? 'text-green-700 dark:text-green-400' : 'text-fm-error'}`}>
-                    {phaseOk ? '✓' : '✗'} Fase del requerimiento
-                  </p>
-                  <p className="text-fm-on-surface-variant">
-                    Fase actual: <strong>{diag.phase ?? '—'}</strong>
-                    {!phaseOk && ' — debe estar en "revision_cliente" para que puedas ver los archivos.'}
-                  </p>
-                </div>
+                <Row
+                  ok={phaseOk}
+                  label="Fase del requerimiento"
+                  detail={`Fase actual: ${diag.phase ?? '—'}${!phaseOk ? ' — debe ser "revision_cliente".' : ''}`}
+                />
+                <Row
+                  ok={linkOk}
+                  label="Vinculación a esta marca"
+                  detail={`client_users: ${diag.clientUsersRows} fila(s) · is_client_of(): ${diag.isClientOf === null ? '—' : String(diag.isClientOf)}${!linkOk ? ' — el usuario no está vinculado a esta marca.' : ''}`}
+                />
+                <Row
+                  ok={cycleOk}
+                  label="Ciclo de facturación visible"
+                  detail={cycleOk
+                    ? 'El ciclo de facturación es legible desde esta sesión.'
+                    : 'El ciclo de facturación NO es legible — la política RLS de revisión falla en su JOIN interno. La migración 0055 podría no estar aplicada en la base de datos.'}
+                />
 
-                {/* Causa 2: vinculación */}
-                <div className={`rounded-lg px-2.5 py-2 border ${linkOk ? 'border-green-500/30 bg-green-500/5' : 'border-fm-error/40 bg-fm-error/10'}`}>
-                  <p className={`font-semibold mb-0.5 ${linkOk ? 'text-green-700 dark:text-green-400' : 'text-fm-error'}`}>
-                    {linkOk ? '✓' : '✗'} Vinculación a esta marca
-                  </p>
-                  <p className="text-fm-on-surface-variant">
-                    Filas en client_users: <strong>{diag.clientUsersRows}</strong>
-                    {!linkOk && ' — tu usuario no está vinculado al cliente de este requerimiento.'}
-                  </p>
-                  {diag.isClientOf !== null && (
-                    <p className="text-fm-on-surface-variant mt-0.5">
-                      is_client_of(): <strong>{String(diag.isClientOf)}</strong>
-                    </p>
-                  )}
-                </div>
-
-                {/* Conteos */}
+                {/* Conteos y IDs */}
                 <div className="text-fm-on-surface-variant space-y-0.5 pt-1 border-t border-fm-error/20">
-                  <p>Archivos en BD: <strong>{diag.totalAssets}</strong> · Visibles para ti: <strong>{diag.visibleAssets}</strong></p>
-                  {diag.authUid && (
-                    <p className="text-[10px] break-all">Tu user ID: <code>{diag.authUid}</code></p>
-                  )}
-                  {diag.clientId && (
-                    <p className="text-[10px] break-all">Client ID del req: <code>{diag.clientId}</code></p>
-                  )}
+                  <p>Archivos en BD: <strong>{diag.totalAssets}</strong> · Visibles: <strong>{diag.visibleAssets}</strong></p>
+                  {diag.authUid && <p className="text-[10px] break-all">User ID: <code>{diag.authUid}</code></p>}
+                  {diag.clientId && <p className="text-[10px] break-all">Client ID: <code>{diag.clientId}</code></p>}
+                  {diag.cycleId && <p className="text-[10px] break-all">Cycle ID: <code>{diag.cycleId}</code></p>}
                 </div>
 
                 {(diag.selfError || diag.adminError) && (
@@ -170,10 +172,14 @@ export function ReviewCenterViewer({
 
                 <p className="text-[10px] text-fm-on-surface-variant pt-1 border-t border-fm-error/20">
                   {!phaseOk
-                    ? 'El administrador debe mover el requerimiento a la fase "Revisión cliente" para que puedas acceder.'
+                    ? 'Mover el requerimiento a la fase "Revisión cliente".'
                     : !linkOk
-                    ? 'El administrador debe vincular tu usuario a esta marca en /users/portal.'
-                    : 'Ambas condiciones parecen correctas — contacta al administrador para revisar las políticas de acceso.'}
+                    ? 'Vincular el usuario a esta marca en /users/portal.'
+                    : !cycleOk
+                    ? 'Aplicar la migración 0055 en el dashboard de Supabase (Authentication › Policies).'
+                    : allOk
+                    ? 'Todas las condiciones pasan pero los archivos no son visibles — verificar que la migración 0055 esté aplicada en Supabase.'
+                    : 'Contactar al administrador.'}
                 </p>
               </div>
             )
