@@ -38,7 +38,7 @@ async function insertReviewMentions(args: {
   }
 }
 
-const DOWNLOAD_URL_EXPIRES_SECONDS = 60 * 60 // 1 hora
+const DOWNLOAD_URL_EXPIRES_SECONDS = 60 * 60 * 24 // 24 horas
 
 type ActionResult<T> = { ok: true; data: T } | { error: string }
 
@@ -305,7 +305,13 @@ export async function createReviewPin(args: {
 
   const pinNumber = (latestPin?.pin_number ?? 0) + 1
 
-  const { data: pin, error: pinErr } = await supabase
+  // Usamos admin para el read-back de los INSERTs: la RLS puede bloquear el SELECT
+  // dentro del mismo statement en ciertas condiciones (p.ej. portal cliente), haciendo
+  // que .single() lance error aunque el row se haya creado. El INSERT usa la sesión
+  // del usuario (satisface la INSERT policy); la lectura usa admin (bypass RLS).
+  const admin = createAdminClient()
+
+  const { data: pinInsert, error: pinErr } = await supabase
     .from('review_pins')
     .insert({
       version_id: args.versionId,
@@ -317,14 +323,22 @@ export async function createReviewPin(args: {
       status: 'active',
       created_by: user.id,
     })
-    .select('*')
+    .select('id')
     .single()
 
-  if (pinErr || !pin) {
+  if (pinErr || !pinInsert) {
     return { error: pinErr?.message ?? 'Error al crear el pin.' }
   }
 
-  const { data: comment, error: commentErr } = await supabase
+  const { data: pin } = await admin
+    .from('review_pins')
+    .select('*')
+    .eq('id', pinInsert.id)
+    .single()
+
+  if (!pin) return { error: 'Error al leer el pin creado.' }
+
+  const { data: commentInsert, error: commentErr } = await supabase
     .from('review_comments')
     .insert({
       pin_id: pin.id,
@@ -332,14 +346,22 @@ export async function createReviewPin(args: {
       user_id: user.id,
       body,
     })
-    .select('*')
+    .select('id')
     .single()
 
-  if (commentErr || !comment) {
+  if (commentErr || !commentInsert) {
     // rollback del pin si falla el comentario raíz
-    await supabase.from('review_pins').delete().eq('id', pin.id)
+    await admin.from('review_pins').delete().eq('id', pin.id)
     return { error: commentErr?.message ?? 'Error al crear el comentario.' }
   }
+
+  const { data: comment } = await admin
+    .from('review_comments')
+    .select('*')
+    .eq('id', commentInsert.id)
+    .single()
+
+  if (!comment) return { error: 'Error al leer el comentario creado.' }
 
   const mentionIds = args.mentionedUserIds ?? []
   if (mentionIds.length > 0) {

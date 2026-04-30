@@ -52,6 +52,7 @@ export function ImageViewer({
   const [error, setError] = useState<string | null>(null)
   const [hoveredPinId, setHoveredPinId] = useState<string | null>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
+  const retryingRef = useRef(false)
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -60,6 +61,7 @@ export function ImageViewer({
 
   useEffect(() => {
     let cancelled = false
+    retryingRef.current = false
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setUrl(null)
     setPending(null)
@@ -72,6 +74,20 @@ export function ImageViewer({
       cancelled = true
     }
   }, [file.storage_path])
+
+  async function handleImgError() {
+    // La URL firmada puede haber expirado (TTL). Intentar refrescarla una sola vez.
+    if (retryingRef.current) return
+    retryingRef.current = true
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUrl(null)
+    const res = await getSignedViewUrl({ storagePath: file.storage_path })
+    if ('ok' in res) {
+      setUrl(res.data.url)
+    } else {
+      setError('No se pudo cargar la imagen. Intenta refrescar la página.')
+    }
+  }
 
   function handleClick(e: React.MouseEvent<HTMLDivElement>) {
     if (selectedPinId) {
@@ -128,6 +144,7 @@ export function ImageViewer({
             alt={asset.name}
             className="max-w-full max-h-[calc(92vh-260px)] block select-none"
             draggable={false}
+            onError={handleImgError}
           />
           {pins.map((pin) => (
             <PinOverlay
