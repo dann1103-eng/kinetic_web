@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { endShift } from '@/app/actions/work-sessions'
 import { stopActiveEntry } from '@/app/actions/time'
+import { clearAllTimerKeysForUser } from '@/lib/domain/timer'
+import { createClient } from '@/lib/supabase/client'
 import { useBrowserNotifications } from '@/hooks/useBrowserNotifications'
 
 interface StillOnlineDialogProps {
@@ -72,8 +74,13 @@ export function StillOnlineDialog({
 
   async function forceLogout() {
     try {
+      // Obtener userId antes de cerrar la sesión para poder limpiar localStorage
+      const supabase = createClient()
+      const { data: { user: authUser } } = await supabase.auth.getUser()
       await stopActiveEntry().catch(() => {})
       await endShift().catch(() => {})
+      // Limpiar claves de localStorage para evitar timers "fantasma" en el próximo login
+      if (authUser) clearAllTimerKeysForUser(authUser.id)
     } finally {
       onForceLogout?.()
       // Redirige al endpoint que limpia la sesión y vuelve a /login
