@@ -66,7 +66,7 @@ export function AddFilesDialog({
     for (const f of candidates) {
       const k = kindForMime(f.type)
       if (!k) {
-        setError('Formato no permitido. Usa JPG, PNG, WebP, GIF, MP4, WebM o MOV.')
+        setError('Formato no permitido. Usa JPG, PNG, WebP, GIF, MP4, WebM, MOV o PDF.')
         continue
       }
       if (f.size > REVIEW_MAX_BYTES) {
