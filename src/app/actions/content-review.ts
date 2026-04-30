@@ -283,6 +283,7 @@ export async function createReviewPin(args: {
   posXPct: number
   posYPct: number
   timestampMs: number | null
+  pageNumber?: number | null
   body: string
   mentionedUserIds?: string[]
 }): Promise<ActionResult<{ pin: ReviewPin; comment: ReviewComment }>> {
@@ -320,6 +321,7 @@ export async function createReviewPin(args: {
       pos_x_pct: args.posXPct,
       pos_y_pct: args.posYPct,
       timestamp_ms: args.timestampMs,
+      page_number: args.pageNumber ?? null,
       status: 'active',
       created_by: user.id,
     })
