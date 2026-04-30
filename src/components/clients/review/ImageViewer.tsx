@@ -142,7 +142,7 @@ export function ImageViewer({
             ref={imgRef}
             src={url}
             alt={asset.name}
-            className="max-w-full max-h-[calc(92vh-260px)] block select-none"
+            className="max-w-full max-h-[50vh] md:max-h-[calc(92vh-260px)] block select-none"
             draggable={false}
             onError={handleImgError}
           />
