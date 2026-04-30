@@ -31,6 +31,17 @@ export async function startTimer(
   const title = params.title.trim()
   if (!title) return { timer: null, error: 'Falta el título del timer.' }
 
+  // Verificar que el usuario tenga una jornada activa antes de registrar tiempo
+  const { data: activeShift } = await supabase
+    .from('work_sessions')
+    .select('id')
+    .eq('user_id', params.userId)
+    .is('ended_at', null)
+    .maybeSingle()
+  if (!activeShift) {
+    return { timer: null, error: 'Inicia tu jornada laboral antes de registrar tiempo en un requerimiento.' }
+  }
+
   const startedAt = new Date().toISOString()
   const { data, error } = await supabase
     .from('time_entries')
@@ -59,6 +70,26 @@ export async function startTimer(
     localStorage.setItem(TIMER_KEY(params.requirementId, params.userId), JSON.stringify(timer))
   }
   return { timer, error: null }
+}
+
+/**
+ * Limpia todas las claves de localStorage de timers que pertenecen al usuario dado.
+ * Útil cuando `stopActiveEntry()` se llama desde fuera de QuickTimerDialog
+ * (e.g. force-logout, finalizar jornada) para evitar que aparezcan timers "fantasma"
+ * al regresar de una pausa o en el próximo login.
+ */
+export function clearAllTimerKeysForUser(userId: string): void {
+  if (typeof window === 'undefined') return
+  const prefix = 'fm_crm_timer_'
+  const suffix = `_${userId}`
+  const toRemove: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key && key.startsWith(prefix) && key.endsWith(suffix)) {
+      toRemove.push(key)
+    }
+  }
+  toRemove.forEach((k) => localStorage.removeItem(k))
 }
 
 export async function stopTimer(
