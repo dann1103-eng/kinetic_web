@@ -13,8 +13,10 @@ import {
 } from '@/app/actions/work-sessions'
 import { stopActiveEntry } from '@/app/actions/time'
 import { formatDuration } from '@/lib/domain/time'
-import type { WorkSession, WorkSessionBreak } from '@/types/db'
+import { clearAllTimerKeysForUser } from '@/lib/domain/timer'
+import type { WorkSession, WorkSessionBreak, ShiftBreakType } from '@/types/db'
 import { EndShiftConfirmDialog } from '@/components/tiempo/EndShiftConfirmDialog'
+import { ActiveTimerWarningDialog } from '@/components/layout/ActiveTimerWarningDialog'
 
 const SYNC_INTERVAL_MS = 30_000
 
@@ -42,6 +44,11 @@ export function ShiftStatusWidget() {
     open: false,
     label: null,
   })
+  const [breakWarning, setBreakWarning] = useState<{
+    open: boolean
+    timerLabel: string | null
+    breakType: 'lunch' | 'away' | null
+  }>({ open: false, timerLabel: null, breakType: null })
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   // Cargar shift al montar
@@ -129,7 +136,33 @@ export function ShiftStatusWidget() {
       setError(stopRes.error ?? 'No se pudo detener el timer activo')
       return
     }
+    // Limpiar localStorage para evitar timers "fantasma"
+    const supabase = createClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (authUser) clearAllTimerKeysForUser(authUser.id)
     handle(() => endShift())
+  }
+
+  async function handleStartBreak(type: ShiftBreakType) {
+    setError(null)
+    const supabase = createClient()
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) { setError('No autenticado'); return }
+
+    const { data: activeEntry } = await supabase
+      .from('time_entries')
+      .select('id, title, entry_type')
+      .eq('user_id', authUser.id)
+      .is('ended_at', null)
+      .maybeSingle()
+
+    if (activeEntry) {
+      const label = activeEntry.title ||
+        (activeEntry.entry_type === 'requirement' ? 'requerimiento' : 'tarea administrativa')
+      setBreakWarning({ open: true, timerLabel: label, breakType: type })
+      return
+    }
+    handle(() => startBreak(type))
   }
 
   // Stats derivados
@@ -224,7 +257,7 @@ export function ShiftStatusWidget() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => handle(() => startBreak('lunch'))}
+                    onClick={() => handleStartBreak('lunch')}
                     disabled={isPending}
                     className="flex-1 px-3 py-1.5 rounded-full bg-fm-surface-container-low border border-fm-surface-container-high text-xs font-semibold text-fm-on-surface hover:bg-fm-background disabled:opacity-60"
                   >
@@ -232,7 +265,7 @@ export function ShiftStatusWidget() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => handle(() => startBreak('away'))}
+                    onClick={() => handleStartBreak('away')}
                     disabled={isPending}
                     className="flex-1 px-3 py-1.5 rounded-full bg-fm-surface-container-low border border-fm-surface-container-high text-xs font-semibold text-fm-on-surface hover:bg-fm-background disabled:opacity-60"
                   >
@@ -260,6 +293,13 @@ export function ShiftStatusWidget() {
         timerLabel={endConfirm.label}
         onConfirm={confirmEndShift}
         onCancel={() => setEndConfirm({ open: false, label: null })}
+      />
+
+      <ActiveTimerWarningDialog
+        open={breakWarning.open}
+        timerLabel={breakWarning.timerLabel}
+        breakType={breakWarning.breakType}
+        onDismiss={() => setBreakWarning({ open: false, timerLabel: null, breakType: null })}
       />
     </div>
   )
