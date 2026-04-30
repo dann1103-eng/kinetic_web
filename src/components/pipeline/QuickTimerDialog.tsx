@@ -68,16 +68,27 @@ export function QuickTimerDialog({
   const [elapsed, setElapsed] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [hasActiveShift, setHasActiveShift] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    Promise.resolve().then(() => {
+    Promise.resolve().then(async () => {
       if (cancelled) return
       const t = getActiveTimer(requirementId, currentUserId)
       setActiveTimer(t)
       setElapsed(t ? Math.floor((new Date().getTime() - t.startedAt) / 1000) : 0)
       setError(null)
+
+      // Verificar si el usuario tiene jornada activa
+      const supabase = createClient()
+      const { data: shift } = await supabase
+        .from('work_sessions')
+        .select('id')
+        .eq('user_id', currentUserId)
+        .is('ended_at', null)
+        .maybeSingle()
+      if (!cancelled) setHasActiveShift(!!shift)
     })
     return () => { cancelled = true }
   }, [open, requirementId, currentUserId])
@@ -215,6 +226,13 @@ export function QuickTimerDialog({
           </p>
         )}
 
+        {hasActiveShift === false && (
+          <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded-lg px-3 py-2 flex items-center gap-1.5 border border-amber-500/20">
+            <span className="material-symbols-outlined text-[16px]">schedule</span>
+            Inicia tu jornada laboral antes de registrar tiempo.
+          </p>
+        )}
+
         {error && (
           <p className="text-xs text-fm-error bg-fm-error/5 rounded-lg px-3 py-2 border border-fm-error/20">
             {error}
@@ -240,10 +258,14 @@ export function QuickTimerDialog({
           ) : (
             <Button
               onClick={handleStart}
-              disabled={busy || !canStart}
-              title={windowLabel ?? undefined}
+              disabled={busy || !canStart || hasActiveShift === false}
+              title={
+                hasActiveShift === false
+                  ? 'Debes iniciar tu jornada laboral antes de registrar tiempo'
+                  : windowLabel ?? undefined
+              }
               className="flex-1 rounded-xl h-10 text-white font-semibold disabled:opacity-50"
-              style={canStart ? { background: 'linear-gradient(135deg,#00675c,#5bf4de)' } : {}}
+              style={canStart && hasActiveShift !== false ? { background: 'linear-gradient(135deg,#00675c,#5bf4de)' } : {}}
             >
               {busy ? 'Iniciando…' : 'Iniciar timer'}
             </Button>
