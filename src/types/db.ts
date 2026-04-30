@@ -1617,6 +1617,26 @@ export interface Database {
         }
         Relationships: []
       }
+      impersonation_logs: {
+        Row: {
+          id: string
+          admin_user_id: string
+          target_user_id: string
+          started_at: string
+          ended_at: string | null
+        }
+        Insert: {
+          id?: string
+          admin_user_id: string
+          target_user_id: string
+          started_at?: string
+          ended_at?: string | null
+        }
+        Update: {
+          ended_at?: string | null
+        }
+        Relationships: []
+      }
       renewal_requests: {
         Row: {
           id: string

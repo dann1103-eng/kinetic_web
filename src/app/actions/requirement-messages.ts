@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertNotImpersonating } from './impersonation'
 
 async function getCurrentUser() {
   const supabase = await createClient()
@@ -29,6 +30,7 @@ interface SendRequirementMessagePayload {
  */
 export async function sendRequirementMessage(payload: SendRequirementMessagePayload) {
   try {
+    await assertNotImpersonating()
     const { supabase, userId } = await getCurrentUser()
 
     const body = payload.body.trim()
@@ -94,6 +96,7 @@ export async function sendRequirementMessage(payload: SendRequirementMessagePayl
 
 export async function markMentionRead(mentionId: string) {
   try {
+    await assertNotImpersonating()
     const { supabase, userId } = await getCurrentUser()
     const { error } = await supabase
       .from('requirement_mentions')
@@ -110,6 +113,7 @@ export async function markMentionRead(mentionId: string) {
 
 export async function markReviewMentionRead(mentionId: string) {
   try {
+    await assertNotImpersonating()
     const { supabase, userId } = await getCurrentUser()
     const { error } = await supabase
       .from('review_comment_mentions')
@@ -126,6 +130,7 @@ export async function markReviewMentionRead(mentionId: string) {
 
 export async function deleteRequirementMessage(messageId: string) {
   try {
+    await assertNotImpersonating()
     const { supabase } = await getCurrentUser()
     const { error } = await supabase
       .from('requirement_messages')
@@ -141,6 +146,7 @@ export async function deleteRequirementMessage(messageId: string) {
 
 export async function markAllMentionsRead() {
   try {
+    await assertNotImpersonating()
     const { supabase, userId } = await getCurrentUser()
     const now = new Date().toISOString()
     const [req, review] = await Promise.all([

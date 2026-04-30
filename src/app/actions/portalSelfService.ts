@@ -17,6 +17,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getActiveClientId } from '@/lib/supabase/active-client'
+import { assertNotImpersonating } from './impersonation'
 import {
   buildClientSnapshot,
   buildEmitterSnapshot,
@@ -42,6 +43,7 @@ type ActionOk = { ok: true; paymentLinkUrl: string; invoiceId: string }
 type ActionResult = ActionError | ActionOk
 
 async function requireClientUser(): Promise<{ clientId: string } | ActionError> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }

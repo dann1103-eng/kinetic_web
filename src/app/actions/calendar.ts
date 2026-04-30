@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { assertNotImpersonating } from './impersonation'
 
 export async function createInternalEvent(input: {
   title: string
@@ -10,6 +11,7 @@ export async function createInternalEvent(input: {
   scheduled_attendees: string[]
   notes?: string
 }): Promise<{ error?: string }> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }
@@ -62,6 +64,7 @@ export async function rescheduleEvent(input: {
   id: string
   new_starts_at: string
 }): Promise<{ error?: string }> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }

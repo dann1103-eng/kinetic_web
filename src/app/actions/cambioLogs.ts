@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { consumeCredit, refundCredit } from '@/lib/domain/credits'
+import { assertNotImpersonating } from './impersonation'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
@@ -75,6 +76,7 @@ export async function addCambioLog(
   requirementId: string,
   notes: string,
 ): Promise<{ ok: true; log: { id: string; status: 'pending' | 'approved'; created_at: string } } | { error: string }> {
+  await assertNotImpersonating()
   const auth = await getAuthUserOrError()
   if ('error' in auth) return { error: auth.error }
 
@@ -162,6 +164,7 @@ export async function addCambioLog(
 export async function approveCambioLog(
   logId: string,
 ): Promise<{ ok: true } | { error: string }> {
+  await assertNotImpersonating()
   const auth = await getApproverOrError()
   if ('error' in auth) return { error: auth.error }
 
@@ -233,6 +236,7 @@ export async function approveCambioLog(
 export async function rejectCambioLog(
   logId: string,
 ): Promise<{ ok: true } | { error: string }> {
+  await assertNotImpersonating()
   const auth = await getApproverOrError()
   if ('error' in auth) return { error: auth.error }
 
@@ -264,6 +268,7 @@ export async function rejectCambioLog(
 export async function voidCambioLog(
   logId: string,
 ): Promise<{ ok: true } | { error: string }> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }

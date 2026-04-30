@@ -2,28 +2,24 @@ import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId, getActiveClientIds } from '@/lib/supabase/active-client'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { PortalSidebar } from '@/components/portal/PortalSidebar'
 import { PortalTopNav } from '@/components/portal/PortalTopNav'
 import { UserProvider } from '@/contexts/UserContext'
 import { SessionSentinel } from '@/components/auth/SessionSentinel'
+import { SpectatorBanner } from '@/components/layout/SpectatorBanner'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  if (!authUser) redirect('/login')
+  const ctx = await getEffectiveUser()
+  if (!ctx) redirect('/login')
 
-  const { data: appUser } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', authUser.id)
-    .single()
-
-  if (!appUser) redirect('/login')
-  if (appUser.role !== 'client') redirect('/dashboard')
+  // Solo clientes (reales o suplantados) acceden al portal.
+  if (ctx.appUser.role !== 'client') redirect('/dashboard')
 
   const ids = await getActiveClientIds()
   if (ids.length === 0) {
     // Route Handler puede limpiar cookies; signOut() en Server Component es silenciado.
+    if (ctx.isImpersonating) redirect('/users')
     redirect('/auth/signout')
   }
 
@@ -36,7 +32,12 @@ export default async function PortalLayout({ children }: { children: React.React
 
   if (isSelectingBrand && !activeId) {
     return (
-      <UserProvider user={appUser}>
+      <UserProvider
+        user={ctx.appUser}
+        isImpersonating={ctx.isImpersonating}
+        realAdminName={ctx.isImpersonating ? ctx.realAppUser.full_name : null}
+      >
+        <SpectatorBanner />
         <div className="flex h-screen overflow-hidden bg-fm-background">
           <main className="flex-1 overflow-y-auto">{children}</main>
         </div>
@@ -45,6 +46,7 @@ export default async function PortalLayout({ children }: { children: React.React
     )
   }
 
+  const supabase = await createClient()
   const { data: clientOptions } = await supabase
     .from('clients')
     .select('id, name, logo_url')
@@ -54,7 +56,12 @@ export default async function PortalLayout({ children }: { children: React.React
   const clientDisplayName = active?.name ?? 'Mi empresa'
 
   return (
-    <UserProvider user={appUser}>
+    <UserProvider
+      user={ctx.appUser}
+      isImpersonating={ctx.isImpersonating}
+      realAdminName={ctx.isImpersonating ? ctx.realAppUser.full_name : null}
+    >
+      <SpectatorBanner />
       <div className="flex h-screen overflow-hidden bg-fm-background">
         <PortalSidebar
           clientOptions={clientOptions ?? []}

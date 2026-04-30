@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { assertNotImpersonating } from './impersonation'
 import type { AdminCategory, Database } from '@/types/db'
 
 type TimeEntryUpdate = Database['public']['Tables']['time_entries']['Update']
@@ -39,6 +40,7 @@ async function getActiveEntry(supabase: Awaited<ReturnType<typeof createClient>>
 // ── Start admin clock-in ───────────────────────────────────────────────────
 
 export async function startAdminEntry(category: AdminCategory, notes?: string) {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
 
   const active = await getActiveEntry(supabase, user.id)
@@ -71,6 +73,7 @@ export async function startAdminEntry(category: AdminCategory, notes?: string) {
 // ── Update notes on own active entry (no admin gate) ──────────────────────
 
 export async function updateMyActiveNotes(notes: string) {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
   const active = await getActiveEntry(supabase, user.id)
   if (!active) return { error: 'No hay entrada activa.' }
@@ -87,6 +90,7 @@ export async function updateMyActiveNotes(notes: string) {
 // ── Start requirement timer ────────────────────────────────────────────────
 
 export async function startRequirementTimer(requirementId: string, requirementTitle: string, phase: string) {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
 
   const active = await getActiveEntry(supabase, user.id)
@@ -118,6 +122,7 @@ export async function startRequirementTimer(requirementId: string, requirementTi
 // ── Stop active entry ──────────────────────────────────────────────────────
 
 export async function stopActiveEntry() {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
 
   const active = await getActiveEntry(supabase, user.id)
@@ -156,6 +161,7 @@ export async function adminAddEntry(payload: {
   startedAt: string
   endedAt: string
 }) {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
   await assertAdminOrSupervisor(supabase, user.id)
 
@@ -191,6 +197,7 @@ export async function adminEditEntry(entryId: string, payload: {
   category?: AdminCategory | null
   notes?: string | null
 }) {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
   await assertAdminOrSupervisor(supabase, user.id)
 
@@ -218,6 +225,7 @@ export async function adminEditEntry(entryId: string, payload: {
 // ── Admin: delete entry ────────────────────────────────────────────────────
 
 export async function adminDeleteEntry(entryId: string) {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
   await assertAdminOrSupervisor(supabase, user.id)
 

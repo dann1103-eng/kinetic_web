@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { MobileSidebar } from '@/components/layout/MobileSidebar'
 import { MobileSidebarProvider } from '@/components/layout/MobileSidebarProvider'
@@ -9,6 +10,7 @@ import { FloatingChatDock } from '@/components/inbox/floating/FloatingChatDock'
 import { LoginWelcomeDialog } from '@/components/layout/LoginWelcomeDialog'
 import { IdleSchedulerWrapper } from '@/components/layout/IdleSchedulerWrapper'
 import { SessionSentinel } from '@/components/auth/SessionSentinel'
+import { SpectatorBanner } from '@/components/layout/SpectatorBanner'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -31,22 +33,19 @@ async function getPendingRenewalsCount(
 }
 
 export default async function AppLayout({ children }: AppLayoutProps) {
+  const ctx = await getEffectiveUser()
+  if (!ctx) redirect('/login')
+
+  // Cliente real (sin suplantación) → portal
+  if (!ctx.isImpersonating && ctx.realAppUser.role === 'client') {
+    redirect('/portal/dashboard')
+  }
+  // Admin suplantando a un cliente → portal
+  if (ctx.isImpersonating && ctx.appUser.role === 'client') {
+    redirect('/portal/dashboard')
+  }
+
   const supabase = await createClient()
-  const {
-    data: { user: authUser },
-  } = await supabase.auth.getUser()
-
-  if (!authUser) redirect('/login')
-
-  const { data: appUser } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', authUser.id)
-    .single()
-
-  if (!appUser) redirect('/login')
-  if (appUser.role === 'client') redirect('/portal/dashboard')
-
   const renewalCount = await getPendingRenewalsCount(supabase)
 
   const { data: logoSetting } = await supabase
@@ -57,8 +56,13 @@ export default async function AppLayout({ children }: AppLayoutProps) {
   const agencyLogoUrl = logoSetting?.value ?? null
 
   return (
-    <UserProvider user={appUser}>
+    <UserProvider
+      user={ctx.appUser}
+      isImpersonating={ctx.isImpersonating}
+      realAdminName={ctx.isImpersonating ? ctx.realAppUser.full_name : null}
+    >
       <MobileSidebarProvider>
+        <SpectatorBanner />
         <div className="flex h-screen overflow-hidden bg-fm-background">
           <Sidebar renewalCount={renewalCount} agencyLogoUrl={agencyLogoUrl} />
           <MobileSidebar renewalCount={renewalCount} agencyLogoUrl={agencyLogoUrl} />

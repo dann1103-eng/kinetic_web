@@ -11,6 +11,7 @@ import {
   revokeAllClientUser,
   type PortalUserListed,
 } from '@/app/actions/clientUsers'
+import { startImpersonation } from '@/app/actions/impersonation'
 
 interface Props {
   initialUsers: PortalUserListed[]
@@ -171,12 +172,24 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <button
-                      onClick={() => openEdit(u)}
-                      className="text-xs font-semibold text-fm-primary hover:underline"
-                    >
-                      Editar
-                    </button>
+                    <div className="inline-flex items-center gap-3">
+                      <form action={startImpersonation.bind(null, u.user_id)} className="inline">
+                        <button
+                          type="submit"
+                          title={`Ver como ${u.full_name || u.email}`}
+                          className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline inline-flex items-center gap-1"
+                        >
+                          <span className="material-symbols-outlined text-sm">visibility</span>
+                          Ver como
+                        </button>
+                      </form>
+                      <button
+                        onClick={() => openEdit(u)}
+                        className="text-xs font-semibold text-fm-primary hover:underline"
+                      >
+                        Editar
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

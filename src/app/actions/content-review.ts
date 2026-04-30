@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { assertNotImpersonating } from './impersonation'
 import type {
   ReviewAssetKind,
   ReviewAsset,
@@ -52,6 +53,7 @@ export async function createReviewAsset(args: {
   name: string
   kind: ReviewAssetKind
 }): Promise<ActionResult<ReviewAsset>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const {
     data: { user },
@@ -79,6 +81,7 @@ export async function archiveReviewAsset(args: {
   assetId: string
   clientId: string
 }): Promise<ActionResult<null>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const { error } = await supabase
     .from('review_assets')
@@ -103,6 +106,7 @@ export async function createReviewVersion(args: {
   durationMs?: number | null
   thumbnailPath?: string | null
 }): Promise<ActionResult<ReviewVersion>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const {
     data: { user },
@@ -157,6 +161,7 @@ export async function createReviewVersionWithFiles(args: {
   clientId: string
   files: ReviewVersionFileInput[]
 }): Promise<ActionResult<{ version: ReviewVersion; files: ReviewVersionFile[] }>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const {
     data: { user },
@@ -287,6 +292,7 @@ export async function createReviewPin(args: {
   body: string
   mentionedUserIds?: string[]
 }): Promise<ActionResult<{ pin: ReviewPin; comment: ReviewComment }>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const {
     data: { user },
@@ -395,6 +401,7 @@ export async function resolveReviewPin(args: {
   pinId: string
   clientId: string
 }): Promise<ActionResult<null>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const {
     data: { user },
@@ -418,6 +425,7 @@ export async function reopenReviewPin(args: {
   pinId: string
   clientId: string
 }): Promise<ActionResult<null>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const { error } = await supabase
     .from('review_pins')
@@ -433,6 +441,7 @@ export async function deleteReviewPin(args: {
   pinId: string
   clientId: string
 }): Promise<ActionResult<null>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const { error } = await supabase.from('review_pins').delete().eq('id', args.pinId)
   if (error) return { error: error.message }
@@ -451,6 +460,7 @@ export async function addReviewCommentReply(args: {
   body: string
   mentionedUserIds?: string[]
 }): Promise<ActionResult<ReviewComment>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const {
     data: { user },
@@ -504,6 +514,7 @@ export async function editReviewComment(args: {
   clientId: string
   body: string
 }): Promise<ActionResult<ReviewComment>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const {
     data: { user },
@@ -531,6 +542,7 @@ export async function deleteReviewComment(args: {
   commentId: string
   clientId: string
 }): Promise<ActionResult<null>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const { error } = await supabase
     .from('review_comments')
@@ -545,6 +557,7 @@ export async function deleteReviewVersion(args: {
   versionId: string
   clientId: string
 }): Promise<ActionResult<null>> {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado.' }

@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { redirect } from 'next/navigation'
 import { TopNav } from '@/components/layout/TopNav'
 import { ClockInPanel } from '@/components/tiempo/ClockInPanel'
@@ -10,24 +12,22 @@ import type { TimeEntry, AppUser } from '@/types/db'
 export const dynamic = 'force-dynamic'
 
 export default async function TiempoPage() {
-  const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  if (!authUser) redirect('/login')
+  const ctx = await getEffectiveUser()
+  if (!ctx) redirect('/login')
 
-  const { data: appUser } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', authUser.id)
-    .single()
-  if (!appUser) redirect('/login')
+  // Cuando admin suplanta a operador/supervisor, el "appUser" es el suplantado.
+  // Usamos el admin client para leer datos del impersonado bypaseando RLS.
+  const effectiveId = ctx.appUser.id
+  const supabase = ctx.isImpersonating ? createAdminClient() : await createClient()
+  const appUser = ctx.appUser
 
   const canViewTeam = appUser.role === 'admin' || appUser.role === 'supervisor'
 
-  // Active entry for this user
+  // Active entry for the effective user
   const { data: activeEntryRaw } = await supabase
     .from('time_entries')
     .select('*')
-    .eq('user_id', authUser.id)
+    .eq('user_id', effectiveId)
     .is('ended_at', null)
     .maybeSingle()
   const activeEntry = activeEntryRaw as TimeEntry | null
@@ -40,7 +40,7 @@ export default async function TiempoPage() {
   const { data: entriesRaw } = await supabase
     .from('time_entries')
     .select('*, requirement:requirements!requirement_id(id, title, billing_cycles!inner(clients!inner(id, name)))')
-    .eq('user_id', authUser.id)
+    .eq('user_id', effectiveId)
     .not('ended_at', 'is', null)
     .gte('started_at', monthStart)
     .lt('started_at', monthEnd)
@@ -66,7 +66,7 @@ export default async function TiempoPage() {
 
         {canViewTeam ? (
           <TiempoTabs
-            userId={authUser.id}
+            userId={effectiveId}
             activeEntry={activeEntry}
             entries={entries}
             year={now.getFullYear()}
@@ -75,7 +75,7 @@ export default async function TiempoPage() {
           />
         ) : (
           <PersonalView
-            userId={authUser.id}
+            userId={effectiveId}
             activeEntry={activeEntry}
             entries={entries}
             year={now.getFullYear()}

@@ -12,6 +12,7 @@ import {
   deleteUser,
   updateUserProfile,
 } from '@/app/actions/users'
+import { startImpersonation } from '@/app/actions/impersonation'
 import {
   Select,
   SelectContent,
@@ -204,6 +205,19 @@ function UserRow({
       >
         <span className="material-symbols-outlined text-base">key</span>
       </button>
+
+      {/* Ver como (modo espectador) — solo para no-admins */}
+      {user.role !== 'admin' && !isCurrentUser && (
+        <form action={startImpersonation.bind(null, user.id)}>
+          <button
+            type="submit"
+            title={`Ver como ${user.full_name}`}
+            className="p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-background hover:text-amber-600 dark:hover:text-amber-400 transition-colors flex-shrink-0"
+          >
+            <span className="material-symbols-outlined text-base">visibility</span>
+          </button>
+        </form>
+      )}
 
       {/* Delete */}
       <button

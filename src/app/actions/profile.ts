@@ -2,9 +2,11 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { assertNotImpersonating } from './impersonation'
 
 export async function updateMyProfile(payload: { fullName?: string; avatarUrl?: string }) {
   try {
+    await assertNotImpersonating()
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'No autenticado' }

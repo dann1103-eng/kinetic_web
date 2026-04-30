@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { assertNotImpersonating } from './impersonation'
 import type { WorkSession, WorkSessionBreak, ShiftBreakType } from '@/types/db'
 
 async function getAuthUser() {
@@ -27,6 +28,7 @@ export async function getMyActiveShift(): Promise<WorkSession | null> {
 }
 
 export async function startShift(notes?: string): Promise<{ ok: true; sessionId: string } | { error: string }> {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
   const existing = await getMyActive(supabase, user.id)
   if (existing) return { error: 'Ya tienes una jornada activa.' }
@@ -42,6 +44,7 @@ export async function startShift(notes?: string): Promise<{ ok: true; sessionId:
 }
 
 export async function endShift(): Promise<{ ok: true } | { error: string }> {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
   const active = await getMyActive(supabase, user.id)
   if (!active) return { error: 'No hay jornada activa.' }
@@ -94,6 +97,7 @@ export async function endShift(): Promise<{ ok: true } | { error: string }> {
 }
 
 export async function startBreak(type: ShiftBreakType): Promise<{ ok: true } | { error: string }> {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
   const active = await getMyActive(supabase, user.id)
   if (!active) return { error: 'Inicia una jornada antes de marcar pausas.' }
@@ -114,6 +118,7 @@ export async function startBreak(type: ShiftBreakType): Promise<{ ok: true } | {
 }
 
 export async function endBreak(): Promise<{ ok: true } | { error: string }> {
+  await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()
   const active = await getMyActive(supabase, user.id)
   if (!active) return { error: 'No hay jornada activa.' }

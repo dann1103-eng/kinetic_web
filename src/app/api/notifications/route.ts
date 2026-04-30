@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { NotificationItem } from '@/types/db'
 import { today as todayGMT6 } from '@/lib/domain/dates'
 
@@ -88,18 +90,16 @@ type OverdueReqRow = {
 const TERMINAL_PHASES = ['publicado_entregado']
 
 export async function GET() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const ctx = await getEffectiveUser()
+  if (!ctx) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  /* ── Role check ────────────────────────────────────────────── */
-  const { data: appUser } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
+  // Si admin está suplantando, usamos admin client para ver datos del impersonado
+  // sin que RLS filtre por el auth.uid() del admin (que no coincide con el target).
+  const supabase = ctx.isImpersonating ? createAdminClient() : await createClient()
+  const user = { id: ctx.appUser.id }
+  const appUser = { role: ctx.appUser.role }
   const isAdminOrSupervisor =
-    appUser?.role === 'admin' || appUser?.role === 'supervisor'
+    appUser.role === 'admin' || appUser.role === 'supervisor'
 
   /* ── Menciones de chat de requerimiento ───────────────────── */
   const mentionsSince = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString()
@@ -418,7 +418,7 @@ export async function GET() {
 
   /* ── Facturas auto-emitidas recientes (solo admin) ─────────── */
   const invoiceAutoItems: NotificationItem[] = []
-  if (appUser?.role === 'admin') {
+  if (appUser.role === 'admin') {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
     const { data: autoInvoices } = await supabase
       .from('invoices')

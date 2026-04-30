@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
+import { assertNotImpersonating } from './impersonation'
 import type { Database } from '@/types/db'
 
 type ClientUpdate = Database['public']['Tables']['clients']['Update']
@@ -11,6 +12,7 @@ export async function updateClientProfile(
   clientId: string,
   data: Record<string, string | null>
 ) {
+  await assertNotImpersonating()
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('No autenticado')
