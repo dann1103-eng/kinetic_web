@@ -982,7 +982,7 @@ export interface Database {
           id: string
           requirement_id: string
           name: string
-          kind: 'image' | 'video'
+          kind: 'image' | 'video' | 'pdf'
           created_by: string | null
           created_at: string
           archived_at: string | null
@@ -991,7 +991,7 @@ export interface Database {
           id?: string
           requirement_id: string
           name: string
-          kind: 'image' | 'video'
+          kind: 'image' | 'video' | 'pdf'
           created_by?: string | null
           created_at?: string
           archived_at?: string | null
@@ -1072,6 +1072,7 @@ export interface Database {
           pos_x_pct: number
           pos_y_pct: number
           timestamp_ms: number | null
+          page_number: number | null
           status: 'active' | 'resolved'
           created_by: string | null
           created_at: string
@@ -1086,6 +1087,7 @@ export interface Database {
           pos_x_pct: number
           pos_y_pct: number
           timestamp_ms?: number | null
+          page_number?: number | null
           status?: 'active' | 'resolved'
           created_by?: string | null
           created_at?: string
