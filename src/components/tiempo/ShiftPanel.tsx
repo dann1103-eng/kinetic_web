@@ -6,8 +6,10 @@ import { createClient } from '@/lib/supabase/client'
 import { startShift, endShift, startBreak, endBreak, getMyActiveShift } from '@/app/actions/work-sessions'
 import { stopActiveEntry } from '@/app/actions/time'
 import { formatDuration } from '@/lib/domain/time'
-import type { WorkSession, WorkSessionBreak } from '@/types/db'
+import { clearAllTimerKeysForUser } from '@/lib/domain/timer'
+import type { WorkSession, WorkSessionBreak, ShiftBreakType } from '@/types/db'
 import { EndShiftConfirmDialog } from './EndShiftConfirmDialog'
+import { ActiveTimerWarningDialog } from '@/components/layout/ActiveTimerWarningDialog'
 
 function elapsedSeconds(from: string, to?: Date): number {
   const end = to ?? new Date()
@@ -29,6 +31,11 @@ export function ShiftPanel() {
   const [error, setError] = useState<string | null>(null)
   const [, setNow] = useState(0)
   const [endConfirm, setEndConfirm] = useState<{ open: boolean; label: string | null }>({ open: false, label: null })
+  const [breakWarning, setBreakWarning] = useState<{
+    open: boolean
+    timerLabel: string | null
+    breakType: 'lunch' | 'away' | null
+  }>({ open: false, timerLabel: null, breakType: null })
 
   // Refrescar shift al montar
   useEffect(() => {
@@ -99,7 +106,33 @@ export function ShiftPanel() {
       setError(stopRes.error ?? 'No se pudo detener el timer activo')
       return
     }
+    // Limpiar localStorage para evitar timers "fantasma"
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) clearAllTimerKeysForUser(user.id)
     handle(() => endShift())
+  }
+
+  async function handleStartBreak(type: ShiftBreakType) {
+    setError(null)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setError('No autenticado'); return }
+
+    const { data: activeEntry } = await supabase
+      .from('time_entries')
+      .select('id, title, entry_type')
+      .eq('user_id', user.id)
+      .is('ended_at', null)
+      .maybeSingle()
+
+    if (activeEntry) {
+      const label = activeEntry.title ||
+        (activeEntry.entry_type === 'requirement' ? 'requerimiento' : 'tarea administrativa')
+      setBreakWarning({ open: true, timerLabel: label, breakType: type })
+      return
+    }
+    handle(() => startBreak(type))
   }
 
   if (loading) {
@@ -185,7 +218,7 @@ export function ShiftPanel() {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => handle(() => startBreak('lunch'))}
+            onClick={() => handleStartBreak('lunch')}
             disabled={isPending}
             className="px-3 py-1.5 rounded-full bg-fm-surface-container-low border border-fm-surface-container-high text-xs font-semibold text-fm-on-surface hover:bg-fm-background disabled:opacity-60"
           >
@@ -193,7 +226,7 @@ export function ShiftPanel() {
           </button>
           <button
             type="button"
-            onClick={() => handle(() => startBreak('away'))}
+            onClick={() => handleStartBreak('away')}
             disabled={isPending}
             className="px-3 py-1.5 rounded-full bg-fm-surface-container-low border border-fm-surface-container-high text-xs font-semibold text-fm-on-surface hover:bg-fm-background disabled:opacity-60"
           >
@@ -217,6 +250,13 @@ export function ShiftPanel() {
         timerLabel={endConfirm.label}
         onConfirm={confirmEndShift}
         onCancel={() => setEndConfirm({ open: false, label: null })}
+      />
+
+      <ActiveTimerWarningDialog
+        open={breakWarning.open}
+        timerLabel={breakWarning.timerLabel}
+        breakType={breakWarning.breakType}
+        onDismiss={() => setBreakWarning({ open: false, timerLabel: null, breakType: null })}
       />
     </div>
   )
