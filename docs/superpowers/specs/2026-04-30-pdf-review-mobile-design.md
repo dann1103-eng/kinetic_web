@@ -37,11 +37,17 @@ comment on column public.review_pins.page_number is
   'Página del PDF (0-based). NULL para pines en imágenes o video.';
 ```
 
-Sin breaking changes. Pines existentes (imágenes, video) quedan con `NULL`.
+Sin breaking changes. Pines existentes (imágenes, video) quedan con `NULL`. No se requieren cambios de RLS — las políticas existentes (migración 0055) usan chequeos a nivel de fila basados en JOINs, no filtros por columna.
 
 ### 1.2 Tipos TS — `src/types/db.ts`
 
-Agregar campo a `ReviewPin`:
+**a) Agregar `'pdf'` a `ReviewAssetKind`** (actualmente solo `'image' | 'video'`):
+
+```ts
+export type ReviewAssetKind = 'image' | 'video' | 'pdf'   // ← añadir 'pdf'
+```
+
+**b) Agregar campo a `ReviewPin`:**
 
 ```ts
 export interface ReviewPin {
@@ -53,13 +59,13 @@ export interface ReviewPin {
 ### 1.3 Upload — `src/lib/supabase/upload-review-file.ts`
 
 - Agregar `'application/pdf'` a `REVIEW_ALLOWED_TYPES`.
-- Ampliar `ReviewUploadKind` con `'pdf'`.
+- Ampliar `ReviewUploadKind` con `'pdf'`: `export type ReviewUploadKind = 'image' | 'video' | 'pdf'`.
 - `kindForMime('application/pdf')` → `'pdf'`.
 - Mensaje de error actualizado: "…JPG, PNG, WebP, GIF, MP4, WebM, MOV o PDF."
 
 ### 1.4 Server action — `src/app/actions/content-review.ts`
 
-`createReviewPin` acepta un nuevo parámetro opcional:
+`createReviewPin` acepta un nuevo parámetro opcional y lo incluye en el INSERT:
 
 ```ts
 export async function createReviewPin(args: {
@@ -75,7 +81,21 @@ export async function createReviewPin(args: {
 })
 ```
 
-El valor se pasa directamente en el `insert` a `review_pins.page_number`. Por defecto `null`.
+En el objeto del INSERT (líneas ~314-326 del archivo actual), agregar explícitamente:
+
+```ts
+.insert({
+  version_id: args.versionId,
+  file_id: args.fileId ?? null,
+  pin_number: pinNumber,
+  pos_x_pct: args.posXPct,
+  pos_y_pct: args.posYPct,
+  timestamp_ms: args.timestampMs,
+  page_number: args.pageNumber ?? null,   // ← nuevo
+  status: 'active',
+  created_by: user.id,
+})
+```
 
 ### 1.5 Nuevo componente — `src/components/clients/review/PdfViewer.tsx`
 
@@ -86,7 +106,7 @@ interface PdfViewerProps {
   asset: ReviewAsset
   version: ReviewVersion
   file: ReviewVersionFile          // mime_type === 'application/pdf'
-  pins: ReviewPin[]                // ya filtrados por page_number === currentPage
+  pins: ReviewPin[]                // ya filtrados por page_number (ver 1.6)
   selectedPinId: string | null
   onSelectPin: (id: string | null) => void
   clientId: string
@@ -98,15 +118,34 @@ interface PdfViewerProps {
 }
 ```
 
+**Inicialización de PDF.js (obligatorio):**
+
+PDF.js requiere configurar el worker antes del primer `getDocument()`. Sin esto renderiza en el main thread y bloquea la UI. Patrón correcto con Next.js App Router:
+
+```ts
+const pdfjsLib = await import('pdfjs-dist')
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString()
+```
+
+Ejecutar una sola vez (ref de inicialización o efecto con guard).
+
 **Comportamiento:**
 
-- Carga PDF.js con `import('pdfjs-dist')` (lazy — sólo cuando se renderiza el componente por primera vez).
+- Carga PDF.js con `import('pdfjs-dist')` (lazy — sólo cuando se renderiza el componente).
 - Obtiene la URL firmada del archivo igual que `ImageViewer` (reutiliza `getSignedViewUrl`).
 - Renderiza la página `currentPage` en un `<canvas>` con `PDFPageProxy.render()`.
+- El `<canvas>` usa `max-h-[50vh] md:max-h-[calc(92vh-260px)]` igual que `ImageViewer`.
 - Muestra barra de navegación: `◀  Página N / total  ▶`.
 - Strip de miniaturas al fondo: renderiza cada página en canvas pequeño (32×40 px). Página activa destacada con borde teal.
-- El canvas activo funciona como área de click para crear pines (igual que `<img>` en `ImageViewer`): calcula `pos_x_pct` / `pos_y_pct` relativo al bounding rect del canvas.
+- El canvas activo funciona como área de click para crear pines: calcula `pos_x_pct` / `pos_y_pct` relativo al bounding rect del canvas. Llama a `createReviewPin` con `pageNumber: currentPage`.
 - Los pines se superponen con `<PinOverlay>` igual que en imágenes.
+
+**Nota — thumbnails en columna izquierda / strip mobile:**
+
+En esta primera iteración, `AssetThumbnail` y `AssetVersionStrip` mostrarán un ícono genérico de PDF (no una previsualización de la portada) porque no existe una imagen de thumbnail generada al subir. En una iteración futura se puede capturar la página 0 del PDF en `AddFilesDialog` y subirla con `uploadReviewThumbnail` para mostrar la portada real.
 
 ### 1.6 `ReviewCenterViewer.tsx` — rama PDF
 
@@ -114,13 +153,15 @@ interface PdfViewerProps {
 // Estado nuevo en ReviewCenterViewer
 const [currentPdfPage, setCurrentPdfPage] = useState(0)
 
-// Reset al cambiar de archivo
-useEffect(() => { setCurrentPdfPage(0) }, [file.id])
+// Reset al cambiar de archivo — usar key en lugar de useEffect para evitar
+// react-hooks/set-state-in-effect (ver CLAUDE.md)
+// En el render: <PdfViewer key={file.id} ... />  ← el key resetea el estado interno
 
 // Filtro de pines por página para PDFs
+// Usa ?? 0 para no perder pines con page_number null (tratados como página 0)
 const isPdf = file.mime_type === 'application/pdf'
 const filePins = isPdf
-  ? pins.filter(p => p.file_id === file.id && p.page_number === currentPdfPage)
+  ? pins.filter(p => p.file_id === file.id && (p.page_number ?? 0) === currentPdfPage)
   : pins.filter(p => p.file_id === file.id || p.file_id == null)
 
 // Render
@@ -138,6 +179,21 @@ const filePins = isPdf
 )}
 ```
 
+**`FileThumbnailStrip` y PDFs:**
+
+`FileThumbnailStrip` se renderiza debajo del viewer y mostraría la entrada del PDF como imagen rota. Solución: en `ReviewCenterViewer`, suprimir el strip cuando el archivo seleccionado es un PDF:
+
+```ts
+{!isPdf && (
+  <FileThumbnailStrip
+    files={files}
+    selectedFileId={file.id}
+    onSelect={onSelectFile}
+    pins={pins}
+  />
+)}
+```
+
 ---
 
 ## Feature 2 — Fix layout móvil
@@ -151,8 +207,6 @@ className="max-w-full max-h-[calc(92vh-260px)] block select-none"
 // Después:
 className="max-w-full max-h-[50vh] md:max-h-[calc(92vh-260px)] block select-none"
 ```
-
-Aplica también al `<canvas>` de `PdfViewer` desde el inicio.
 
 ### 2.2 `ContentReviewPanel.tsx` — layout responsivo
 
@@ -214,27 +268,30 @@ const [drawerOpen, setDrawerOpen] = useState(false)
     currentUserId={currentUserId}
     users={users}
     onPinUpdated={data.upsertPin}
-    onPinRemoved={...}
+    onPinRemoved={(pinId) => selectedVersionId && data.removePin(pinId, selectedVersionId)}
     clientMode={clientMode}
   />
 </div>
 ```
 
+**Nota:** `onPinRemoved` captura `selectedVersionId` del closure. El implementador debe asegurarse de que `selectedVersionId` sea la ref más reciente (no un valor estale). Si es necesario, usar `useCallback` con `[selectedVersionId, data.removePin]` como dependencias.
+
 ### 2.3 Nuevo componente — `AssetVersionStrip.tsx`
 
-Strip horizontal para mobile. Muestra un chip por versión de cada asset. Tap selecciona asset + versión. Reutiliza la misma lógica de selección que `ReviewLeftColumn` pero en disposición horizontal con `overflow-x-auto`.
+Strip horizontal para mobile. Muestra un chip por versión de cada asset. Tap selecciona asset + versión. Reutiliza la misma lógica de selección que `ReviewLeftColumn` pero en disposición horizontal con `overflow-x-auto`. Para PDFs, muestra ícono de PDF en lugar de thumbnail.
 
 Props: `assets`, `versionsByAsset`, `pinsByVersion`, `selectedVersionId`, `onSelectVersion`, `clientMode`.
 
 ### 2.4 Nuevo componente — `MobileReviewDrawer.tsx`
 
-Drawer que sube desde abajo con transición CSS (`translate-y`).
+Drawer que sube desde abajo con transición CSS (`translate-y`). Posicionado `fixed bottom-0` o `absolute bottom-0` según el contexto del contenedor.
 
 - **Colapsado:** franja fija en el fondo mostrando "N pines · ▲ Ver pines".
-- **Expandido:** ocupa ~60vh, muestra `ReviewRightColumn` (o su contenido embebido directamente) con scroll interno. Botón "▼ Ocultar" en el header.
+- **Expandido:** ocupa ~60vh, muestra el contenido de `ReviewRightColumn` (pins + comentarios) con scroll interno. Botón "▼ Ocultar" en el header.
 - Transición: `transition-transform duration-300 ease-in-out`.
+- Cubre tanto modo staff como `clientMode` — los mismos controles de visibilidad de `ReviewRightColumn` aplican.
 
-Props: `open`, `onToggle`, y todos los props que necesita `ReviewRightColumn`.
+Props: `open`, `onToggle`, `pins`, `commentsByPin`, `selectedPinId`, `onSelectPin`, `clientId`, `currentUserId`, `users`, `onPinUpdated`, `onPinRemoved: (pinId: string) => void`, `clientMode?`.
 
 ---
 
@@ -243,11 +300,11 @@ Props: `open`, `onToggle`, y todos los props que necesita `ReviewRightColumn`.
 | # | Archivo | Tipo |
 |---|---------|------|
 | 1 | `supabase/migrations/0065_pdf_review_support.sql` | Nuevo (SQL manual en Dashboard) |
-| 2 | `src/types/db.ts` | Edit (+1 campo `page_number`) |
+| 2 | `src/types/db.ts` | Edit (`ReviewAssetKind` + `page_number` en `ReviewPin`) |
 | 3 | `src/lib/supabase/upload-review-file.ts` | Edit (+PDF type/kind) |
-| 4 | `src/app/actions/content-review.ts` | Edit (+`pageNumber` en `createReviewPin`) |
+| 4 | `src/app/actions/content-review.ts` | Edit (+`pageNumber` en `createReviewPin` y en el INSERT) |
 | 5 | `src/components/clients/review/PdfViewer.tsx` | Nuevo |
-| 6 | `src/components/clients/review/ReviewCenterViewer.tsx` | Edit (+PDF branch, +`currentPdfPage`) |
+| 6 | `src/components/clients/review/ReviewCenterViewer.tsx` | Edit (+PDF branch, +`currentPdfPage`, ocultar FileThumbnailStrip para PDF) |
 | 7 | `src/components/clients/review/ImageViewer.tsx` | Edit (1 línea de altura) |
 | 8 | `src/components/clients/review/ContentReviewPanel.tsx` | Edit (responsive layout) |
 | 9 | `src/components/clients/review/AssetVersionStrip.tsx` | Nuevo |
@@ -258,12 +315,12 @@ Props: `open`, `onToggle`, y todos los props que necesita `ReviewRightColumn`.
 ## Orden de implementación
 
 1. Migración 0065 (ejecutar en Supabase Dashboard antes de testear).
-2. `types/db.ts` — campo `page_number`.
+2. `types/db.ts` — `ReviewAssetKind` + campo `page_number` en `ReviewPin`.
 3. `upload-review-file.ts` — habilitar PDF.
-4. `content-review.ts` — `pageNumber` en `createReviewPin`.
+4. `content-review.ts` — `pageNumber` en `createReviewPin` y en el INSERT.
 5. `ImageViewer.tsx` — fix de altura (1 línea).
-6. `PdfViewer.tsx` — componente nuevo con PDF.js.
-7. `ReviewCenterViewer.tsx` — rama PDF + `currentPdfPage`.
+6. `PdfViewer.tsx` — componente nuevo con PDF.js (incluir worker setup).
+7. `ReviewCenterViewer.tsx` — rama PDF + `currentPdfPage` + suprimir `FileThumbnailStrip` para PDF.
 8. `AssetVersionStrip.tsx` — strip horizontal mobile.
 9. `MobileReviewDrawer.tsx` — drawer mobile.
 10. `ContentReviewPanel.tsx` — responsive layout + conectar todos los componentes.
@@ -274,8 +331,8 @@ Props: `open`, `onToggle`, y todos los props que necesita `ReviewRightColumn`.
 ## Verificación
 
 ### PDF
-1. Subir un PDF de 3 páginas como nuevo asset → aparece en columna izquierda.
-2. Se renderiza la página 1 con PDF.js. Strip muestra 3 miniaturas.
+1. Subir un PDF de 3 páginas como nuevo asset → aparece en columna izquierda (ícono PDF).
+2. Se renderiza la página 1 con PDF.js. Strip muestra 3 miniaturas. `FileThumbnailStrip` no aparece.
 3. Navegar a página 2 → los pines de página 1 desaparecen, la página 2 se muestra.
 4. Click en la página → pin creado con `page_number = 1` (0-based).
 5. Volver a página 1 → pin de página 1 visible, pin de página 2 no.
