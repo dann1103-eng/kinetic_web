@@ -44,6 +44,15 @@ export async function startAdminEntry(category: AdminCategory, notes?: string) {
   const active = await getActiveEntry(supabase, user.id)
   if (active) return { error: 'Ya tienes una entrada activa. Marca salida primero.' }
 
+  // Verificar jornada activa
+  const { data: activeShift } = await supabase
+    .from('work_sessions')
+    .select('id')
+    .eq('user_id', user.id)
+    .is('ended_at', null)
+    .maybeSingle()
+  if (!activeShift) return { error: 'Inicia tu jornada laboral antes de registrar tiempo.' }
+
   const { error } = await supabase.from('time_entries').insert({
     user_id: user.id,
     entry_type: 'administrative',
@@ -82,6 +91,15 @@ export async function startRequirementTimer(requirementId: string, requirementTi
 
   const active = await getActiveEntry(supabase, user.id)
   if (active) return { error: 'Ya tienes una entrada activa. Detén el timer actual primero.' }
+
+  // Verificar jornada activa
+  const { data: activeShift } = await supabase
+    .from('work_sessions')
+    .select('id')
+    .eq('user_id', user.id)
+    .is('ended_at', null)
+    .maybeSingle()
+  if (!activeShift) return { error: 'Inicia tu jornada laboral antes de registrar tiempo.' }
 
   const { data, error } = await supabase.from('time_entries').insert({
     user_id: user.id,
