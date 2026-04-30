@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import type { WorkSession, WorkSessionBreak, ShiftBreakType } from '@/types/db'
-import { stopActiveEntry } from './time'
 
 async function getAuthUser() {
   const supabase = await createClient()
@@ -99,9 +98,6 @@ export async function startBreak(type: ShiftBreakType): Promise<{ ok: true } | {
   const active = await getMyActive(supabase, user.id)
   if (!active) return { error: 'Inicia una jornada antes de marcar pausas.' }
   if (active.status !== 'active') return { error: 'Ya estás en una pausa. Reanuda primero la jornada.' }
-
-  // Apagar cualquier timer de requerimiento o administrativo activo
-  await stopActiveEntry().catch(() => undefined)
 
   const breaks = [
     ...((active.breaks_json ?? []) as WorkSessionBreak[]),
