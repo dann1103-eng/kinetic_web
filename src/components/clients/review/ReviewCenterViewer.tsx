@@ -12,6 +12,7 @@ import type {
 } from '@/types/db'
 import { ImageViewer } from './ImageViewer'
 import { VideoViewer } from './VideoViewer'
+import { PdfViewer } from './PdfViewer'
 import { FileThumbnailStrip } from './FileThumbnailStrip'
 import { diagnoseClientReview, type ClientReviewDiagnostic } from '@/app/actions/diagnoseReview'
 
@@ -41,6 +42,8 @@ interface ReviewCenterViewerProps {
   clientMode?: boolean
   /** Para diagnosticar el bug de RLS cuando clientMode y no hay assets visibles. */
   requirementId?: string
+  currentPdfPage: number
+  onPdfPageChange: (page: number) => void
 }
 
 export function ReviewCenterViewer({
@@ -61,6 +64,8 @@ export function ReviewCenterViewer({
   onEmptyAddFiles,
   clientMode = false,
   requirementId,
+  currentPdfPage,
+  onPdfPageChange,
 }: ReviewCenterViewerProps) {
   const [diag, setDiag] = useState<ClientReviewDiagnostic | null>(null)
 
@@ -200,13 +205,37 @@ export function ReviewCenterViewer({
     )
   }
 
-  const filePins = pins.filter((p) => p.file_id === file.id || p.file_id == null)
+  const isPdf = file.mime_type === 'application/pdf'
   const isVideo = file.mime_type.startsWith('video/')
+
+  // Para PDFs: filtrar pines por página activa (usa ?? 0 para no perder pines con page_number null)
+  // Para imagen/video: filtro original
+  const filePins = isPdf
+    ? pins.filter(
+        (p) => p.file_id === file.id && (p.page_number ?? 0) === currentPdfPage,
+      )
+    : pins.filter((p) => p.file_id === file.id || p.file_id == null)
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="flex-1 flex min-h-0">
-        {isVideo ? (
+        {isPdf ? (
+          <PdfViewer
+            key={file.id}
+            asset={asset}
+            version={version}
+            file={file}
+            pins={filePins}
+            selectedPinId={selectedPinId}
+            onSelectPin={onSelectPin}
+            clientId={clientId}
+            users={users}
+            commentsByPin={commentsByPin}
+            onPinCreated={onPinCreated}
+            currentPage={currentPdfPage}
+            onPageChange={onPdfPageChange}
+          />
+        ) : isVideo ? (
           <VideoViewer
             asset={asset}
             version={version}
@@ -234,12 +263,15 @@ export function ReviewCenterViewer({
           />
         )}
       </div>
-      <FileThumbnailStrip
-        files={files}
-        selectedFileId={file.id}
-        onSelect={onSelectFile}
-        pins={pins}
-      />
+      {/* FileThumbnailStrip no aplica para PDFs (renderizaría el archivo como imagen rota) */}
+      {!isPdf && (
+        <FileThumbnailStrip
+          files={files}
+          selectedFileId={file.id}
+          onSelect={onSelectFile}
+          pins={pins}
+        />
+      )}
     </div>
   )
 }

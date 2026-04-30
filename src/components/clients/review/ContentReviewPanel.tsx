@@ -53,6 +53,7 @@ export function ContentReviewPanel({
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null)
   const [selectedPinId, setSelectedPinIdRaw] = useState<string | null>(null)
   const [addFilesOpen, setAddFilesOpen] = useState(false)
+  const [currentPdfPage, setCurrentPdfPage] = useState(0)
   const [addFilesMode, setAddFilesMode] = useState<
     { kind: 'new-asset' } | { kind: 'new-version'; assetId: string }
   >({ kind: 'new-asset' })
@@ -277,6 +278,8 @@ export function ContentReviewPanel({
           onEmptyAddFiles={openAddFilesForNewAsset}
           clientMode={clientMode}
           requirementId={requirementId}
+          currentPdfPage={currentPdfPage}
+          onPdfPageChange={setCurrentPdfPage}
         />
       </div>
 
