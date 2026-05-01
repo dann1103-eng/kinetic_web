@@ -59,16 +59,22 @@ export function ImageViewer({
     setHoveredPinId(null)
   }, [file.id])
 
+  const [fileMissing, setFileMissing] = useState(false)
+
   useEffect(() => {
     let cancelled = false
     retryingRef.current = false
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setUrl(null)
+    setFileMissing(false)
     setPending(null)
     getSignedViewUrl({ storagePath: file.storage_path }).then((res) => {
       if (cancelled) return
       if ('ok' in res) setUrl(res.data.url)
-      else setError(res.error)
+      else {
+        setFileMissing(true)
+        setError(res.error)
+      }
     })
     return () => {
       cancelled = true
@@ -85,7 +91,8 @@ export function ImageViewer({
     if ('ok' in res) {
       setUrl(res.data.url)
     } else {
-      setError('No se pudo cargar la imagen. Intenta refrescar la página.')
+      setFileMissing(true)
+      setError('Archivo no disponible')
     }
   }
 
@@ -190,6 +197,19 @@ export function ImageViewer({
               />
             </>
           )}
+        </div>
+      ) : fileMissing ? (
+        <div className="flex flex-col items-center gap-2 text-center px-6 py-8 max-w-md">
+          <span className="material-symbols-outlined text-4xl text-fm-error/70">image_not_supported</span>
+          <p className="text-sm font-semibold text-fm-on-surface">Archivo no disponible</p>
+          <p className="text-xs text-fm-on-surface-variant leading-relaxed">
+            Este archivo no se encuentra en el almacenamiento. Es posible que se haya
+            perdido al renovar el ciclo del cliente. Sube una nueva versión del archivo
+            para que esta revisión vuelva a ser visible.
+          </p>
+          <p className="text-[10px] text-fm-outline mt-1 break-all">
+            Path: <code>{file.storage_path}</code>
+          </p>
         </div>
       ) : (
         <div className="text-fm-on-surface-variant text-sm">Cargando imagen…</div>
