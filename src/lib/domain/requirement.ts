@@ -10,18 +10,40 @@ export {
 } from './weekly-distribution'
 
 /**
- * Biweekly unlock: retorna true si la semana dada está desbloqueada por el pago correspondiente.
- * - Monthly: siempre true (el pago del ciclo cubre las 4 semanas).
- * - Biweekly: S1-S2 requieren `payment_status = 'paid'`; S3-S4 requieren `payment_status_2 = 'paid'`.
+ * Unlock por pago: retorna true si la semana dada está desbloqueada para registrar
+ * requerimientos según el estado de pago del ciclo.
+ *
+ * - Monthly: las 4 semanas requieren `payment_status = 'paid'`. Si el cliente
+ *   no ha pagado el ciclo, NINGUNA semana está habilitada (ningún registro nuevo).
+ * - Biweekly: S1-S2 requieren `payment_status = 'paid'`; S3-S4 requieren
+ *   `payment_status_2 = 'paid'` — los dos pagos son independientes.
  */
 export function isWeekUnlocked(
   week: 1 | 2 | 3 | 4,
   cycle: BillingCycle,
   client: Pick<Client, 'billing_period'>
 ): boolean {
-  if (client.billing_period !== 'biweekly') return true
-  if (week === 1 || week === 2) return cycle.payment_status === 'paid'
-  return cycle.payment_status_2 === 'paid'
+  if (client.billing_period === 'biweekly') {
+    if (week === 1 || week === 2) return cycle.payment_status === 'paid'
+    return cycle.payment_status_2 === 'paid'
+  }
+  // Monthly: todo el ciclo gateado por payment_status
+  return cycle.payment_status === 'paid'
+}
+
+/**
+ * ¿Está TODO el ciclo bloqueado por falta de pago? Útil para deshabilitar
+ * por completo el botón "Registrar requerimiento" cuando ninguna semana
+ * está desbloqueada.
+ */
+export function isCycleFullyLocked(
+  cycle: BillingCycle,
+  client: Pick<Client, 'billing_period'>
+): boolean {
+  if (client.billing_period === 'biweekly') {
+    return cycle.payment_status !== 'paid' && cycle.payment_status_2 !== 'paid'
+  }
+  return cycle.payment_status !== 'paid'
 }
 
 /**
@@ -35,13 +57,15 @@ export function canRegisterWithContext(
   ctx: { week: 1 | 2 | 3 | 4; cycle: BillingCycle; client: Pick<Client, 'billing_period'> }
 ): { ok: boolean; reason?: string } {
   if (!isWeekUnlocked(ctx.week, ctx.cycle, ctx.client)) {
-    return {
-      ok: false,
-      reason:
-        ctx.week <= 2
-          ? 'Pago pendiente de 1ra quincena'
-          : 'Pago pendiente de 2da quincena',
+    let reason: string
+    if (ctx.client.billing_period === 'biweekly') {
+      reason = ctx.week <= 2
+        ? 'Pago pendiente de 1ra quincena'
+        : 'Pago pendiente de 2da quincena'
+    } else {
+      reason = 'Pago pendiente del ciclo'
     }
+    return { ok: false, reason }
   }
   if (totals[type] >= limits[type]) return { ok: false, reason: 'Límite alcanzado' }
   return { ok: true }

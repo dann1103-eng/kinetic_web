@@ -11,6 +11,7 @@ import {
   computeWeeklyBreakdownWithCascade,
   dominantCycleMonth,
   isWeekUnlocked,
+  isCycleFullyLocked,
   historiaBreakdown,
 } from '@/lib/domain/requirement'
 import { augmentDistribution, applyOverride, addRollover } from '@/lib/domain/weekly-distribution'
@@ -140,6 +141,11 @@ export function RequirementPanel({
   const router = useRouter()
 
   const isOverdue = daysLeft !== null && daysLeft < 0 && cycle.payment_status === 'unpaid'
+  // Bloqueo total del ciclo por falta de pago (independiente de si venció o no).
+  // Para monthly: si payment_status !== 'paid'. Para biweekly: si AMBAS mitades
+  // están impagas. Si solo una mitad está impaga, el botón sigue habilitado y
+  // las semanas correspondientes muestran candado en el modal.
+  const cycleFullyLocked = isCycleFullyLocked(cycle, client)
 
   async function handleMarkPaid() {
     setMarkingPaid(true)
@@ -428,17 +434,27 @@ export function RequirementPanel({
             >
               Editar cliente
             </Link>
-            {canCreate && (
-              <button
-                onClick={() => !isOverdue && !blockRegistration && setModalOpen(true)}
-                disabled={isOverdue || blockRegistration}
-                className={`flex-1 md:flex-none px-5 py-2.5 text-white font-bold rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-sm ${(isOverdue || blockRegistration) ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110'}`}
-                style={{ background: (isOverdue || blockRegistration) ? '#b31b25' : 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
-              >
-                <span className="material-symbols-outlined text-base">{(isOverdue || blockRegistration) ? 'block' : 'add'}</span>
-                {isOverdue ? 'Cuenta vencida' : blockRegistration ? 'Paquete agotado' : 'Registrar requerimiento'}
-              </button>
-            )}
+            {canCreate && (() => {
+              const buttonBlocked = isOverdue || blockRegistration || cycleFullyLocked
+              const label = isOverdue
+                ? 'Cuenta vencida'
+                : cycleFullyLocked
+                  ? 'Pago pendiente'
+                  : blockRegistration
+                    ? 'Paquete agotado'
+                    : 'Registrar requerimiento'
+              return (
+                <button
+                  onClick={() => !buttonBlocked && setModalOpen(true)}
+                  disabled={buttonBlocked}
+                  className={`flex-1 md:flex-none px-5 py-2.5 text-white font-bold rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-sm ${buttonBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110'}`}
+                  style={{ background: buttonBlocked ? '#b31b25' : 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
+                >
+                  <span className="material-symbols-outlined text-base">{buttonBlocked ? 'block' : 'add'}</span>
+                  {label}
+                </button>
+              )
+            })()}
           </div>
         )}
       </section>
@@ -451,6 +467,24 @@ export function RequirementPanel({
             <p className="text-sm font-semibold text-fm-error">Cuenta vencida — registro de requerimientos bloqueado</p>
             <p className="text-xs text-fm-error/80 mt-0.5">
               El ciclo venció y el pago está pendiente.
+              {isAdmin ? ' Marca el pago como recibido para desbloquear.' : ' Contacta al administrador para regularizar el pago.'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Unpaid cycle warning (not yet overdue) ── */}
+      {!isOverdue && cycleFullyLocked && (
+        <div className="bg-amber-500/5 border border-amber-500/30 rounded-2xl px-5 py-4 flex items-center gap-3">
+          <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 text-xl flex-shrink-0">payments</span>
+          <div>
+            <p className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+              Pago pendiente — registro de requerimientos bloqueado
+            </p>
+            <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+              {isBiweekly
+                ? 'Las dos quincenas del ciclo están sin pagar.'
+                : 'El ciclo aún no ha sido pagado.'}
               {isAdmin ? ' Marca el pago como recibido para desbloquear.' : ' Contacta al administrador para regularizar el pago.'}
             </p>
           </div>
