@@ -147,6 +147,9 @@ const PIPELINE_CONTENT_TYPES = ['historia', 'estatico', 'video_corto', 'reel', '
  * y marca `carried_over=true`. NO crea copias — preserva chat, review,
  * time_entries y cambio_logs intactos al mantener el mismo `id`.
  *
+ * NO inserta un phase_log de auditoría: hacerlo rompe el cálculo de
+ * "tiempo en fase" porque last_moved_at usa el log más reciente.
+ *
  * Equivalente inline a `migrateOpenPipelineItems()` en src/lib/domain/pipeline.ts;
  * duplicado porque el Edge Function corre en Deno y no puede importar src/.
  */
@@ -158,7 +161,7 @@ async function migrateOpenPipelineItemsInline(args: {
 
   const { data: openItems } = await supabase
     .from('requirements')
-    .select('id, phase')
+    .select('id')
     .eq('billing_cycle_id', previousCycleId)
     .eq('voided', false)
     .neq('phase', 'publicado_entregado')
@@ -167,7 +170,7 @@ async function migrateOpenPipelineItemsInline(args: {
   if (!openItems || openItems.length === 0) return 0
 
   let migrated = 0
-  for (const item of openItems as Array<{ id: string; phase: string }>) {
+  for (const item of openItems as Array<{ id: string }>) {
     const { error: updErr } = await supabase
       .from('requirements')
       .update({ billing_cycle_id: newCycleId, carried_over: true })
@@ -177,15 +180,6 @@ async function migrateOpenPipelineItemsInline(args: {
       console.error('[cron-migrate] update error', updErr)
       continue
     }
-
-    // Log de migración
-    await supabase.from('requirement_phase_logs').insert({
-      requirement_id: item.id,
-      from_phase: null,
-      to_phase: item.phase,
-      moved_by: null,
-      notes: 'Trasladado del ciclo anterior (cron)',
-    })
 
     migrated++
   }

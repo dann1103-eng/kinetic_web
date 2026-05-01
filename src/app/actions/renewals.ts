@@ -8,7 +8,6 @@ import { today as todayString } from '@/lib/domain/dates'
 import { CONTENT_TYPES, CONTENT_TO_PLAN_KEY, effectiveLimits } from '@/lib/domain/plans'
 import { computeTotals } from '@/lib/domain/requirement'
 import { migrateOpenPipelineItems, PIPELINE_CONTENT_TYPES } from '@/lib/domain/pipeline'
-import type { Phase } from '@/types/db'
 import { cleanupCycleStorage } from '@/lib/supabase/cleanup-cycle-storage'
 import { assertNotImpersonating } from './impersonation'
 import type {
@@ -469,6 +468,25 @@ export async function rescueOrphanedRequirements(
     if (!dupMap.has(key)) dupMap.set(key, d.id)
   }
 
+  // ── Limpieza de logs de auditoría falsos ───────────────────────
+  // Versiones previas del rescate y de la migración insertaban un
+  // phase_log con notas como "Trasladado del ciclo anterior" o
+  // "Rescatado del ciclo anterior". Eso rompe el cálculo de
+  // last_moved_at — el timer mostraba el tiempo desde el rescate, no
+  // desde el cambio real de fase. Aquí los borramos para que los
+  // requerimientos vuelvan a usar su historial real.
+  const reqsToCleanLogsFrom: string[] = [
+    ...orphans.map((r) => r.id),
+    ...(dupCandidates ?? []).map((r) => r.id),
+  ]
+  if (reqsToCleanLogsFrom.length > 0) {
+    await supabase
+      .from('requirement_phase_logs')
+      .delete()
+      .in('requirement_id', reqsToCleanLogsFrom)
+      .in('notes', BOGUS_MIGRATION_NOTES)
+  }
+
   let moved = 0
   let replaced = 0
   let skipped = 0
@@ -491,7 +509,7 @@ export async function rescueOrphanedRequirements(
       // Borrar el duplicado
       await supabase.from('requirements').delete().eq('id', dupId)
 
-      // Mover el original al ciclo current
+      // Mover el original al ciclo current — sin insertar log de auditoría
       const { error: updErr } = await supabase
         .from('requirements')
         .update({ billing_cycle_id: currentCycle.id, carried_over: true })
@@ -502,18 +520,10 @@ export async function rescueOrphanedRequirements(
         continue
       }
 
-      await supabase.from('requirement_phase_logs').insert({
-        requirement_id: item.id,
-        from_phase: null,
-        to_phase: item.phase as Phase,
-        moved_by: user.id,
-        notes: 'Rescatado: original movido al ciclo actual (reemplaza copia vacía)',
-      })
-
       replaced++
       dupMap.delete(key)
     } else {
-      // No hay duplicado: simplemente mover el original
+      // No hay duplicado: simplemente mover el original — sin log de auditoría
       const { error: updErr } = await supabase
         .from('requirements')
         .update({ billing_cycle_id: currentCycle.id, carried_over: true })
@@ -524,14 +534,6 @@ export async function rescueOrphanedRequirements(
         continue
       }
 
-      await supabase.from('requirement_phase_logs').insert({
-        requirement_id: item.id,
-        from_phase: null,
-        to_phase: item.phase as Phase,
-        moved_by: user.id,
-        notes: 'Rescatado del ciclo anterior',
-      })
-
       moved++
     }
   }
@@ -541,6 +543,19 @@ export async function rescueOrphanedRequirements(
   revalidatePath('/dashboard')
   return { ok: true, moved, replaced, skipped, diagnostics: baseDiagnostics }
 }
+
+/**
+ * Notas exactas de phase_logs que las versiones anteriores del rescate
+ * y la migración insertaban como "auditoría". Se borran para devolver
+ * los timers de fase a su valor real.
+ */
+const BOGUS_MIGRATION_NOTES = [
+  'Trasladado del ciclo anterior',
+  'Trasladado del ciclo anterior (cron)',
+  'Trasladado del ciclo anterior (traslado manual)',
+  'Rescatado del ciclo anterior',
+  'Rescatado: original movido al ciclo actual (reemplaza copia vacía)',
+] as const
 
 /**
  * Un duplicado es "seguro de borrar" si NO tiene ninguno de:

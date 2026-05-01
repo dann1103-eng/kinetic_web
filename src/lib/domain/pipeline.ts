@@ -261,10 +261,12 @@ export function clientPhaseOf(phase: Phase): ClientPhase | null {
  * - requirement_cambio_logs
  * - review_assets / review_versions / review_pins / review_comments
  * - time_entries
- * - requirement_phase_logs (toda la historia de fases)
+ * - requirement_phase_logs (toda la historia de fases — no se altera)
  *
- * Solo agrega un nuevo phase_log con nota "Trasladado del ciclo anterior"
- * para registrar el evento de migración.
+ * NO inserta un phase_log de auditoría: hacerlo rompe el cálculo de
+ * "tiempo en fase" porque last_moved_at usa el log más reciente. La
+ * auditoría queda implícita en `carried_over=true` y en el cambio de
+ * `billing_cycle_id`.
  */
 export async function migrateOpenPipelineItems(
   supabase: SupabaseClient<Database>,
@@ -274,11 +276,15 @@ export async function migrateOpenPipelineItems(
     movedBy: string
   }
 ): Promise<void> {
-  const { previousCycleId, newCycleId, movedBy } = params
+  // movedBy se conserva en la firma para compat — ya no se usa porque no
+  // insertamos un log de auditoría. Lo referenciamos para evitar el lint.
+  void params.movedBy
+
+  const { previousCycleId, newCycleId } = params
 
   const { data: openItems } = await supabase
     .from('requirements')
-    .select('id, phase')
+    .select('id')
     .eq('billing_cycle_id', previousCycleId)
     .eq('voided', false)
     .neq('phase', 'publicado_entregado')
@@ -296,13 +302,5 @@ export async function migrateOpenPipelineItems(
       console.error('migrateOpenPipelineItems: falló al mover requerimiento', updErr)
       continue
     }
-
-    await supabase.from('requirement_phase_logs').insert({
-      requirement_id: item.id,
-      from_phase: null,
-      to_phase: item.phase as Phase,
-      moved_by: movedBy,
-      notes: 'Trasladado del ciclo anterior',
-    })
   }
 }
