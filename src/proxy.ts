@@ -18,6 +18,9 @@ const STAFF_PREFIXES = [
 
 const PORTAL_PREFIX = '/portal'
 
+// Debe coincidir con IMPERSONATE_COOKIE en src/lib/auth/effective-user.ts
+const IMPERSONATE_COOKIE = 'fm_impersonate_user_id'
+
 function startsWithAny(pathname: string, prefixes: string[]): boolean {
   return prefixes.some((p) => pathname === p || pathname.startsWith(p + '/'))
 }
@@ -104,13 +107,30 @@ export async function proxy(request: NextRequest) {
       .maybeSingle()
     role = appUser?.role ?? null
 
-    // Rule 2: clients trying to access staff prefixes → /portal/dashboard
-    if (role === 'client' && startsWithAny(pathname, STAFF_PREFIXES)) {
+    // Detectar suplantación: si el real es admin y la cookie apunta a otro
+    // user, resolver el rol "efectivo" del usuario suplantado para que las
+    // reglas de routing usen ese rol y no el del admin real.
+    const impersonateId = request.cookies.get(IMPERSONATE_COOKIE)?.value
+    let effectiveRole: string | null = role
+    if (impersonateId && impersonateId !== user.id && role === 'admin') {
+      const { data: targetUser } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', impersonateId)
+        .maybeSingle()
+      // Solo suplantar si el target NO es otro admin
+      if (targetUser?.role && targetUser.role !== 'admin') {
+        effectiveRole = targetUser.role
+      }
+    }
+
+    // Rule 2: clientes (reales o suplantados) en rutas staff → portal
+    if (effectiveRole === 'client' && startsWithAny(pathname, STAFF_PREFIXES)) {
       return NextResponse.redirect(new URL('/portal/dashboard', request.url))
     }
 
-    // Rule 3: staff trying to access /portal/* → /dashboard
-    if (role && role !== 'client' && pathname.startsWith(PORTAL_PREFIX)) {
+    // Rule 3: staff (real, no suplantando cliente) en /portal/* → /dashboard
+    if (effectiveRole && effectiveRole !== 'client' && pathname.startsWith(PORTAL_PREFIX)) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 

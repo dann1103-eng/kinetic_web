@@ -27,7 +27,16 @@ export default async function PortalLayout({ children }: { children: React.React
   const currentPath = hdrs.get('x-pathname') ?? ''
   const isSelectingBrand = currentPath === '/portal/seleccionar-marca'
 
-  const activeId = await getActiveClientId()
+  let activeId = await getActiveClientId()
+
+  // Si el admin está suplantando un cliente y no hay activeId resuelto
+  // (ej. el admin nunca tuvo cookie portal_active_client, o apunta a una
+  // marca que no le pertenece al impersonado), auto-elegir la primera
+  // marca del impersonado para evitar mostrarle el selector al admin.
+  if (!activeId && ctx.isImpersonating && ids.length > 0) {
+    activeId = ids[0]
+  }
+
   if (!activeId && !isSelectingBrand) redirect('/portal/seleccionar-marca')
 
   if (isSelectingBrand && !activeId) {
