@@ -1,6 +1,7 @@
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { RequirementPanel } from '@/components/clients/RequirementPanel'
 import { CycleHistory } from '@/components/clients/CycleHistory'
@@ -30,6 +31,15 @@ export default async function ClientDetailPage({
 }) {
   const { id } = await params
   const supabase = await createClient()
+
+  const ctx = await getEffectiveUser()
+  if (!ctx) redirect('/login')
+  const effectiveId = ctx.appUser.id
+  const role = ctx.appUser.role
+  const isOperator = role === 'operator'
+  const isAdmin = role === 'admin'
+  const isApprover = isAdmin || role === 'supervisor'
+  const canCreate = isAdmin || role === 'supervisor'
 
   const { data: clientRaw } = await supabase
     .from('clients')
@@ -63,13 +73,18 @@ export default async function ClientDetailPage({
     .eq('active', true)
     .order('price_usd')
 
-  // Requirements for current cycle
-  const { data: requirements } = currentCycle
-    ? await supabase
+  // Requirements for current cycle (operator: only assigned to him)
+  let reqsQuery = currentCycle
+    ? supabase
         .from('requirements')
         .select('*')
         .eq('billing_cycle_id', currentCycle.id)
-        .order('registered_at', { ascending: false })
+    : null
+  if (reqsQuery && isOperator) {
+    reqsQuery = reqsQuery.contains('assigned_to', [effectiveId])
+  }
+  const { data: requirements } = reqsQuery
+    ? await reqsQuery.order('registered_at', { ascending: false })
     : { data: [] }
 
   // Internal users (for "registered by" display in history)
@@ -104,13 +119,14 @@ export default async function ClientDetailPage({
   const pipelineLogsMap: Record<string, RequirementPhaseLog[]> = {}
 
   if (currentCycle) {
-    const { data: pipelineCons } = await supabase
+    let pipelineQ = supabase
       .from('requirements')
       .select('id, content_type, phase, carried_over, billing_cycle_id, registered_at, notes, title, cambios_count, review_started_at, priority, estimated_time_minutes, assigned_to, includes_story, deadline, starts_at')
       .eq('billing_cycle_id', currentCycle.id)
       .eq('voided', false)
       .in('content_type', PIPELINE_CONTENT_TYPES)
-      .order('registered_at', { ascending: false })
+    if (isOperator) pipelineQ = pipelineQ.contains('assigned_to', [effectiveId])
+    const { data: pipelineCons } = await pipelineQ.order('registered_at', { ascending: false })
 
     for (const c of pipelineCons ?? []) {
       pipelineItems.push({
@@ -143,13 +159,14 @@ export default async function ClientDetailPage({
     }
 
     // Fetch reunion/produccion items separately (not in PIPELINE_CONTENT_TYPES)
-    const { data: scheduledCons } = await supabase
+    let schedQ = supabase
       .from('requirements')
       .select('id, content_type, phase, carried_over, billing_cycle_id, registered_at, notes, title, cambios_count, review_started_at, priority, estimated_time_minutes, assigned_to, includes_story, deadline, starts_at')
       .eq('billing_cycle_id', currentCycle.id)
       .eq('voided', false)
       .in('content_type', ['reunion', 'produccion'])
-      .order('starts_at', { ascending: true })
+    if (isOperator) schedQ = schedQ.contains('assigned_to', [effectiveId])
+    const { data: scheduledCons } = await schedQ.order('starts_at', { ascending: true })
 
     scheduledPipelineItems.push(...(scheduledCons ?? []).map((c) => ({
       id: c.id,
@@ -216,13 +233,6 @@ export default async function ClientDetailPage({
     : null
   const daysLeft = cycle ? daysUntilEnd(cycle.period_end) : null
 
-  // Get current user role for permissions
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  const { data: appUser } = authUser
-    ? await supabase.from('users').select('role').eq('id', authUser.id).single()
-    : { data: null }
-  const isAdmin = appUser?.role === 'admin'
-  const isApprover = appUser?.role === 'admin' || appUser?.role === 'supervisor'
   let portalUsers: Awaited<ReturnType<typeof listClientUsers>> = []
   if (isAdmin) {
     try {
@@ -231,7 +241,6 @@ export default async function ClientDetailPage({
       console.error('[ClientDetailPage] listClientUsers error:', e)
     }
   }
-  const canCreate = appUser?.role === 'admin' || appUser?.role === 'supervisor'
 
   return (
     <div className="flex flex-col min-h-full">
@@ -265,7 +274,7 @@ export default async function ClientDetailPage({
             totals={totals}
             limits={limits}
             availableCredits={credits.content}
-            currentUserId={authUser?.id}
+            currentUserId={effectiveId}
             daysLeft={daysLeft}
             isAdmin={isAdmin}
             isApprover={isApprover}
@@ -296,7 +305,7 @@ export default async function ClientDetailPage({
               items={pipelineItems}
               scheduledItems={scheduledPipelineItems}
               logsMap={pipelineLogsMap}
-              currentUserId={authUser?.id ?? ''}
+              currentUserId={effectiveId}
               canAssign={canCreate}
               isAdmin={isAdmin}
               isApprover={isApprover}
@@ -328,8 +337,8 @@ export default async function ClientDetailPage({
           </section>
         )}
 
-        {/* 4 — Historial de ciclos pasados */}
-        {pastCycles && pastCycles.length > 0 && (
+        {/* 4 — Historial de ciclos pasados (oculto para operadores) */}
+        {!isOperator && pastCycles && pastCycles.length > 0 && (
           <CycleHistory
             cycles={pastCycles as BillingCycle[]}
             clientId={id}

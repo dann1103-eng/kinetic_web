@@ -1,4 +1,7 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
+import { getOperatorClientIds } from '@/lib/auth/operator-scope'
 import { TopNav } from '@/components/layout/TopNav'
 import { ClientForm } from '@/components/clients/ClientForm'
 import { ClientsTable } from '@/components/clients/ClientsTable'
@@ -9,16 +12,32 @@ export const dynamic = 'force-dynamic'
 export default async function ClientsPage() {
   const supabase = await createClient()
 
-  const { data: authUser } = await supabase.auth.getUser()
-  const { data: appUser } = authUser.user
-    ? await supabase.from('users').select('role').eq('id', authUser.user.id).single()
-    : { data: null }
-  const canCreate = appUser?.role === 'admin' || appUser?.role === 'supervisor'
+  const ctx = await getEffectiveUser()
+  if (!ctx) redirect('/login')
+  const role = ctx.appUser.role
+  const isOperator = role === 'operator'
+  const canCreate = role === 'admin' || role === 'supervisor'
 
-  const { data: clients } = await supabase
-    .from('clients')
-    .select('*, plan:plans(*)')
-    .order('name')
+  let clients: ClientWithPlan[] | null = null
+  if (isOperator) {
+    const allowedIds = await getOperatorClientIds(ctx.appUser.id)
+    if (allowedIds.length === 0) {
+      clients = []
+    } else {
+      const { data } = await supabase
+        .from('clients')
+        .select('*, plan:plans(*)')
+        .in('id', allowedIds)
+        .order('name')
+      clients = (data ?? []) as ClientWithPlan[]
+    }
+  } else {
+    const { data } = await supabase
+      .from('clients')
+      .select('*, plan:plans(*)')
+      .order('name')
+    clients = (data ?? []) as ClientWithPlan[]
+  }
 
   const { data: plans } = await supabase
     .from('plans')
@@ -38,7 +57,7 @@ export default async function ClientsPage() {
           {canCreate && <ClientForm plans={plans ?? []} />}
         </div>
 
-        <ClientsTable clients={(clients ?? []) as ClientWithPlan[]} />
+        <ClientsTable clients={clients ?? []} />
       </div>
     </div>
   )

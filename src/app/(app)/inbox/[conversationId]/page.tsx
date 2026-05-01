@@ -1,5 +1,7 @@
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { ConversationView } from '@/components/inbox/ConversationView'
 import type {
   AppUser,
@@ -14,18 +16,14 @@ interface PageProps {
 
 export default async function ConversationPage({ params }: PageProps) {
   const { conversationId } = await params
-  const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) notFound()
-
-  const { data: appUser } = await supabase
-    .from('users')
-    .select('id, role')
-    .eq('id', user.id)
-    .single()
-  if (!appUser) notFound()
-  const isAdmin = appUser.role === 'admin'
+  const ctx = await getEffectiveUser()
+  if (!ctx) notFound()
+  const effectiveUserId = ctx.appUser.id
+  const isAdmin = ctx.appUser.role === 'admin'
+  // Cuando se está suplantando, las RLS de conversations/messages bloquearían
+  // las queries del admin (no es miembro) → bypass con admin client.
+  const supabase = ctx.isImpersonating ? createAdminClient() : await createClient()
 
   const { data: convRaw } = await supabase
     .from('conversations')
@@ -132,7 +130,7 @@ export default async function ConversationPage({ params }: PageProps) {
       allUsers={allUsers}
       initialMessages={initialMessages}
       channelAttachments={channelAttachments}
-      currentUserId={user.id}
+      currentUserId={effectiveUserId}
       isAdmin={isAdmin}
     />
   )

@@ -1,4 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { InboxSidebar } from '@/components/inbox/InboxSidebar'
 import { InboxResponsiveShell } from '@/components/inbox/InboxResponsiveShell'
 import { TopNav } from '@/components/layout/TopNav'
@@ -14,9 +17,13 @@ function formatSharePreview(body: string): string {
 }
 
 async function loadInitialList(): Promise<ConversationListItem[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return []
+  const ctx = await getEffectiveUser()
+  if (!ctx) return []
+  const userId = ctx.appUser.id
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabase: SupabaseClient<any, 'public', any> = ctx.isImpersonating
+    ? createAdminClient()
+    : await createClient()
 
   const { data: convsRaw } = await supabase
     .from('conversations')
@@ -32,7 +39,7 @@ async function loadInitialList(): Promise<ConversationListItem[]> {
   const { data: myMembersRaw } = await supabase
     .from('conversation_members')
     .select('conversation_id, last_read_at')
-    .eq('user_id', user.id)
+    .eq('user_id', userId)
     .in('conversation_id', ids)
   const lastReadByConv = new Map<string, string>()
   for (const m of (myMembersRaw ?? []) as Array<{ conversation_id: string; last_read_at: string }>) {
@@ -52,7 +59,7 @@ async function loadInitialList(): Promise<ConversationListItem[]> {
       .select('conversation_id, user_id, user:users!conversation_members_user_id_fkey(id, full_name, avatar_url)')
       .in('conversation_id', dmIds)
     for (const m of (membersRaw ?? []) as unknown as MemberRow[]) {
-      if (m.user_id !== user.id && m.user) {
+      if (m.user_id !== userId && m.user) {
         counterpartByConv.set(m.conversation_id, {
           id: m.user.id,
           full_name: m.user.full_name,
@@ -84,7 +91,7 @@ async function loadInitialList(): Promise<ConversationListItem[]> {
         .select('id', { count: 'exact', head: true })
         .eq('conversation_id', c.id)
         .is('deleted_at', null)
-        .neq('user_id', user.id)
+        .neq('user_id', userId)
         .gt('created_at', lastRead)
       unread = count ?? 0
     }

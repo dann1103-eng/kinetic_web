@@ -1,4 +1,6 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { PipelineContainer } from '@/components/pipeline/PipelineContainer'
 import { PIPELINE_CONTENT_TYPES } from '@/lib/domain/pipeline'
@@ -18,11 +20,10 @@ export default async function PipelinePage({ searchParams }: PipelinePageProps) 
 
   const supabase = await createClient()
 
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  if (!authUser) return null
-
-  const { data: appUser } = await supabase.from('users').select('role').eq('id', authUser.id).single()
-  const role = appUser?.role ?? 'operator'
+  const ctx = await getEffectiveUser()
+  if (!ctx) redirect('/login')
+  const effectiveId = ctx.appUser.id
+  const role = ctx.appUser.role
   const isAdmin = role === 'admin'
   const isApprover = role === 'admin' || role === 'supervisor'
   const canAssign = role === 'admin' || role === 'supervisor'
@@ -50,7 +51,7 @@ export default async function PipelinePage({ searchParams }: PipelinePageProps) 
       .limit(200)
 
     if (isOperator) {
-      reqQuery = reqQuery.contains('assigned_to', [authUser.id])
+      reqQuery = reqQuery.contains('assigned_to', [effectiveId])
     }
 
     const { data: requirementsRaw } = await reqQuery
@@ -147,7 +148,7 @@ export default async function PipelinePage({ searchParams }: PipelinePageProps) 
         <PipelineContainer
           items={items}
           logsMap={logsMap}
-          currentUserId={authUser.id}
+          currentUserId={effectiveId}
           canAssign={canAssign}
           isAdmin={isAdmin}
           isApprover={isApprover}

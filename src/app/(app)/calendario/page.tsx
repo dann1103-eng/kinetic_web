@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { CalendarPageClient } from './CalendarPageClient'
 import type { AppUser } from '@/types/db'
@@ -8,15 +9,9 @@ export const dynamic = 'force-dynamic'
 
 export default async function CalendarioPage() {
   const supabase = await createClient()
-  const { data: { user: authUser } } = await supabase.auth.getUser()
-  if (!authUser) redirect('/login')
-
-  const { data: appUser } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', authUser.id)
-    .single()
-  if (!appUser) redirect('/login')
+  const ctx = await getEffectiveUser()
+  if (!ctx) redirect('/login')
+  const appUser = ctx.appUser
 
   const isPrivileged = appUser.role === 'admin' || appUser.role === 'supervisor'
 

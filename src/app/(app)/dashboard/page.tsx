@@ -1,4 +1,7 @@
+import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
+import { getOperatorClientIds } from '@/lib/auth/operator-scope'
 import { TopNav } from '@/components/layout/TopNav'
 import { ClientCard } from '@/components/clients/ClientCard'
 import { DashboardFilters } from '@/components/clients/DashboardFilters'
@@ -26,11 +29,32 @@ export default async function DashboardPage({
   const params = await searchParams
   const supabase = await createClient()
 
-  // Fetch all clients with their current plan
-  const { data: clients } = await supabase
-    .from('clients')
-    .select('*, plan:plans(*)')
-    .order('name')
+  const ctx = await getEffectiveUser()
+  if (!ctx) redirect('/login')
+  const role = ctx.appUser.role
+  const isOperator = role === 'operator'
+
+  // Fetch clients (filtered by operator assignments if applicable)
+  let clients: ClientWithPlan[] | null = null
+  if (isOperator) {
+    const allowedIds = await getOperatorClientIds(ctx.appUser.id)
+    if (allowedIds.length === 0) {
+      clients = []
+    } else {
+      const { data } = await supabase
+        .from('clients')
+        .select('*, plan:plans(*)')
+        .in('id', allowedIds)
+        .order('name')
+      clients = (data ?? []) as ClientWithPlan[]
+    }
+  } else {
+    const { data } = await supabase
+      .from('clients')
+      .select('*, plan:plans(*)')
+      .order('name')
+    clients = (data ?? []) as ClientWithPlan[]
+  }
 
   if (!clients) return null
 
