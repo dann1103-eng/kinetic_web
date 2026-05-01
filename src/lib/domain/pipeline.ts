@@ -250,11 +250,21 @@ export function clientPhaseOf(phase: Phase): ClientPhase | null {
 // ---------------------------------------------------------------------------
 
 /**
- * Traslada automáticamente los requerimientos abiertos del ciclo anterior al nuevo ciclo.
+ * Traslada los requerimientos abiertos del ciclo anterior al nuevo ciclo.
  * - Solo tipos en PIPELINE_CONTENT_TYPES (excluye 'produccion')
- * - Solo no anulados y en fase distinta a 'publicado'
- * - Los requerimientos trasladados tienen carried_over = true (no descuentan del nuevo límite)
- * - Se copian todos los logs históricos + se agrega un log de migración
+ * - Solo no anulados y en fase distinta a 'publicado_entregado'
+ * - Marca carried_over = true (no descuentan del nuevo límite)
+ *
+ * IMPORTANTE: Esta función MUEVE el requerimiento (UPDATE billing_cycle_id),
+ * NO crea una copia. Esto preserva todos los datos relacionados:
+ * - requirement_messages (chat)
+ * - requirement_cambio_logs
+ * - review_assets / review_versions / review_pins / review_comments
+ * - time_entries
+ * - requirement_phase_logs (toda la historia de fases)
+ *
+ * Solo agrega un nuevo phase_log con nota "Trasladado del ciclo anterior"
+ * para registrar el evento de migración.
  */
 export async function migrateOpenPipelineItems(
   supabase: SupabaseClient<Database>,
@@ -266,10 +276,9 @@ export async function migrateOpenPipelineItems(
 ): Promise<void> {
   const { previousCycleId, newCycleId, movedBy } = params
 
-  // 1. Obtener requerimientos abiertos del ciclo anterior
   const { data: openItems } = await supabase
     .from('requirements')
-    .select('id, content_type, phase, title, review_started_at, assigned_to, includes_story, deadline')
+    .select('id, phase')
     .eq('billing_cycle_id', previousCycleId)
     .eq('voided', false)
     .neq('phase', 'publicado_entregado')
@@ -278,53 +287,18 @@ export async function migrateOpenPipelineItems(
   if (!openItems || openItems.length === 0) return
 
   for (const item of openItems) {
-    // 2. Crear nuevo requerimiento en el nuevo ciclo
-    const { data: newRequirement, error: insertError } = await supabase
+    const { error: updErr } = await supabase
       .from('requirements')
-      .insert({
-        billing_cycle_id: newCycleId,
-        content_type: item.content_type,
-        phase: item.phase as Phase,
-        carried_over: true,
-        registered_by_user_id: movedBy,
-        over_limit: false,
-        voided: false,
-        title: item.title ?? '',
-        review_started_at: item.review_started_at ?? null,
-        assigned_to: (item.assigned_to as string[] | null) ?? null,
-        includes_story: item.includes_story ?? false,
-        deadline: item.deadline ?? null,
-      })
-      .select('id')
-      .single()
+      .update({ billing_cycle_id: newCycleId, carried_over: true })
+      .eq('id', item.id)
 
-    if (insertError || !newRequirement) {
-      console.error('migrateOpenPipelineItems: falló al insertar requerimiento trasladado', insertError)
+    if (updErr) {
+      console.error('migrateOpenPipelineItems: falló al mover requerimiento', updErr)
       continue
     }
 
-    // 3. Copiar logs históricos del requerimiento original
-    const { data: oldLogs } = await supabase
-      .from('requirement_phase_logs')
-      .select('*')
-      .eq('requirement_id', item.id)
-      .order('created_at', { ascending: true })
-
-    // Omitir deliberadamente log.id para que Supabase genere un nuevo UUID por cada copia
-    for (const log of oldLogs ?? []) {
-      await supabase.from('requirement_phase_logs').insert({
-        requirement_id: newRequirement.id,
-        from_phase: log.from_phase as Phase | null,
-        to_phase: log.to_phase as Phase,
-        moved_by: log.moved_by,
-        notes: log.notes,
-        created_at: log.created_at,
-      })
-    }
-
-    // 4. Agregar log de migración
     await supabase.from('requirement_phase_logs').insert({
-      requirement_id: newRequirement.id,
+      requirement_id: item.id,
       from_phase: null,
       to_phase: item.phase as Phase,
       moved_by: movedBy,

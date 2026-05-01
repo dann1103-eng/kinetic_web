@@ -337,18 +337,27 @@ export async function createCurrentCycle(args: CreateCurrentCycleArgs) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Rescatar requerimientos huérfanos: si en una renovación previa el
-// cron NO trasladó los requerimientos en proceso del ciclo archivado al
-// nuevo, este action busca esos requerimientos huérfanos y los traslada
-// al ciclo current actual con `carried_over=true`.
+// Rescatar requerimientos huérfanos: mueve los originales que quedaron
+// en ciclos archivados (porque el cron renovó sin migrar) al ciclo current
+// actual, marcándolos `carried_over=true`.
 //
-// Idempotente: si un requerimiento ya tiene una "copia trasladada" en el
-// ciclo current (mismo title + content_type + carried_over=true), se
-// omite para evitar duplicados.
+// Si una invocación previa de este action (o de la versión anterior con
+// bug) creó duplicados (filas nuevas en current con `carried_over=true`
+// pero sin chat/review/time_entries), este action los detecta por
+// `title + content_type` y los REEMPLAZA: borra el duplicado vacío y
+// mueve el original al ciclo current. Esto restaura toda la data
+// asociada (chat, review, time_entries, cambio_logs).
+//
+// Solo borra duplicados que NO tengan datos reales (sin time_entries,
+// sin requirement_messages, sin review_assets, sin cambio_logs). Si un
+// duplicado tiene datos, se conserva y solo se loguea para revisión.
 // ─────────────────────────────────────────────────────────────────
 export async function rescueOrphanedRequirements(
   clientId: string
-): Promise<{ ok: true; rescued: number } | { error: string }> {
+): Promise<
+  | { ok: true; moved: number; replaced: number; skipped: number }
+  | { error: string }
+> {
   await assertNotImpersonating()
   const supabase = await createClient()
 
@@ -378,90 +387,129 @@ export async function rescueOrphanedRequirements(
     .eq('client_id', clientId)
     .in('status', ['archived', 'pending_renewal'])
   const archivedIds = (archivedCycles ?? []).map((c) => c.id)
-  if (archivedIds.length === 0) return { ok: true, rescued: 0 }
+  if (archivedIds.length === 0) return { ok: true, moved: 0, replaced: 0, skipped: 0 }
 
   // Requerimientos huérfanos (no anulados, no en publicado_entregado, tipos pipeline)
   const { data: orphans } = await supabase
     .from('requirements')
-    .select('id, content_type, phase, title, review_started_at, assigned_to, includes_story, deadline')
+    .select('id, content_type, phase, title')
     .in('billing_cycle_id', archivedIds)
     .eq('voided', false)
     .neq('phase', 'publicado_entregado')
     .in('content_type', PIPELINE_CONTENT_TYPES)
 
-  if (!orphans || orphans.length === 0) return { ok: true, rescued: 0 }
+  if (!orphans || orphans.length === 0) return { ok: true, moved: 0, replaced: 0, skipped: 0 }
 
-  // Traslados ya existentes en el ciclo current (para evitar duplicados): match por title + content_type
-  const { data: existingCarried } = await supabase
+  // Duplicados ya creados en el ciclo current por rescates previos (con bug):
+  // requirements con carried_over=true en este current cycle
+  const { data: dupCandidates } = await supabase
     .from('requirements')
-    .select('title, content_type')
+    .select('id, content_type, title')
     .eq('billing_cycle_id', currentCycle.id)
     .eq('carried_over', true)
-  const existingKeys = new Set(
-    (existingCarried ?? []).map((r) => `${r.content_type}::${(r.title ?? '').trim().toLowerCase()}`)
-  )
 
-  let rescued = 0
+  const dupMap = new Map<string, string>() // key -> duplicate id
+  for (const d of dupCandidates ?? []) {
+    const key = `${d.content_type}::${(d.title ?? '').trim().toLowerCase()}`
+    if (!dupMap.has(key)) dupMap.set(key, d.id)
+  }
+
+  let moved = 0
+  let replaced = 0
+  let skipped = 0
+
   for (const item of orphans) {
     const key = `${item.content_type}::${(item.title ?? '').trim().toLowerCase()}`
-    if (existingKeys.has(key)) continue
+    const dupId = dupMap.get(key)
 
-    const { data: newReq, error: insErr } = await supabase
-      .from('requirements')
-      .insert({
-        billing_cycle_id: currentCycle.id,
-        content_type: item.content_type,
-        phase: item.phase as Phase,
-        carried_over: true,
-        registered_by_user_id: user.id,
-        over_limit: false,
-        voided: false,
-        title: item.title ?? '',
-        review_started_at: item.review_started_at ?? null,
-        assigned_to: (item.assigned_to as string[] | null) ?? null,
-        includes_story: item.includes_story ?? false,
-        deadline: item.deadline ?? null,
-      })
-      .select('id')
-      .single()
+    if (dupId) {
+      // Hay un duplicado vacío en el current: verificar que esté realmente vacío,
+      // mover el original encima y borrar el duplicado.
+      const safeToDelete = await isDuplicateSafeToDelete(supabase, dupId)
+      if (!safeToDelete) {
+        skipped++
+        continue
+      }
 
-    if (insErr || !newReq) {
-      console.error('[rescueOrphanedRequirements]', insErr)
-      continue
-    }
+      // Borrar phase_logs del duplicado primero (no hay FK CASCADE)
+      await supabase.from('requirement_phase_logs').delete().eq('requirement_id', dupId)
+      // Borrar el duplicado
+      await supabase.from('requirements').delete().eq('id', dupId)
 
-    // Copiar logs históricos
-    const { data: oldLogs } = await supabase
-      .from('requirement_phase_logs')
-      .select('from_phase, to_phase, moved_by, notes, created_at')
-      .eq('requirement_id', item.id)
-      .order('created_at', { ascending: true })
+      // Mover el original al ciclo current
+      const { error: updErr } = await supabase
+        .from('requirements')
+        .update({ billing_cycle_id: currentCycle.id, carried_over: true })
+        .eq('id', item.id)
+      if (updErr) {
+        console.error('[rescue] update original failed', updErr)
+        skipped++
+        continue
+      }
 
-    for (const log of oldLogs ?? []) {
       await supabase.from('requirement_phase_logs').insert({
-        requirement_id: newReq.id,
-        from_phase: log.from_phase as Phase | null,
-        to_phase: log.to_phase as Phase,
-        moved_by: log.moved_by,
-        notes: log.notes,
-        created_at: log.created_at,
+        requirement_id: item.id,
+        from_phase: null,
+        to_phase: item.phase as Phase,
+        moved_by: user.id,
+        notes: 'Rescatado: original movido al ciclo actual (reemplaza copia vacía)',
       })
+
+      replaced++
+      dupMap.delete(key)
+    } else {
+      // No hay duplicado: simplemente mover el original
+      const { error: updErr } = await supabase
+        .from('requirements')
+        .update({ billing_cycle_id: currentCycle.id, carried_over: true })
+        .eq('id', item.id)
+      if (updErr) {
+        console.error('[rescue] move failed', updErr)
+        skipped++
+        continue
+      }
+
+      await supabase.from('requirement_phase_logs').insert({
+        requirement_id: item.id,
+        from_phase: null,
+        to_phase: item.phase as Phase,
+        moved_by: user.id,
+        notes: 'Rescatado del ciclo anterior',
+      })
+
+      moved++
     }
-
-    // Log de rescate
-    await supabase.from('requirement_phase_logs').insert({
-      requirement_id: newReq.id,
-      from_phase: null,
-      to_phase: item.phase as Phase,
-      moved_by: user.id,
-      notes: 'Rescatado del ciclo anterior (traslado manual)',
-    })
-
-    rescued++
   }
 
   revalidatePath(`/clients/${clientId}`)
   revalidatePath('/pipeline')
   revalidatePath('/dashboard')
-  return { ok: true, rescued }
+  return { ok: true, moved, replaced, skipped }
+}
+
+/**
+ * Un duplicado es "seguro de borrar" si NO tiene ninguno de:
+ * - time_entries
+ * - requirement_messages
+ * - review_assets
+ * - requirement_cambio_logs (no anulados)
+ *
+ * Los phase_logs no cuentan: el rescate viejo los copió del original,
+ * pero no son "trabajo del usuario" sobre el duplicado.
+ */
+async function isDuplicateSafeToDelete(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  dupId: string
+): Promise<boolean> {
+  const [te, rm, ra, cl] = await Promise.all([
+    supabase.from('time_entries').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
+    supabase.from('requirement_messages').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
+    supabase.from('review_assets').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
+    supabase.from('requirement_cambio_logs').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
+  ])
+  if ((te.count ?? 0) > 0) return false
+  if ((rm.count ?? 0) > 0) return false
+  if ((ra.count ?? 0) > 0) return false
+  if ((cl.count ?? 0) > 0) return false
+  return true
 }

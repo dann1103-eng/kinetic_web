@@ -24,7 +24,7 @@ export function RescueOrphansButton({ clientId }: Props) {
   function handleClick() {
     if (
       !confirm(
-        'Esto buscará requerimientos en proceso del ciclo anterior que no se trasladaron al nuevo ciclo y los traerá. ¿Continuar?'
+        'Esto traerá los requerimientos reales (con su chat, revisión, tiempo y cambios) del ciclo anterior al actual. Si en un rescate previo se crearon copias vacías, las reemplazará por los originales. ¿Continuar?'
       )
     ) {
       return
@@ -36,13 +36,15 @@ export function RescueOrphansButton({ clientId }: Props) {
         setMsg({ type: 'error', text: r.error })
         return
       }
-      if (r.rescued === 0) {
+      const total = r.moved + r.replaced
+      if (total === 0 && r.skipped === 0) {
         setMsg({ type: 'success', text: 'No hay requerimientos huérfanos por rescatar.' })
       } else {
-        setMsg({
-          type: 'success',
-          text: `Se rescataron ${r.rescued} requerimiento${r.rescued === 1 ? '' : 's'}.`,
-        })
+        const parts: string[] = []
+        if (r.moved > 0) parts.push(`${r.moved} movido${r.moved === 1 ? '' : 's'}`)
+        if (r.replaced > 0) parts.push(`${r.replaced} reemplazado${r.replaced === 1 ? '' : 's'}`)
+        if (r.skipped > 0) parts.push(`${r.skipped} omitido${r.skipped === 1 ? '' : 's'} (con datos)`)
+        setMsg({ type: 'success', text: parts.join(', ') + '.' })
         router.refresh()
       }
     })

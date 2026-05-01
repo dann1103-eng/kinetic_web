@@ -142,9 +142,12 @@ function isCycleFullyPaid(
 const PIPELINE_CONTENT_TYPES = ['historia', 'estatico', 'video_corto', 'reel', 'short']
 
 /**
- * Migra requerimientos abiertos (no anulados, no en `publicado_entregado`)
- * del ciclo previo al nuevo, marcándolos `carried_over=true`. Equivalente
- * inline a `migrateOpenPipelineItems()` en src/lib/domain/pipeline.ts —
+ * Mueve requerimientos abiertos (no anulados, no en `publicado_entregado`)
+ * del ciclo previo al nuevo. Cambia `billing_cycle_id` del registro original
+ * y marca `carried_over=true`. NO crea copias — preserva chat, review,
+ * time_entries y cambio_logs intactos al mantener el mismo `id`.
+ *
+ * Equivalente inline a `migrateOpenPipelineItems()` en src/lib/domain/pipeline.ts;
  * duplicado porque el Edge Function corre en Deno y no puede importar src/.
  */
 async function migrateOpenPipelineItemsInline(args: {
@@ -155,7 +158,7 @@ async function migrateOpenPipelineItemsInline(args: {
 
   const { data: openItems } = await supabase
     .from('requirements')
-    .select('id, content_type, phase, title, review_started_at, assigned_to, includes_story, deadline')
+    .select('id, phase')
     .eq('billing_cycle_id', previousCycleId)
     .eq('voided', false)
     .neq('phase', 'publicado_entregado')
@@ -164,61 +167,20 @@ async function migrateOpenPipelineItemsInline(args: {
   if (!openItems || openItems.length === 0) return 0
 
   let migrated = 0
-  for (const item of openItems as Array<{
-    id: string
-    content_type: string
-    phase: string
-    title: string | null
-    review_started_at: string | null
-    assigned_to: string[] | null
-    includes_story: boolean | null
-    deadline: string | null
-  }>) {
-    const { data: newReq, error: insErr } = await supabase
+  for (const item of openItems as Array<{ id: string; phase: string }>) {
+    const { error: updErr } = await supabase
       .from('requirements')
-      .insert({
-        billing_cycle_id: newCycleId,
-        content_type: item.content_type,
-        phase: item.phase,
-        carried_over: true,
-        registered_by_user_id: null,
-        over_limit: false,
-        voided: false,
-        title: item.title ?? '',
-        review_started_at: item.review_started_at ?? null,
-        assigned_to: item.assigned_to ?? null,
-        includes_story: item.includes_story ?? false,
-        deadline: item.deadline ?? null,
-      })
-      .select('id')
-      .single()
+      .update({ billing_cycle_id: newCycleId, carried_over: true })
+      .eq('id', item.id)
 
-    if (insErr || !newReq) {
-      console.error('[cron-migrate] insert error', insErr)
+    if (updErr) {
+      console.error('[cron-migrate] update error', updErr)
       continue
-    }
-
-    // Copiar logs históricos
-    const { data: oldLogs } = await supabase
-      .from('requirement_phase_logs')
-      .select('from_phase, to_phase, moved_by, notes, created_at')
-      .eq('requirement_id', item.id)
-      .order('created_at', { ascending: true })
-
-    for (const log of oldLogs ?? []) {
-      await supabase.from('requirement_phase_logs').insert({
-        requirement_id: newReq.id,
-        from_phase: log.from_phase,
-        to_phase: log.to_phase,
-        moved_by: log.moved_by,
-        notes: log.notes,
-        created_at: log.created_at,
-      })
     }
 
     // Log de migración
     await supabase.from('requirement_phase_logs').insert({
-      requirement_id: newReq.id,
+      requirement_id: item.id,
       from_phase: null,
       to_phase: item.phase,
       moved_by: null,
@@ -657,27 +619,15 @@ Deno.serve(async (_req) => {
         }
 
         // Cleanup de adjuntos del chat — Supabase Free solo permite 50MB total.
-        // Solo limpiamos adjuntos de los reqs que NO se trasladaron (los
-        // trasladados son nuevas filas con sus propios adjuntos vacíos).
+        // Como los reqs trasladados ya cambiaron de billing_cycle_id, esta query
+        // solo encuentra los que QUEDARON en el ciclo archivado (publicado,
+        // anulados, o tipos no-pipeline). Sus adjuntos sí se pueden borrar.
         try {
           const { data: reqsOfCycle } = await supabase
             .from('requirements')
-            .select('id, phase, voided, content_type')
+            .select('id')
             .eq('billing_cycle_id', cycle.id)
-          for (const r of (reqsOfCycle ?? []) as Array<{
-            id: string
-            phase: string
-            voided: boolean
-            content_type: string
-          }>) {
-            // Solo limpiar adjuntos de reqs que NO fueron trasladados
-            // (i.e., voided o phase=publicado_entregado o no-pipeline content type).
-            const wasMigrated =
-              !r.voided &&
-              r.phase !== 'publicado_entregado' &&
-              PIPELINE_CONTENT_TYPES.includes(r.content_type)
-            if (wasMigrated) continue
-
+          for (const r of (reqsOfCycle ?? []) as Array<{ id: string }>) {
             const { data: files } = await supabase.storage
               .from('requirement-attachments')
               .list(r.id)
