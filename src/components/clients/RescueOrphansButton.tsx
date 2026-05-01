@@ -38,7 +38,19 @@ export function RescueOrphansButton({ clientId }: Props) {
       }
       const total = r.moved + r.replaced
       if (total === 0 && r.skipped === 0) {
-        setMsg({ type: 'success', text: 'No hay requerimientos huérfanos por rescatar.' })
+        // No hay nada que rescatar — mostrar diagnóstico para entender por qué.
+        const d = r.diagnostics
+        const lines = [
+          'No hay requerimientos huérfanos por rescatar.',
+          `Ciclos archivados: ${d.archivedCyclesCount}`,
+          `Reqs en ciclos archivados: ${d.archivedReqsTotal}`,
+          `  · anulados: ${d.archivedReqsBreakdown.voided}`,
+          `  · publicados/entregados: ${d.archivedReqsBreakdown.publicado_entregado}`,
+          `  · tipos no-pipeline: ${d.archivedReqsBreakdown.not_pipeline_type}`,
+          `  · abiertos elegibles: ${d.archivedReqsBreakdown.open_pipeline}`,
+          `Reqs trasladados ya en el ciclo actual: ${d.currentCycleCarriedOver}`,
+        ]
+        setMsg({ type: 'success', text: lines.join(' · ') })
       } else {
         const parts: string[] = []
         if (r.moved > 0) parts.push(`${r.moved} movido${r.moved === 1 ? '' : 's'}`)
@@ -64,11 +76,11 @@ export function RescueOrphansButton({ clientId }: Props) {
       </Button>
       {msg && (
         <p
-          className={`text-xs ${
+          className={`text-xs whitespace-pre-line max-w-md text-right ${
             msg.type === 'success' ? 'text-fm-primary' : 'text-fm-error'
           }`}
         >
-          {msg.text}
+          {msg.text.replace(/ · /g, '\n')}
         </p>
       )}
     </div>

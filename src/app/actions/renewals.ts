@@ -352,10 +352,28 @@ export async function createCurrentCycle(args: CreateCurrentCycleArgs) {
 // sin requirement_messages, sin review_assets, sin cambio_logs). Si un
 // duplicado tiene datos, se conserva y solo se loguea para revisión.
 // ─────────────────────────────────────────────────────────────────
+export interface RescueDiagnostics {
+  archivedCyclesCount: number
+  archivedReqsTotal: number
+  archivedReqsBreakdown: {
+    voided: number
+    publicado_entregado: number
+    not_pipeline_type: number
+    open_pipeline: number  // los que califican como huérfanos
+  }
+  currentCycleCarriedOver: number
+}
+
 export async function rescueOrphanedRequirements(
   clientId: string
 ): Promise<
-  | { ok: true; moved: number; replaced: number; skipped: number }
+  | {
+      ok: true
+      moved: number
+      replaced: number
+      skipped: number
+      diagnostics: RescueDiagnostics
+    }
   | { error: string }
 > {
   await assertNotImpersonating()
@@ -380,33 +398,70 @@ export async function rescueOrphanedRequirements(
     return { error: 'El cliente no tiene un ciclo current activo. Crea uno antes de rescatar.' }
   }
 
-  // Ciclos archivados del cliente
+  // Ciclos archivados del cliente (incluimos también 'scheduled' por si hubo
+  // un estado intermedio raro)
   const { data: archivedCycles } = await supabase
     .from('billing_cycles')
-    .select('id')
+    .select('id, status, period_start, period_end')
     .eq('client_id', clientId)
     .in('status', ['archived', 'pending_renewal'])
   const archivedIds = (archivedCycles ?? []).map((c) => c.id)
-  if (archivedIds.length === 0) return { ok: true, moved: 0, replaced: 0, skipped: 0 }
 
-  // Requerimientos huérfanos (no anulados, no en publicado_entregado, tipos pipeline)
-  const { data: orphans } = await supabase
-    .from('requirements')
-    .select('id, content_type, phase, title')
-    .in('billing_cycle_id', archivedIds)
-    .eq('voided', false)
-    .neq('phase', 'publicado_entregado')
-    .in('content_type', PIPELINE_CONTENT_TYPES)
-
-  if (!orphans || orphans.length === 0) return { ok: true, moved: 0, replaced: 0, skipped: 0 }
-
-  // Duplicados ya creados en el ciclo current por rescates previos (con bug):
-  // requirements con carried_over=true en este current cycle
+  // Diagnóstico: contar duplicados ya en current
   const { data: dupCandidates } = await supabase
     .from('requirements')
     .select('id, content_type, title')
     .eq('billing_cycle_id', currentCycle.id)
     .eq('carried_over', true)
+
+  const baseDiagnostics: RescueDiagnostics = {
+    archivedCyclesCount: archivedIds.length,
+    archivedReqsTotal: 0,
+    archivedReqsBreakdown: {
+      voided: 0,
+      publicado_entregado: 0,
+      not_pipeline_type: 0,
+      open_pipeline: 0,
+    },
+    currentCycleCarriedOver: (dupCandidates ?? []).length,
+  }
+
+  if (archivedIds.length === 0) {
+    return { ok: true, moved: 0, replaced: 0, skipped: 0, diagnostics: baseDiagnostics }
+  }
+
+  // Diagnóstico: TODOS los requerimientos en ciclos archivados, sin filtros
+  const { data: allArchivedReqs } = await supabase
+    .from('requirements')
+    .select('id, content_type, phase, voided, title')
+    .in('billing_cycle_id', archivedIds)
+
+  const allReqs = (allArchivedReqs ?? []) as Array<{
+    id: string
+    content_type: string
+    phase: string
+    voided: boolean
+    title: string | null
+  }>
+  baseDiagnostics.archivedReqsTotal = allReqs.length
+  for (const r of allReqs) {
+    if (r.voided) baseDiagnostics.archivedReqsBreakdown.voided++
+    else if (r.phase === 'publicado_entregado') baseDiagnostics.archivedReqsBreakdown.publicado_entregado++
+    else if (!PIPELINE_CONTENT_TYPES.includes(r.content_type as ContentType)) baseDiagnostics.archivedReqsBreakdown.not_pipeline_type++
+    else baseDiagnostics.archivedReqsBreakdown.open_pipeline++
+  }
+
+  // Huérfanos elegibles
+  const orphans = allReqs.filter(
+    (r) =>
+      !r.voided &&
+      r.phase !== 'publicado_entregado' &&
+      PIPELINE_CONTENT_TYPES.includes(r.content_type as ContentType)
+  )
+
+  if (orphans.length === 0) {
+    return { ok: true, moved: 0, replaced: 0, skipped: 0, diagnostics: baseDiagnostics }
+  }
 
   const dupMap = new Map<string, string>() // key -> duplicate id
   for (const d of dupCandidates ?? []) {
@@ -484,7 +539,7 @@ export async function rescueOrphanedRequirements(
   revalidatePath(`/clients/${clientId}`)
   revalidatePath('/pipeline')
   revalidatePath('/dashboard')
-  return { ok: true, moved, replaced, skipped }
+  return { ok: true, moved, replaced, skipped, diagnostics: baseDiagnostics }
 }
 
 /**
