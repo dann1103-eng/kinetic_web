@@ -472,10 +472,14 @@ export async function rescueOrphanedRequirements(
       PIPELINE_CONTENT_TYPES.includes(r.content_type as ContentType)
   )
 
+  // Admin client para todas las operaciones de mantenimiento (bypassea
+  // RLS por si alguna policy bloquea silenciosamente DELETE/UPDATE).
+  const admin = createAdminClient()
+
   // ── FASE 1: Limpieza de phase_logs falsos ──────────────────────
   const reqsToCleanLogs = [...carriedOver.map((r) => r.id), ...orphans.map((r) => r.id)]
   if (reqsToCleanLogs.length > 0) {
-    await supabase
+    await admin
       .from('requirement_phase_logs')
       .delete()
       .in('requirement_id', reqsToCleanLogs)
@@ -483,6 +487,7 @@ export async function rescueOrphanedRequirements(
   }
 
   // ── FASE 2: Resolver duplicados en current ─────────────────────
+
   // Index de huérfanos por title+content_type
   const orphanKey = (r: { content_type: string; title: string | null }) =>
     `${r.content_type}::${(r.title ?? '').trim().toLowerCase()}`
@@ -498,26 +503,29 @@ export async function rescueOrphanedRequirements(
   let duplicatesMerged = 0
   let duplicatesDeleted = 0
   let duplicatesKept = 0
+  const errors: string[] = []
 
   for (const dup of carriedOver) {
     const key = orphanKey(dup)
     const matchingOrphan = orphanByKey.get(key)
-    const isEmpty = await isDuplicateSafeToDelete(supabase, dup.id)
+    const isEmpty = await isDuplicateEmpty(admin, dup.id)
 
     if (matchingOrphan) {
       // Hay original en archivado: reemplazar dup con original
       if (!isEmpty) {
-        // Mover datos del dup al original
         await mergeReqData(dup.id, matchingOrphan.id)
         duplicatesMerged++
       } else {
         duplicatesReplaced++
       }
-      // Borrar phase_logs del dup (no FK CASCADE)
-      await supabase.from('requirement_phase_logs').delete().eq('requirement_id', dup.id)
-      // Borrar el dup (cascade limpia el resto)
-      await supabase.from('requirements').delete().eq('id', dup.id)
-      // Marcar para mover el original luego
+      // Borrar phase_logs del dup (no FK CASCADE) y luego el dup
+      const { error: logErr } = await admin
+        .from('requirement_phase_logs').delete().eq('requirement_id', dup.id)
+      if (logErr) errors.push(`logs ${dup.id}: ${logErr.message}`)
+      const { error: reqErr } = await admin
+        .from('requirements').delete().eq('id', dup.id)
+      if (reqErr) errors.push(`req ${dup.id}: ${reqErr.message}`)
+
       handledOrphanIds.add(matchingOrphan.id)
       orphanByKey.delete(key)
     } else {
@@ -525,22 +533,27 @@ export async function rescueOrphanedRequirements(
       if (isEmpty) {
         // Leftover: el original probablemente ya fue movido en una corrida
         // anterior. El dup es basura.
-        await supabase.from('requirement_phase_logs').delete().eq('requirement_id', dup.id)
-        await supabase.from('requirements').delete().eq('id', dup.id)
-        duplicatesDeleted++
+        const { error: logErr } = await admin
+          .from('requirement_phase_logs').delete().eq('requirement_id', dup.id)
+        if (logErr) errors.push(`logs ${dup.id}: ${logErr.message}`)
+        const { error: reqErr } = await admin
+          .from('requirements').delete().eq('id', dup.id)
+        if (reqErr) errors.push(`req ${dup.id}: ${reqErr.message}`)
+        else duplicatesDeleted++
       } else {
-        // Conservar: tiene datos y no hay original que lo respalde —
-        // probablemente ya es un "moved original" legítimo o tiene trabajo
-        // real que no podemos asignar automáticamente.
         duplicatesKept++
       }
     }
   }
 
+  if (errors.length > 0) {
+    console.error('[rescue] errors during cleanup:', errors)
+  }
+
   // ── FASE 3: Mover huérfanos a current ──────────────────────────
   let moved = 0
   for (const orphan of orphans) {
-    const { error: updErr } = await supabase
+    const { error: updErr } = await admin
       .from('requirements')
       .update({ billing_cycle_id: currentCycle.id, carried_over: true })
       .eq('id', orphan.id)
@@ -607,24 +620,29 @@ const BOGUS_MIGRATION_NOTES = [
 ] as const
 
 /**
- * Un duplicado es "seguro de borrar" si NO tiene ninguno de:
+ * Un duplicado se considera "vacío" si NO tiene NINGUNO de:
  * - time_entries
  * - requirement_messages
  * - review_assets
- * - requirement_cambio_logs (no anulados)
+ * - requirement_cambio_logs
  *
  * Los phase_logs no cuentan: el rescate viejo los copió del original,
- * pero no son "trabajo del usuario" sobre el duplicado.
+ * pero no representan trabajo del usuario sobre el duplicado.
+ *
+ * Usa admin client porque RLS sobre tablas como review_assets o
+ * requirement_cambio_logs podría devolver counts incorrectos al usuario,
+ * causando falsos negativos (creer que el dup tiene datos cuando no).
  */
-async function isDuplicateSafeToDelete(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+async function isDuplicateEmpty(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
   dupId: string
 ): Promise<boolean> {
   const [te, rm, ra, cl] = await Promise.all([
-    supabase.from('time_entries').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
-    supabase.from('requirement_messages').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
-    supabase.from('review_assets').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
-    supabase.from('requirement_cambio_logs').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
+    admin.from('time_entries').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
+    admin.from('requirement_messages').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
+    admin.from('review_assets').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
+    admin.from('requirement_cambio_logs').select('id', { head: true, count: 'exact' }).eq('requirement_id', dupId),
   ])
   if ((te.count ?? 0) > 0) return false
   if ((rm.count ?? 0) > 0) return false
