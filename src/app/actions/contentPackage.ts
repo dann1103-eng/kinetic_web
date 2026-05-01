@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { cleanupCycleStorage } from '@/lib/supabase/cleanup-cycle-storage'
 import { today as todayGMT6, addDaysString } from '@/lib/domain/dates'
+import { migrateOpenPipelineItems } from '@/lib/domain/pipeline'
 
 /**
  * Archiva el ciclo Contenido actual y crea uno nuevo con los mismos límites.
@@ -43,19 +44,33 @@ export async function renewContentPackage(
     ? { ...plan.limits_json, unified_content_limit: plan.unified_content_limit }
     : plan.limits_json
 
-  const { error: createError } = await supabase.from('billing_cycles').insert({
-    client_id: clientId,
-    plan_id_snapshot: planId,
-    limits_snapshot_json: snapshot,
-    rollover_from_previous_json: null,
-    period_start: today,
-    period_end: farFuture,
-    status: 'current',
-    payment_status: 'unpaid',
-  })
-  if (createError) return { error: createError.message }
+  const { data: newCycle, error: createError } = await supabase
+    .from('billing_cycles')
+    .insert({
+      client_id: clientId,
+      plan_id_snapshot: planId,
+      limits_snapshot_json: snapshot,
+      rollover_from_previous_json: null,
+      period_start: today,
+      period_end: farFuture,
+      status: 'current',
+      payment_status: 'unpaid',
+    })
+    .select('id')
+    .single()
+  if (createError || !newCycle?.id) {
+    return { error: createError?.message ?? 'Error al crear el nuevo ciclo.' }
+  }
 
-  // Limpiar archivos del ciclo archivado (todos los reqs quedan en el ciclo cerrado)
+  // Mover requerimientos abiertos (no publicados) al nuevo ciclo antes del cleanup,
+  // para que sus archivos en review-files no se borren junto a los del ciclo archivado.
+  await migrateOpenPipelineItems(supabase, {
+    previousCycleId: currentCycleId,
+    newCycleId: newCycle.id,
+    movedBy: user.id,
+  })
+
+  // Limpiar archivos del ciclo archivado (solo reqs en publicado_entregado quedan ahí)
   const { data: closedReqs } = await supabase
     .from('requirements')
     .select('id')
