@@ -24,7 +24,7 @@ export function RescueOrphansButton({ clientId }: Props) {
   function handleClick() {
     if (
       !confirm(
-        'Esto traerá los requerimientos reales (con su chat, revisión, tiempo y cambios) del ciclo anterior al actual. Si en un rescate previo se crearon copias vacías, las reemplazará por los originales. ¿Continuar?'
+        'Esto traerá los requerimientos reales (con su chat, revisión, tiempo y cambios) del ciclo anterior al actual y eliminará cualquier copia vacía que haya quedado de un rescate previo. ¿Continuar?'
       )
     ) {
       return
@@ -36,27 +36,29 @@ export function RescueOrphansButton({ clientId }: Props) {
         setMsg({ type: 'error', text: r.error })
         return
       }
-      const total = r.moved + r.replaced
-      if (total === 0 && r.skipped === 0) {
-        // No hay nada que rescatar — mostrar diagnóstico para entender por qué.
+      const totalActions =
+        r.moved + r.duplicatesReplaced + r.duplicatesDeleted + r.duplicatesMerged
+      if (totalActions === 0 && r.duplicatesKept === 0) {
         const d = r.diagnostics
         const lines = [
-          'No hay requerimientos huérfanos por rescatar.',
+          'Nada que hacer.',
           `Ciclos archivados: ${d.archivedCyclesCount}`,
           `Reqs en ciclos archivados: ${d.archivedReqsTotal}`,
           `  · anulados: ${d.archivedReqsBreakdown.voided}`,
           `  · publicados/entregados: ${d.archivedReqsBreakdown.publicado_entregado}`,
           `  · tipos no-pipeline: ${d.archivedReqsBreakdown.not_pipeline_type}`,
           `  · abiertos elegibles: ${d.archivedReqsBreakdown.open_pipeline}`,
-          `Reqs trasladados ya en el ciclo actual: ${d.currentCycleCarriedOver}`,
+          `Reqs carried_over en el ciclo actual: ${d.currentCycleCarriedOver}`,
         ]
         setMsg({ type: 'success', text: lines.join(' · ') })
       } else {
         const parts: string[] = []
         if (r.moved > 0) parts.push(`${r.moved} movido${r.moved === 1 ? '' : 's'}`)
-        if (r.replaced > 0) parts.push(`${r.replaced} reemplazado${r.replaced === 1 ? '' : 's'}`)
-        if (r.skipped > 0) parts.push(`${r.skipped} omitido${r.skipped === 1 ? '' : 's'} (con datos)`)
-        setMsg({ type: 'success', text: parts.join(', ') + '.' })
+        if (r.duplicatesReplaced > 0) parts.push(`${r.duplicatesReplaced} duplicado${r.duplicatesReplaced === 1 ? '' : 's'} reemplazado${r.duplicatesReplaced === 1 ? '' : 's'}`)
+        if (r.duplicatesMerged > 0) parts.push(`${r.duplicatesMerged} duplicado${r.duplicatesMerged === 1 ? '' : 's'} fusionado${r.duplicatesMerged === 1 ? '' : 's'} (datos preservados)`)
+        if (r.duplicatesDeleted > 0) parts.push(`${r.duplicatesDeleted} duplicado${r.duplicatesDeleted === 1 ? '' : 's'} vacío${r.duplicatesDeleted === 1 ? '' : 's'} borrado${r.duplicatesDeleted === 1 ? '' : 's'}`)
+        if (r.duplicatesKept > 0) parts.push(`${r.duplicatesKept} duplicado${r.duplicatesKept === 1 ? '' : 's'} conservado${r.duplicatesKept === 1 ? '' : 's'} (con datos, sin original)`)
+        setMsg({ type: 'success', text: parts.join(' · ') })
         router.refresh()
       }
     })

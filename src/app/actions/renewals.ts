@@ -336,20 +336,33 @@ export async function createCurrentCycle(args: CreateCurrentCycleArgs) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Rescatar requerimientos huérfanos: mueve los originales que quedaron
-// en ciclos archivados (porque el cron renovó sin migrar) al ciclo current
-// actual, marcándolos `carried_over=true`.
+// Rescatar requerimientos huérfanos.
 //
-// Si una invocación previa de este action (o de la versión anterior con
-// bug) creó duplicados (filas nuevas en current con `carried_over=true`
-// pero sin chat/review/time_entries), este action los detecta por
-// `title + content_type` y los REEMPLAZA: borra el duplicado vacío y
-// mueve el original al ciclo current. Esto restaura toda la data
-// asociada (chat, review, time_entries, cambio_logs).
+// Operación en 3 fases:
 //
-// Solo borra duplicados que NO tengan datos reales (sin time_entries,
-// sin requirement_messages, sin review_assets, sin cambio_logs). Si un
-// duplicado tiene datos, se conserva y solo se loguea para revisión.
+// FASE 1 — Limpieza de phase_logs falsos en todos los requerimientos
+//   relevantes del cliente. Versiones anteriores insertaban un log
+//   "Trasladado..." / "Rescatado..." con created_at=NOW() que rompía
+//   el cálculo de last_moved_at (timer mostraba "X min desde rescate"
+//   en vez de "X min en la fase real").
+//
+// FASE 2 — Resolver duplicados en el ciclo current. Una versión rota
+//   anterior creaba COPIAS (INSERT) en vez de mover. Por cada
+//   `carried_over=true` en el ciclo current:
+//     - Buscar matching original en ciclos archivados (title+content_type).
+//     - Si se encuentra match Y el duplicado está vacío → borrar duplicado.
+//     - Si match Y el duplicado tiene datos → MERGE: mover los datos
+//       (time_entries, messages, review_assets, cambio_logs, mentions)
+//       al original; borrar duplicado.
+//     - Si NO hay match Y el duplicado está vacío → borrar (es un
+//       leftover de un rescate previo — el original ya fue movido en
+//       una corrida anterior).
+//     - Si NO hay match Y tiene datos → keep (es un original ya
+//       movido legítimamente, o tiene trabajo real que no podemos
+//       reasignar automáticamente).
+//
+// FASE 3 — Mover los huérfanos restantes (los originales en archivados
+//   que no se procesaron en FASE 2) al ciclo current con carried_over=true.
 // ─────────────────────────────────────────────────────────────────
 export interface RescueDiagnostics {
   archivedCyclesCount: number
@@ -358,7 +371,7 @@ export interface RescueDiagnostics {
     voided: number
     publicado_entregado: number
     not_pipeline_type: number
-    open_pipeline: number  // los que califican como huérfanos
+    open_pipeline: number
   }
   currentCycleCarriedOver: number
 }
@@ -368,9 +381,11 @@ export async function rescueOrphanedRequirements(
 ): Promise<
   | {
       ok: true
-      moved: number
-      replaced: number
-      skipped: number
+      moved: number               // huérfanos movidos sin duplicado
+      duplicatesReplaced: number  // duplicados reemplazados con su original
+      duplicatesDeleted: number   // duplicados vacíos borrados sin original (leftover)
+      duplicatesMerged: number    // duplicados con datos fusionados al original
+      duplicatesKept: number      // duplicados conservados (con datos y sin original)
       diagnostics: RescueDiagnostics
     }
   | { error: string }
@@ -386,7 +401,7 @@ export async function rescueOrphanedRequirements(
     return { error: 'Solo admin o supervisor puede rescatar requerimientos.' }
   }
 
-  // Ciclo current del cliente
+  // Ciclo current
   const { data: currentCycle } = await supabase
     .from('billing_cycles')
     .select('id')
@@ -397,22 +412,23 @@ export async function rescueOrphanedRequirements(
     return { error: 'El cliente no tiene un ciclo current activo. Crea uno antes de rescatar.' }
   }
 
-  // Ciclos archivados del cliente (incluimos también 'scheduled' por si hubo
-  // un estado intermedio raro)
+  // Ciclos archivados
   const { data: archivedCycles } = await supabase
     .from('billing_cycles')
-    .select('id, status, period_start, period_end')
+    .select('id')
     .eq('client_id', clientId)
     .in('status', ['archived', 'pending_renewal'])
   const archivedIds = (archivedCycles ?? []).map((c) => c.id)
 
-  // Diagnóstico: contar duplicados ya en current
-  const { data: dupCandidates } = await supabase
+  // Carried-over en current (potenciales duplicados o originales ya movidos)
+  const { data: carriedOverRaw } = await supabase
     .from('requirements')
     .select('id, content_type, title')
     .eq('billing_cycle_id', currentCycle.id)
     .eq('carried_over', true)
+  const carriedOver = (carriedOverRaw ?? []) as Array<{ id: string; content_type: string; title: string | null }>
 
+  // Diagnóstico inicial
   const baseDiagnostics: RescueDiagnostics = {
     archivedCyclesCount: archivedIds.length,
     archivedReqsTotal: 0,
@@ -422,118 +438,117 @@ export async function rescueOrphanedRequirements(
       not_pipeline_type: 0,
       open_pipeline: 0,
     },
-    currentCycleCarriedOver: (dupCandidates ?? []).length,
+    currentCycleCarriedOver: carriedOver.length,
   }
 
-  if (archivedIds.length === 0) {
-    return { ok: true, moved: 0, replaced: 0, skipped: 0, diagnostics: baseDiagnostics }
-  }
-
-  // Diagnóstico: TODOS los requerimientos en ciclos archivados, sin filtros
-  const { data: allArchivedReqs } = await supabase
-    .from('requirements')
-    .select('id, content_type, phase, voided, title')
-    .in('billing_cycle_id', archivedIds)
-
-  const allReqs = (allArchivedReqs ?? []) as Array<{
+  // Reqs en archivados (huérfanos potenciales)
+  let allArchivedReqs: Array<{
     id: string
     content_type: string
     phase: string
     voided: boolean
     title: string | null
-  }>
-  baseDiagnostics.archivedReqsTotal = allReqs.length
-  for (const r of allReqs) {
-    if (r.voided) baseDiagnostics.archivedReqsBreakdown.voided++
-    else if (r.phase === 'publicado_entregado') baseDiagnostics.archivedReqsBreakdown.publicado_entregado++
-    else if (!PIPELINE_CONTENT_TYPES.includes(r.content_type as ContentType)) baseDiagnostics.archivedReqsBreakdown.not_pipeline_type++
-    else baseDiagnostics.archivedReqsBreakdown.open_pipeline++
+  }> = []
+  if (archivedIds.length > 0) {
+    const { data: rows } = await supabase
+      .from('requirements')
+      .select('id, content_type, phase, voided, title')
+      .in('billing_cycle_id', archivedIds)
+    allArchivedReqs = (rows ?? []) as typeof allArchivedReqs
+
+    baseDiagnostics.archivedReqsTotal = allArchivedReqs.length
+    for (const r of allArchivedReqs) {
+      if (r.voided) baseDiagnostics.archivedReqsBreakdown.voided++
+      else if (r.phase === 'publicado_entregado') baseDiagnostics.archivedReqsBreakdown.publicado_entregado++
+      else if (!PIPELINE_CONTENT_TYPES.includes(r.content_type as ContentType)) baseDiagnostics.archivedReqsBreakdown.not_pipeline_type++
+      else baseDiagnostics.archivedReqsBreakdown.open_pipeline++
+    }
   }
 
-  // Huérfanos elegibles
-  const orphans = allReqs.filter(
+  const orphans = allArchivedReqs.filter(
     (r) =>
       !r.voided &&
       r.phase !== 'publicado_entregado' &&
       PIPELINE_CONTENT_TYPES.includes(r.content_type as ContentType)
   )
 
-  if (orphans.length === 0) {
-    return { ok: true, moved: 0, replaced: 0, skipped: 0, diagnostics: baseDiagnostics }
-  }
-
-  const dupMap = new Map<string, string>() // key -> duplicate id
-  for (const d of dupCandidates ?? []) {
-    const key = `${d.content_type}::${(d.title ?? '').trim().toLowerCase()}`
-    if (!dupMap.has(key)) dupMap.set(key, d.id)
-  }
-
-  // ── Limpieza de logs de auditoría falsos ───────────────────────
-  // Versiones previas del rescate y de la migración insertaban un
-  // phase_log con notas como "Trasladado del ciclo anterior" o
-  // "Rescatado del ciclo anterior". Eso rompe el cálculo de
-  // last_moved_at — el timer mostraba el tiempo desde el rescate, no
-  // desde el cambio real de fase. Aquí los borramos para que los
-  // requerimientos vuelvan a usar su historial real.
-  const reqsToCleanLogsFrom: string[] = [
-    ...orphans.map((r) => r.id),
-    ...(dupCandidates ?? []).map((r) => r.id),
-  ]
-  if (reqsToCleanLogsFrom.length > 0) {
+  // ── FASE 1: Limpieza de phase_logs falsos ──────────────────────
+  const reqsToCleanLogs = [...carriedOver.map((r) => r.id), ...orphans.map((r) => r.id)]
+  if (reqsToCleanLogs.length > 0) {
     await supabase
       .from('requirement_phase_logs')
       .delete()
-      .in('requirement_id', reqsToCleanLogsFrom)
+      .in('requirement_id', reqsToCleanLogs)
       .in('notes', BOGUS_MIGRATION_NOTES)
   }
 
-  let moved = 0
-  let replaced = 0
-  let skipped = 0
+  // ── FASE 2: Resolver duplicados en current ─────────────────────
+  // Index de huérfanos por title+content_type
+  const orphanKey = (r: { content_type: string; title: string | null }) =>
+    `${r.content_type}::${(r.title ?? '').trim().toLowerCase()}`
+  const orphanByKey = new Map<string, typeof orphans[number]>()
+  for (const o of orphans) {
+    const key = orphanKey(o)
+    if (!orphanByKey.has(key)) orphanByKey.set(key, o)
+  }
 
-  for (const item of orphans) {
-    const key = `${item.content_type}::${(item.title ?? '').trim().toLowerCase()}`
-    const dupId = dupMap.get(key)
+  const handledOrphanIds = new Set<string>()
 
-    if (dupId) {
-      // Hay un duplicado vacío en el current: verificar que esté realmente vacío,
-      // mover el original encima y borrar el duplicado.
-      const safeToDelete = await isDuplicateSafeToDelete(supabase, dupId)
-      if (!safeToDelete) {
-        skipped++
-        continue
+  let duplicatesReplaced = 0
+  let duplicatesMerged = 0
+  let duplicatesDeleted = 0
+  let duplicatesKept = 0
+
+  for (const dup of carriedOver) {
+    const key = orphanKey(dup)
+    const matchingOrphan = orphanByKey.get(key)
+    const isEmpty = await isDuplicateSafeToDelete(supabase, dup.id)
+
+    if (matchingOrphan) {
+      // Hay original en archivado: reemplazar dup con original
+      if (!isEmpty) {
+        // Mover datos del dup al original
+        await mergeReqData(dup.id, matchingOrphan.id)
+        duplicatesMerged++
+      } else {
+        duplicatesReplaced++
       }
-
-      // Borrar phase_logs del duplicado primero (no hay FK CASCADE)
-      await supabase.from('requirement_phase_logs').delete().eq('requirement_id', dupId)
-      // Borrar el duplicado
-      await supabase.from('requirements').delete().eq('id', dupId)
-
-      // Mover el original al ciclo current — sin insertar log de auditoría
-      const { error: updErr } = await supabase
-        .from('requirements')
-        .update({ billing_cycle_id: currentCycle.id, carried_over: true })
-        .eq('id', item.id)
-      if (updErr) {
-        console.error('[rescue] update original failed', updErr)
-        skipped++
-        continue
-      }
-
-      replaced++
-      dupMap.delete(key)
+      // Borrar phase_logs del dup (no FK CASCADE)
+      await supabase.from('requirement_phase_logs').delete().eq('requirement_id', dup.id)
+      // Borrar el dup (cascade limpia el resto)
+      await supabase.from('requirements').delete().eq('id', dup.id)
+      // Marcar para mover el original luego
+      handledOrphanIds.add(matchingOrphan.id)
+      orphanByKey.delete(key)
     } else {
-      // No hay duplicado: simplemente mover el original — sin log de auditoría
-      const { error: updErr } = await supabase
-        .from('requirements')
-        .update({ billing_cycle_id: currentCycle.id, carried_over: true })
-        .eq('id', item.id)
-      if (updErr) {
-        console.error('[rescue] move failed', updErr)
-        skipped++
-        continue
+      // No hay match en archivado
+      if (isEmpty) {
+        // Leftover: el original probablemente ya fue movido en una corrida
+        // anterior. El dup es basura.
+        await supabase.from('requirement_phase_logs').delete().eq('requirement_id', dup.id)
+        await supabase.from('requirements').delete().eq('id', dup.id)
+        duplicatesDeleted++
+      } else {
+        // Conservar: tiene datos y no hay original que lo respalde —
+        // probablemente ya es un "moved original" legítimo o tiene trabajo
+        // real que no podemos asignar automáticamente.
+        duplicatesKept++
       }
+    }
+  }
 
+  // ── FASE 3: Mover huérfanos a current ──────────────────────────
+  let moved = 0
+  for (const orphan of orphans) {
+    const { error: updErr } = await supabase
+      .from('requirements')
+      .update({ billing_cycle_id: currentCycle.id, carried_over: true })
+      .eq('id', orphan.id)
+    if (updErr) {
+      console.error('[rescue] move failed', updErr)
+      continue
+    }
+    if (!handledOrphanIds.has(orphan.id)) {
       moved++
     }
   }
@@ -541,7 +556,41 @@ export async function rescueOrphanedRequirements(
   revalidatePath(`/clients/${clientId}`)
   revalidatePath('/pipeline')
   revalidatePath('/dashboard')
-  return { ok: true, moved, replaced, skipped, diagnostics: baseDiagnostics }
+  return {
+    ok: true,
+    moved,
+    duplicatesReplaced,
+    duplicatesDeleted,
+    duplicatesMerged,
+    duplicatesKept,
+    diagnostics: baseDiagnostics,
+  }
+}
+
+/**
+ * Mueve TODA la data relacionada de `fromId` a `toId`. Tablas con
+ * `requirement_id`: time_entries, requirement_messages,
+ * requirement_cambio_logs, review_assets, requirement_mentions,
+ * review_comment_mentions. NO mueve `requirement_phase_logs` — esos
+ * representan la timeline de fases del original que se conserva.
+ *
+ * Usa admin client porque algunas tablas tienen Update types restrictivos
+ * en TS y queremos bypassear RLS para esta operación de mantenimiento.
+ */
+async function mergeReqData(fromId: string, toId: string): Promise<void> {
+  const admin = createAdminClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const updateReqId = (table: string) =>
+    (admin.from(table) as any).update({ requirement_id: toId }).eq('requirement_id', fromId)
+
+  await Promise.all([
+    updateReqId('time_entries'),
+    updateReqId('requirement_messages'),
+    updateReqId('requirement_cambio_logs'),
+    updateReqId('review_assets'),
+    updateReqId('requirement_mentions'),
+    updateReqId('review_comment_mentions'),
+  ])
 }
 
 /**
