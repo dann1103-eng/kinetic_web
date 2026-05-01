@@ -104,17 +104,28 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
         const firstTime = nonVoid.length === 0
         setIsFirstInvoice(firstTime)
 
+        const plan = plans.find(p => p.id === client.current_plan_id)
+        const isContentPlan = (plan?.unified_content_limit ?? null) != null
+
         // Pre-computar período del siguiente ciclo para el selector/label.
-        const np = cyc
+        // No aplica a planes de contenido (no tienen ciclo recurrente).
+        const np = cyc && !isContentPlan
           ? nextCycleDates(cyc.period_end, { billingPeriod: client.billing_period })
           : null
         setNextPeriod(np)
 
         // Default:
+        //   - Plan de contenido → siempre vincular al ciclo de contenido vigente (no ad-hoc, no "next").
         //   - Sin ciclo → ad-hoc ('').
         //   - Primera factura → ciclo actual (el cliente paga el ciclo en curso por primera vez).
         //   - Recurrente → siguiente ciclo (pago anticipado).
-        const defaultCycleId = !cyc ? '' : firstTime ? cyc.id : 'next'
+        const defaultCycleId = !cyc
+          ? ''
+          : isContentPlan
+            ? cyc.id
+            : firstTime
+              ? cyc.id
+              : 'next'
         if (mode === 'invoice' && !initialCycleId) {
           setCycleId(defaultCycleId)
         }
@@ -133,19 +144,33 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           setBiweeklyHalf(null)
         }
 
-        // Sugerir ítem del plan si el form aún tiene solo la línea vacía
-        const plan = plans.find(p => p.id === client.current_plan_id)
-        if (plan && items.length === 1 && !items[0].description && items[0].unit_price === 0) {
-          // Si es primera factura → usa el ciclo actual; si recurrente → el siguiente.
-          const targetPeriod = firstTime && cyc
-            ? { periodStart: cyc.period_start, periodEnd: cyc.period_end }
-            : np
-          const half: 'first' | 'second' | null =
-            client.billing_period === 'biweekly' ? 'first' : null
-          const label = targetPeriod
-            ? invoicePeriodLabel(targetPeriod.periodStart, targetPeriod.periodEnd, client.billing_period, half)
-            : undefined
-          setItems(suggestItemsFromPlan(plan, label, half))
+        // Sugerir ítem del plan. Reemplaza la línea si está vacía o si era un auto-precargado
+        // de un plan anterior (al cambiar de cliente). Respeta líneas editadas manualmente.
+        if (plan && items.length === 1) {
+          const desc = items[0].description
+          const isEmptyDefault = !desc && items[0].unit_price === 0
+          const isAutoPreloaded = desc.startsWith('Plan ')
+          if (isEmptyDefault || isAutoPreloaded) {
+            let label: string | undefined
+            if (isContentPlan && cyc) {
+              // Plan de contenido: usar period_start del ciclo (= mes en que se activó el paquete),
+              // que coincide con "Paquete activo desde …" en /clients/[id].
+              label = invoicePeriodLabel(cyc.period_start, cyc.period_start, 'monthly', null)
+            } else {
+              // Si es primera factura → usa el ciclo actual; si recurrente → el siguiente.
+              const targetPeriod = firstTime && cyc
+                ? { periodStart: cyc.period_start, periodEnd: cyc.period_end }
+                : np
+              const half: 'first' | 'second' | null =
+                client.billing_period === 'biweekly' ? 'first' : null
+              label = targetPeriod
+                ? invoicePeriodLabel(targetPeriod.periodStart, targetPeriod.periodEnd, client.billing_period, half)
+                : undefined
+            }
+            const half: 'first' | 'second' | null =
+              !isContentPlan && client.billing_period === 'biweekly' ? 'first' : null
+            setItems(suggestItemsFromPlan(plan, label, half))
+          }
         }
       })
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -158,6 +183,9 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
     if (items.length !== 1) return
     const plan = plans.find((p) => p.id === client.current_plan_id)
     if (!plan) return
+    // Planes de contenido: el label se fija a partir del period_start del ciclo en la primera carga.
+    // No re-aplicar aquí (no hay biweekly ni "next" para estos planes).
+    if (plan.unified_content_limit != null) return
     // Solo re-aplicamos si la línea sigue siendo el item auto-precargado del plan.
     if (!items[0].description.startsWith(`Plan ${plan.name}`)) return
 
@@ -187,6 +215,11 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
   )
 
   const selectedClient = useMemo(() => clients.find(c => c.id === clientId), [clients, clientId])
+  const selectedPlan = useMemo(
+    () => plans.find(p => p.id === selectedClient?.current_plan_id),
+    [plans, selectedClient]
+  )
+  const isContentPlan = (selectedPlan?.unified_content_limit ?? null) != null
 
   // Catálogo de ítems predefinidos
   const catalog = useMemo<{ group: string; items: CatalogItem[] }[]>(() => {
@@ -353,7 +386,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
             />
           </div>
 
-          {mode === 'invoice' && cycle && (
+          {mode === 'invoice' && cycle && !isContentPlan && (
             <div className="col-span-2 space-y-1.5">
               <Label>Ciclo de facturación</Label>
               <select
@@ -388,7 +421,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
             </div>
           )}
 
-          {mode === 'invoice' && cycleId && selectedClient?.billing_period === 'biweekly' && (
+          {mode === 'invoice' && cycleId && selectedClient?.billing_period === 'biweekly' && !isContentPlan && (
             <div className="col-span-2 space-y-1.5">
               <Label>Quincena a cobrar</Label>
               <div className="flex gap-2">
