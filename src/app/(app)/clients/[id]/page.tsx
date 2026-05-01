@@ -18,6 +18,7 @@ import { DeleteClientButton } from '@/components/clients/DeleteClientButton'
 import { RequirementHistory } from '@/components/clients/RequirementHistory'
 import { ClientNotesPanel } from '@/components/clients/ClientNotesPanel'
 import { ClientPortalInvite } from '@/components/clients/ClientPortalInvite'
+import { RescueOrphansButton } from '@/components/clients/RescueOrphansButton'
 import { listClientUsers } from '@/app/actions/clientUsers'
 import { listClientCredits } from '@/app/actions/credits'
 import { ClientCreditsCard } from '@/components/clients/ClientCreditsCard'
@@ -300,7 +301,10 @@ export default async function ClientDetailPage({
         {/* 2 — Pipeline del ciclo actual */}
         {cycle && (
           <div className="glass-panel rounded-[2rem] p-4 sm:p-6 space-y-4">
-            <h3 className="text-base font-semibold text-fm-on-surface">Pipeline</h3>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <h3 className="text-base font-semibold text-fm-on-surface">Pipeline</h3>
+              {isApprover && <RescueOrphansButton clientId={id} />}
+            </div>
             <ClientPipelineTab
               items={pipelineItems}
               scheduledItems={scheduledPipelineItems}

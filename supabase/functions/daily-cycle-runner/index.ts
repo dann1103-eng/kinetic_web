@@ -118,6 +118,118 @@ interface ClientRow {
   contact_phone: string | null
 }
 
+/**
+ * ¿Está este ciclo realmente pagado (todas las facturas cubiertas)?
+ * - monthly: payment_status === 'paid'
+ * - biweekly: payment_status === 'paid' Y payment_status_2 === 'paid'
+ *
+ * NOTA: este check protege contra renovar a un cliente cuya segunda
+ * quincena del biweekly NO está pagada — antes solo se revisaba la primera.
+ */
+function isCycleFullyPaid(
+  cycle: { payment_status: string | null; payment_status_2: string | null },
+  billingPeriod: 'monthly' | 'biweekly'
+): boolean {
+  if (cycle.payment_status !== 'paid') return false
+  if (billingPeriod === 'biweekly' && cycle.payment_status_2 !== 'paid') return false
+  return true
+}
+
+/**
+ * Tipos de contenido que participan en el pipeline (debe coincidir con
+ * `PIPELINE_CONTENT_TYPES` en `src/lib/domain/pipeline.ts`).
+ */
+const PIPELINE_CONTENT_TYPES = ['historia', 'estatico', 'video_corto', 'reel', 'short']
+
+/**
+ * Migra requerimientos abiertos (no anulados, no en `publicado_entregado`)
+ * del ciclo previo al nuevo, marcándolos `carried_over=true`. Equivalente
+ * inline a `migrateOpenPipelineItems()` en src/lib/domain/pipeline.ts —
+ * duplicado porque el Edge Function corre en Deno y no puede importar src/.
+ */
+async function migrateOpenPipelineItemsInline(args: {
+  previousCycleId: string
+  newCycleId: string
+}): Promise<number> {
+  const { previousCycleId, newCycleId } = args
+
+  const { data: openItems } = await supabase
+    .from('requirements')
+    .select('id, content_type, phase, title, review_started_at, assigned_to, includes_story, deadline')
+    .eq('billing_cycle_id', previousCycleId)
+    .eq('voided', false)
+    .neq('phase', 'publicado_entregado')
+    .in('content_type', PIPELINE_CONTENT_TYPES)
+
+  if (!openItems || openItems.length === 0) return 0
+
+  let migrated = 0
+  for (const item of openItems as Array<{
+    id: string
+    content_type: string
+    phase: string
+    title: string | null
+    review_started_at: string | null
+    assigned_to: string[] | null
+    includes_story: boolean | null
+    deadline: string | null
+  }>) {
+    const { data: newReq, error: insErr } = await supabase
+      .from('requirements')
+      .insert({
+        billing_cycle_id: newCycleId,
+        content_type: item.content_type,
+        phase: item.phase,
+        carried_over: true,
+        registered_by_user_id: null,
+        over_limit: false,
+        voided: false,
+        title: item.title ?? '',
+        review_started_at: item.review_started_at ?? null,
+        assigned_to: item.assigned_to ?? null,
+        includes_story: item.includes_story ?? false,
+        deadline: item.deadline ?? null,
+      })
+      .select('id')
+      .single()
+
+    if (insErr || !newReq) {
+      console.error('[cron-migrate] insert error', insErr)
+      continue
+    }
+
+    // Copiar logs históricos
+    const { data: oldLogs } = await supabase
+      .from('requirement_phase_logs')
+      .select('from_phase, to_phase, moved_by, notes, created_at')
+      .eq('requirement_id', item.id)
+      .order('created_at', { ascending: true })
+
+    for (const log of oldLogs ?? []) {
+      await supabase.from('requirement_phase_logs').insert({
+        requirement_id: newReq.id,
+        from_phase: log.from_phase,
+        to_phase: log.to_phase,
+        moved_by: log.moved_by,
+        notes: log.notes,
+        created_at: log.created_at,
+      })
+    }
+
+    // Log de migración
+    await supabase.from('requirement_phase_logs').insert({
+      requirement_id: newReq.id,
+      from_phase: null,
+      to_phase: item.phase,
+      moved_by: null,
+      notes: 'Trasladado del ciclo anterior (cron)',
+    })
+
+    migrated++
+  }
+  return migrated
+}
+
 async function loadCompanySettings() {
   const { data } = await supabase.from('company_settings').select('*').limit(1).maybeSingle()
   return data
@@ -232,7 +344,7 @@ Deno.serve(async (_req) => {
     // ========== STEP 1: AUTO-BILLING ==========
     const { data: autoCycles } = await supabase
       .from('billing_cycles')
-      .select('id, period_start, period_end, client_id, plan_id_snapshot, clients(*)')
+      .select('id, period_start, period_end, client_id, plan_id_snapshot, payment_status, payment_status_2, clients(*)')
       .eq('status', 'current')
 
     const emitter = await loadCompanySettings()
@@ -241,6 +353,13 @@ Deno.serve(async (_req) => {
       const client = cycle.clients as ClientRow | null
       if (!client || !client.auto_billing) continue
       if (daysUntil(cycle.period_end) > AUTO_INVOICE_LEAD_DAYS) continue
+
+      // GATE: no pre-crear el siguiente ciclo si el cliente tiene impagos en
+      // el ciclo actual. Evita que clientes morosos sigan ciclo siguiente.
+      if (!isCycleFullyPaid(cycle as { payment_status: string | null; payment_status_2: string | null }, client.billing_period)) {
+        log.push(`⊘ Skip auto-billing para ${client.name}: ciclo actual con pagos pendientes`)
+        continue
+      }
 
       // ¿ya existe ciclo 'scheduled' para este cliente?
       const { data: existingScheduled } = await supabase
@@ -440,32 +559,17 @@ Deno.serve(async (_req) => {
       const client = cycle.clients
       if (!client) continue
 
-      if (cycle.payment_status === 'paid') {
+      const fullyPaid = isCycleFullyPaid(
+        cycle as { payment_status: string | null; payment_status_2: string | null },
+        client.billing_period ?? 'monthly'
+      )
+
+      if (fullyPaid) {
         // Archive current cycle
         await supabase
           .from('billing_cycles')
           .update({ status: 'archived' })
           .eq('id', cycle.id)
-
-        // Cleanup de adjuntos del chat — Supabase Free solo permite 50MB total.
-        try {
-          const { data: reqsOfCycle } = await supabase
-            .from('requirements')
-            .select('id')
-            .eq('billing_cycle_id', cycle.id)
-          for (const r of reqsOfCycle ?? []) {
-            const { data: files } = await supabase.storage
-              .from('requirement-attachments')
-              .list(r.id)
-            if (files && files.length > 0) {
-              const paths = files.map((f: { name: string }) => `${r.id}/${f.name}`)
-              await supabase.storage.from('requirement-attachments').remove(paths)
-            }
-          }
-          log.push(`✓ Cleanup adjuntos para ciclo ${cycle.id}`)
-        } catch (cleanupErr) {
-          log.push(`⚠ Cleanup adjuntos falló: ${String(cleanupErr)}`)
-        }
 
         // ¿Existe un ciclo scheduled? Promoverlo.
         const { data: scheduled } = await supabase
@@ -475,11 +579,14 @@ Deno.serve(async (_req) => {
           .eq('status', 'scheduled')
           .maybeSingle()
 
+        let newCycleId: string | null = null
+
         if (scheduled) {
           await supabase
             .from('billing_cycles')
             .update({ status: 'current' })
             .eq('id', scheduled.id)
+          newCycleId = scheduled.id
 
           // Si admin cambió el plan al renovar anticipadamente, actualizar
           // clients.current_plan_id ahora (no antes, porque el ciclo actual aún
@@ -512,20 +619,79 @@ Deno.serve(async (_req) => {
             plan?.unified_content_limit != null
               ? { ...baseSnapshot, unified_content_limit: plan.unified_content_limit }
               : baseSnapshot
-          await supabase.from('billing_cycles').insert({
-            client_id: client.id,
-            plan_id_snapshot: client.current_plan_id,
-            limits_snapshot_json: limitsSnapshot,
-            rollover_from_previous_json: null,
-            period_start: periodStart,
-            period_end: periodEnd,
-            status: 'current',
-            payment_status: 'unpaid',
-          })
-          log.push(`✓ Renewed cycle for client ${client.id} (paid, no scheduled)`)
+          const { data: inserted } = await supabase
+            .from('billing_cycles')
+            .insert({
+              client_id: client.id,
+              plan_id_snapshot: client.current_plan_id,
+              limits_snapshot_json: limitsSnapshot,
+              rollover_from_previous_json: null,
+              period_start: periodStart,
+              period_end: periodEnd,
+              status: 'current',
+              payment_status: 'unpaid',
+            })
+            .select('id')
+            .single()
+          newCycleId = inserted?.id ?? null
+          log.push(
+            `✓ Renewed cycle for client ${client.id} (${periodStart} → ${periodEnd}, no scheduled)`
+          )
+        }
+
+        // CRÍTICO: trasladar requerimientos abiertos del ciclo viejo al nuevo
+        // ANTES de hacer cleanup de adjuntos. Si esto se omite, los reqs en
+        // proceso desaparecen del pipeline / detalle de cliente.
+        if (newCycleId) {
+          try {
+            const migrated = await migrateOpenPipelineItemsInline({
+              previousCycleId: cycle.id,
+              newCycleId,
+            })
+            if (migrated > 0) {
+              log.push(`✓ ${migrated} requerimiento(s) trasladados al nuevo ciclo de ${client.name}`)
+            }
+          } catch (migErr) {
+            log.push(`⚠ Migración falló para cliente ${client.id}: ${String(migErr)}`)
+          }
+        }
+
+        // Cleanup de adjuntos del chat — Supabase Free solo permite 50MB total.
+        // Solo limpiamos adjuntos de los reqs que NO se trasladaron (los
+        // trasladados son nuevas filas con sus propios adjuntos vacíos).
+        try {
+          const { data: reqsOfCycle } = await supabase
+            .from('requirements')
+            .select('id, phase, voided, content_type')
+            .eq('billing_cycle_id', cycle.id)
+          for (const r of (reqsOfCycle ?? []) as Array<{
+            id: string
+            phase: string
+            voided: boolean
+            content_type: string
+          }>) {
+            // Solo limpiar adjuntos de reqs que NO fueron trasladados
+            // (i.e., voided o phase=publicado_entregado o no-pipeline content type).
+            const wasMigrated =
+              !r.voided &&
+              r.phase !== 'publicado_entregado' &&
+              PIPELINE_CONTENT_TYPES.includes(r.content_type)
+            if (wasMigrated) continue
+
+            const { data: files } = await supabase.storage
+              .from('requirement-attachments')
+              .list(r.id)
+            if (files && files.length > 0) {
+              const paths = files.map((f: { name: string }) => `${r.id}/${f.name}`)
+              await supabase.storage.from('requirement-attachments').remove(paths)
+            }
+          }
+          log.push(`✓ Cleanup adjuntos para ciclo ${cycle.id}`)
+        } catch (cleanupErr) {
+          log.push(`⚠ Cleanup adjuntos falló: ${String(cleanupErr)}`)
         }
       } else {
-        // Unpaid → mark as pending_renewal and client as overdue
+        // Unpaid (incluye biweekly con segunda quincena impaga) → pending_renewal + overdue
         await supabase
           .from('billing_cycles')
           .update({ status: 'pending_renewal' })

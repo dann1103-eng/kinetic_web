@@ -7,8 +7,10 @@ import { nextCycleDates } from '@/lib/domain/cycles'
 import { today as todayString } from '@/lib/domain/dates'
 import { CONTENT_TYPES, CONTENT_TO_PLAN_KEY, effectiveLimits } from '@/lib/domain/plans'
 import { computeTotals } from '@/lib/domain/requirement'
-import { migrateOpenPipelineItems } from '@/lib/domain/pipeline'
+import { migrateOpenPipelineItems, PIPELINE_CONTENT_TYPES } from '@/lib/domain/pipeline'
+import type { Phase } from '@/types/db'
 import { cleanupCycleStorage } from '@/lib/supabase/cleanup-cycle-storage'
+import { assertNotImpersonating } from './impersonation'
 import type {
   BillingPeriod, CambiosPackage, ContentType, ExtraContentItem, PlanLimits, PaymentStatus,
 } from '@/types/db'
@@ -332,4 +334,134 @@ export async function createCurrentCycle(args: CreateCurrentCycleArgs) {
   revalidatePath('/renewals')
   revalidatePath('/dashboard')
   return { ok: true }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Rescatar requerimientos huérfanos: si en una renovación previa el
+// cron NO trasladó los requerimientos en proceso del ciclo archivado al
+// nuevo, este action busca esos requerimientos huérfanos y los traslada
+// al ciclo current actual con `carried_over=true`.
+//
+// Idempotente: si un requerimiento ya tiene una "copia trasladada" en el
+// ciclo current (mismo title + content_type + carried_over=true), se
+// omite para evitar duplicados.
+// ─────────────────────────────────────────────────────────────────
+export async function rescueOrphanedRequirements(
+  clientId: string
+): Promise<{ ok: true; rescued: number } | { error: string }> {
+  await assertNotImpersonating()
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+  const { data: appUser } = await supabase
+    .from('users').select('role').eq('id', user.id).single()
+  if (appUser?.role !== 'admin' && appUser?.role !== 'supervisor') {
+    return { error: 'Solo admin o supervisor puede rescatar requerimientos.' }
+  }
+
+  // Ciclo current del cliente
+  const { data: currentCycle } = await supabase
+    .from('billing_cycles')
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('status', 'current')
+    .maybeSingle()
+  if (!currentCycle) {
+    return { error: 'El cliente no tiene un ciclo current activo. Crea uno antes de rescatar.' }
+  }
+
+  // Ciclos archivados del cliente
+  const { data: archivedCycles } = await supabase
+    .from('billing_cycles')
+    .select('id')
+    .eq('client_id', clientId)
+    .in('status', ['archived', 'pending_renewal'])
+  const archivedIds = (archivedCycles ?? []).map((c) => c.id)
+  if (archivedIds.length === 0) return { ok: true, rescued: 0 }
+
+  // Requerimientos huérfanos (no anulados, no en publicado_entregado, tipos pipeline)
+  const { data: orphans } = await supabase
+    .from('requirements')
+    .select('id, content_type, phase, title, review_started_at, assigned_to, includes_story, deadline')
+    .in('billing_cycle_id', archivedIds)
+    .eq('voided', false)
+    .neq('phase', 'publicado_entregado')
+    .in('content_type', PIPELINE_CONTENT_TYPES)
+
+  if (!orphans || orphans.length === 0) return { ok: true, rescued: 0 }
+
+  // Traslados ya existentes en el ciclo current (para evitar duplicados): match por title + content_type
+  const { data: existingCarried } = await supabase
+    .from('requirements')
+    .select('title, content_type')
+    .eq('billing_cycle_id', currentCycle.id)
+    .eq('carried_over', true)
+  const existingKeys = new Set(
+    (existingCarried ?? []).map((r) => `${r.content_type}::${(r.title ?? '').trim().toLowerCase()}`)
+  )
+
+  let rescued = 0
+  for (const item of orphans) {
+    const key = `${item.content_type}::${(item.title ?? '').trim().toLowerCase()}`
+    if (existingKeys.has(key)) continue
+
+    const { data: newReq, error: insErr } = await supabase
+      .from('requirements')
+      .insert({
+        billing_cycle_id: currentCycle.id,
+        content_type: item.content_type,
+        phase: item.phase as Phase,
+        carried_over: true,
+        registered_by_user_id: user.id,
+        over_limit: false,
+        voided: false,
+        title: item.title ?? '',
+        review_started_at: item.review_started_at ?? null,
+        assigned_to: (item.assigned_to as string[] | null) ?? null,
+        includes_story: item.includes_story ?? false,
+        deadline: item.deadline ?? null,
+      })
+      .select('id')
+      .single()
+
+    if (insErr || !newReq) {
+      console.error('[rescueOrphanedRequirements]', insErr)
+      continue
+    }
+
+    // Copiar logs históricos
+    const { data: oldLogs } = await supabase
+      .from('requirement_phase_logs')
+      .select('from_phase, to_phase, moved_by, notes, created_at')
+      .eq('requirement_id', item.id)
+      .order('created_at', { ascending: true })
+
+    for (const log of oldLogs ?? []) {
+      await supabase.from('requirement_phase_logs').insert({
+        requirement_id: newReq.id,
+        from_phase: log.from_phase as Phase | null,
+        to_phase: log.to_phase as Phase,
+        moved_by: log.moved_by,
+        notes: log.notes,
+        created_at: log.created_at,
+      })
+    }
+
+    // Log de rescate
+    await supabase.from('requirement_phase_logs').insert({
+      requirement_id: newReq.id,
+      from_phase: null,
+      to_phase: item.phase as Phase,
+      moved_by: user.id,
+      notes: 'Rescatado del ciclo anterior (traslado manual)',
+    })
+
+    rescued++
+  }
+
+  revalidatePath(`/clients/${clientId}`)
+  revalidatePath('/pipeline')
+  revalidatePath('/dashboard')
+  return { ok: true, rescued }
 }
