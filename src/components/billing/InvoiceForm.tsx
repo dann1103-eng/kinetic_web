@@ -122,7 +122,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
         const defaultCycleId = !cyc
           ? ''
           : isContentPlan
-            ? cyc.id
+            ? ''
             : firstTime
               ? cyc.id
               : 'next'
@@ -152,10 +152,10 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           const isAutoPreloaded = desc.startsWith('Plan ')
           if (isEmptyDefault || isAutoPreloaded) {
             let label: string | undefined
-            if (isContentPlan && cyc) {
-              // Plan de contenido: usar period_start del ciclo (= mes en que se activó el paquete),
-              // que coincide con "Paquete activo desde …" en /clients/[id].
-              label = invoicePeriodLabel(cyc.period_start, cyc.period_start, 'monthly', null)
+            if (isContentPlan) {
+              // Plan de contenido: solo nombre del plan, sin sufijo de fecha.
+              // La factura es ad-hoc; "Paquete activo desde" en /clients/[id] usa cycle.period_start.
+              label = undefined
             } else {
               // Si es primera factura → usa el ciclo actual; si recurrente → el siguiente.
               const targetPeriod = firstTime && cyc
