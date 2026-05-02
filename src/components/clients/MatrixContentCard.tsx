@@ -177,7 +177,7 @@ export function MatrixContentCard({ matrices, currentUserId, embedded = false }:
                   type="button"
                   onClick={() => handleStart(m)}
                   disabled={isPending}
-                  className="mt-1 px-3 py-1.5 rounded-full bg-fm-primary text-white btn-action text-xs font-semibold hover:bg-fm-primary-dim disabled:opacity-60"
+                  className="mt-1 px-3 py-1.5 rounded-full bg-fm-primary text-white text-xs font-semibold hover:bg-fm-primary-dim disabled:opacity-60"
                 >
                   Iniciar timer
                 </button>

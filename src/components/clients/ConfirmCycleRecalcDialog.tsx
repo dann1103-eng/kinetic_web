@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import {
   Dialog,
@@ -54,7 +54,7 @@ export function ConfirmCycleRecalcDialog({
             type="button"
             onClick={() => onDecision(true)}
             className="w-full rounded-xl text-white font-semibold"
-            style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+            style={{ background: 'var(--btn-gradient)' }}
           >
             Sí, recalcular ciclo actual
           </Button>

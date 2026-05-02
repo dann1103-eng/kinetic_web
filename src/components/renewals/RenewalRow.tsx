@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
@@ -18,7 +18,7 @@ export type RenewalState =
   | { kind: 'paid'; scheduledPeriodStart: string; invoiceId: string; total: number }
 
 const avatarGradients = [
-  'var(--btn-bg)',
+  'var(--btn-gradient)',
   'linear-gradient(135deg, #3f3a9b 0%, #b8b3ff 100%)',
   'linear-gradient(135deg, #006385 0%, #1dc0fe 100%)',
   'linear-gradient(135deg, #5c4a8a 0%, #b89cff 100%)',
@@ -215,7 +215,7 @@ export function RenewalRow({ cycle, client, daysLeft, isAdmin, allPlans, renewal
               onClick={markPaid}
               disabled={isPending}
               className="text-xs text-white font-medium px-3 py-1.5 rounded-lg transition-all hover:opacity-90"
-              style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+              style={{ background: 'var(--btn-gradient)' }}
             >
               Marcar pagado (manual)
             </button>
@@ -249,7 +249,7 @@ export function RenewalRow({ cycle, client, daysLeft, isAdmin, allPlans, renewal
                   ? 'text-white'
                   : 'bg-fm-surface-container-lowest border-2 border-fm-primary text-fm-primary hover:bg-fm-primary/5'
               }`}
-              style={mode === 'simple' ? { background: 'var(--btn-bg)', color: 'var(--btn-text)' } : {}}
+              style={mode === 'simple' ? { background: 'var(--btn-gradient)' } : {}}
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
@@ -299,7 +299,7 @@ export function RenewalRow({ cycle, client, daysLeft, isAdmin, allPlans, renewal
                 onClick={() => doRenew(false)}
                 disabled={isPending}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-                style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+                style={{ background: 'var(--btn-gradient)' }}
               >
                 {isPending ? 'Procesando...' : 'Confirmar renovación'}
               </button>
@@ -593,7 +593,7 @@ export function RenewalRow({ cycle, client, daysLeft, isAdmin, allPlans, renewal
                 onClick={() => doRenew(true)}
                 disabled={isPending}
                 className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-                style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+                style={{ background: 'var(--btn-gradient)' }}
               >
                 {isPending ? 'Procesando...' : 'Confirmar renovación con cambios'}
               </button>

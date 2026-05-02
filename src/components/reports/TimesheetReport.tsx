@@ -500,7 +500,7 @@ function MultiFilterChip({ label, selected, options, onToggle, onClear }: MultiF
         type="button"
         onClick={() => setOpen((o) => !o)}
         className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-full border transition-colors ${
-          selected.length > 0 ? 'bg-[var(--btn-bg)] text-[var(--btn-text)] border-[var(--btn-text)]/30' : 'bg-fm-surface-container-lowest text-fm-on-surface-variant border-fm-surface-container-high hover:bg-fm-background'
+          selected.length > 0 ? 'bg-fm-primary text-white border-fm-primary' : 'bg-fm-surface-container-lowest text-fm-on-surface-variant border-fm-surface-container-high hover:bg-fm-background'
         }`}
       >
         {label}

@@ -336,7 +336,7 @@ function EditProfileModal({
           <button
             onClick={handleSubmit}
             disabled={isPending}
-            className="flex-1 py-2.5 bg-fm-primary text-white btn-action rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
+            className="flex-1 py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
           >
             {isPending ? 'Guardando…' : 'Guardar'}
           </button>
@@ -402,7 +402,7 @@ function ChangePasswordModal({
             </div>
             <button
               onClick={onClose}
-              className="w-full py-2.5 bg-fm-primary text-white btn-action rounded-full text-sm font-bold hover:bg-fm-primary-dim"
+              className="w-full py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim"
             >
               Cerrar
             </button>
@@ -443,7 +443,7 @@ function ChangePasswordModal({
               <button
                 onClick={handleSubmit}
                 disabled={isPending}
-                className="flex-1 py-2.5 bg-fm-primary text-white btn-action rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
+                className="flex-1 py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
               >
                 {isPending ? 'Guardando…' : 'Cambiar contraseña'}
               </button>
@@ -568,7 +568,7 @@ function CreateUserModal({ onClose, onCreated }: {
           <button
             onClick={handleSubmit}
             disabled={isPending}
-            className="flex-1 py-2.5 bg-fm-primary text-white btn-action rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
+            className="flex-1 py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
           >
             {isPending ? 'Creando…' : 'Crear usuario'}
           </button>
@@ -634,7 +634,7 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
       <div className="mt-4 flex justify-end">
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-fm-primary text-white btn-action font-bold rounded-full hover:bg-fm-primary-dim transition-all text-sm"
+          className="flex items-center gap-2 px-5 py-2.5 bg-fm-primary text-white font-bold rounded-full hover:bg-fm-primary-dim transition-all text-sm"
         >
           <span className="material-symbols-outlined text-base">person_add</span>
           Crear usuario

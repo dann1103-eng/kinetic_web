@@ -572,7 +572,7 @@ export default function ClientEditPage() {
                     Cancelar
                   </Button>
                   <Button type="submit" disabled={loading} className="flex-1 rounded-xl text-white font-semibold"
-                    style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}>
+                    style={{ background: 'var(--btn-gradient)' }}>
                     {loading ? 'Guardando...' : 'Guardar cambios'}
                   </Button>
                 </div>
@@ -843,7 +843,7 @@ export default function ClientEditPage() {
 
                     <Button onClick={handleSaveCycle} disabled={cycleLoading}
                       className="w-full rounded-xl text-white font-semibold"
-                      style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}>
+                      style={{ background: 'var(--btn-gradient)' }}>
                       {cycleLoading ? 'Guardando...' : 'Guardar configuración del ciclo'}
                     </Button>
                   </div>
@@ -952,7 +952,7 @@ export default function ClientEditPage() {
 
                     <Button type="button" onClick={handleSaveCycleDates} disabled={cycleDatesSaving}
                       className="w-full rounded-xl text-white font-semibold"
-                      style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}>
+                      style={{ background: 'var(--btn-gradient)' }}>
                       {cycleDatesSaving
                         ? 'Guardando...'
                         : currentCycle ? 'Guardar fechas y pagos' : 'Crear ciclo activo'}
@@ -1063,7 +1063,7 @@ export default function ClientEditPage() {
 
                     <Button type="button" onClick={handleSaveFiscal} disabled={fiscalSaving}
                       className="mt-5 w-full rounded-xl text-white font-semibold"
-                      style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}>
+                      style={{ background: 'var(--btn-gradient)' }}>
                       {fiscalSaving ? 'Guardando...' : 'Guardar datos fiscales'}
                     </Button>
                   </div>

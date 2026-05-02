@@ -91,7 +91,7 @@ export function PipelineContainer({
               onClick={() => setView(v)}
               className={`px-4 py-1.5 font-semibold transition-colors ${
                 view === v
-                  ? 'bg-[var(--btn-bg)] text-[var(--btn-text)]'
+                  ? 'bg-fm-primary text-white'
                   : 'text-fm-on-surface-variant hover:bg-fm-background'
               }`}
             >

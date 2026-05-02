@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -135,7 +135,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={uploading}
-                className="absolute -bottom-1 -right-1 w-6 h-6 bg-fm-primary text-white btn-action rounded-full flex items-center justify-center hover:bg-fm-primary-dim transition-colors disabled:opacity-60"
+                className="absolute -bottom-1 -right-1 w-6 h-6 bg-fm-primary text-white rounded-full flex items-center justify-center hover:bg-fm-primary-dim transition-colors disabled:opacity-60"
                 title="Cambiar foto"
               >
                 <span className="material-symbols-outlined text-sm leading-none">photo_camera</span>
@@ -184,7 +184,7 @@ export default function ProfilePage() {
               type="submit"
               disabled={isPending || uploading}
               className="w-full rounded-xl text-white font-semibold"
-              style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+              style={{ background: 'var(--btn-gradient)' }}
             >
               {isPending ? 'Guardando...' : 'Guardar cambios'}
             </Button>
@@ -288,7 +288,7 @@ export default function ProfilePage() {
               type="submit"
               disabled={pwLoading}
               className="w-full rounded-xl text-white font-semibold"
-              style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+              style={{ background: 'var(--btn-gradient)' }}
             >
               {pwLoading ? 'Actualizando...' : 'Actualizar contraseña'}
             </Button>

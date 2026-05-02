@@ -284,7 +284,7 @@ export default async function ClientReportPage({
                   className="flex items-center gap-2 px-4 py-2.5 bg-fm-background rounded-2xl border border-fm-surface-container-high"
                 >
                   <span className="text-sm font-semibold text-fm-on-surface-variant">{PHASE_LABELS[phase]}</span>
-                  <span className="min-w-[24px] text-center px-2 py-0.5 bg-fm-primary text-white btn-action text-xs font-extrabold rounded-full">
+                  <span className="min-w-[24px] text-center px-2 py-0.5 bg-fm-primary text-white text-xs font-extrabold rounded-full">
                     {pipelineCountByPhase[phase]}
                   </span>
                 </div>

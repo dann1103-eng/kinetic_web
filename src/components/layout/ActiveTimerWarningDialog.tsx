@@ -41,7 +41,7 @@ export function ActiveTimerWarningDialog({
         <button
           type="button"
           onClick={onDismiss}
-          className="w-full px-4 py-2 rounded-full bg-fm-primary text-white btn-action text-sm font-bold hover:bg-fm-primary-dim transition-colors"
+          className="w-full px-4 py-2 rounded-full bg-fm-primary text-white text-sm font-bold hover:bg-fm-primary-dim transition-colors"
         >
           Entendido
         </button>

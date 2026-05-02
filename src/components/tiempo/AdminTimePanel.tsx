@@ -103,7 +103,7 @@ export function AdminTimePanel({ users }: Props) {
 
         <button
           onClick={() => setShowAdd(true)}
-          className="ml-auto flex items-center gap-2 px-4 py-2 bg-fm-primary text-white btn-action font-bold rounded-full hover:bg-fm-primary-dim transition-all text-sm"
+          className="ml-auto flex items-center gap-2 px-4 py-2 bg-fm-primary text-white font-bold rounded-full hover:bg-fm-primary-dim transition-all text-sm"
         >
           <span className="material-symbols-outlined text-base">add</span>
           Agregar entrada
@@ -242,7 +242,7 @@ function AddEntryModal({ targetUserId, onClose, onSaved }: {
                 <button
                   key={t}
                   onClick={() => setEntryType(t)}
-                  className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-all ${entryType === t ? 'bg-fm-primary text-white btn-action border-fm-primary' : 'border-fm-surface-container-high text-fm-on-surface-variant'}`}
+                  className={`flex-1 py-2 rounded-xl text-sm font-bold border transition-all ${entryType === t ? 'bg-fm-primary text-white border-fm-primary' : 'border-fm-surface-container-high text-fm-on-surface-variant'}`}
                 >
                   {t === 'administrative' ? 'Administrativo' : 'Requerimiento'}
                 </button>
@@ -301,7 +301,7 @@ function AddEntryModal({ targetUserId, onClose, onSaved }: {
           <button onClick={onClose} className="flex-1 py-2.5 border border-fm-surface-container-high rounded-full text-sm font-bold text-fm-on-surface-variant hover:bg-fm-background">
             Cancelar
           </button>
-          <button onClick={handleSubmit} disabled={isPending} className="flex-1 py-2.5 bg-fm-primary text-white btn-action rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60">
+          <button onClick={handleSubmit} disabled={isPending} className="flex-1 py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60">
             {isPending ? 'Guardando…' : 'Guardar'}
           </button>
         </div>
@@ -383,7 +383,7 @@ function EditEntryModal({ entry, onClose, onSaved }: {
 
         <div className="flex gap-3">
           <button onClick={onClose} className="flex-1 py-2.5 border border-fm-surface-container-high rounded-full text-sm font-bold text-fm-on-surface-variant hover:bg-fm-background">Cancelar</button>
-          <button onClick={handleSubmit} disabled={isPending} className="flex-1 py-2.5 bg-fm-primary text-white btn-action rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60">
+          <button onClick={handleSubmit} disabled={isPending} className="flex-1 py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60">
             {isPending ? 'Guardando…' : 'Guardar'}
           </button>
         </div>

@@ -113,7 +113,7 @@ export default function PortalConfigPage() {
         <button
           type="submit"
           disabled={isPending}
-          className="w-full rounded-lg bg-fm-primary text-white btn-action px-4 py-2 text-sm font-medium disabled:opacity-50"
+          className="w-full rounded-lg bg-fm-primary text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {isPending ? 'Guardando…' : 'Guardar contraseña'}
         </button>

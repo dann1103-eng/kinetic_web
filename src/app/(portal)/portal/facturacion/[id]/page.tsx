@@ -193,7 +193,7 @@ export default async function PortalInvoiceDetailPage({
               <N1coPayButton
                 paymentLinkUrl={invoice.n1co_payment_link_url}
                 invoiceId={invoice.id}
-                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-fm-primary text-white btn-action text-sm font-semibold py-2.5 hover:bg-fm-primary/90 transition-colors"
+                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-fm-primary text-white text-sm font-semibold py-2.5 hover:bg-fm-primary/90 transition-colors"
               >
                 <span className="material-symbols-outlined text-base">credit_card</span>
                 Pagar ahora

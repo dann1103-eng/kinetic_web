@@ -489,7 +489,7 @@ export function PhaseSheet({
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors flex-1 justify-center ${
                 activeTab === tab.id
-                  ? 'text-fm-content-icon border-fm-content-icon'
+                  ? 'text-fm-primary border-fm-primary'
                   : 'text-fm-outline border-transparent hover:text-fm-on-surface'
               }`}
             >
@@ -603,7 +603,7 @@ export function PhaseSheet({
                       aria-checked={editIncludesStory}
                       onClick={() => setEditIncludesStory(!editIncludesStory)}
                       className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors mt-0.5 ${
-                        editIncludesStory ? 'bg-fm-content-icon' : 'bg-fm-outline-variant'
+                        editIncludesStory ? 'bg-fm-primary' : 'bg-fm-outline-variant'
                       }`}
                     >
                       <span
@@ -636,7 +636,7 @@ export function PhaseSheet({
                               onChange={() => setEditAssignedTo(prev =>
                                 checked ? prev.filter(id => id !== u.id) : [...prev, u.id]
                               )}
-                              className="rounded accent-[var(--fm-content-icon)]"
+                              className="rounded accent-fm-primary"
                             />
                             <span className="text-sm text-fm-on-surface">{u.full_name}</span>
                           </label>
@@ -849,7 +849,7 @@ export function PhaseSheet({
                       <button
                         onClick={handleAddCambio}
                         disabled={incrementing}
-                        className="flex-1 py-1.5 text-xs font-semibold rounded-lg btn-action disabled:opacity-50"
+                        className="flex-1 py-1.5 text-xs font-semibold rounded-lg text-white bg-fm-primary hover:bg-fm-primary-dim disabled:opacity-50"
                       >
                         {incrementing ? 'Registrando…' : 'Registrar cambio'}
                       </button>

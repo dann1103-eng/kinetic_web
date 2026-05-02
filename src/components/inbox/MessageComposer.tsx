@@ -192,7 +192,7 @@ export function MessageComposer({ conversationId, placeholder }: MessageComposer
             type="button"
             onClick={send}
             disabled={sending}
-            className="p-2.5 bg-fm-primary text-white btn-action rounded-lg hover:opacity-90 disabled:opacity-50"
+            className="p-2.5 bg-fm-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
             title="Enviar"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">

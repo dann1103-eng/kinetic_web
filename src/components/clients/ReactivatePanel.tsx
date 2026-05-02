@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -162,7 +162,7 @@ export function ReactivatePanel({ client, plans }: ReactivatePanelProps) {
           onClick={handleReactivate}
           disabled={loading}
           className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-          style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+          style={{ background: 'var(--btn-gradient)' }}
         >
           {loading ? 'Reactivando...' : 'Reactivar cliente y crear ciclo'}
         </button>

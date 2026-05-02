@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useMemo, useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -667,7 +667,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
 
         <div className="space-y-2">
           <Button type="submit" disabled={saving} className="w-full rounded-xl text-white font-semibold"
-            style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}>
+            style={{ background: 'var(--btn-gradient)' }}>
             {saving ? 'Guardando…' : (mode === 'invoice' ? 'Crear factura' : 'Crear cotización')}
           </Button>
           <Button type="button" variant="outline" onClick={() => router.back()} className="w-full rounded-xl">

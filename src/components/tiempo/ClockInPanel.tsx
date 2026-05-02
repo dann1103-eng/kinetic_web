@@ -134,7 +134,7 @@ export function ClockInPanel({ initialActive }: Props) {
                 rows={2}
                 className="flex-1 border border-fm-surface-container-high rounded-xl px-3 py-2 text-sm text-fm-on-surface bg-fm-surface-container-lowest focus:outline-none focus:ring-2 focus:ring-fm-primary/30 resize-none"
               />
-              <button onClick={handleSaveActiveNotes} disabled={isPending} className="px-3 py-2 bg-fm-primary text-white btn-action text-xs font-bold rounded-xl disabled:opacity-60">
+              <button onClick={handleSaveActiveNotes} disabled={isPending} className="px-3 py-2 bg-fm-primary text-white text-xs font-bold rounded-xl disabled:opacity-60">
                 {isPending ? '…' : 'Guardar'}
               </button>
               <button onClick={() => setEditingNotes(false)} className="px-3 py-2 text-fm-on-surface-variant text-xs font-bold rounded-xl border border-fm-surface-container-high">
@@ -175,7 +175,7 @@ export function ClockInPanel({ initialActive }: Props) {
               onClick={handleStart}
               disabled={isPending || hasActiveShift === false}
               title={hasActiveShift === false ? 'Debes iniciar tu jornada para registrar tiempo' : undefined}
-              className="flex items-center gap-2 px-5 py-2.5 bg-fm-primary text-white btn-action font-bold rounded-full hover:bg-fm-primary-dim transition-all text-sm disabled:opacity-60 whitespace-nowrap"
+              className="flex items-center gap-2 px-5 py-2.5 bg-fm-primary text-white font-bold rounded-full hover:bg-fm-primary-dim transition-all text-sm disabled:opacity-60 whitespace-nowrap"
             >
               <span className="material-symbols-outlined text-base">login</span>
               Marcar entrada

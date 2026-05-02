@@ -301,7 +301,7 @@ export function ClientEmpresaForm({ client, cycle }: Props) {
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-fm-primary text-white btn-action px-6 py-2 text-sm font-medium disabled:opacity-50"
+            className="rounded-lg bg-fm-primary text-white px-6 py-2 text-sm font-medium disabled:opacity-50"
           >
             {isPending ? 'Guardando…' : 'Guardar cambios'}
           </button>

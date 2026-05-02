@@ -182,7 +182,7 @@ export function ImageViewer({
           {pending && (
             <>
               <div
-                className="absolute -translate-x-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-fm-primary text-white btn-action flex items-center justify-center text-[11px] font-bold shadow-md ring-2 ring-white"
+                className="absolute -translate-x-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-fm-primary text-white flex items-center justify-center text-[11px] font-bold shadow-md ring-2 ring-white"
                 style={{ left: `${pending.xPct}%`, top: `${pending.yPct}%` }}
               >
                 {pins.length + 1}

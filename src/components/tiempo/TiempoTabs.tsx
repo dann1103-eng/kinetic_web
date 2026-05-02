@@ -28,7 +28,7 @@ export function TiempoTabs({ userId, activeEntry, entries, year, month, allUsers
             key={t}
             onClick={() => setTab(t)}
             className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${
-              tab === t ? 'bg-fm-surface-container-lowest text-fm-content-icon shadow-sm' : 'text-fm-on-surface-variant hover:text-fm-on-surface'
+              tab === t ? 'bg-fm-surface-container-lowest text-fm-primary shadow-sm' : 'text-fm-on-surface-variant hover:text-fm-on-surface'
             }`}
           >
             {t === 'personal' ? 'Mi tiempo' : 'Equipo'}

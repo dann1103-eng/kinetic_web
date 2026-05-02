@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -281,7 +281,7 @@ export function ClientForm({ plans, existing }: ClientFormProps) {
       <Button
         onClick={() => setOpen(true)}
         className="text-white font-semibold rounded-xl"
-        style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+        style={{ background: 'var(--btn-gradient)' }}
       >
         + Nuevo cliente
       </Button>
@@ -642,7 +642,7 @@ export function ClientForm({ plans, existing }: ClientFormProps) {
               type="submit"
               disabled={loading}
               className="flex-1 rounded-xl text-white font-semibold"
-              style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+              style={{ background: 'var(--btn-gradient)' }}
             >
               {loading ? 'Guardando...' : existing ? 'Guardar cambios' : 'Crear cliente'}
             </Button>

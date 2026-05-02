@@ -154,7 +154,7 @@ export function ShiftPanel() {
           type="button"
           onClick={() => handle(() => startShift())}
           disabled={isPending}
-          className="px-4 py-2 rounded-full bg-fm-primary text-white btn-action font-bold text-sm hover:bg-fm-primary-dim disabled:opacity-60"
+          className="px-4 py-2 rounded-full bg-fm-primary text-white font-bold text-sm hover:bg-fm-primary-dim disabled:opacity-60"
         >
           Iniciar jornada
         </button>
@@ -207,7 +207,7 @@ export function ShiftPanel() {
             type="button"
             onClick={() => handle(() => endBreak())}
             disabled={isPending}
-            className="px-3 py-1.5 rounded-full bg-fm-primary text-white btn-action text-xs font-bold hover:bg-fm-primary-dim disabled:opacity-60"
+            className="px-3 py-1.5 rounded-full bg-fm-primary text-white text-xs font-bold hover:bg-fm-primary-dim disabled:opacity-60"
           >
             Reanudar
           </button>

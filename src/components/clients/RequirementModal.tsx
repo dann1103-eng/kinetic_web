@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -833,7 +833,7 @@ export function RequirementModal({
                 (!isScheduledType && selectedType !== null && (!deadline.trim() || (!estHours.trim() && !estMinsField.trim())))
               }
               className="flex-1 rounded-xl text-white font-semibold"
-              style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
+              style={{ background: 'var(--btn-gradient)' }}
             >
               {loading ? 'Registrando...' : 'Confirmar'}
             </Button>

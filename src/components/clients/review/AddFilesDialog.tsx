@@ -329,7 +329,7 @@ export function AddFilesDialog({
                 busy ||
                 (mode.kind === 'new-asset' && !name.trim())
               }
-              className="px-4 py-2 rounded-full text-xs font-semibold bg-fm-primary text-white btn-action hover:bg-fm-primary-dim disabled:opacity-40 transition-colors"
+              className="px-4 py-2 rounded-full text-xs font-semibold bg-fm-primary text-white hover:bg-fm-primary-dim disabled:opacity-40 transition-colors"
             >
               {busy ? 'Subiendo…' : 'Subir'}
             </button>
