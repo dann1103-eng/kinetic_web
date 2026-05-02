@@ -112,6 +112,7 @@ export function RequirementTimesheet({
     supabase
       .from('users')
       .select('id, full_name')
+      .neq('role', 'client')
       .order('full_name')
       .then(({ data }) => setAssignableUsers(data ?? []))
   }, [canAssignToOthers])

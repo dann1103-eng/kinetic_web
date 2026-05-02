@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
@@ -69,7 +70,7 @@ export function N1coPayModal({ open, onOpenChange, paymentLinkUrl, invoiceId }: 
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
       onClick={(e) => {
@@ -146,7 +147,8 @@ export function N1coPayModal({ open, onOpenChange, paymentLinkUrl, invoiceId }: 
           </p>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
