@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { UserAvatar } from '@/components/ui/UserAvatar'
+import { CallButtons } from '@/components/calls/CallButtons'
 import { cn } from '@/lib/utils'
 import type { Conversation, AppUser } from '@/types/db'
 
@@ -66,21 +67,28 @@ export function ChatHeader({
           </div>
         )}
       </div>
-      {showDetailsButton && (
-        <button
-          type="button"
-          onClick={onToggleDetails}
-          className={cn(
-            'p-2 rounded-lg transition-colors',
-            detailsOpen ? 'bg-fm-primary/10 text-fm-primary' : 'text-fm-on-surface-variant hover:bg-fm-background'
-          )}
-          title="Detalles del canal"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 9h2V7h-2v2z" />
-          </svg>
-        </button>
-      )}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <CallButtons
+          conversationId={conversation.id}
+          title={isChannel ? `#${conversation.name ?? 'canal'}` : counterpart?.full_name ?? 'Usuario'}
+          counterpartAvatarUrl={isChannel ? null : counterpart?.avatar_url}
+        />
+        {showDetailsButton && (
+          <button
+            type="button"
+            onClick={onToggleDetails}
+            className={cn(
+              'p-2 rounded-lg transition-colors',
+              detailsOpen ? 'bg-fm-primary/10 text-fm-primary' : 'text-fm-on-surface-variant hover:bg-fm-background'
+            )}
+            title="Detalles del canal"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 9h2V7h-2v2z" />
+            </svg>
+          </button>
+        )}
+      </div>
     </header>
   )
 }

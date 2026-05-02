@@ -7,6 +7,9 @@ import { MobileSidebarProvider } from '@/components/layout/MobileSidebarProvider
 import { UserProvider } from '@/contexts/UserContext'
 import { NotificationToastHost } from '@/components/notifications/NotificationToastHost'
 import { FloatingChatDock } from '@/components/inbox/floating/FloatingChatDock'
+import { CallDock } from '@/components/calls/CallDock'
+import { IncomingCallToast } from '@/components/calls/IncomingCallToast'
+import { ActiveCallProvider } from '@/contexts/ActiveCallContext'
 import { LoginWelcomeDialog } from '@/components/layout/LoginWelcomeDialog'
 import { IdleSchedulerWrapper } from '@/components/layout/IdleSchedulerWrapper'
 import { SessionSentinel } from '@/components/auth/SessionSentinel'
@@ -61,21 +64,25 @@ export default async function AppLayout({ children }: AppLayoutProps) {
       isImpersonating={ctx.isImpersonating}
       realAdminName={ctx.isImpersonating ? ctx.realAppUser.full_name : null}
     >
-      <MobileSidebarProvider>
-        <SpectatorBanner />
-        <div className="flex h-screen overflow-hidden bg-fm-background">
-          <Sidebar renewalCount={renewalCount} agencyLogoUrl={agencyLogoUrl} />
-          <MobileSidebar renewalCount={renewalCount} agencyLogoUrl={agencyLogoUrl} />
-          <div className="flex flex-col flex-1 md:ml-64 overflow-hidden">
-            <main className="flex-1 overflow-y-auto">{children}</main>
+      <ActiveCallProvider>
+        <MobileSidebarProvider>
+          <SpectatorBanner />
+          <div className="flex h-screen overflow-hidden bg-fm-background">
+            <Sidebar renewalCount={renewalCount} agencyLogoUrl={agencyLogoUrl} />
+            <MobileSidebar renewalCount={renewalCount} agencyLogoUrl={agencyLogoUrl} />
+            <div className="flex flex-col flex-1 md:ml-64 overflow-hidden">
+              <main className="flex-1 overflow-y-auto">{children}</main>
+            </div>
           </div>
-        </div>
-        <NotificationToastHost />
-        <FloatingChatDock />
-        <LoginWelcomeDialog />
-        <IdleSchedulerWrapper />
-        <SessionSentinel />
-      </MobileSidebarProvider>
+          <NotificationToastHost />
+          <FloatingChatDock />
+          <CallDock />
+          <IncomingCallToast />
+          <LoginWelcomeDialog />
+          <IdleSchedulerWrapper />
+          <SessionSentinel />
+        </MobileSidebarProvider>
+      </ActiveCallProvider>
     </UserProvider>
   )
 }

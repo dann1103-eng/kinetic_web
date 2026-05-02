@@ -7,6 +7,7 @@ import { sendMessage } from '@/app/actions/inbox'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { EmojiPicker } from '@/components/ui/EmojiPicker'
 import { RequirementShareCard, parseReqShareBody } from '@/components/inbox/RequirementShareCard'
+import { CallButtons } from '@/components/calls/CallButtons'
 import { useUser } from '@/contexts/UserContext'
 import type { ConversationListItem, MessageWithMeta } from '@/types/db'
 import { formatDistanceToNow, parseISO } from 'date-fns'
@@ -115,6 +116,16 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
           <span className="text-xs font-semibold truncate text-white">{label}</span>
         </div>
         <div className="flex items-center gap-1">
+          <div className="mr-1">
+            <CallButtons
+              conversationId={conversation.id}
+              title={label}
+              counterpartAvatarUrl={
+                conversation.type === 'dm' ? conversation.counterpart?.avatar_url : null
+              }
+              compact
+            />
+          </div>
           <button
             type="button"
             onClick={() => onMinimize(conversation.id)}

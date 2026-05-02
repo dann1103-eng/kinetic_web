@@ -114,7 +114,9 @@ export type ClientStatus = 'active' | 'paused' | 'overdue'
 export type CycleStatus = 'current' | 'archived' | 'pending_renewal' | 'scheduled'
 export type PaymentStatus = 'paid' | 'unpaid'
 export type UserRole = 'admin' | 'supervisor' | 'operator' | 'client'
-export type ConversationType = 'dm' | 'channel'
+export type ConversationType = 'dm' | 'channel' | 'voice_channel'
+
+export type CallModality = 'voice' | 'video' | 'screen'
 
 export type ClientUserRole = 'owner' | 'viewer'
 
@@ -1675,6 +1677,49 @@ export interface Database {
         }
         Relationships: []
       }
+      call_sessions: {
+        Row: {
+          id: string
+          conversation_id: string
+          started_by: string
+          started_at: string
+          ended_at: string | null
+          livekit_room_name: string
+          modality: CallModality
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          started_by: string
+          started_at?: string
+          ended_at?: string | null
+          livekit_room_name: string
+          modality?: CallModality
+        }
+        Update: {
+          ended_at?: string | null
+          modality?: CallModality
+        }
+        Relationships: []
+      }
+      call_participants: {
+        Row: {
+          session_id: string
+          user_id: string
+          joined_at: string
+          left_at: string | null
+        }
+        Insert: {
+          session_id: string
+          user_id: string
+          joined_at?: string
+          left_at?: string | null
+        }
+        Update: {
+          left_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>
@@ -1910,4 +1955,36 @@ export interface ReviewAssetWithVersions extends ReviewAsset {
 /** Pin con su thread de comentarios (raíz + respuestas). */
 export interface ReviewPinWithComments extends ReviewPin {
   comments: ReviewComment[]
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Voice/Video Calls (migración 0069_voice_calls.sql)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CallSession = Database['public']['Tables']['call_sessions']['Row']
+export type CallParticipant = Database['public']['Tables']['call_participants']['Row']
+
+/** Sesión de llamada activa con metadata para la UI del dock. */
+export interface ActiveCallInfo {
+  sessionId: string
+  conversationId: string
+  roomName: string
+  modality: CallModality
+  /** Para mostrar en el dock: nombre del canal o nombre del otro user en DM. */
+  title: string
+  /** Avatar para DMs; null para canales. */
+  counterpartAvatarUrl?: string | null
+}
+
+/** Payload del broadcast de "incoming call" en canal user:{userId}. */
+export interface IncomingCallPayload {
+  sessionId: string
+  conversationId: string
+  roomName: string
+  modality: CallModality
+  fromUser: {
+    id: string
+    full_name: string
+    avatar_url: string | null
+  }
 }
