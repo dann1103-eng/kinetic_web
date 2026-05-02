@@ -48,7 +48,7 @@ export default async function QuoteDetailPage({
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopNav title={`Cotización ${quote.quote_number}`} />
+      <TopNav title={`Cotización ${quote.quote_number}`} backHref="/billing/quotes" />
 
       <div className="flex-1 p-6">
         <div className="grid grid-cols-[1fr_340px] gap-6">

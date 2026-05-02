@@ -11,6 +11,7 @@ import { ShiftStatusWidget } from '@/components/layout/ShiftStatusWidget'
 
 interface TopNavProps {
   title: string
+  backHref?: string
 }
 
 function ThemeToggle() {
@@ -39,7 +40,7 @@ function ThemeToggle() {
   )
 }
 
-export function TopNav({ title }: TopNavProps) {
+export function TopNav({ title, backHref }: TopNavProps) {
   const user = useUser()
   const { setOpen } = useMobileSidebar()
   const displayName = user.full_name || user.email
@@ -55,6 +56,15 @@ export function TopNav({ title }: TopNavProps) {
         >
           <span className="material-symbols-outlined text-[22px]">menu</span>
         </button>
+        {backHref && (
+          <Link
+            href={backHref}
+            className="-ml-1 p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-surface-container-low transition-colors"
+            aria-label="Volver"
+          >
+            <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+          </Link>
+        )}
         <h1 className="text-lg font-semibold text-fm-on-surface truncate">{title}</h1>
       </div>
 

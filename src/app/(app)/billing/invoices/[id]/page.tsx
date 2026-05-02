@@ -54,7 +54,7 @@ export default async function InvoiceDetailPage({
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopNav title={`Factura ${invoice.invoice_number}`} />
+      <TopNav title={`Factura ${invoice.invoice_number}`} backHref="/billing/invoices" />
 
       <div className="flex-1 p-6">
         <div className="grid grid-cols-[1fr_340px] gap-6">
