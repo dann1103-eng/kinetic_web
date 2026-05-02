@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -179,7 +179,7 @@ export function N1coPayButton({
           className ??
           'flex-1 rounded-xl text-white text-xs font-semibold'
         }
-        style={className ? undefined : { background: 'var(--btn-gradient)' }}
+        style={className ? undefined : { background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
       >
         {children ?? 'Pagar ahora aquí'}
       </Button>

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -37,7 +37,7 @@ function barColor(pct: number): string {
 
 // Avatar gradients (consistent with dashboard)
 const avatarGradients = [
-  'var(--btn-gradient)',
+  'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)',
   'linear-gradient(135deg, #3f3a9b 0%, #b8b3ff 100%)',
   'linear-gradient(135deg, #006385 0%, #1dc0fe 100%)',
   'linear-gradient(135deg, #5c4a8a 0%, #b89cff 100%)',
@@ -448,7 +448,7 @@ export function RequirementPanel({
                   onClick={() => !buttonBlocked && setModalOpen(true)}
                   disabled={buttonBlocked}
                   className={`flex-1 md:flex-none px-5 py-2.5 text-white font-bold rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-sm ${buttonBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110'}`}
-                  style={{ background: buttonBlocked ? '#b31b25' : 'var(--btn-gradient)', boxShadow: 'var(--btn-shadow)' }}
+                  style={{ background: buttonBlocked ? '#b31b25' : 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
                 >
                   <span className="material-symbols-outlined text-base">{buttonBlocked ? 'block' : 'add'}</span>
                   {label}
@@ -509,7 +509,7 @@ export function RequirementPanel({
               onClick={handleRenewContentPackage}
               disabled={renewingPackage}
               className="flex items-center gap-2 px-5 py-2.5 text-white font-bold rounded-full text-sm disabled:opacity-60 flex-shrink-0"
-              style={{ background: 'var(--btn-gradient)', boxShadow: 'var(--btn-shadow)' }}
+              style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
             >
               <span className="material-symbols-outlined text-base">add_shopping_cart</span>
               {renewingPackage ? 'Creando…' : 'Contratar nuevo paquete'}
@@ -977,7 +977,7 @@ export function RequirementPanel({
                   disabled={savingNotes}
                   className="px-6 py-2.5 text-white font-bold rounded-full shadow-lg hover:scale-[1.02] transition-transform active:scale-95 text-sm disabled:opacity-60"
                   style={{
-                    background: 'var(--btn-gradient)',
+                    background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)',
                     boxShadow: '0 4px 15px rgba(0,103,92,0.2)',
                   }}
                 >

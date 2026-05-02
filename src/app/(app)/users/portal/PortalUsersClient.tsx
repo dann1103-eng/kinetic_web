@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -129,7 +129,7 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
         <Button
           onClick={openCreate}
           className="rounded-xl text-white font-semibold"
-          style={{ background: 'var(--btn-gradient)' }}
+          style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
         >
           + Nuevo usuario portal
         </Button>
@@ -300,7 +300,7 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
                     type="submit"
                     disabled={isPending}
                     className="rounded-xl text-white font-semibold"
-                    style={{ background: 'var(--btn-gradient)' }}
+                    style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
                   >
                     {isPending ? 'Guardando…' : 'Guardar'}
                   </Button>
