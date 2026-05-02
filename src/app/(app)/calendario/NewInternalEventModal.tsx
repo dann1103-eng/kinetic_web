@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useTransition } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -166,7 +166,7 @@ export function NewInternalEventModal({ open, onClose, initialDatetime = '', all
               onClick={handleSubmit}
               disabled={isPending || !title.trim() || !scheduledAt || !duration}
               className="flex-1 rounded-xl text-white font-semibold"
-              style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+              style={{ background: 'var(--btn-gradient)' }}
             >
               {isPending ? 'Guardando...' : 'Crear reunión'}
             </Button>

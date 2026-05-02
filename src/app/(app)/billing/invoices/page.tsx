@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+﻿import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { TopNav } from '@/components/layout/TopNav'
@@ -66,7 +66,7 @@ export default async function InvoicesListPage({
           <Link
             href="/billing/invoices/new"
             className="text-sm font-semibold text-white px-4 py-2 rounded-xl"
-            style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+            style={{ background: 'var(--btn-gradient)' }}
           >
             + Nueva factura
           </Link>

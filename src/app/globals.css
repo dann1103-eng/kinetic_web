@@ -177,6 +177,10 @@
   /* Iconos de tipo de contenido — paleta unificada */
   --fm-content-icon:             #534FBB;
   --fm-content-accent:           #DAE54E;
+
+  /* Botones primarios de acción */
+  --btn-gradient:                linear-gradient(135deg, #534FBB 0%, #8b80e0 100%);
+  --btn-shadow:                  0 4px 15px rgba(83,79,187,0.30);
 }
 
 .dark {
@@ -251,6 +255,10 @@
   /* Invierte la paleta de iconos de contenido en modo oscuro */
   --fm-content-icon:             #DAE54E;
   --fm-content-accent:           #534FBB;
+
+  /* Botones primarios de acción — modo oscuro */
+  --btn-gradient:                linear-gradient(135deg, #84cc16 0%, #DAE54E 100%);
+  --btn-shadow:                  0 4px 15px rgba(218,229,78,0.25);
 }
 
 @layer base {
@@ -265,7 +273,7 @@
 /* ── Shared utility classes (used across components) ── */
 @layer utilities {
   .signature-gradient {
-    background: linear-gradient(135deg, #00675c 0%, #5bf4de 100%);
+    background: var(--btn-gradient);
   }
   .secondary-gradient {
     background: linear-gradient(135deg, #3f3a9b 0%, #b8b3ff 100%);

@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -161,7 +161,7 @@ export function PaymentMethodsEditor({ initialMethods }: PaymentMethodsEditorPro
             onClick={save}
             disabled={isPending}
             className="rounded-lg text-white text-sm"
-            style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+            style={{ background: 'var(--btn-gradient)' }}
           >
             Guardar
           </Button>

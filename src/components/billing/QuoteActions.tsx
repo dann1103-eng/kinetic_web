@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -65,7 +65,7 @@ export function QuoteActions({ quoteId, status, convertedInvoiceId }: QuoteActio
             onClick={() => run(() => sendQuote(quoteId))}
             disabled={isPending}
             className="rounded-xl text-white font-semibold"
-            style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+            style={{ background: 'var(--btn-gradient)' }}
           >
             Marcar como enviada
           </Button>
@@ -81,7 +81,7 @@ export function QuoteActions({ quoteId, status, convertedInvoiceId }: QuoteActio
             onClick={() => run(() => markQuoteAccepted(quoteId))}
             disabled={isPending}
             className="rounded-xl text-white font-semibold"
-            style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+            style={{ background: 'var(--btn-gradient)' }}
           >
             Marcar aceptada
           </Button>
@@ -101,7 +101,7 @@ export function QuoteActions({ quoteId, status, convertedInvoiceId }: QuoteActio
           onClick={handleConvert}
           disabled={isPending}
           className="rounded-xl text-white font-semibold w-full"
-          style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+          style={{ background: 'var(--btn-gradient)' }}
         >
           Convertir a factura
         </Button>

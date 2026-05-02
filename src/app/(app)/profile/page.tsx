@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -184,7 +184,7 @@ export default function ProfilePage() {
               type="submit"
               disabled={isPending || uploading}
               className="w-full rounded-xl text-white font-semibold"
-              style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+              style={{ background: 'var(--btn-gradient)' }}
             >
               {isPending ? 'Guardando...' : 'Guardar cambios'}
             </Button>
@@ -288,7 +288,7 @@ export default function ProfilePage() {
               type="submit"
               disabled={pwLoading}
               className="w-full rounded-xl text-white font-semibold"
-              style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+              style={{ background: 'var(--btn-gradient)' }}
             >
               {pwLoading ? 'Actualizando...' : 'Actualizar contraseña'}
             </Button>

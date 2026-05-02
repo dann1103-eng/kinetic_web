@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -73,7 +73,7 @@ export function InvoiceActions({ invoiceId, status }: InvoiceActionsProps) {
             onClick={handleIssue}
             disabled={isPending}
             className="rounded-xl text-white font-semibold"
-            style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+            style={{ background: 'var(--btn-gradient)' }}
           >
             Emitir factura
           </Button>
