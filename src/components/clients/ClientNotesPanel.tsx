@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -40,7 +40,7 @@ export function ClientNotesPanel({ clientId, initialNotes }: ClientNotesPanelPro
           disabled={saving}
           className="px-6 py-2.5 text-white font-bold rounded-full shadow-lg hover:scale-[1.02] transition-transform active:scale-95 text-sm disabled:opacity-60"
           style={{
-            background: 'var(--btn-gradient)',
+            background: 'var(--btn-bg)', color: 'var(--btn-text)',
             boxShadow: '0 4px 15px rgba(0,103,92,0.2)',
           }}
         >

@@ -1,4 +1,4 @@
-﻿import { redirect } from 'next/navigation'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { TopNav } from '@/components/layout/TopNav'
@@ -43,13 +43,13 @@ export default async function BillingDashboardPage() {
             <Link
               href="/billing/invoices/new"
               className="text-sm font-semibold text-white px-4 py-2 rounded-xl"
-              style={{ background: 'var(--btn-gradient)' }}
+              style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
             >
               + Nueva factura
             </Link>
             <Link
               href="/billing/quotes/new"
-              className="text-sm font-semibold text-fm-primary bg-fm-primary/10 border border-fm-primary/30 px-4 py-2 rounded-xl hover:bg-fm-primary/15"
+              className="text-sm font-semibold px-4 py-2 rounded-xl btn-action"
             >
               + Nueva cotización
             </Link>

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -113,7 +113,7 @@ export function LoginWelcomeDialog() {
             onClick={handleStartShift}
             disabled={isPending}
             className="px-5 py-2 rounded-full text-white font-bold text-sm disabled:opacity-60"
-            style={{ background: 'var(--btn-gradient)' }}
+            style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
           >
             {isPending ? 'Iniciando…' : 'Iniciar jornada'}
           </button>

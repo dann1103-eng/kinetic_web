@@ -92,7 +92,7 @@ export function ClientPortalInvite({ clientId, users }: Props) {
           <button
             type="submit"
             disabled={isPending}
-            className="rounded-lg bg-fm-primary text-white px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="rounded-lg bg-fm-primary text-white btn-action px-4 py-2 text-sm font-medium disabled:opacity-50"
           >
             {isPending ? 'Creando…' : 'Crear credenciales'}
           </button>

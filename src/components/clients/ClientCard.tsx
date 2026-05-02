@@ -1,4 +1,4 @@
-﻿import Link from 'next/link'
+import Link from 'next/link'
 import type { ClientDashboardItem } from '@/app/(app)/dashboard/page'
 import type { ContentType } from '@/types/db'
 import { CONTENT_TYPES, unifiedPoolUsage } from '@/lib/domain/plans'
@@ -53,7 +53,7 @@ function getAvatarText(name: string): string {
 }
 
 const avatarGradients = [
-  'var(--btn-gradient)',
+  'var(--btn-bg)',
   'linear-gradient(135deg, #3f3a9b 0%, #b8b3ff 100%)',
   'linear-gradient(135deg, #006385 0%, #1dc0fe 100%)',
   'linear-gradient(135deg, #5c4a8a 0%, #b89cff 100%)',

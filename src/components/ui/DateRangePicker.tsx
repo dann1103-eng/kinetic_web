@@ -149,7 +149,7 @@ export function DateRangePicker({ value, onChange }: Props) {
           <button
             type="button"
             onClick={applyCustom}
-            className="px-4 py-2 bg-fm-primary text-white text-sm font-bold rounded-full hover:bg-fm-primary-dim transition-colors"
+            className="px-4 py-2 bg-fm-primary text-white btn-action text-sm font-bold rounded-full hover:bg-fm-primary-dim transition-colors"
           >
             Aplicar
           </button>

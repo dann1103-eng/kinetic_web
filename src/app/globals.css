@@ -36,6 +36,8 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 
   /* FM palette — referenciando vars en :root/.dark para que el modo oscuro funcione */
+  --color-fm-content-icon:             var(--fm-content-icon);
+  --color-fm-content-accent:           var(--fm-content-accent);
   --color-fm-primary:                  var(--fm-primary);
   --color-fm-primary-dim:              var(--fm-primary-dim);
   --color-fm-primary-container:        var(--fm-primary-container);
@@ -179,8 +181,10 @@
   --fm-content-accent:           #DAE54E;
 
   /* Botones primarios de acción */
-  --btn-gradient:                linear-gradient(135deg, #534FBB 0%, #8b80e0 100%);
-  --btn-shadow:                  0 4px 15px rgba(83,79,187,0.30);
+  --btn-bg:                      rgba(83, 79, 187, 0.12);
+  --btn-bg-hover:                rgba(83, 79, 187, 0.20);
+  --btn-text:                    #534FBB;
+  --btn-shadow:                  0 0 0 1px rgba(83, 79, 187, 0.30);
 }
 
 .dark {
@@ -257,8 +261,10 @@
   --fm-content-accent:           #534FBB;
 
   /* Botones primarios de acción — modo oscuro */
-  --btn-gradient:                linear-gradient(135deg, #84cc16 0%, #DAE54E 100%);
-  --btn-shadow:                  0 4px 15px rgba(218,229,78,0.25);
+  --btn-bg:                      rgba(218, 229, 78, 0.12);
+  --btn-bg-hover:                rgba(218, 229, 78, 0.20);
+  --btn-text:                    #DAE54E;
+  --btn-shadow:                  0 0 0 1px rgba(218, 229, 78, 0.30);
 }
 
 @layer base {
@@ -273,7 +279,15 @@
 /* ── Shared utility classes (used across components) ── */
 @layer utilities {
   .signature-gradient {
-    background: var(--btn-gradient);
+    background: var(--btn-bg);
+  }
+  .btn-action {
+    background: var(--btn-bg) !important;
+    color: var(--btn-text) !important;
+    box-shadow: var(--btn-shadow) !important;
+  }
+  .btn-action:hover:not(:disabled) {
+    background: var(--btn-bg-hover) !important;
   }
   .secondary-gradient {
     background: linear-gradient(135deg, #3f3a9b 0%, #b8b3ff 100%);

@@ -115,7 +115,7 @@ export function ReviewCenterViewer({
           {!clientMode && (
             <button
               onClick={onEmptyAddFiles}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-fm-primary text-white text-xs font-semibold hover:bg-fm-primary-dim transition-colors"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-fm-primary text-white btn-action text-xs font-semibold hover:bg-fm-primary-dim transition-colors"
             >
               Agregar archivos
             </button>

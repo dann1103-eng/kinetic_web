@@ -96,7 +96,7 @@ export function NewRequirementFromPipeline({ clients, isAdmin, canAssign }: Prop
     <>
       <button
         onClick={() => setStep('pick')}
-        className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-fm-primary text-white text-sm font-semibold rounded-xl hover:bg-fm-primary-dim transition-colors"
+        className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-fm-primary text-white btn-action text-sm font-semibold rounded-xl hover:bg-fm-primary-dim transition-colors"
       >
         <span className="material-symbols-outlined text-base">add</span>
         Nuevo requerimiento

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useEffect, useRef, useState } from 'react'
 import { endShift } from '@/app/actions/work-sessions'
@@ -123,7 +123,7 @@ export function StillOnlineDialog({
             onAcknowledge()
           }}
           className="w-full px-5 py-3 rounded-full text-white font-bold text-sm"
-          style={{ background: 'var(--btn-gradient)' }}
+          style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
         >
           Sí, sigo aquí
         </button>

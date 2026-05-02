@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
@@ -130,7 +130,7 @@ export function TermsAndConditionsEditor({ initialTerms }: TermsAndConditionsEdi
                       onClick={() => saveEdit(term)}
                       disabled={isPending}
                       className="rounded-lg text-white text-xs"
-                      style={{ background: 'var(--btn-gradient)' }}
+                      style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
                     >
                       Guardar
                     </Button>
@@ -182,7 +182,7 @@ export function TermsAndConditionsEditor({ initialTerms }: TermsAndConditionsEdi
           onClick={addNew}
           disabled={isPending || !newText.trim()}
           className="rounded-lg text-white text-sm"
-          style={{ background: 'var(--btn-gradient)' }}
+          style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
         >
           + Agregar término
         </Button>

@@ -308,7 +308,7 @@ export function PlanForm({ plan, onClose }: PlanFormProps) {
           <button
             onClick={handleSubmit}
             disabled={saving}
-            className="flex-1 py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
+            className="flex-1 py-2.5 bg-fm-primary text-white btn-action rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
           >
             {saving ? 'Guardando…' : isEditing ? 'Guardar' : 'Crear plan'}
           </button>

@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -135,7 +135,7 @@ export function MovePhaseModal({
               onClick={handleConfirm}
               disabled={loading}
               className="flex-1 rounded-xl text-white font-semibold"
-              style={{ background: 'var(--btn-gradient)' }}
+              style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
             >
               {loading ? 'Moviendo…' : 'Confirmar'}
             </Button>

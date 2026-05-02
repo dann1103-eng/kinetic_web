@@ -513,7 +513,7 @@ export function CalendarPageClient({ currentUser, isPrivileged, allUsers, client
                 onClick={() => setCalendarMode(mode)}
                 className={`px-3 py-1.5 font-semibold transition-colors ${
                   calendarMode === mode
-                    ? 'bg-fm-primary text-white'
+                    ? 'bg-[var(--btn-bg)] text-[var(--btn-text)]'
                     : 'text-fm-on-surface-variant hover:bg-fm-surface-container-high'
                 }`}
               >

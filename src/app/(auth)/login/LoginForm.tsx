@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -109,7 +109,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
             className="w-16 h-16 rounded-2xl mb-4 shadow-lg overflow-hidden flex items-center justify-center"
             style={
               !showLogo
-                ? { background: 'var(--btn-gradient)' }
+                ? { background: 'var(--btn-bg)', color: 'var(--btn-text)' }
                 : undefined
             }
           >
@@ -202,7 +202,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
                   type="submit"
                   disabled={loading}
                   className="w-full h-11 font-semibold text-white rounded-xl mt-2"
-                  style={{ background: 'var(--btn-gradient)' }}
+                  style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
                 >
                   {loading ? 'Ingresando...' : 'Ingresar'}
                 </Button>
@@ -255,7 +255,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
                   type="submit"
                   disabled={loading}
                   className="w-full h-11 font-semibold text-white rounded-xl mt-2"
-                  style={{ background: 'var(--btn-gradient)' }}
+                  style={{ background: 'var(--btn-bg)', color: 'var(--btn-text)' }}
                 >
                   {loading ? 'Enviando...' : 'Enviar link de acceso'}
                 </Button>

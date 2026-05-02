@@ -21,7 +21,7 @@ export function PlansManager({ isAdmin }: PlansManagerProps) {
     <>
       <button
         onClick={() => setCreating(true)}
-        className="flex items-center gap-2 px-5 py-2.5 bg-fm-primary text-white font-bold rounded-full hover:bg-fm-primary-dim transition-all text-sm"
+        className="flex items-center gap-2 px-5 py-2.5 bg-fm-primary text-white btn-action font-bold rounded-full hover:bg-fm-primary-dim transition-all text-sm"
       >
         <span className="material-symbols-outlined text-base">add</span>
         Crear plan

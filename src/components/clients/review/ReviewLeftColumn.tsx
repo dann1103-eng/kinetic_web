@@ -198,7 +198,7 @@ export function ReviewLeftColumn({
         <div className="p-3 border-t border-fm-surface-container-high/60">
           <button
             onClick={onAddAsset}
-            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-full bg-fm-primary text-white text-xs font-semibold hover:bg-fm-primary-dim transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-full bg-fm-primary text-white btn-action text-xs font-semibold hover:bg-fm-primary-dim transition-colors"
           >
             <PlusIcon className="w-4 h-4" />
             Agregar
