@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic'
 import { Minimize2Icon, Maximize2Icon, PhoneOffIcon } from 'lucide-react'
 import { UserAvatar } from '@/components/ui/UserAvatar'
-import { useActiveCall } from '@/contexts/ActiveCallContext'
+import { useActiveCallOrNull } from '@/contexts/ActiveCallContext'
 import { endCall } from '@/app/actions/calls'
 
 // CallRoom incluye el SDK pesado de LiveKit (~150KB gz). Se carga solo
@@ -14,7 +14,9 @@ const CallRoom = dynamic(
 )
 
 export function CallDock() {
-  const { activeCall, minimized, setMinimized, endActiveCall } = useActiveCall()
+  const ctx = useActiveCallOrNull()
+  if (!ctx) return null
+  const { activeCall, minimized, setMinimized, endActiveCall } = ctx
   if (!activeCall) return null
 
   async function handleHangup() {

@@ -124,6 +124,7 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
                 conversation.type === 'dm' ? conversation.counterpart?.avatar_url : null
               }
               compact
+              variant="dark"
             />
           </div>
           <button

@@ -5,14 +5,14 @@ import { PhoneIcon, PhoneOffIcon } from 'lucide-react'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { useUserOrNull } from '@/contexts/UserContext'
 import { useIncomingCall } from '@/hooks/useIncomingCall'
-import { useActiveCall } from '@/contexts/ActiveCallContext'
+import { useActiveCallOrNull } from '@/contexts/ActiveCallContext'
 
 const RING_LOOP_MS = 1100
 
 export function IncomingCallToast() {
   const user = useUserOrNull()
   const { incoming, dismiss } = useIncomingCall(user?.id ?? null)
-  const { activeCall, startActiveCall } = useActiveCall()
+  const callCtx = useActiveCallOrNull()
   const ringTimerRef = useRef<number | null>(null)
 
   // Reproducir un beep simple sintetizado en bucle (evita dependencia de archivo).
@@ -49,7 +49,9 @@ export function IncomingCallToast() {
     }
   }, [incoming])
 
-  if (!incoming) return null
+  if (!incoming || !callCtx) return null
+
+  const { activeCall, startActiveCall } = callCtx
 
   // Si ya estamos en otra llamada distinta, no mostramos el toast (la nueva
   // queda perdida — Fase futura: notificación silenciosa).
