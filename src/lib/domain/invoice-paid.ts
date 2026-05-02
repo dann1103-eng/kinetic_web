@@ -17,6 +17,7 @@ import {
 import { grantCreditsFromInvoice } from '@/lib/domain/credits'
 import { invoicePeriodLabel } from '@/lib/domain/billing'
 import { today as todayString } from '@/lib/domain/dates'
+import { createInvoicePaymentLink, extractPaymentLinkId } from '@/lib/n1co/payment-links'
 import type {
   BillingCycle,
   Client,
@@ -208,6 +209,7 @@ export async function generateBiweeklySecondIfNeeded(
       total: totals.total,
       total_a_pagar: totals.total_a_pagar,
       status: 'issued',
+      due_date: secondStartISO,
       client_snapshot_json: buildClientSnapshot(client as Client),
       emitter_snapshot_json: buildEmitterSnapshot(emitter as CompanySettings),
       created_by: null,
@@ -227,5 +229,29 @@ export async function generateBiweeklySecondIfNeeded(
       sort_order: it.sort_order,
     })),
   )
+
+  try {
+    const link = await createInvoicePaymentLink({
+      invoice: {
+        id: inserted.id,
+        invoice_number: numberRow as unknown as string,
+        currency: 'USD',
+        billing_cycle_id: args.cycleId,
+      },
+      amount: totals.total_a_pagar,
+      client: { id: (client as Client).id, name: (client as Client).name },
+      plan: plan ? { id: (plan as Plan).id, name: (plan as Plan).name } : null,
+      periodLabel: label,
+    })
+    await admin.from('invoices').update({
+      n1co_payment_link_url: link.paymentLinkUrl,
+      n1co_payment_link_id: extractPaymentLinkId(link.paymentLinkUrl) ?? String(link.orderId),
+      payment_provider: 'n1co_link',
+    }).eq('id', inserted.id)
+  } catch {
+    // El link no es bloqueante — la factura queda en payment_provider='manual'
+    // y el admin puede regenerar desde /billing/invoices/[id].
+  }
+
   return inserted.id as string
 }

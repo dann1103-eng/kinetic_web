@@ -425,7 +425,7 @@ Deno.serve(async (_req) => {
           billing_cycle_id: scheduledCycleId,
           quote_id: null,
           issue_date: today,
-          due_date: null,
+          due_date: scheduledPeriodStart,
           currency: 'USD',
           subtotal,
           discount_amount: 0,
