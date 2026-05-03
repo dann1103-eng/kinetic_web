@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { format, isSameDay, parseISO, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { MessageItem } from './MessageItem'
@@ -13,6 +13,8 @@ interface MessageListProps {
   currentUserId: string
   isAdmin?: boolean
   initialMessages: MessageWithMeta[]
+  initialDayKey: string | null
+  initialHasMoreBefore: boolean
 }
 
 function dayLabel(iso: string): string {
@@ -22,11 +24,26 @@ function dayLabel(iso: string): string {
   return format(d, "d 'de' MMMM", { locale: es })
 }
 
-export function MessageList({ conversationId, currentUserId, isAdmin = false, initialMessages }: MessageListProps) {
-  const { messages, removeMessage, updateMessage } = useConversationMessages(conversationId, initialMessages)
+export function MessageList({
+  conversationId,
+  currentUserId,
+  isAdmin = false,
+  initialMessages,
+  initialDayKey,
+  initialHasMoreBefore,
+}: MessageListProps) {
+  const {
+    messages,
+    removeMessage,
+    updateMessage,
+    loadPreviousDay,
+    hasMoreBefore,
+    loadingPrevious,
+  } = useConversationMessages(conversationId, initialMessages, initialDayKey, initialHasMoreBefore)
   const bottomRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const lastCountRef = useRef(messages.length)
+  const initialScrolledRef = useRef(false)
 
   // Auto-scroll al fondo cuando llegan mensajes nuevos y el usuario ya estaba cerca del fondo
   useEffect(() => {
@@ -39,9 +56,22 @@ export function MessageList({ conversationId, currentUserId, isAdmin = false, in
     lastCountRef.current = messages.length
   }, [messages.length])
 
-  // Scroll inicial al fondo sin animar
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+  // Scroll inicial al fondo. Usamos useLayoutEffect + 2x rAF para que dispare
+  // DESPUÉS de que el navegador haya layouted los mensajes (incluyendo imágenes
+  // con tamaño intrínseco), evitando que el scroll caiga "a mitad" porque la
+  // altura aún no estaba calculada.
+  useLayoutEffect(() => {
+    initialScrolledRef.current = false
+    const doScroll = () => {
+      bottomRef.current?.scrollIntoView({ block: 'end' })
+    }
+    doScroll()
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        doScroll()
+        initialScrolledRef.current = true
+      })
+    })
   }, [conversationId])
 
   // Marcar leído al montar y cada vez que llegue un mensaje mientras la pestaña está visible
@@ -64,11 +94,44 @@ export function MessageList({ conversationId, currentUserId, isAdmin = false, in
     return out
   }, [messages])
 
+  /**
+   * Carga el día anterior preservando la posición de scroll del usuario:
+   * antes de prepender, capturamos `scrollHeight`. Tras renderizar los nuevos
+   * mensajes, restauramos `scrollTop` para que el primer mensaje visible
+   * antes del click siga siendo el primer mensaje visible.
+   */
+  async function handleLoadPrevious() {
+    const c = containerRef.current
+    if (!c || loadingPrevious) return
+    const beforeScrollHeight = c.scrollHeight
+    const beforeScrollTop = c.scrollTop
+    const prepended = await loadPreviousDay()
+    if (prepended === 0) return
+    requestAnimationFrame(() => {
+      const node = containerRef.current
+      if (!node) return
+      const delta = node.scrollHeight - beforeScrollHeight
+      node.scrollTop = beforeScrollTop + delta
+    })
+  }
+
   return (
     <div
       ref={containerRef}
       className="flex-1 overflow-y-auto p-6 space-y-6 bg-fm-background"
     >
+      {hasMoreBefore && (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={handleLoadPrevious}
+            disabled={loadingPrevious}
+            className="px-3 py-1.5 rounded-full bg-fm-surface-container-lowest border border-fm-surface-container-high text-fm-on-surface-variant text-xs font-semibold hover:bg-fm-primary/5 hover:text-fm-primary disabled:opacity-50 transition-colors"
+          >
+            {loadingPrevious ? 'Cargando…' : '↑ Cargar día anterior'}
+          </button>
+        </div>
+      )}
       {messages.length === 0 && (
         <div className="h-full flex items-center justify-center text-center text-fm-on-surface-variant/70 text-sm">
           No hay mensajes aún. Envía el primero.

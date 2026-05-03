@@ -17,6 +17,8 @@ interface ConversationViewProps {
   members: Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[]
   allUsers: Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[]
   initialMessages: MessageWithMeta[]
+  initialDayKey: string | null
+  initialHasMoreBefore: boolean
   channelAttachments: MessageAttachment[]
   currentUserId: string
   isAdmin: boolean
@@ -27,6 +29,8 @@ export function ConversationView({
   members,
   allUsers,
   initialMessages,
+  initialDayKey,
+  initialHasMoreBefore,
   channelAttachments,
   currentUserId,
   isAdmin,
@@ -59,6 +63,8 @@ export function ConversationView({
           currentUserId={currentUserId}
           isAdmin={isAdmin}
           initialMessages={initialMessages}
+          initialDayKey={initialDayKey}
+          initialHasMoreBefore={initialHasMoreBefore}
         />
         <MessageComposer conversationId={conversation.id} placeholder={composerPlaceholder} />
       </main>

@@ -72,10 +72,15 @@ export function useInboxList(initial?: ConversationListItem[]) {
 
 export function useConversationMessages(
   conversationId: string,
-  initial?: MessageWithMeta[]
+  initial?: MessageWithMeta[],
+  initialDayKey?: string | null,
+  initialHasMoreBefore?: boolean
 ) {
   const [messages, setMessages] = useState<MessageWithMeta[]>(initial ?? [])
   const [loading, setLoading] = useState<boolean>(!initial)
+  const [earliestDayKey, setEarliestDayKey] = useState<string | null>(initialDayKey ?? null)
+  const [hasMoreBefore, setHasMoreBefore] = useState<boolean>(initialHasMoreBefore ?? false)
+  const [loadingPrevious, setLoadingPrevious] = useState(false)
   const visible = useVisible()
   const lastCreatedAtRef = useRef<string | null>(
     initial && initial.length > 0 ? initial[initial.length - 1].created_at : null
@@ -84,7 +89,9 @@ export function useConversationMessages(
   useEffect(() => {
     setMessages(initial ?? [])
     lastCreatedAtRef.current = initial && initial.length > 0 ? initial[initial.length - 1].created_at : null
-  }, [conversationId, initial])
+    setEarliestDayKey(initialDayKey ?? null)
+    setHasMoreBefore(initialHasMoreBefore ?? false)
+  }, [conversationId, initial, initialDayKey, initialHasMoreBefore])
 
   const fetchIncremental = useCallback(async () => {
     try {
@@ -111,17 +118,72 @@ export function useConversationMessages(
     }
   }, [conversationId])
 
+  /**
+   * `refresh` ahora carga el último día con mensajes (mismo modelo que la
+   * página principal del inbox). Antes traía los últimos 50 sin discriminar
+   * — esto se usa cuando no hay `initial` (e.g., FloatingChatBubble).
+   */
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch(`/api/inbox/${conversationId}/messages?limit=50`, { cache: 'no-store' })
+      const res = await fetch(
+        `/api/inbox/${conversationId}/messages?initialDay=true`,
+        { cache: 'no-store' }
+      )
       if (!res.ok) return
-      const json = (await res.json()) as MessageWithMeta[]
-      setMessages(json)
-      lastCreatedAtRef.current = json.length > 0 ? json[json.length - 1].created_at : null
+      const json = (await res.json()) as {
+        messages: MessageWithMeta[]
+        dayKey: string | null
+        hasMoreBefore: boolean
+      }
+      setMessages(json.messages)
+      lastCreatedAtRef.current =
+        json.messages.length > 0 ? json.messages[json.messages.length - 1].created_at : null
+      setEarliestDayKey(json.dayKey)
+      setHasMoreBefore(json.hasMoreBefore)
     } catch {
       // silent
     }
   }, [conversationId])
+
+  /**
+   * Carga el último día calendario con mensajes ESTRICTAMENTE anterior al
+   * `earliestDayKey` actual. Si no hay día previo, marca `hasMoreBefore=false`.
+   * Devuelve la cantidad de mensajes nuevos prepended para que el caller
+   * pueda preservar el scroll position del usuario.
+   */
+  const loadPreviousDay = useCallback(async (): Promise<number> => {
+    if (!earliestDayKey || !hasMoreBefore || loadingPrevious) return 0
+    setLoadingPrevious(true)
+    try {
+      const url = `/api/inbox/${conversationId}/messages?beforeDay=${encodeURIComponent(earliestDayKey)}`
+      const res = await fetch(url, { cache: 'no-store' })
+      if (!res.ok) return 0
+      const json = (await res.json()) as {
+        messages: MessageWithMeta[]
+        dayKey: string | null
+        hasMoreBefore: boolean
+      }
+      if (!json.dayKey || json.messages.length === 0) {
+        setHasMoreBefore(false)
+        return 0
+      }
+      let prependedCount = 0
+      setMessages((prev) => {
+        const known = new Set(prev.map((m) => m.id))
+        const toPrepend = json.messages.filter((m) => !known.has(m.id))
+        prependedCount = toPrepend.length
+        if (toPrepend.length === 0) return prev
+        return [...toPrepend, ...prev]
+      })
+      setEarliestDayKey(json.dayKey)
+      setHasMoreBefore(json.hasMoreBefore)
+      return prependedCount
+    } catch {
+      return 0
+    } finally {
+      setLoadingPrevious(false)
+    }
+  }, [conversationId, earliestDayKey, hasMoreBefore, loadingPrevious])
 
   // ID estable del canal por mount (evita suscripciones huérfanas en StrictMode).
   const channelIdRef = useRef<string>('')
@@ -208,5 +270,15 @@ export function useConversationMessages(
     setMessages((prev) => [...prev, msg])
   }, [])
 
-  return { messages, loading, refresh, removeMessage, updateMessage, addLocalMessage }
+  return {
+    messages,
+    loading,
+    refresh,
+    removeMessage,
+    updateMessage,
+    addLocalMessage,
+    loadPreviousDay,
+    hasMoreBefore,
+    loadingPrevious,
+  }
 }

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { ConversationView } from '@/components/inbox/ConversationView'
+import { dayBoundsLocal, dayKeyFromIso, DAY_PAGE_CAP } from '@/lib/domain/inbox-pagination'
 import type {
   AppUser,
   Conversation,
@@ -46,7 +47,9 @@ export default async function ConversationPage({ params }: PageProps) {
     .map((m) => m.user)
     .filter((u): u is NonNullable<MemberRow['user']> => u !== null)
 
-  // Últimos 50 mensajes (cronológico ascendente)
+  // Paginación por día — cargar solo el último día con mensajes (cap DAY_PAGE_CAP).
+  // Para una conversación con miles de mensajes, esto evita traer todo el historial
+  // en cada open. La UI ofrece un botón "Cargar día anterior" para pedir más.
   type MessageRow = {
     id: string
     conversation_id: string
@@ -57,14 +60,46 @@ export default async function ConversationPage({ params }: PageProps) {
     created_at: string
     author: { id: string; full_name: string; avatar_url: string | null } | null
   }
-  const { data: msgsRaw } = await supabase
+
+  // 1) Encontrar el timestamp del último mensaje (si existe).
+  const { data: lastMsgRaw } = await supabase
     .from('messages')
-    .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+    .select('created_at')
     .eq('conversation_id', conversationId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
-    .limit(50)
-  const msgsAsc = ((msgsRaw ?? []) as unknown as MessageRow[]).reverse()
+    .limit(1)
+    .maybeSingle()
+
+  let initialDayKey: string | null = null
+  let msgsAsc: MessageRow[] = []
+  let hasMoreBefore = false
+
+  if (lastMsgRaw) {
+    initialDayKey = dayKeyFromIso(lastMsgRaw.created_at)
+    const { startUtcIso, endUtcIso } = dayBoundsLocal(initialDayKey)
+
+    // 2) Cargar todos los mensajes de ese día (cap por seguridad).
+    const { data: dayMsgsRaw } = await supabase
+      .from('messages')
+      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+      .eq('conversation_id', conversationId)
+      .is('deleted_at', null)
+      .gte('created_at', startUtcIso)
+      .lte('created_at', endUtcIso)
+      .order('created_at', { ascending: true })
+      .limit(DAY_PAGE_CAP)
+    msgsAsc = (dayMsgsRaw ?? []) as unknown as MessageRow[]
+
+    // 3) ¿Hay mensajes anteriores al inicio de este día?
+    const { count: olderCount } = await supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .is('deleted_at', null)
+      .lt('created_at', startUtcIso)
+    hasMoreBefore = (olderCount ?? 0) > 0
+  }
 
   const msgIds = msgsAsc.map((m) => m.id)
   const { data: attsRaw } = msgIds.length > 0
@@ -129,6 +164,8 @@ export default async function ConversationPage({ params }: PageProps) {
       members={members}
       allUsers={allUsers}
       initialMessages={initialMessages}
+      initialDayKey={initialDayKey}
+      initialHasMoreBefore={hasMoreBefore}
       channelAttachments={channelAttachments}
       currentUserId={effectiveUserId}
       isAdmin={isAdmin}
