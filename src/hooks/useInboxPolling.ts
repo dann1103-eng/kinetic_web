@@ -140,14 +140,26 @@ export function useConversationMessages(
     // y deja `lastCreatedAtRef` con timestamp actual para fetchIncremental subsiguientes.
     refresh()
 
+    // [REALTIME-DIAG] Logs de diagnóstico (Fase 1) — eliminar tras estabilizar.
+    const diagPrefix = `[rt conv ${conversationId.slice(0, 8)}]`
+    console.info(diagPrefix, 'subscribing', new Date().toISOString())
+
     const channel = supabase
       .channel(`conv-messages-${conversationId}-${channelIdRef.current}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
-          const row = payload.new as { conversation_id?: string }
-          if (row.conversation_id === conversationId) fetchIncremental()
+          const row = payload.new as { conversation_id?: string; id?: string; created_at?: string }
+          const commitTs = (payload as { commit_timestamp?: string }).commit_timestamp
+          const matches = row.conversation_id === conversationId
+          const latencyMs = commitTs ? Date.now() - new Date(commitTs).getTime() : null
+          console.info(
+            diagPrefix,
+            'INSERT recibido',
+            { matches, msgId: row.id?.slice(0, 8), commitTs, latencyMs, now: new Date().toISOString() }
+          )
+          if (matches) fetchIncremental()
         }
       )
       .on(
@@ -168,11 +180,17 @@ export function useConversationMessages(
           if (row.conversation_id === conversationId) refresh()
         }
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        console.info(diagPrefix, 'subscribe status:', status, err ?? '', new Date().toISOString())
+      })
 
-    const safetyTimer = window.setInterval(fetchIncremental, SAFETY_POLL_MS)
+    const safetyTimer = window.setInterval(() => {
+      console.info(diagPrefix, 'safety poll fire', new Date().toISOString())
+      fetchIncremental()
+    }, SAFETY_POLL_MS)
 
     return () => {
+      console.info(diagPrefix, 'unsubscribing', new Date().toISOString())
       window.clearInterval(safetyTimer)
       supabase.removeChannel(channel)
     }

@@ -80,6 +80,9 @@ export function MessageComposer({ conversationId, placeholder }: MessageComposer
     }
     if (!text && ready.length === 0) return
 
+    // [REALTIME-DIAG] Log de envío para correlacionar con eventos en otros clientes.
+    const sendStartedAt = new Date().toISOString()
+    console.info(`[send conv ${conversationId.slice(0, 8)}]`, 'enviando', { sendStartedAt, bodyPreview: text.slice(0, 30) })
     startTransition(async () => {
       const res = await sendMessage({
         conversationId,
@@ -90,6 +93,12 @@ export function MessageComposer({ conversationId, placeholder }: MessageComposer
         setError(res.error)
         return
       }
+      const ack = (res as { messageId?: string; createdAt?: string })
+      console.info(
+        `[send conv ${conversationId.slice(0, 8)}]`,
+        'ack server',
+        { sendStartedAt, ackedAt: new Date().toISOString(), messageId: ack.messageId?.slice(0, 8), createdAt: ack.createdAt }
+      )
       setBody('')
       setPendingFiles([])
       setError(null)

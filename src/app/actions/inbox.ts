@@ -175,7 +175,7 @@ export async function sendMessage(payload: {
         user_id: userId,
         body,
       })
-      .select('id')
+      .select('id, created_at')
       .single()
 
     if (msgErr || !msg) return { error: msgErr?.message ?? 'No se pudo enviar el mensaje' }
@@ -197,7 +197,7 @@ export async function sendMessage(payload: {
 
     revalidatePath(`/inbox/${payload.conversationId}`)
     revalidatePath('/inbox')
-    return { messageId: msg.id }
+    return { messageId: msg.id, createdAt: msg.created_at }
   } catch (e) {
     console.error('sendMessage failed:', e)
     return { error: e instanceof Error ? e.message : 'Error desconocido' }
