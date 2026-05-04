@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { RequirementModal } from '@/components/clients/RequirementModal'
-import { CONTENT_TYPES, effectiveLimits, applyUnifiedPool, applyContentLimitsWithOverride } from '@/lib/domain/plans'
+import { CONTENT_TYPES, effectiveLimits, applyUnifiedPool, applyContentLimitsWithOverride, unifiedPoolUsage } from '@/lib/domain/plans'
 import type { ClientWithPlan, BillingCycle, ContentType } from '@/types/db'
 
 interface Props {
@@ -27,6 +27,8 @@ export function NewRequirementFromPipeline({ clients, isAdmin, canAssign }: Prop
   const [totals, setTotals] = useState<Record<ContentType, number>>(emptyTotals())
   const [limits, setLimits] = useState<Record<ContentType, number>>(emptyTotals())
   const [assignableUsers, setAssignableUsers] = useState<{ id: string; full_name: string; default_assignee?: boolean }[]>([])
+  const [isUnifiedPool, setIsUnifiedPool] = useState(false)
+  const [poolUsage, setPoolUsage] = useState<{ used: number; limit: number } | null>(null)
 
   const q = search.trim().toLowerCase()
   const filtered = q ? clients.filter((c) => c.name.toLowerCase().includes(q)) : clients
@@ -74,10 +76,14 @@ export function NewRequirementFromPipeline({ clients, isAdmin, canAssign }: Prop
       ? applyUnifiedPool(withOverride, snapshot, t)
       : withOverride
 
+    const pool = unifiedPoolUsage(snapshot, t)
+
     setClientData(cl as ClientWithPlan)
     setCycle(cy as BillingCycle)
     setTotals(t)
     setLimits(finalLimits)
+    setIsUnifiedPool(pool !== null)
+    setPoolUsage(pool)
     setAssignableUsers(
       (users ?? []).map((u) => ({ id: u.id, full_name: u.full_name, default_assignee: u.default_assignee ?? false }))
     )
@@ -90,6 +96,8 @@ export function NewRequirementFromPipeline({ clients, isAdmin, canAssign }: Prop
     setLoadState('idle')
     setClientData(null)
     setCycle(null)
+    setIsUnifiedPool(false)
+    setPoolUsage(null)
   }
 
   return (
@@ -180,6 +188,8 @@ export function NewRequirementFromPipeline({ clients, isAdmin, canAssign }: Prop
           cycle={cycle}
           totals={totals}
           limits={limits}
+          isUnifiedPool={isUnifiedPool}
+          poolUsage={poolUsage}
           isAdmin={isAdmin}
           canAssign={canAssign}
           assignableUsers={assignableUsers}
