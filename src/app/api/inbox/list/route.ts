@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { ConversationListItem } from '@/types/db'
 
 export const runtime = 'nodejs'
@@ -55,7 +56,32 @@ export async function GET() {
     .order('last_message_at', { ascending: false })
 
   if (convsErr) return NextResponse.json({ error: convsErr.message }, { status: 500 })
-  const convs = (convsRaw ?? []) as ConvRow[]
+  let convs = (convsRaw ?? []) as ConvRow[]
+
+  // Para admins, también incluir todos los canales aunque no sean miembros.
+  const { data: appUser } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle()
+  const isAdmin = appUser?.role === 'admin'
+
+  if (isAdmin) {
+    const adminClient = createAdminClient()
+    const known = new Set(convs.map((c) => c.id))
+    const { data: allChannelsRaw } = await adminClient
+      .from('conversations')
+      .select('id, type, name, last_message_at')
+      .in('type', ['channel', 'voice_channel'])
+      .order('last_message_at', { ascending: false })
+    const extra = ((allChannelsRaw ?? []) as ConvRow[]).filter((c) => !known.has(c.id))
+    if (extra.length > 0) {
+      convs = [...convs, ...extra].sort((a, b) =>
+        b.last_message_at.localeCompare(a.last_message_at)
+      )
+    }
+  }
+
   if (convs.length === 0) return NextResponse.json([] as ConversationListItem[])
 
   const convIds = convs.map((c) => c.id)

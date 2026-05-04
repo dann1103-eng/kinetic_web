@@ -118,6 +118,18 @@ export type ConversationType = 'dm' | 'channel' | 'voice_channel'
 
 export type CallModality = 'voice' | 'video' | 'screen'
 
+/** Estado manual que el usuario elige para sí mismo. */
+export type PresenceStatus = 'online' | 'away' | 'almuerzo'
+
+/** Estado efectivo que ven los demás — incluye el override automático en llamada. */
+export type EffectivePresenceStatus = PresenceStatus | 'en_llamada'
+
+export interface PresenceInfo {
+  user_id: string
+  status: PresenceStatus
+  updated_at: string
+}
+
 export type ClientUserRole = 'owner' | 'viewer'
 
 export interface ClientUser {
@@ -1717,6 +1729,23 @@ export interface Database {
         }
         Update: {
           left_at?: string | null
+        }
+        Relationships: []
+      }
+      user_presence: {
+        Row: {
+          user_id: string
+          status: PresenceStatus
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          status?: PresenceStatus
+          updated_at?: string
+        }
+        Update: {
+          status?: PresenceStatus
+          updated_at?: string
         }
         Relationships: []
       }

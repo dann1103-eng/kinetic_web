@@ -8,6 +8,7 @@ import { UserAvatar } from '@/components/ui/UserAvatar'
 import { useMobileSidebar } from '@/components/layout/MobileSidebarProvider'
 import { NotificationsDropdown } from '@/components/layout/NotificationsDropdown'
 import { ShiftStatusWidget } from '@/components/layout/ShiftStatusWidget'
+import { PresenceSelector } from '@/components/presence/PresenceSelector'
 
 interface TopNavProps {
   title: string
@@ -69,6 +70,7 @@ export function TopNav({ title, backHref }: TopNavProps) {
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
+        <PresenceSelector />
         <ShiftStatusWidget />
         <ThemeToggle />
         <NotificationsDropdown />

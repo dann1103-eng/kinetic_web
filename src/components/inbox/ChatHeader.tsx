@@ -3,6 +3,8 @@
 import Link from 'next/link'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { CallButtons } from '@/components/calls/CallButtons'
+import { PresenceIndicator } from '@/components/presence/PresenceIndicator'
+import { useUsersPresence } from '@/hooks/useUsersPresence'
 import { cn } from '@/lib/utils'
 import type { Conversation, AppUser } from '@/types/db'
 
@@ -24,6 +26,9 @@ export function ChatHeader({
   onToggleDetails,
 }: ChatHeaderProps) {
   const isChannel = conversation.type === 'channel'
+  const { getEffective, isConvInCall } = useUsersPresence()
+  const counterpartStatus = !isChannel && counterpart ? getEffective(counterpart.id) : null
+  const channelInCall = isConvInCall(conversation.id)
 
   return (
     <header className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-fm-surface-container-high bg-fm-surface-container-lowest">
@@ -56,14 +61,30 @@ export function ChatHeader({
           </>
         ) : (
           <div className="flex items-center space-x-3">
-            <UserAvatar
-              name={counterpart?.full_name ?? '?'}
-              avatarUrl={counterpart?.avatar_url}
-              size="sm"
-            />
-            <h2 className="text-lg font-bold text-fm-on-surface">
-              {counterpart?.full_name ?? 'Usuario'}
-            </h2>
+            <div className="relative">
+              <UserAvatar
+                name={counterpart?.full_name ?? '?'}
+                avatarUrl={counterpart?.avatar_url}
+                size="sm"
+              />
+              {counterpartStatus && (
+                <PresenceIndicator status={counterpartStatus} overlay size="sm" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-lg font-bold text-fm-on-surface truncate">
+                {counterpart?.full_name ?? 'Usuario'}
+              </h2>
+              {counterpartStatus && (
+                <PresenceIndicator status={counterpartStatus} size="xs" showLabel />
+              )}
+            </div>
+          </div>
+        )}
+        {isChannel && channelInCall && (
+          <div className="mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/15 text-red-600 text-[10px] font-bold uppercase tracking-wide">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            Llamada activa en este canal
           </div>
         )}
       </div>

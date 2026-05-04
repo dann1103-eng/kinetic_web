@@ -10,7 +10,9 @@ import { UserAvatar } from '@/components/ui/UserAvatar'
 import { NewMessageDialog } from './NewMessageDialog'
 import { useInboxList } from '@/hooks/useInboxPolling'
 import { useUser } from '@/contexts/UserContext'
-import type { ConversationListItem, AppUser } from '@/types/db'
+import { useUsersPresence } from '@/hooks/useUsersPresence'
+import { PresenceIndicator } from '@/components/presence/PresenceIndicator'
+import type { ConversationListItem, AppUser, EffectivePresenceStatus } from '@/types/db'
 
 interface InboxSidebarProps {
   initialList: ConversationListItem[]
@@ -21,6 +23,7 @@ export function InboxSidebar({ initialList, allUsers }: InboxSidebarProps) {
   const pathname = usePathname()
   const user = useUser()
   const { data } = useInboxList(initialList)
+  const { getEffective, isConvInCall } = useUsersPresence()
   const [dialogOpen, setDialogOpen] = useState(false)
 
   const canCreateChannels = user.role === 'admin' || user.role === 'supervisor'
@@ -69,7 +72,12 @@ export function InboxSidebar({ initialList, allUsers }: InboxSidebarProps) {
               <div className="px-3 py-2 text-xs text-fm-on-surface-variant/70 italic">Sin canales</div>
             )}
             {channels.map((c) => (
-              <ConvLink key={c.id} conv={c} active={activeId === c.id} />
+              <ConvLink
+                key={c.id}
+                conv={c}
+                active={activeId === c.id}
+                inCall={isConvInCall(c.id)}
+              />
             ))}
           </div>
         </section>
@@ -85,7 +93,14 @@ export function InboxSidebar({ initialList, allUsers }: InboxSidebarProps) {
               <div className="px-3 py-2 text-xs text-fm-on-surface-variant/70 italic">Sin mensajes directos</div>
             )}
             {dms.map((c) => (
-              <ConvLink key={c.id} conv={c} active={activeId === c.id} />
+              <ConvLink
+                key={c.id}
+                conv={c}
+                active={activeId === c.id}
+                counterpartStatus={
+                  c.counterpart ? getEffective(c.counterpart.id) : null
+                }
+              />
             ))}
           </div>
         </section>
@@ -101,7 +116,17 @@ export function InboxSidebar({ initialList, allUsers }: InboxSidebarProps) {
   )
 }
 
-function ConvLink({ conv, active }: { conv: ConversationListItem; active: boolean }) {
+function ConvLink({
+  conv,
+  active,
+  counterpartStatus,
+  inCall,
+}: {
+  conv: ConversationListItem
+  active: boolean
+  counterpartStatus?: EffectivePresenceStatus | null
+  inCall?: boolean
+}) {
   const label =
     conv.type === 'channel'
       ? conv.name ?? 'canal'
@@ -129,15 +154,27 @@ function ConvLink({ conv, active }: { conv: ConversationListItem; active: boolea
         {conv.type === 'channel' ? (
           <span className={cn('mr-2 font-bold', active ? 'text-fm-primary' : 'text-fm-primary/80')}>#</span>
         ) : (
-          <span className="mr-2 flex-shrink-0">
+          <span className="mr-2 flex-shrink-0 relative">
             <UserAvatar
               name={conv.counterpart?.full_name ?? '?'}
               avatarUrl={conv.counterpart?.avatar_url}
               size="xs"
             />
+            {counterpartStatus && (
+              <PresenceIndicator status={counterpartStatus} overlay size="xs" />
+            )}
           </span>
         )}
         <span className="truncate">{label}</span>
+        {inCall && (
+          <span
+            className="ml-1.5 flex-shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-600 text-[9px] font-bold uppercase tracking-wide"
+            title="Llamada activa en este canal"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+            En llamada
+          </span>
+        )}
       </span>
       <span className="flex items-center gap-2 flex-shrink-0 ml-2">
         {conv.unread_count > 0 ? (

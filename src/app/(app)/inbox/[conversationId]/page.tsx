@@ -22,17 +22,39 @@ export default async function ConversationPage({ params }: PageProps) {
   if (!ctx) notFound()
   const effectiveUserId = ctx.appUser.id
   const isAdmin = ctx.appUser.role === 'admin'
-  // Cuando se está suplantando, las RLS de conversations/messages bloquearían
-  // las queries del admin (no es miembro) → bypass con admin client.
-  const supabase = ctx.isImpersonating ? createAdminClient() : await createClient()
+  // Cuando se está suplantando, las RLS bloquearían las queries del admin
+  // (no es miembro) → bypass con admin client.
+  let supabase = ctx.isImpersonating ? createAdminClient() : await createClient()
 
-  const { data: convRaw } = await supabase
-    .from('conversations')
-    .select('*')
-    .eq('id', conversationId)
-    .single()
+  let convRaw: Conversation | null = null
+  {
+    const { data } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('id', conversationId)
+      .maybeSingle()
+    convRaw = data as Conversation | null
+  }
+
+  // Política: admins pueden abrir cualquier CANAL aunque no sean miembros
+  // (DMs siguen privados). Si la query con RLS no devolvió nada y el user es
+  // admin, retry con admin client y validamos que sea un canal — si es DM
+  // ajeno, 404.
+  if (!convRaw && isAdmin && !ctx.isImpersonating) {
+    const adminClient = createAdminClient()
+    const { data } = await adminClient
+      .from('conversations')
+      .select('*')
+      .eq('id', conversationId)
+      .maybeSingle()
+    if (data && (data.type === 'channel' || data.type === 'voice_channel')) {
+      convRaw = data as Conversation
+      supabase = adminClient // resto de queries del admin usan admin client
+    }
+  }
+
   if (!convRaw) notFound()
-  const conversation = convRaw as Conversation
+  const conversation = convRaw
 
   // Miembros
   type MemberRow = {

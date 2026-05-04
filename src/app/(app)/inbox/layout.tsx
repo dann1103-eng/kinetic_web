@@ -20,18 +20,39 @@ async function loadInitialList(): Promise<ConversationListItem[]> {
   const ctx = await getEffectiveUser()
   if (!ctx) return []
   const userId = ctx.appUser.id
+  const isAdmin = ctx.appUser.role === 'admin'
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabase: SupabaseClient<any, 'public', any> = ctx.isImpersonating
     ? createAdminClient()
     : await createClient()
 
+  type ConvRow = { id: string; type: 'dm' | 'channel'; name: string | null; last_message_at: string }
+
+  // Conversaciones del usuario (DMs + canales donde es miembro). RLS-respetada.
   const { data: convsRaw } = await supabase
     .from('conversations')
     .select('id, type, name, last_message_at')
     .order('last_message_at', { ascending: false })
+  let convs = (convsRaw ?? []) as ConvRow[]
 
-  type ConvRow = { id: string; type: 'dm' | 'channel'; name: string | null; last_message_at: string }
-  const convs = (convsRaw ?? []) as ConvRow[]
+  // Si es admin, también traemos TODOS los canales que no estén en su lista
+  // — admins ven cualquier canal aunque no sean miembros.
+  if (isAdmin && !ctx.isImpersonating) {
+    const adminClient = createAdminClient()
+    const knownIds = new Set(convs.map((c) => c.id))
+    const { data: allChannelsRaw } = await adminClient
+      .from('conversations')
+      .select('id, type, name, last_message_at')
+      .in('type', ['channel', 'voice_channel'])
+      .order('last_message_at', { ascending: false })
+    const extra = ((allChannelsRaw ?? []) as ConvRow[]).filter((c) => !knownIds.has(c.id))
+    if (extra.length > 0) {
+      convs = [...convs, ...extra].sort((a, b) =>
+        b.last_message_at.localeCompare(a.last_message_at)
+      )
+    }
+  }
+
   if (convs.length === 0) return []
 
   const ids = convs.map((c) => c.id)

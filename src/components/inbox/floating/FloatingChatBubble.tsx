@@ -8,6 +8,8 @@ import { UserAvatar } from '@/components/ui/UserAvatar'
 import { EmojiPicker } from '@/components/ui/EmojiPicker'
 import { RequirementShareCard, parseReqShareBody } from '@/components/inbox/RequirementShareCard'
 import { CallButtons } from '@/components/calls/CallButtons'
+import { PresenceIndicator } from '@/components/presence/PresenceIndicator'
+import { useUsersPresence } from '@/hooks/useUsersPresence'
 import { useUser } from '@/contexts/UserContext'
 import type { ConversationListItem, MessageWithMeta } from '@/types/db'
 import { formatDistanceToNow, parseISO } from 'date-fns'
@@ -23,6 +25,11 @@ interface FloatingChatBubbleProps {
 export function FloatingChatBubble({ conversation, onClose, onMinimize, minimized }: FloatingChatBubbleProps) {
   const user = useUser()
   const { messages, refresh, addLocalMessage, removeMessage } = useConversationMessages(conversation.id)
+  const { getEffective } = useUsersPresence()
+  const counterpartStatus =
+    conversation.type === 'dm' && conversation.counterpart
+      ? getEffective(conversation.counterpart.id)
+      : null
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
   const [failedIds, setFailedIds] = useState<Set<string>>(new Set())
@@ -105,11 +112,16 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
       <div className="flex items-center justify-between px-3 py-2 bg-[#00675c] text-white rounded-t-xl overflow-hidden">
         <div className="flex items-center gap-2 min-w-0">
           {conversation.type === 'dm' ? (
-            <UserAvatar
-              name={conversation.counterpart?.full_name ?? '?'}
-              avatarUrl={conversation.counterpart?.avatar_url}
-              size="xs"
-            />
+            <span className="relative inline-block">
+              <UserAvatar
+                name={conversation.counterpart?.full_name ?? '?'}
+                avatarUrl={conversation.counterpart?.avatar_url}
+                size="xs"
+              />
+              {counterpartStatus && (
+                <PresenceIndicator status={counterpartStatus} overlay size="xs" />
+              )}
+            </span>
           ) : (
             <span className="font-bold text-sm">#</span>
           )}
