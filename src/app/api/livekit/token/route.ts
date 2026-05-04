@@ -55,7 +55,7 @@ export async function POST(req: Request) {
 
   const { data: appUser } = await supabase
     .from('users')
-    .select('id, full_name')
+    .select('id, full_name, avatar_url')
     .eq('id', user.id)
     .single()
 
@@ -65,6 +65,7 @@ export async function POST(req: Request) {
     identity: user.id,
     name: appUser?.full_name ?? 'Usuario',
     modality,
+    metadata: JSON.stringify({ avatar_url: appUser?.avatar_url ?? null }),
   })
 
   return NextResponse.json({

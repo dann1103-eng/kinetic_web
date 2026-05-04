@@ -8,6 +8,8 @@ interface MintTokenInput {
   modality: CallModality
   /** Si true, el usuario puede publicar audio. Default true. */
   canPublish?: boolean
+  /** JSON string con datos extra del participante (p.ej. { avatar_url }). */
+  metadata?: string
 }
 
 /**
@@ -20,6 +22,7 @@ export async function mintLiveKitToken({
   name,
   modality,
   canPublish = true,
+  metadata,
 }: MintTokenInput): Promise<string> {
   const apiKey = process.env.LIVEKIT_API_KEY
   const apiSecret = process.env.LIVEKIT_API_SECRET
@@ -31,6 +34,7 @@ export async function mintLiveKitToken({
     identity,
     name,
     ttl: 60 * 60 * 6, // 6h
+    metadata,
   })
 
   at.addGrant({
