@@ -145,23 +145,23 @@ export async function GET() {
     }
   }
 
-  // unread_count = count messages donde created_at > last_read_at y autor != yo
+  // unread_count — queries en paralelo para evitar N+1 secuencial
+  const unreadCounts = await Promise.all(
+    convs.map(async (c) => {
+      const lastRead = lastReadByConv.get(c.id)
+      if (!lastRead) return 0
+      const { count } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .eq('conversation_id', c.id)
+        .is('deleted_at', null)
+        .neq('user_id', user.id)
+        .gt('created_at', lastRead)
+      return count ?? 0
+    })
+  )
   const unreadByConv = new Map<string, number>()
-  for (const c of convs) {
-    const lastRead = lastReadByConv.get(c.id)
-    if (!lastRead) {
-      unreadByConv.set(c.id, 0)
-      continue
-    }
-    const { count } = await supabase
-      .from('messages')
-      .select('id', { count: 'exact', head: true })
-      .eq('conversation_id', c.id)
-      .is('deleted_at', null)
-      .neq('user_id', user.id)
-      .gt('created_at', lastRead)
-    unreadByConv.set(c.id, count ?? 0)
-  }
+  convs.forEach((c, i) => unreadByConv.set(c.id, unreadCounts[i]))
 
   const items: ConversationListItem[] = convs.map((c) => ({
     id: c.id,

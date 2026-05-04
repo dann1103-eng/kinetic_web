@@ -17,6 +17,15 @@ function formatSharePreview(body: string): string {
 }
 
 async function loadInitialList(): Promise<ConversationListItem[]> {
+  try {
+    return await _loadInitialList()
+  } catch (e) {
+    console.error('[inbox layout] loadInitialList falló:', e)
+    return []
+  }
+}
+
+async function _loadInitialList(): Promise<ConversationListItem[]> {
   const ctx = await getEffectiveUser()
   if (!ctx) return []
   const userId = ctx.appUser.id
@@ -114,11 +123,12 @@ async function loadInitialList(): Promise<ConversationListItem[]> {
     if (!previewByConv.has(m.conversation_id)) previewByConv.set(m.conversation_id, formatSharePreview(m.body))
   }
 
-  const items: ConversationListItem[] = []
-  for (const c of convs) {
-    const lastRead = lastReadByConv.get(c.id)
-    let unread = 0
-    if (lastRead) {
+  // Unread counts — todas las queries en paralelo para evitar N+1 secuencial
+  // que desborda el timeout de Vercel cuando el usuario tiene muchas conversaciones.
+  const unreadCounts = await Promise.all(
+    convs.map(async (c) => {
+      const lastRead = lastReadByConv.get(c.id)
+      if (!lastRead) return 0
       const { count } = await supabase
         .from('messages')
         .select('id', { count: 'exact', head: true })
@@ -126,18 +136,19 @@ async function loadInitialList(): Promise<ConversationListItem[]> {
         .is('deleted_at', null)
         .neq('user_id', userId)
         .gt('created_at', lastRead)
-      unread = count ?? 0
-    }
-    items.push({
-      id: c.id,
-      type: c.type,
-      name: c.name,
-      last_message_at: c.last_message_at,
-      unread_count: unread,
-      counterpart: c.type === 'dm' ? counterpartByConv.get(c.id) ?? null : null,
-      last_message_preview: previewByConv.get(c.id) ?? null,
+      return count ?? 0
     })
-  }
+  )
+
+  const items: ConversationListItem[] = convs.map((c, i) => ({
+    id: c.id,
+    type: c.type,
+    name: c.name,
+    last_message_at: c.last_message_at,
+    unread_count: unreadCounts[i],
+    counterpart: c.type === 'dm' ? counterpartByConv.get(c.id) ?? null : null,
+    last_message_preview: previewByConv.get(c.id) ?? null,
+  }))
   return items
 }
 

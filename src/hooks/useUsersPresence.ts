@@ -36,37 +36,40 @@ export function useUsersPresence() {
   const [activeConvCalls, setActiveConvCalls] = useState<Set<string>>(new Set())
 
   const refresh = useCallback(async () => {
-    const supabase = createClient()
+    try {
+      const supabase = createClient()
 
-    // Manual presence
-    const { data: presRows } = await supabase
-      .from('user_presence')
-      .select('user_id, status')
-    const presMap = new Map<string, PresenceStatus>()
-    for (const r of (presRows ?? []) as PresenceRow[]) {
-      presMap.set(r.user_id, r.status)
-    }
-    setPresence(presMap)
-
-    // En llamada: usuarios con un call_participants row sin left_at sobre
-    // una sesión sin ended_at. Hacemos join inline porque RLS permite ver
-    // call_participants y call_sessions de conversaciones donde sea miembro.
-    const { data: activeRows } = await supabase
-      .from('call_participants')
-      .select('user_id, session_id, left_at, session:call_sessions!inner(id, conversation_id, ended_at)')
-      .is('left_at', null)
-      .is('session.ended_at', null)
-
-    const inCallSet = new Set<string>()
-    const convCallSet = new Set<string>()
-    for (const r of (activeRows ?? []) as unknown as ActiveCallRow[]) {
-      inCallSet.add(r.user_id)
-      if (r.session?.conversation_id) {
-        convCallSet.add(r.session.conversation_id)
+      // Manual presence
+      const { data: presRows } = await supabase
+        .from('user_presence')
+        .select('user_id, status')
+      const presMap = new Map<string, PresenceStatus>()
+      for (const r of (presRows ?? []) as PresenceRow[]) {
+        presMap.set(r.user_id, r.status)
       }
+      setPresence(presMap)
+
+      // En llamada: usuarios con un call_participants row sin left_at sobre
+      // una sesión sin ended_at.
+      const { data: activeRows } = await supabase
+        .from('call_participants')
+        .select('user_id, session_id, left_at, session:call_sessions!inner(id, conversation_id, ended_at)')
+        .is('left_at', null)
+        .is('session.ended_at', null)
+
+      const inCallSet = new Set<string>()
+      const convCallSet = new Set<string>()
+      for (const r of (activeRows ?? []) as unknown as ActiveCallRow[]) {
+        inCallSet.add(r.user_id)
+        if (r.session?.conversation_id) {
+          convCallSet.add(r.session.conversation_id)
+        }
+      }
+      setInCall(inCallSet)
+      setActiveConvCalls(convCallSet)
+    } catch (e) {
+      console.warn('[useUsersPresence] refresh falló:', e)
     }
-    setInCall(inCallSet)
-    setActiveConvCalls(convCallSet)
   }, [])
 
   useEffect(() => {
