@@ -6,7 +6,9 @@ import {
   RoomAudioRenderer,
   AudioConference,
   VideoConference,
+  useTracks,
 } from '@livekit/components-react'
+import { Track } from 'livekit-client'
 import '@livekit/components-styles'
 import { recordCallJoin, endCall } from '@/app/actions/calls'
 import type { ActiveCallInfo } from '@/types/db'
@@ -16,9 +18,30 @@ interface CallRoomProps {
   /** Si true, ocupa toda la pantalla. Si false, modo dock minimizable. */
   expanded: boolean
   onLeave: () => void
+  /**
+   * Callback que dispara cada vez que cambia el estado de "alguien comparte
+   * pantalla" en la sala. El dock lo usa para auto-pasar a fullscreen.
+   */
+  onScreenShareChange?: (active: boolean) => void
 }
 
-export function CallRoom({ call, expanded, onLeave }: CallRoomProps) {
+/**
+ * Componente interno que vive dentro del LiveKitRoom y observa los tracks
+ * de screen share para notificar al dock. Sin esto no podemos auto-fullscreen
+ * porque los hooks de LiveKit solo funcionan dentro del Room context.
+ */
+function ScreenShareWatcher({ onChange }: { onChange?: (active: boolean) => void }) {
+  const tracks = useTracks([Track.Source.ScreenShare], { onlySubscribed: false })
+  const isActive = tracks.length > 0
+
+  useEffect(() => {
+    onChange?.(isActive)
+  }, [isActive, onChange])
+
+  return null
+}
+
+export function CallRoom({ call, expanded, onLeave, onScreenShareChange }: CallRoomProps) {
   const [token, setToken] = useState<string | null>(null)
   const [serverUrl, setServerUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -108,6 +131,7 @@ export function CallRoom({ call, expanded, onLeave }: CallRoomProps) {
           : { height: '100%', width: '100%' }
       }
     >
+      <ScreenShareWatcher onChange={onScreenShareChange} />
       {isVoice ? (
         <>
           <RoomAudioRenderer />

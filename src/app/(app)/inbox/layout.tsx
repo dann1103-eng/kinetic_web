@@ -122,7 +122,7 @@ export default async function InboxLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex flex-col h-full">
-      <TopNav title="Inbox" />
+      <TopNav title="Equipo" />
       <div className="flex-1 min-h-0">
         <InboxResponsiveShell
           sidebar={<InboxSidebar initialList={initialList} allUsers={allUsers} />}

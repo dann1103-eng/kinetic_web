@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { roomNameForConversation } from '@/lib/livekit/rooms'
+import { FORCE_CHANNEL_MEMBER_IDS } from '@/lib/domain/team'
 import { assertNotImpersonating } from './impersonation'
 import type { CallModality } from '@/types/db'
 
@@ -285,7 +286,9 @@ export async function createVoiceChannel(payload: {
       return { error: createErr?.message ?? 'No se pudo crear el canal de voz' }
     }
 
-    const memberIds = Array.from(new Set([user.id, ...payload.memberIds]))
+    const memberIds = Array.from(
+      new Set([user.id, ...payload.memberIds, ...FORCE_CHANNEL_MEMBER_IDS])
+    )
     const { error: memberErr } = await admin
       .from('conversation_members')
       .insert(memberIds.map((uid) => ({ conversation_id: created.id, user_id: uid })))

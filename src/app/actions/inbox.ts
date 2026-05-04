@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { FORCE_CHANNEL_MEMBER_IDS } from '@/lib/domain/team'
 import { assertNotImpersonating } from './impersonation'
 
 async function getCurrentUser() {
@@ -129,7 +130,9 @@ export async function createChannel(payload: {
       return { error: createErr?.message ?? 'No se pudo crear el canal' }
     }
 
-    const memberIds = Array.from(new Set([userId, ...payload.memberIds]))
+    const memberIds = Array.from(
+      new Set([userId, ...payload.memberIds, ...FORCE_CHANNEL_MEMBER_IDS])
+    )
     const { error: memberErr } = await admin
       .from('conversation_members')
       .insert(memberIds.map((uid) => ({ conversation_id: created.id, user_id: uid })))

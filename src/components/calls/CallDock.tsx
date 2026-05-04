@@ -1,22 +1,61 @@
 'use client'
 
+import { useCallback, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
-import { Minimize2Icon, Maximize2Icon, PhoneOffIcon } from 'lucide-react'
+import {
+  Minimize2Icon,
+  Maximize2Icon,
+  PhoneOffIcon,
+  ExpandIcon,
+  ShrinkIcon,
+} from 'lucide-react'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { useActiveCallOrNull } from '@/contexts/ActiveCallContext'
 import { endCall } from '@/app/actions/calls'
+import { cn } from '@/lib/utils'
 
 // CallRoom incluye el SDK pesado de LiveKit (~150KB gz). Se carga solo
 // cuando hay una llamada activa, para no inflar el bundle del CRM normal.
 const CallRoom = dynamic(
   () => import('./CallRoom').then((m) => m.CallRoom),
-  { ssr: false, loading: () => <div className="p-4 text-xs text-[#595c5e]">Cargando llamada…</div> }
+  {
+    ssr: false,
+    loading: () => <div className="p-4 text-xs text-[#595c5e]">Cargando llamada…</div>,
+  }
 )
 
 export function CallDock() {
   const ctx = useActiveCallOrNull()
+  // El callback de screen share viene antes de los early returns para que el
+  // orden de hooks sea estable cuando el dock aparece/desaparece.
+  const autoFullscreenedRef = useRef(false)
+
+  const setFullscreen = ctx?.setFullscreen
+  const handleScreenShareChange = useCallback(
+    (active: boolean) => {
+      if (!setFullscreen) return
+      if (active && !autoFullscreenedRef.current) {
+        autoFullscreenedRef.current = true
+        setFullscreen(true)
+      }
+      if (!active) {
+        // Permitimos que un próximo screen share vuelva a auto-fullscrenear.
+        autoFullscreenedRef.current = false
+      }
+    },
+    [setFullscreen]
+  )
+
+  // Si la llamada inicia con modalidad 'screen', auto-fullscreen inmediato.
+  useEffect(() => {
+    if (ctx?.activeCall?.modality === 'screen') {
+      ctx.setFullscreen(true)
+      autoFullscreenedRef.current = true
+    }
+  }, [ctx?.activeCall?.sessionId, ctx?.activeCall?.modality, ctx])
+
   if (!ctx) return null
-  const { activeCall, minimized, setMinimized, endActiveCall } = ctx
+  const { activeCall, minimized, fullscreen, setMinimized, endActiveCall } = ctx
   if (!activeCall) return null
 
   async function handleHangup() {
@@ -25,70 +64,118 @@ export function CallDock() {
     endActiveCall()
   }
 
-  const modalityIsVoice = activeCall.modality === 'voice'
-
-  if (minimized) {
-    return (
-      <div className="fixed bottom-4 right-4 z-[210] bg-white border border-[#dfe3e6] rounded-full shadow-xl flex items-center gap-2 px-3 py-2">
-        <UserAvatar
-          name={activeCall.title}
-          avatarUrl={activeCall.counterpartAvatarUrl}
-          size="xs"
-        />
-        <span className="text-xs font-semibold text-[#2a2a2a] max-w-[120px] truncate">
-          {activeCall.title}
-        </span>
-        <span className="text-[10px] text-[#00675c] font-bold uppercase">en llamada</span>
-        <button
-          type="button"
-          onClick={() => setMinimized(false)}
-          title="Expandir"
-          className="w-7 h-7 rounded-full bg-[#00675c]/10 text-[#00675c] hover:bg-[#00675c]/20 flex items-center justify-center transition-colors"
-        >
-          <Maximize2Icon size={13} />
-        </button>
-        <button
-          type="button"
-          onClick={handleHangup}
-          title="Colgar"
-          className="w-7 h-7 rounded-full bg-[#b31b25] text-white hover:bg-[#b31b25]/90 flex items-center justify-center transition-colors"
-        >
-          <PhoneOffIcon size={13} />
-        </button>
-        {/* CallRoom se mantiene montado en hidden para no perder la conexión */}
-        <div className="hidden">
-          <CallRoom call={activeCall} expanded={false} onLeave={endActiveCall} />
-        </div>
-      </div>
-    )
+  function handleToggleFullscreen() {
+    ctx?.setFullscreen(!fullscreen)
   }
 
-  // Expandido — overlay grande pero no fullscreen (el CRM sigue visible detrás).
-  const widthCls = modalityIsVoice ? 'w-[360px]' : 'w-[720px] max-w-[calc(100vw-2rem)]'
-  const heightCls = modalityIsVoice ? 'h-[420px]' : 'h-[480px]'
+  function handleMinimize() {
+    ctx?.setFullscreen(false)
+    setMinimized(true)
+  }
+
+  function handleExpand() {
+    setMinimized(false)
+  }
+
+  // ── Layout sizing ───────────────────────────────────────────────
+  // CRÍTICO: el CallRoom NUNCA se desmonta ni recibe display:none. Cuando
+  // se minimiza, lo posicionamos fixed al tamaño normal pero con opacity:0
+  // para que Chrome no pause los tracks de video/screen-share. Esto fixea
+  // el bug donde compartir pantalla se suspendía al minimizar.
+  const callRoomCls = cn(
+    'fixed bg-[#0e0e0e] overflow-hidden transition-[border-radius,box-shadow] duration-150',
+    fullscreen
+      ? 'inset-0 z-[210]'
+      : minimized
+        ? 'bottom-4 right-4 w-[360px] max-w-[calc(100vw-2rem)] h-[220px] rounded-xl border border-[#dfe3e6] shadow-2xl opacity-0 pointer-events-none z-[1]'
+        : 'bottom-4 right-4 w-[720px] max-w-[calc(100vw-2rem)] h-[480px] rounded-xl border border-[#dfe3e6] shadow-2xl z-[210]'
+  )
 
   return (
-    <div className={`fixed bottom-4 right-4 z-[210] ${widthCls} ${heightCls} bg-white border border-[#dfe3e6] rounded-xl shadow-2xl flex flex-col overflow-hidden`}>
-      <div className="px-4 py-2.5 border-b border-[#dfe3e6] flex items-center justify-between bg-[#00675c]/5">
-        <div className="flex items-center gap-2 min-w-0">
+    <>
+      {/* CallRoom siempre montado, nunca con display:none */}
+      <div className={callRoomCls}>
+        <CallRoom
+          call={activeCall}
+          expanded={!minimized}
+          onLeave={endActiveCall}
+          onScreenShareChange={handleScreenShareChange}
+        />
+      </div>
+
+      {/* Header overlay con controles — sobre el CallRoom cuando expandido/fullscreen */}
+      {!minimized && (
+        <div
+          className={cn(
+            'fixed z-[211] flex items-center gap-1.5 px-3 py-2 bg-black/60 backdrop-blur-md rounded-full shadow-lg',
+            fullscreen ? 'top-4 right-4' : 'bottom-[490px] right-4'
+          )}
+        >
           <UserAvatar
             name={activeCall.title}
             avatarUrl={activeCall.counterpartAvatarUrl}
             size="xs"
           />
-          <span className="text-xs font-bold text-[#2a2a2a] truncate">{activeCall.title}</span>
-          <span className="text-[10px] text-[#00675c] font-bold uppercase">
-            {activeCall.modality === 'voice' ? 'voz' : activeCall.modality === 'video' ? 'video' : 'pantalla'}
+          <span className="text-xs font-bold text-white max-w-[140px] truncate">
+            {activeCall.title}
           </span>
+          <span className="text-[10px] text-white/70 font-bold uppercase tracking-wide">
+            {activeCall.modality === 'voice'
+              ? 'voz'
+              : activeCall.modality === 'video'
+                ? 'video'
+                : 'pantalla'}
+          </span>
+          <div className="ml-1 flex items-center gap-1 border-l border-white/15 pl-1.5">
+            <button
+              type="button"
+              onClick={handleMinimize}
+              title="Minimizar"
+              className="w-7 h-7 rounded-full hover:bg-white/15 flex items-center justify-center transition-colors text-white/85"
+            >
+              <Minimize2Icon size={13} />
+            </button>
+            <button
+              type="button"
+              onClick={handleToggleFullscreen}
+              title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              className="w-7 h-7 rounded-full hover:bg-white/15 flex items-center justify-center transition-colors text-white/85"
+            >
+              {fullscreen ? <ShrinkIcon size={13} /> : <ExpandIcon size={13} />}
+            </button>
+            <button
+              type="button"
+              onClick={handleHangup}
+              title="Colgar"
+              className="w-7 h-7 rounded-full bg-[#b31b25] hover:bg-[#b31b25]/90 flex items-center justify-center transition-colors text-white"
+            >
+              <PhoneOffIcon size={12} />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+      )}
+
+      {/* Chip minimizado — visible solo cuando minimized */}
+      {minimized && (
+        <div className="fixed bottom-4 right-4 z-[211] bg-white border border-[#dfe3e6] rounded-full shadow-xl flex items-center gap-2 px-3 py-2">
+          <UserAvatar
+            name={activeCall.title}
+            avatarUrl={activeCall.counterpartAvatarUrl}
+            size="xs"
+          />
+          <span className="text-xs font-semibold text-[#2a2a2a] max-w-[120px] truncate">
+            {activeCall.title}
+          </span>
+          <span className="text-[10px] text-[#00675c] font-bold uppercase">
+            en llamada
+          </span>
           <button
             type="button"
-            onClick={() => setMinimized(true)}
-            title="Minimizar"
-            className="w-7 h-7 rounded-full hover:bg-black/5 flex items-center justify-center transition-colors text-[#595c5e]"
+            onClick={handleExpand}
+            title="Expandir"
+            className="w-7 h-7 rounded-full bg-[#00675c]/10 text-[#00675c] hover:bg-[#00675c]/20 flex items-center justify-center transition-colors"
           >
-            <Minimize2Icon size={14} />
+            <Maximize2Icon size={13} />
           </button>
           <button
             type="button"
@@ -99,10 +186,7 @@ export function CallDock() {
             <PhoneOffIcon size={13} />
           </button>
         </div>
-      </div>
-      <div className="flex-1 min-h-0 bg-[#0e0e0e]">
-        <CallRoom call={activeCall} expanded onLeave={endActiveCall} />
-      </div>
-    </div>
+      )}
+    </>
   )
 }
