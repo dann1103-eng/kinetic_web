@@ -56,6 +56,7 @@ export function NewRequirementFromPipeline({ clients, isAdmin, canAssign }: Prop
       .select('content_type, includes_story')
       .eq('billing_cycle_id', cy.id)
       .eq('voided', false)
+      .neq('carried_over', true)
 
     const t = emptyTotals()
     for (const r of reqs ?? []) {
