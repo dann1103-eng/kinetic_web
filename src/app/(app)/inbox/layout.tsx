@@ -36,20 +36,32 @@ async function loadInitialList(): Promise<ConversationListItem[]> {
   let convs = (convsRaw ?? []) as ConvRow[]
 
   // Si es admin, también traemos TODOS los canales que no estén en su lista
-  // — admins ven cualquier canal aunque no sean miembros.
+  // — admins ven cualquier canal aunque no sean miembros. Si por cualquier
+  // razón esta query falla (env vars, schema desactualizado, etc.) seguimos
+  // con la lista propia del usuario sin romper la página.
   if (isAdmin && !ctx.isImpersonating) {
-    const adminClient = createAdminClient()
-    const knownIds = new Set(convs.map((c) => c.id))
-    const { data: allChannelsRaw } = await adminClient
-      .from('conversations')
-      .select('id, type, name, last_message_at')
-      .in('type', ['channel', 'voice_channel'])
-      .order('last_message_at', { ascending: false })
-    const extra = ((allChannelsRaw ?? []) as ConvRow[]).filter((c) => !knownIds.has(c.id))
-    if (extra.length > 0) {
-      convs = [...convs, ...extra].sort((a, b) =>
-        b.last_message_at.localeCompare(a.last_message_at)
-      )
+    try {
+      const adminClient = createAdminClient()
+      const knownIds = new Set(convs.map((c) => c.id))
+      const { data: allChannelsRaw, error: extraErr } = await adminClient
+        .from('conversations')
+        .select('id, type, name, last_message_at')
+        .in('type', ['channel', 'voice_channel'])
+        .order('last_message_at', { ascending: false })
+      if (!extraErr) {
+        const extra = ((allChannelsRaw ?? []) as ConvRow[]).filter(
+          (c) => !knownIds.has(c.id)
+        )
+        if (extra.length > 0) {
+          convs = [...convs, ...extra].sort((a, b) =>
+            b.last_message_at.localeCompare(a.last_message_at)
+          )
+        }
+      } else {
+        console.warn('[inbox layout] admin channels fetch failed:', extraErr.message)
+      }
+    } catch (e) {
+      console.warn('[inbox layout] admin channels block threw:', e)
     }
   }
 

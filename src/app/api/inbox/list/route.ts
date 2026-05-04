@@ -67,18 +67,28 @@ export async function GET() {
   const isAdmin = appUser?.role === 'admin'
 
   if (isAdmin) {
-    const adminClient = createAdminClient()
-    const known = new Set(convs.map((c) => c.id))
-    const { data: allChannelsRaw } = await adminClient
-      .from('conversations')
-      .select('id, type, name, last_message_at')
-      .in('type', ['channel', 'voice_channel'])
-      .order('last_message_at', { ascending: false })
-    const extra = ((allChannelsRaw ?? []) as ConvRow[]).filter((c) => !known.has(c.id))
-    if (extra.length > 0) {
-      convs = [...convs, ...extra].sort((a, b) =>
-        b.last_message_at.localeCompare(a.last_message_at)
-      )
+    try {
+      const adminClient = createAdminClient()
+      const known = new Set(convs.map((c) => c.id))
+      const { data: allChannelsRaw, error: extraErr } = await adminClient
+        .from('conversations')
+        .select('id, type, name, last_message_at')
+        .in('type', ['channel', 'voice_channel'])
+        .order('last_message_at', { ascending: false })
+      if (!extraErr) {
+        const extra = ((allChannelsRaw ?? []) as ConvRow[]).filter(
+          (c) => !known.has(c.id)
+        )
+        if (extra.length > 0) {
+          convs = [...convs, ...extra].sort((a, b) =>
+            b.last_message_at.localeCompare(a.last_message_at)
+          )
+        }
+      } else {
+        console.warn('[/api/inbox/list] admin channels fetch failed:', extraErr.message)
+      }
+    } catch (e) {
+      console.warn('[/api/inbox/list] admin channels block threw:', e)
     }
   }
 
