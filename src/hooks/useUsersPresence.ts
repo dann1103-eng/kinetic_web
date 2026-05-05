@@ -18,7 +18,11 @@ interface ActiveCallRow {
 interface PresenceRow {
   user_id: string
   status: PresenceStatus
+  updated_at: string
 }
+
+// Si el usuario no ha refrescado su presencia en más de 35 minutos, se considera offline.
+const STALE_MS = 35 * 60 * 1000
 
 /**
  * Resultado del hook: por cada user_id devuelve el estado efectivo
@@ -32,6 +36,7 @@ interface PresenceRow {
  */
 export function useUsersPresence() {
   const [presence, setPresence] = useState<Map<string, PresenceStatus>>(new Map())
+  const [presenceUpdatedAt, setPresenceUpdatedAt] = useState<Map<string, string>>(new Map())
   const [inCall, setInCall] = useState<Set<string>>(new Set())
   const [activeConvCalls, setActiveConvCalls] = useState<Set<string>>(new Set())
 
@@ -52,12 +57,15 @@ export function useUsersPresence() {
       // Manual presence
       const { data: presRows } = await supabase
         .from('user_presence')
-        .select('user_id, status')
+        .select('user_id, status, updated_at')
       const presMap = new Map<string, PresenceStatus>()
+      const updMap = new Map<string, string>()
       for (const r of (presRows ?? []) as PresenceRow[]) {
         presMap.set(r.user_id, r.status)
+        updMap.set(r.user_id, r.updated_at)
       }
       setPresence(presMap)
+      setPresenceUpdatedAt(updMap)
 
       // En llamada: usuarios con un call_participants row sin left_at sobre
       // una sesión sin ended_at.
@@ -119,13 +127,17 @@ export function useUsersPresence() {
     }
   }, [refresh])
 
-  /** Estado efectivo: en_llamada override sobre el manual. */
+  /** Estado efectivo: en_llamada override sobre el manual. Offline si no hay fila o si está inactivo >35 min. */
   const getEffective = useCallback(
     (userId: string): EffectivePresenceStatus => {
       if (inCall.has(userId)) return 'en_llamada'
-      return presence.get(userId) ?? 'online'
+      const status = presence.get(userId)
+      if (!status) return 'offline'
+      const lastSeen = presenceUpdatedAt.get(userId)
+      if (!lastSeen || Date.now() - new Date(lastSeen).getTime() > STALE_MS) return 'offline'
+      return status
     },
-    [inCall, presence]
+    [inCall, presence, presenceUpdatedAt]
   )
 
   /** True si la conversación tiene una sesión de llamada activa. */

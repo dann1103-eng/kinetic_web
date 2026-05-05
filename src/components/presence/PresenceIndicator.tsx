@@ -19,6 +19,7 @@ const STATUS_COLOR: Record<EffectivePresenceStatus, string> = {
   away: 'bg-amber-500',
   almuerzo: 'bg-orange-500',
   en_llamada: 'bg-red-500',
+  offline: 'bg-gray-400',
 }
 
 const STATUS_LABEL: Record<EffectivePresenceStatus, string> = {
@@ -26,6 +27,7 @@ const STATUS_LABEL: Record<EffectivePresenceStatus, string> = {
   away: 'Ausente',
   almuerzo: 'En almuerzo',
   en_llamada: 'En llamada',
+  offline: 'Desconectado',
 }
 
 const STATUS_EMOJI: Record<EffectivePresenceStatus, string> = {
@@ -33,6 +35,7 @@ const STATUS_EMOJI: Record<EffectivePresenceStatus, string> = {
   away: '',
   almuerzo: '🍔',
   en_llamada: '📹',
+  offline: '',
 }
 
 const SIZE_DOT: Record<NonNullable<PresenceIndicatorProps['size']>, string> = {

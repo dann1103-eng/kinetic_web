@@ -121,8 +121,8 @@ export type CallModality = 'voice' | 'video' | 'screen'
 /** Estado manual que el usuario elige para sí mismo. */
 export type PresenceStatus = 'online' | 'away' | 'almuerzo'
 
-/** Estado efectivo que ven los demás — incluye el override automático en llamada. */
-export type EffectivePresenceStatus = PresenceStatus | 'en_llamada'
+/** Estado efectivo que ven los demás — incluye el override automático en llamada y el estado desconectado. */
+export type EffectivePresenceStatus = PresenceStatus | 'en_llamada' | 'offline'
 
 export interface PresenceInfo {
   user_id: string

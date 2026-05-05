@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { useMemo, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
+import { useMemo, useState, useTransition } from 'react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
@@ -12,6 +12,7 @@ import { useInboxList } from '@/hooks/useInboxPolling'
 import { useUser } from '@/contexts/UserContext'
 import { useUsersPresence } from '@/hooks/useUsersPresence'
 import { PresenceIndicator } from '@/components/presence/PresenceIndicator'
+import { createOrGetDM } from '@/app/actions/inbox'
 import type { ConversationListItem, AppUser, EffectivePresenceStatus } from '@/types/db'
 
 interface InboxSidebarProps {
@@ -28,12 +29,27 @@ export function InboxSidebar({ initialList, allUsers }: InboxSidebarProps) {
 
   const canCreateChannels = user.role === 'admin' || user.role === 'supervisor'
 
-  const { channels, dms, totalUnread } = useMemo(() => {
+  const { channels, totalUnread } = useMemo(() => {
     const channels = data.filter((c) => c.type === 'channel')
-    const dms = data.filter((c) => c.type === 'dm')
     const totalUnread = data.reduce((sum, c) => sum + c.unread_count, 0)
-    return { channels, dms, totalUnread }
+    return { channels, totalUnread }
   }, [data])
+
+  // Mapa de user_id → conversación DM existente (para unread counts y navegación directa)
+  const dmByUserId = useMemo(() => {
+    const map = new Map<string, ConversationListItem>()
+    for (const c of data) {
+      if (c.type === 'dm' && c.counterpart) {
+        map.set(c.counterpart.id, c)
+      }
+    }
+    return map
+  }, [data])
+
+  const teamMembers = useMemo(
+    () => allUsers.filter((u) => u.id !== user.id),
+    [allUsers, user.id]
+  )
 
   const activeId = pathname.startsWith('/inbox/') ? pathname.split('/')[2] : null
 
@@ -85,23 +101,26 @@ export function InboxSidebar({ initialList, allUsers }: InboxSidebarProps) {
         <section className="mt-6">
           <div className="flex items-center justify-between px-3 py-2">
             <div className="text-[10px] font-bold text-fm-on-surface-variant uppercase tracking-widest">
-              Mensajes directos
+              Miembros del equipo
             </div>
           </div>
           <div className="space-y-0.5">
-            {dms.length === 0 && (
-              <div className="px-3 py-2 text-xs text-fm-on-surface-variant/70 italic">Sin mensajes directos</div>
+            {teamMembers.length === 0 && (
+              <div className="px-3 py-2 text-xs text-fm-on-surface-variant/70 italic">Sin miembros</div>
             )}
-            {dms.map((c) => (
-              <ConvLink
-                key={c.id}
-                conv={c}
-                active={activeId === c.id}
-                counterpartStatus={
-                  c.counterpart ? getEffective(c.counterpart.id) : null
-                }
-              />
-            ))}
+            {teamMembers.map((u) => {
+              const dm = dmByUserId.get(u.id)
+              const dmActive = dm ? activeId === dm.id : false
+              return (
+                <TeamMemberRow
+                  key={u.id}
+                  member={u}
+                  dm={dm}
+                  active={dmActive}
+                  status={getEffective(u.id)}
+                />
+              )
+            })}
           </div>
         </section>
       </nav>
@@ -110,27 +129,82 @@ export function InboxSidebar({ initialList, allUsers }: InboxSidebarProps) {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         canCreateChannels={canCreateChannels}
-        allUsers={allUsers.filter((u) => u.id !== user.id)}
+        allUsers={teamMembers}
       />
     </aside>
+  )
+}
+
+function TeamMemberRow({
+  member,
+  dm,
+  active,
+  status,
+}: {
+  member: Pick<AppUser, 'id' | 'full_name' | 'avatar_url'>
+  dm: ConversationListItem | undefined
+  active: boolean
+  status: EffectivePresenceStatus
+}) {
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+
+  function handleClick() {
+    if (dm) {
+      router.push(`/inbox/${dm.id}`)
+      return
+    }
+    startTransition(async () => {
+      const res = await createOrGetDM(member.id)
+      if ('conversationId' in res && res.conversationId) {
+        router.push(`/inbox/${res.conversationId}`)
+      }
+    })
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={pending}
+      className={cn(
+        'w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm cursor-pointer transition-colors',
+        active
+          ? 'bg-fm-primary/10 text-fm-primary font-semibold'
+          : 'text-fm-on-surface-variant hover:bg-fm-background',
+        pending && 'opacity-60'
+      )}
+    >
+      <span className="flex items-center min-w-0 flex-1 gap-2">
+        <span className="relative flex-shrink-0">
+          <UserAvatar
+            name={member.full_name ?? '?'}
+            avatarUrl={member.avatar_url}
+            size="xs"
+          />
+          <PresenceIndicator status={status} overlay size="xs" />
+        </span>
+        <span className="truncate">{member.full_name}</span>
+      </span>
+      {dm && dm.unread_count > 0 && (
+        <span className="ml-2 flex-shrink-0 bg-fm-error text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+          {dm.unread_count > 99 ? '99+' : dm.unread_count}
+        </span>
+      )}
+    </button>
   )
 }
 
 function ConvLink({
   conv,
   active,
-  counterpartStatus,
   inCall,
 }: {
   conv: ConversationListItem
   active: boolean
-  counterpartStatus?: EffectivePresenceStatus | null
   inCall?: boolean
 }) {
-  const label =
-    conv.type === 'channel'
-      ? conv.name ?? 'canal'
-      : conv.counterpart?.full_name ?? 'Usuario'
+  const label = conv.name ?? 'canal'
 
   const timeAgo = useMemo(() => {
     try {
@@ -151,20 +225,7 @@ function ConvLink({
       )}
     >
       <span className="flex items-center min-w-0 flex-1">
-        {conv.type === 'channel' ? (
-          <span className={cn('mr-2 font-bold', active ? 'text-fm-primary' : 'text-fm-primary/80')}>#</span>
-        ) : (
-          <span className="mr-2 flex-shrink-0 relative">
-            <UserAvatar
-              name={conv.counterpart?.full_name ?? '?'}
-              avatarUrl={conv.counterpart?.avatar_url}
-              size="xs"
-            />
-            {counterpartStatus && (
-              <PresenceIndicator status={counterpartStatus} overlay size="xs" />
-            )}
-          </span>
-        )}
+        <span className={cn('mr-2 font-bold', active ? 'text-fm-primary' : 'text-fm-primary/80')}>#</span>
         <span className="truncate">{label}</span>
         {inCall && (
           <span

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { ChevronDownIcon, CheckIcon } from 'lucide-react'
-import { setPresenceStatus } from '@/app/actions/presence'
+import { setPresenceStatus, touchPresence } from '@/app/actions/presence'
 import { useUserOrNull } from '@/contexts/UserContext'
 import { useUsersPresence } from '@/hooks/useUsersPresence'
 import { PresenceIndicator } from './PresenceIndicator'
@@ -33,6 +33,16 @@ export function PresenceSelector() {
     : 'online'
   const inCallOverride = effective === 'en_llamada'
 
+  // Mantiene updated_at fresco para que otros usuarios no vean este usuario como offline.
+  // También crea la fila de presencia la primera vez que el usuario abre la app.
+  useEffect(() => {
+    if (!user) return
+    touchPresence()
+    const PING_MS = 20 * 60 * 1000
+    const timer = window.setInterval(touchPresence, PING_MS)
+    return () => window.clearInterval(timer)
+  }, [user])
+
   useEffect(() => {
     function onOutside(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -61,13 +71,13 @@ export function PresenceSelector() {
         title={inCallOverride ? 'En llamada — cambia tu estado al terminar' : 'Cambiar estado'}
         className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium text-fm-on-surface-variant hover:bg-fm-surface-container-low transition-colors"
       >
-        <PresenceIndicator status={effective} size="sm" />
+        <PresenceIndicator status={inCallOverride ? 'en_llamada' : manualCurrent} size="sm" />
         <span>
-          {effective === 'en_llamada'
+          {inCallOverride
             ? 'En llamada'
-            : effective === 'almuerzo'
+            : manualCurrent === 'almuerzo'
               ? 'En almuerzo'
-              : effective === 'away'
+              : manualCurrent === 'away'
                 ? 'Ausente'
                 : 'En línea'}
         </span>

@@ -160,6 +160,7 @@ async function loadAllUsers(): Promise<Pick<AppUser, 'id' | 'full_name' | 'avata
     const { data } = await supabase
       .from('users')
       .select('id, full_name, avatar_url, role')
+      .neq('role', 'client')
       .order('full_name', { ascending: true })
     return (data ?? []) as Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[]
   } catch (e) {
