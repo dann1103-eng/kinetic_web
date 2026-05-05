@@ -14,6 +14,7 @@ import type { AppUser, ContentType, Phase, Priority, RequirementPhaseLog } from 
 import { createClient } from '@/lib/supabase/client'
 import { useCalendarEvents } from '@/hooks/useCalendarEvents'
 import { NewInternalEventModal } from './NewInternalEventModal'
+import { EditEventModal, type EditEventInitial } from './EditEventModal'
 import { PhaseSheet } from '@/components/pipeline/PhaseSheet'
 import { QuickTimerDialog } from '@/components/pipeline/QuickTimerDialog'
 import { rescheduleEvent } from '@/app/actions/calendar'
@@ -274,6 +275,7 @@ export function CalendarPageClient({ currentUser, isPrivileged, allUsers, client
   const [sheetLoading, setSheetLoading] = useState(false)
   const [detailReq, setDetailReq] = useState<CalendarReqDetail | null>(null)
   const [quickTimerReq, setQuickTimerReq] = useState<CalendarReqDetail | null>(null)
+  const [editEvent, setEditEvent] = useState<EditEventInitial | null>(null)
   const [detailLogs, setDetailLogs] = useState<Array<RequirementPhaseLog & { moved_by_user?: { id: string; full_name: string | null; avatar_url: string | null } | null }>>([])
 
   const [isDark, setIsDark] = useState<boolean>(() =>
@@ -430,6 +432,26 @@ export function CalendarPageClient({ currentUser, isPrivileged, allUsers, client
   }, [isPrivileged, refetch])
 
   const handleSelectEvent = useCallback(async (event: CalendarEvent) => {
+    // time_entry (reunion interna): admin/supervisor abren el modal de edición
+    if (event.source === 'time_entry') {
+      if (!isPrivileged) return
+      const id = event.id.startsWith('te-') ? event.id.slice(3) : event.id
+      const durationMinutes = Math.max(
+        1,
+        Math.round((event.end.getTime() - event.start.getTime()) / 60000),
+      )
+      setEditEvent({
+        source: 'time_entry',
+        id,
+        title: event.title,
+        startsAt: toLocalInputValue(event.start),
+        durationMinutes,
+        attendees: event.attendees,
+        notes: null,
+        clientName: null,
+      })
+      return
+    }
     if (!event.requirementId) return
     setSheetLoading(true)
     setDetailReq(null)
@@ -489,7 +511,7 @@ export function CalendarPageClient({ currentUser, isPrivileged, allUsers, client
       setDetailReq(detail)
       setDetailLogs((logs ?? []) as unknown as typeof detailLogs)
     }
-  }, [allUsers])
+  }, [allUsers, isPrivileged])
 
   const messages = {
     today: 'Hoy', previous: '‹', next: '›',
@@ -692,8 +714,38 @@ export function CalendarPageClient({ currentUser, isPrivileged, allUsers, client
           assignees={quickTimerReq.assignees}
           startsAt={quickTimerReq.startsAt}
           estimatedTimeMinutes={quickTimerReq.estimatedTimeMinutes}
+          onEdit={isPrivileged ? () => {
+            setEditEvent({
+              source: 'requirement',
+              id: quickTimerReq.requirementId,
+              title: quickTimerReq.title,
+              startsAt: quickTimerReq.startsAt
+                ? toLocalInputValue(new Date(quickTimerReq.startsAt))
+                : '',
+              durationMinutes: quickTimerReq.estimatedTimeMinutes ?? 60,
+              attendees: quickTimerReq.assignedTo ?? [],
+              notes: quickTimerReq.notes,
+              clientName: quickTimerReq.clientName,
+            })
+            setQuickTimerReq(null)
+          } : undefined}
+        />
+      )}
+
+      {editEvent && (
+        <EditEventModal
+          open={true}
+          onClose={() => { setEditEvent(null); refetch() }}
+          initial={editEvent}
+          allUsers={allUsers}
         />
       )}
     </div>
   )
+}
+
+function toLocalInputValue(d: Date): string {
+  if (isNaN(d.getTime())) return ''
+  const pad = (n: number) => n.toString().padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }

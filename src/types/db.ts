@@ -34,6 +34,8 @@ export type Phase =
 
 export type Priority = 'baja' | 'media' | 'alta'
 
+export type RequirementApprovalStatus = 'approved' | 'pending' | 'rejected'
+
 export type CreditKind =
   | 'cambios'
   | 'content_estatico'
@@ -137,8 +139,14 @@ export interface ClientUser {
   user_id: string
   client_id: string
   role: ClientUserRole
+  /** Acceso a sección de facturación/cobranza del portal (migración 0073). */
+  can_billing: boolean
+  /** Acceso a gestión de trabajo: requerimientos, revisión, chat (migración 0073). */
+  can_work: boolean
   created_at: string
 }
+
+export type ClientPortalCapability = 'billing' | 'work'
 
 export type RenewalRequestStatus = 'pending' | 'approved' | 'rejected' | 'completed'
 
@@ -212,7 +220,8 @@ export interface TermAndCondition {
 
 /** Snapshot inmutable de los datos fiscales del cliente al momento de emisión. */
 export interface ClientFiscalSnapshot {
-  id: string
+  /** null cuando es un prospecto sin cliente creado en BD (migración 0075). */
+  id: string | null
   name: string
   legal_name: string | null
   person_type: PersonType | null
@@ -584,6 +593,15 @@ export interface Database {
           starts_at: string | null
           consumption_overrides_json: Partial<Record<ContentType, number>> | null
           paid_from_credit_id: string | null
+          approval_status: RequirementApprovalStatus
+          requested_by_user_id: string | null
+          client_requested_deadline: string | null
+          client_requested_notes: string | null
+          approved_by_user_id: string | null
+          approved_at: string | null
+          rejected_reason: string | null
+          rejected_at: string | null
+          rejected_by_user_id: string | null
         }
         Insert: {
           id?: string
@@ -609,6 +627,15 @@ export interface Database {
           starts_at?: string | null
           consumption_overrides_json?: Partial<Record<ContentType, number>> | null
           paid_from_credit_id?: string | null
+          approval_status?: RequirementApprovalStatus
+          requested_by_user_id?: string | null
+          client_requested_deadline?: string | null
+          client_requested_notes?: string | null
+          approved_by_user_id?: string | null
+          approved_at?: string | null
+          rejected_reason?: string | null
+          rejected_at?: string | null
+          rejected_by_user_id?: string | null
         }
         Update: {
           billing_cycle_id?: string
@@ -632,6 +659,15 @@ export interface Database {
           starts_at?: string | null
           consumption_overrides_json?: Partial<Record<ContentType, number>> | null
           paid_from_credit_id?: string | null
+          approval_status?: RequirementApprovalStatus
+          requested_by_user_id?: string | null
+          client_requested_deadline?: string | null
+          client_requested_notes?: string | null
+          approved_by_user_id?: string | null
+          approved_at?: string | null
+          rejected_reason?: string | null
+          rejected_at?: string | null
+          rejected_by_user_id?: string | null
         }
         Relationships: [
           {
@@ -1455,7 +1491,8 @@ export interface Database {
         Row: {
           id: string
           quote_number: string
-          client_id: string
+          /** null cuando es una cotización a un prospecto sin cliente creado (migración 0075). */
+          client_id: string | null
           issue_date: string
           valid_until: string | null
           currency: string
@@ -1480,7 +1517,7 @@ export interface Database {
         Insert: {
           id?: string
           quote_number: string
-          client_id: string
+          client_id?: string | null
           issue_date?: string
           valid_until?: string | null
           currency?: string
@@ -1554,6 +1591,8 @@ export interface Database {
           user_id: string
           client_id: string
           role: ClientUserRole
+          can_billing: boolean
+          can_work: boolean
           created_at: string
         }
         Insert: {
@@ -1561,10 +1600,14 @@ export interface Database {
           user_id: string
           client_id: string
           role?: ClientUserRole
+          can_billing?: boolean
+          can_work?: boolean
           created_at?: string
         }
         Update: {
           role?: ClientUserRole
+          can_billing?: boolean
+          can_work?: boolean
         }
         Relationships: []
       }

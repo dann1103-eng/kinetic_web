@@ -3,6 +3,7 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId, getActiveClientIds } from '@/lib/supabase/active-client'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
+import { loadPortalPermissions } from '@/lib/auth/portal-permissions'
 import { PortalSidebar } from '@/components/portal/PortalSidebar'
 import { PortalTopNav } from '@/components/portal/PortalTopNav'
 import { UserProvider } from '@/contexts/UserContext'
@@ -64,6 +65,18 @@ export default async function PortalLayout({ children }: { children: React.React
   const active = clientOptions?.find((c) => c.id === activeId)
   const clientDisplayName = active?.name ?? 'Mi empresa'
 
+  const permissions = await loadPortalPermissions(
+    ctx.appUser.id,
+    activeId!,
+    ctx.isImpersonating,
+  )
+
+  // Sin ningún permiso → dejarle solo /portal/sin-acceso accesible.
+  const isSinAcceso = currentPath === '/portal/sin-acceso'
+  if (!permissions.can_billing && !permissions.can_work && !isSinAcceso) {
+    redirect('/portal/sin-acceso')
+  }
+
   return (
     <UserProvider
       user={ctx.appUser}
@@ -76,6 +89,7 @@ export default async function PortalLayout({ children }: { children: React.React
           clientOptions={clientOptions ?? []}
           activeClientId={activeId!}
           clientDisplayName={clientDisplayName}
+          permissions={permissions}
         />
         <div className="flex flex-col flex-1 md:ml-64 overflow-hidden">
           <PortalTopNav clientDisplayName={clientDisplayName} />

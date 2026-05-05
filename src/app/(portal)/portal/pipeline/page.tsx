@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId } from '@/lib/supabase/active-client'
+import { requirePortalCapability } from '@/lib/auth/portal-permissions'
 import { redirect } from 'next/navigation'
 import { ClientPipelineBoard } from '@/components/portal/ClientPipelineBoard'
 import { clientPhaseOf, PHASES } from '@/lib/domain/pipeline'
@@ -9,6 +10,7 @@ import type { Phase } from '@/types/db'
 export const dynamic = 'force-dynamic'
 
 export default async function PortalPipelinePage() {
+  await requirePortalCapability('work')
   const clientId = await getActiveClientId()
   if (!clientId) redirect('/portal/seleccionar-marca')
 
@@ -50,6 +52,7 @@ export default async function PortalPipelinePage() {
     .select('id, title, notes, deadline, phase, content_type, review_started_at')
     .eq('billing_cycle_id', cycle.id)
     .eq('voided', false)
+    .eq('approval_status', 'approved')
     .neq('content_type', 'produccion') // produccion doesn't have phases
     .order('registered_at', { ascending: true })
   const items: ReqRow[] = (data ?? []) as ReqRow[]

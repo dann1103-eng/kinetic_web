@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId } from '@/lib/supabase/active-client'
+import { requirePortalCapability } from '@/lib/auth/portal-permissions'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { InvoiceStatusBadge, QuoteStatusBadge } from '@/components/billing/StatusBadge'
@@ -11,6 +12,7 @@ import type { InvoiceStatus, QuoteStatus } from '@/types/db'
 export const dynamic = 'force-dynamic'
 
 export default async function PortalFacturacionPage() {
+  await requirePortalCapability('billing')
   const activeId = await getActiveClientId()
   if (!activeId) redirect('/portal/seleccionar-marca')
 

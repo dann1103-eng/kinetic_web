@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId } from '@/lib/supabase/active-client'
+import { requirePortalCapability } from '@/lib/auth/portal-permissions'
 import { redirect } from 'next/navigation'
 import { PortalCalendarioClient } from '@/components/portal/PortalCalendarioClient'
 import { requirementToCalendarEvent } from '@/lib/domain/calendar'
@@ -10,6 +11,7 @@ import type { ContentType, Phase } from '@/types/db'
 export const dynamic = 'force-dynamic'
 
 export default async function PortalCalendarioPage() {
+  await requirePortalCapability('work')
   const clientId = await getActiveClientId()
   if (!clientId) redirect('/portal/seleccionar-marca')
 
@@ -38,6 +40,7 @@ export default async function PortalCalendarioPage() {
     .select('id, content_type, title, starts_at, deadline, estimated_time_minutes, assigned_to, billing_cycle_id, phase, notes')
     .eq('billing_cycle_id', cycle.id)
     .eq('voided', false)
+    .eq('approval_status', 'approved')
     .or('deadline.not.is.null,starts_at.not.is.null')
 
   // Serializable event shape (ISO strings, not Date objects — server component)

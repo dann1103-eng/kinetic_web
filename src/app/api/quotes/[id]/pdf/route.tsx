@@ -25,13 +25,17 @@ export async function GET(
   const isStaff = appUser?.role === 'admin' || appUser?.role === 'supervisor'
 
   if (!isStaff) {
+    const quoteClientId = (quote as Quote).client_id
+    if (!quoteClientId) {
+      return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
+    }
     const { data: link } = await supabase
       .from('client_users')
-      .select('client_id')
+      .select('client_id, can_billing')
       .eq('user_id', user.id)
-      .eq('client_id', (quote as Quote).client_id)
+      .eq('client_id', quoteClientId)
       .maybeSingle()
-    if (!link) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
+    if (!link || !link.can_billing) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
   }
 
   const { data: items } = await supabase

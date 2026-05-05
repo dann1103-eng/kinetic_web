@@ -32,6 +32,8 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
   const [fullName, setFullName] = useState('')
   const [password, setPassword] = useState('')
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([])
+  const [canBilling, setCanBilling] = useState(true)
+  const [canWork, setCanWork] = useState(true)
 
   function openCreate() {
     setMode({ kind: 'create' })
@@ -39,6 +41,8 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
     setFullName('')
     setPassword('')
     setSelectedClientIds([])
+    setCanBilling(true)
+    setCanWork(true)
     setError(null)
   }
 
@@ -48,6 +52,11 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
     setFullName(user.full_name)
     setPassword('')
     setSelectedClientIds(user.clients.map((c) => c.id))
+    // Heredar permisos del primer cliente vinculado (si hay heterogeneidad,
+    // editar uniformiza). Si no hay marcas, default a ambos.
+    const first = user.clients[0]
+    setCanBilling(first?.can_billing ?? true)
+    setCanWork(first?.can_work ?? true)
     setError(null)
   }
 
@@ -71,12 +80,17 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
         setError('Email, contraseña y al menos una marca son obligatorios')
         return
       }
+      if (!canBilling && !canWork) {
+        setError('Selecciona al menos un permiso (Facturación o Gestión de trabajo)')
+        return
+      }
       startTransition(async () => {
         const r = await createClientUserMulti({
           email: email.trim(),
           password,
           fullName: fullName.trim() || undefined,
           clientIds: selectedClientIds,
+          permissions: { can_billing: canBilling, can_work: canWork },
         })
         if (!r.ok) {
           setError(r.error)
@@ -90,10 +104,15 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
         setError('Selecciona al menos una marca, o usa "Revocar acceso" para eliminar al usuario')
         return
       }
+      if (!canBilling && !canWork) {
+        setError('Selecciona al menos un permiso (Facturación o Gestión de trabajo)')
+        return
+      }
       startTransition(async () => {
         const r = await setClientUserAssignments({
           userId: mode.user.user_id,
           clientIds: selectedClientIds,
+          permissions: { can_billing: canBilling, can_work: canWork },
         })
         if (!r.ok) {
           setError(r.error)
@@ -159,7 +178,7 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
                     {u.clients.length === 0 ? (
                       <span className="text-xs text-fm-error">Sin marcas</span>
                     ) : (
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1 items-center">
                         {u.clients.map((c) => (
                           <span
                             key={c.id}
@@ -168,6 +187,25 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
                             {c.name}
                           </span>
                         ))}
+                        {(() => {
+                          const first = u.clients[0]
+                          const billing = first?.can_billing
+                          const work = first?.can_work
+                          return (
+                            <>
+                              {billing && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                  Facturación
+                                </span>
+                              )}
+                              {work && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
+                                  Gestión
+                                </span>
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
                     )}
                   </td>
@@ -245,6 +283,42 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
                   />
                 </div>
               )}
+
+              <div className="space-y-1.5">
+                <Label>Permisos *</Label>
+                <div className="rounded-xl border border-fm-surface-container-high bg-fm-background p-3 space-y-2">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={canBilling}
+                      onChange={(e) => setCanBilling(e.target.checked)}
+                      disabled={isPending}
+                      className="h-4 w-4 mt-0.5 accent-fm-primary"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-fm-on-surface">Facturación</p>
+                      <p className="text-xs text-fm-on-surface-variant">
+                        Ve facturas, cotizaciones y pagos de la marca.
+                      </p>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={canWork}
+                      onChange={(e) => setCanWork(e.target.checked)}
+                      disabled={isPending}
+                      className="h-4 w-4 mt-0.5 accent-fm-primary"
+                    />
+                    <div>
+                      <p className="text-sm font-medium text-fm-on-surface">Gestión de trabajo</p>
+                      <p className="text-xs text-fm-on-surface-variant">
+                        Solicita requerimientos, ve pipeline, revisión y chat.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
 
               <div className="space-y-1.5">
                 <Label>Marcas asignadas *</Label>

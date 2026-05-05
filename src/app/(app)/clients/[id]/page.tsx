@@ -80,6 +80,7 @@ export default async function ClientDetailPage({
         .from('requirements')
         .select('*')
         .eq('billing_cycle_id', currentCycle.id)
+        .eq('approval_status', 'approved')
     : null
   if (reqsQuery && isOperator) {
     reqsQuery = reqsQuery.contains('assigned_to', [effectiveId])

@@ -16,9 +16,11 @@ interface QuoteActionsProps {
   quoteId: string
   status: QuoteStatus
   convertedInvoiceId: string | null
+  /** True cuando la cotización es de un prospecto (sin cliente vinculado). */
+  isProspect?: boolean
 }
 
-export function QuoteActions({ quoteId, status, convertedInvoiceId }: QuoteActionsProps) {
+export function QuoteActions({ quoteId, status, convertedInvoiceId, isProspect = false }: QuoteActionsProps) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -96,7 +98,7 @@ export function QuoteActions({ quoteId, status, convertedInvoiceId }: QuoteActio
         </div>
       )}
 
-      {status === 'accepted' && !convertedInvoiceId && (
+      {status === 'accepted' && !convertedInvoiceId && !isProspect && (
         <Button
           onClick={handleConvert}
           disabled={isPending}
@@ -105,6 +107,12 @@ export function QuoteActions({ quoteId, status, convertedInvoiceId }: QuoteActio
         >
           Convertir a factura
         </Button>
+      )}
+
+      {status === 'accepted' && !convertedInvoiceId && isProspect && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+          Crea el cliente en el sistema antes de convertirla en factura.
+        </div>
       )}
 
       {convertedInvoiceId && (

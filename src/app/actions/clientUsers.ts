@@ -175,7 +175,13 @@ export interface PortalUserListed {
   user_id: string
   email: string
   full_name: string
-  clients: { id: string; name: string; role: 'owner' | 'viewer' }[]
+  clients: {
+    id: string
+    name: string
+    role: 'owner' | 'viewer'
+    can_billing: boolean
+    can_work: boolean
+  }[]
 }
 
 /** Lista todos los usuarios `role='client'` con sus marcas asignadas. */
@@ -196,18 +202,29 @@ export async function listAllClientUsers(): Promise<PortalUserListed[]> {
   const userIds = users.map(u => u.id)
   const { data: links } = await admin
     .from('client_users')
-    .select('user_id, role, clients:clients!inner(id, name)')
+    .select('user_id, role, can_billing, can_work, clients:clients!inner(id, name)')
     .in('user_id', userIds)
 
-  const linksByUser: Record<string, { id: string; name: string; role: 'owner' | 'viewer' }[]> = {}
+  const linksByUser: Record<
+    string,
+    { id: string; name: string; role: 'owner' | 'viewer'; can_billing: boolean; can_work: boolean }[]
+  > = {}
   for (const link of (links ?? []) as Array<{
     user_id: string
     role: 'owner' | 'viewer'
+    can_billing: boolean
+    can_work: boolean
     clients: { id: string; name: string } | { id: string; name: string }[]
   }>) {
     if (!linksByUser[link.user_id]) linksByUser[link.user_id] = []
     const cl = Array.isArray(link.clients) ? link.clients[0] : link.clients
-    if (cl) linksByUser[link.user_id].push({ id: cl.id, name: cl.name, role: link.role })
+    if (cl) linksByUser[link.user_id].push({
+      id: cl.id,
+      name: cl.name,
+      role: link.role,
+      can_billing: link.can_billing,
+      can_work: link.can_work,
+    })
   }
 
   return users.map(u => ({
@@ -228,9 +245,15 @@ export async function createClientUserMulti(params: {
   fullName?: string
   clientIds: string[]
   role?: 'owner' | 'viewer'
+  /** Permisos granulares aplicados a TODAS las marcas vinculadas. Default: ambos true. */
+  permissions?: { can_billing: boolean; can_work: boolean }
 }): Promise<ClientUserActionResult> {
   try {
     const { email, password, fullName, clientIds, role = 'owner' } = params
+    const permissions = params.permissions ?? { can_billing: true, can_work: true }
+    if (!permissions.can_billing && !permissions.can_work) {
+      return { ok: false, error: 'Selecciona al menos un permiso (Facturación o Gestión de trabajo)' }
+    }
     const clean = email.trim().toLowerCase()
     if (!clean || !clean.includes('@')) return { ok: false, error: 'Email inválido' }
     if (!password || password.length < 8) return { ok: false, error: 'La contraseña debe tener al menos 8 caracteres' }
@@ -294,7 +317,13 @@ export async function createClientUserMulti(params: {
       }
     }
 
-    const rows = clientIds.map(cid => ({ user_id: userId, client_id: cid, role }))
+    const rows = clientIds.map(cid => ({
+      user_id: userId,
+      client_id: cid,
+      role,
+      can_billing: permissions.can_billing,
+      can_work: permissions.can_work,
+    }))
     const { error: linkErr } = await admin
       .from('client_users')
       .upsert(rows, { onConflict: 'user_id,client_id' })
@@ -318,9 +347,15 @@ export async function setClientUserAssignments(params: {
   userId: string
   clientIds: string[]
   role?: 'owner' | 'viewer'
+  /** Permisos aplicados a las marcas. Default: ambos true. */
+  permissions?: { can_billing: boolean; can_work: boolean }
 }): Promise<ClientUserActionResult> {
   try {
     const { userId, clientIds, role = 'owner' } = params
+    const permissions = params.permissions ?? { can_billing: true, can_work: true }
+    if (clientIds.length > 0 && !permissions.can_billing && !permissions.can_work) {
+      return { ok: false, error: 'Selecciona al menos un permiso (Facturación o Gestión de trabajo)' }
+    }
     const auth = await requireAdmin()
     if (auth.error) return { ok: false, error: auth.error }
 
@@ -331,7 +366,13 @@ export async function setClientUserAssignments(params: {
     if (target.role !== 'client') return { ok: false, error: 'Solo se pueden ajustar accesos de clientes' }
 
     if (clientIds.length > 0) {
-      const rows = clientIds.map(cid => ({ user_id: userId, client_id: cid, role }))
+      const rows = clientIds.map(cid => ({
+        user_id: userId,
+        client_id: cid,
+        role,
+        can_billing: permissions.can_billing,
+        can_work: permissions.can_work,
+      }))
       const { error: upErr } = await admin
         .from('client_users')
         .upsert(rows, { onConflict: 'user_id,client_id' })

@@ -24,6 +24,8 @@ interface QuickTimerDialogProps {
   startsAt: string | null
   /** Duration in minutes. Defaults to 60 when null. */
   estimatedTimeMinutes: number | null
+  /** Si está presente (admin/supervisor), muestra botón "Editar" en el header. */
+  onEdit?: () => void
 }
 
 function formatClock(seconds: number): string {
@@ -63,6 +65,7 @@ export function QuickTimerDialog({
   assignees = [],
   startsAt,
   estimatedTimeMinutes,
+  onEdit,
 }: QuickTimerDialogProps) {
   const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null)
   const [elapsed, setElapsed] = useState(0)
@@ -163,9 +166,20 @@ export function QuickTimerDialog({
             </span>
             <span className="text-[10px] text-fm-outline">{clientName}</span>
           </div>
-          <DialogTitle className="text-base font-semibold text-fm-on-surface">
-            {title || CONTENT_TYPE_LABELS[contentType]}
-          </DialogTitle>
+          <div className="flex items-start justify-between gap-2">
+            <DialogTitle className="text-base font-semibold text-fm-on-surface">
+              {title || CONTENT_TYPE_LABELS[contentType]}
+            </DialogTitle>
+            {onEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="text-xs font-semibold text-fm-primary hover:underline flex-shrink-0"
+              >
+                Editar
+              </button>
+            )}
+          </div>
         </DialogHeader>
 
         {notes && (

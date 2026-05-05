@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId } from '@/lib/supabase/active-client'
+import { requirePortalCapability } from '@/lib/auth/portal-permissions'
 import { QuoteStatusBadge } from '@/components/billing/StatusBadge'
 import { formatCurrency, formatTaxRate } from '@/lib/domain/invoices'
 import type {
@@ -21,6 +22,7 @@ export default async function PortalQuoteDetailPage({
 }) {
   const { id } = await params
 
+  await requirePortalCapability('billing')
   const activeId = await getActiveClientId()
   if (!activeId) redirect('/portal/seleccionar-marca')
 

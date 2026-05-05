@@ -57,7 +57,14 @@ export default async function QuoteDetailPage({
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-fm-outline-variant">Cotización</p>
                 <h1 className="text-2xl font-bold text-fm-primary mt-1">{quote.quote_number}</h1>
-                <div className="mt-2"><QuoteStatusBadge status={quote.status} /></div>
+                <div className="mt-2 flex items-center gap-2">
+                  <QuoteStatusBadge status={quote.status} />
+                  {!quote.client_id && (
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-full">
+                      Prospecto
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="text-right text-xs text-fm-on-surface-variant">
                 <p className="font-semibold text-fm-on-surface">{emitterSnap.trade_name ?? emitterSnap.legal_name}</p>
@@ -152,7 +159,12 @@ export default async function QuoteDetailPage({
             )}
 
             {isAdmin && (
-              <QuoteActions quoteId={quote.id} status={quote.status} convertedInvoiceId={quote.converted_invoice_id} />
+              <QuoteActions
+                quoteId={quote.id}
+                status={quote.status}
+                convertedInvoiceId={quote.converted_invoice_id}
+                isProspect={!quote.client_id}
+              />
             )}
           </div>
         </div>

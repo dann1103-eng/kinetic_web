@@ -45,6 +45,7 @@ export function useCalendarEvents({ userId, isGeneral, rangeStart, rangeEnd, all
           billing_cycles!inner(client_id, clients!inner(id, name, logo_url))
         `)
         .eq('voided', false)
+        .eq('approval_status', 'approved')
         .or(
           `and(starts_at.gte.${startISO},starts_at.lte.${endISO}),` +
           `and(deadline.gte.${rangeStart.toISOString().split('T')[0]},deadline.lte.${rangeEnd.toISOString().split('T')[0]})`

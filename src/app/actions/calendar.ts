@@ -131,6 +131,150 @@ export async function rescheduleEvent(input: {
   return {}
 }
 
+export async function updateCalendarEvent(input: {
+  source: 'requirement' | 'time_entry'
+  id: string
+  title?: string
+  starts_at?: string
+  duration_minutes?: number
+  attendees?: string[]
+  notes?: string | null
+}): Promise<{ error?: string }> {
+  await assertNotImpersonating()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: appUser } = await supabase
+    .from('users').select('role').eq('id', user.id).single()
+  if (!appUser || !['admin', 'supervisor'].includes(appUser.role)) {
+    return { error: 'Sin permisos para editar eventos' }
+  }
+
+  if (input.source === 'requirement') {
+    const { data: req } = await supabase
+      .from('requirements')
+      .select('id, estimated_time_minutes, assigned_to, starts_at')
+      .eq('id', input.id)
+      .single()
+    if (!req) return { error: 'Requerimiento no encontrado' }
+
+    const newStart = input.starts_at ?? req.starts_at
+    const newDuration = input.duration_minutes ?? req.estimated_time_minutes ?? 60
+    const newAttendees = input.attendees ?? req.assigned_to ?? []
+
+    if (newStart) {
+      const conflict = await checkSchedulingConflict({
+        starts_at: newStart,
+        duration_minutes: newDuration,
+        attendees: newAttendees,
+        excludeRequirementId: input.id,
+      })
+      if (conflict) return { error: conflict }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const patch: any = {}
+    if (input.title !== undefined) patch.title = input.title
+    if (input.starts_at !== undefined) patch.starts_at = input.starts_at
+    if (input.duration_minutes !== undefined) patch.estimated_time_minutes = input.duration_minutes
+    if (input.attendees !== undefined) patch.assigned_to = input.attendees
+    if (input.notes !== undefined) patch.notes = input.notes
+
+    const { error } = await supabase
+      .from('requirements')
+      .update(patch)
+      .eq('id', input.id)
+    if (error) return { error: 'Error al actualizar el evento' }
+  } else {
+    const { data: entry } = await supabase
+      .from('time_entries')
+      .select('id, scheduled_at, scheduled_duration_minutes, scheduled_attendees')
+      .eq('id', input.id)
+      .single()
+    if (!entry) return { error: 'Evento no encontrado' }
+
+    const newStart = input.starts_at ?? entry.scheduled_at
+    const newDuration = input.duration_minutes ?? entry.scheduled_duration_minutes ?? 60
+    const newAttendees = input.attendees ?? entry.scheduled_attendees ?? []
+
+    if (newStart) {
+      const conflict = await checkSchedulingConflict({
+        starts_at: newStart,
+        duration_minutes: newDuration,
+        attendees: newAttendees,
+        excludeTimeEntryId: input.id,
+      })
+      if (conflict) return { error: conflict }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const patch: any = {}
+    if (input.title !== undefined) patch.title = input.title
+    if (input.notes !== undefined) patch.notes = input.notes
+    if (input.attendees !== undefined) patch.scheduled_attendees = input.attendees
+    if (input.starts_at !== undefined || input.duration_minutes !== undefined) {
+      const startISO = input.starts_at ?? entry.scheduled_at!
+      const dur = input.duration_minutes ?? entry.scheduled_duration_minutes ?? 60
+      const startD = new Date(startISO)
+      patch.scheduled_at = startISO
+      patch.started_at = startD.toISOString()
+      patch.ended_at = new Date(startD.getTime() + dur * 60 * 1000).toISOString()
+      patch.scheduled_duration_minutes = dur
+      patch.duration_seconds = dur * 60
+    }
+
+    const { error } = await supabase
+      .from('time_entries')
+      .update(patch)
+      .eq('id', input.id)
+    if (error) return { error: 'Error al actualizar el evento' }
+  }
+
+  revalidatePath('/calendario')
+  return {}
+}
+
+export async function deleteCalendarEvent(input: {
+  source: 'requirement' | 'time_entry'
+  id: string
+}): Promise<{ error?: string }> {
+  await assertNotImpersonating()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: appUser } = await supabase
+    .from('users').select('role').eq('id', user.id).single()
+  if (!appUser || !['admin', 'supervisor'].includes(appUser.role)) {
+    return { error: 'Sin permisos para borrar eventos' }
+  }
+
+  if (input.source === 'requirement') {
+    // No-destructivo: marca voided=true y limpia starts_at para sacarlo del calendario
+    // pero preservar el log y cualquier fase histórica.
+    const { error } = await supabase
+      .from('requirements')
+      .update({
+        voided: true,
+        voided_by_user_id: user.id,
+        voided_at: new Date().toISOString(),
+        starts_at: null,
+      })
+      .eq('id', input.id)
+    if (error) return { error: 'Error al borrar el evento' }
+  } else {
+    const { error } = await supabase
+      .from('time_entries')
+      .delete()
+      .eq('id', input.id)
+    if (error) return { error: 'Error al borrar el evento' }
+  }
+
+  revalidatePath('/calendario')
+  return {}
+}
+
 async function checkSchedulingConflict(input: {
   starts_at: string
   duration_minutes: number

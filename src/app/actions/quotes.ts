@@ -10,7 +10,15 @@ import {
   type LineItemInput,
 } from '@/lib/domain/invoices'
 import { today as todayString } from '@/lib/domain/dates'
-import type { Client, CompanySettings, Quote, QuoteItem, TermAndCondition } from '@/types/db'
+import type {
+  Client,
+  ClientFiscalSnapshot,
+  CompanySettings,
+  PersonType,
+  Quote,
+  QuoteItem,
+  TermAndCondition,
+} from '@/types/db'
 import { createInvoice } from './invoices'
 
 async function requireAdmin() {
@@ -28,8 +36,23 @@ async function loadEmitter(): Promise<CompanySettings | null> {
   return data as CompanySettings | null
 }
 
+export interface ManualClientInput {
+  name: string
+  legal_name?: string | null
+  person_type?: PersonType | null
+  nit?: string | null
+  nrc?: string | null
+  dui?: string | null
+  fiscal_address?: string | null
+  contact_email?: string | null
+  contact_phone?: string | null
+}
+
 export interface CreateQuoteInput {
-  clientId: string
+  /** null cuando es una cotización a un prospecto (datos en `manualClient`). */
+  clientId: string | null
+  /** Datos del prospecto cuando `clientId` es null. */
+  manualClient?: ManualClientInput
   items: LineItemInput[]
   taxRate: number
   discountAmount?: number
@@ -48,20 +71,29 @@ export async function createQuote(
   const auth = await requireAdmin()
   if ('error' in auth) return { error: auth.error as string }
 
-  if (!input.clientId) return { error: 'Cliente requerido' as const }
   if (!input.items?.length) return { error: 'La cotización debe tener al menos un ítem' as const }
+
+  if (!input.clientId && !input.manualClient?.name?.trim()) {
+    return { error: 'Selecciona un cliente o ingresa el nombre del prospecto' as const }
+  }
 
   const admin = createAdminClient()
 
-  const [{ data: clientRow }, emitter] = await Promise.all([
-    admin.from('clients').select('*').eq('id', input.clientId).single(),
-    loadEmitter(),
-  ])
-  const client = clientRow as Client | null
-  if (!client) return { error: 'Cliente no encontrado' as const }
+  let client: Client | null = null
+  if (input.clientId) {
+    const { data: clientRow } = await admin
+      .from('clients')
+      .select('*')
+      .eq('id', input.clientId)
+      .single()
+    client = clientRow as Client | null
+    if (!client) return { error: 'Cliente no encontrado' as const }
+  }
+
+  const emitter = await loadEmitter()
   if (!emitter) return { error: 'Configuración del emisor no inicializada (company_settings)' as const }
 
-  const retentionRate = input.retentionRate ?? (client.aplica_renta_retenida ? 0.1 : 0)
+  const retentionRate = input.retentionRate ?? (client?.aplica_renta_retenida ? 0.1 : 0)
 
   const totals = calculateTotals({
     items: input.items,
@@ -76,11 +108,28 @@ export async function createQuote(
 
   const termsSnapshot: TermAndCondition[] = (emitter.terms_and_conditions_json ?? []) as TermAndCondition[]
 
+  const clientSnapshot: ClientFiscalSnapshot = client
+    ? buildClientSnapshot(client)
+    : {
+        id: null,
+        name: input.manualClient!.name.trim(),
+        legal_name: input.manualClient?.legal_name?.trim() || null,
+        person_type: input.manualClient?.person_type ?? null,
+        nit: input.manualClient?.nit?.trim() || null,
+        nrc: input.manualClient?.nrc?.trim() || null,
+        dui: input.manualClient?.dui?.trim() || null,
+        fiscal_address: input.manualClient?.fiscal_address?.trim() || null,
+        giro: null,
+        country_code: 'SV',
+        contact_email: input.manualClient?.contact_email?.trim() || null,
+        contact_phone: input.manualClient?.contact_phone?.trim() || null,
+      }
+
   const { data: inserted, error: insertErr } = await admin
     .from('quotes')
     .insert({
       quote_number: quoteNumber,
-      client_id: client.id,
+      client_id: client?.id ?? null,
       issue_date: todayString(),
       valid_until: input.validUntil ?? null,
       currency: 'USD',
@@ -94,7 +143,7 @@ export async function createQuote(
       total_a_pagar: totals.total_a_pagar,
       status: 'draft',
       notes: input.notes ?? null,
-      client_snapshot_json: buildClientSnapshot(client),
+      client_snapshot_json: clientSnapshot,
       emitter_snapshot_json: buildEmitterSnapshot(emitter),
       terms_snapshot_json: termsSnapshot,
       created_by: auth.userId,
@@ -192,6 +241,9 @@ export async function convertQuoteToInvoice(
   if (!quote) return { error: 'Cotización no encontrada' as const }
   if (quote.status !== 'accepted') return { error: 'Solo se pueden convertir cotizaciones aceptadas' as const }
   if (quote.converted_invoice_id) return { error: 'Esta cotización ya fue convertida en factura' as const }
+  if (!quote.client_id) {
+    return { error: 'Esta cotización es de un prospecto. Crea el cliente en el sistema antes de convertirla en factura.' as const }
+  }
 
   const items: LineItemInput[] = quote.items
     .slice()
@@ -203,7 +255,7 @@ export async function convertQuoteToInvoice(
     }))
 
   const result = await createInvoice({
-    clientId: quote.client_id,
+    clientId: quote.client_id!,
     quoteId: quote.id,
     items,
     taxRate: Number(quote.tax_rate),

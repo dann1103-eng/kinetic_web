@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId } from '@/lib/supabase/active-client'
+import { requirePortalCapability } from '@/lib/auth/portal-permissions'
 import { InvoiceStatusBadge } from '@/components/billing/StatusBadge'
 import { N1coPayButton } from '@/components/billing/N1coPayModal'
 import { formatCurrency, formatTaxRate } from '@/lib/domain/invoices'
@@ -22,6 +23,7 @@ export default async function PortalInvoiceDetailPage({
 }) {
   const { id } = await params
 
+  await requirePortalCapability('billing')
   const activeId = await getActiveClientId()
   if (!activeId) redirect('/portal/seleccionar-marca')
 

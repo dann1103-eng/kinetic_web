@@ -1,10 +1,12 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientId } from '@/lib/supabase/active-client'
+import { requirePortalCapability } from '@/lib/auth/portal-permissions'
 import { RequirementPanel } from '@/components/clients/RequirementPanel'
 import { ClientPipelineBoard } from '@/components/portal/ClientPipelineBoard'
 import { RenewalBanner } from '@/components/portal/RenewalBanner'
 import { ExtrasSection } from '@/components/portal/ExtrasSection'
+import { SolicitarRequerimientoButton } from '@/components/portal/SolicitarRequerimientoButton'
 import { computeTotals } from '@/lib/domain/requirement'
 import { effectiveLimits, applyContentLimitsWithOverride } from '@/lib/domain/plans'
 import { daysUntilEnd } from '@/lib/domain/cycles'
@@ -41,6 +43,7 @@ function emptyGroups(): Record<ClientPhase, PipelineCardItem[]> {
 }
 
 export default async function PortalDashboardPage() {
+  await requirePortalCapability('work')
   const activeId = await getActiveClientId()
   if (!activeId) redirect('/portal/seleccionar-marca')
 
@@ -77,6 +80,7 @@ export default async function PortalDashboardPage() {
         .from('requirements')
         .select('*')
         .eq('billing_cycle_id', cycle.id)
+        .eq('approval_status', 'approved')
         .order('registered_at', { ascending: false })
     : { data: [] }
   const requirements = (requirementsRaw ?? []) as Requirement[]
@@ -195,6 +199,11 @@ export default async function PortalDashboardPage() {
 
   return (
     <div className="p-3 sm:p-6 space-y-4 sm:space-y-8">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-xl font-bold text-fm-on-surface">Dashboard</h1>
+        <SolicitarRequerimientoButton />
+      </div>
+
       {cycle && (
         <RenewalBanner
           currentPeriodEnd={cycle.period_end}

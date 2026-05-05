@@ -11,12 +11,15 @@ interface NavItem {
   href: string
   label: string
   icon: React.ReactNode
+  /** Si está definido, solo se muestra cuando el flag correspondiente es true. */
+  requires?: 'billing' | 'work'
 }
 
 const navItems: NavItem[] = [
   {
     href: '/portal/dashboard',
     label: 'Dashboard',
+    requires: 'work',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
@@ -26,6 +29,7 @@ const navItems: NavItem[] = [
   {
     href: '/portal/pipeline',
     label: 'Pipeline',
+    requires: 'work',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>
@@ -35,6 +39,7 @@ const navItems: NavItem[] = [
   {
     href: '/portal/calendario',
     label: 'Calendario',
+    requires: 'work',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M20 3h-1V1h-2v2H7V1H5v2H4c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 18H4V8h16v13zm-7-7h5v5h-5z"/>
@@ -44,6 +49,7 @@ const navItems: NavItem[] = [
   {
     href: '/portal/facturacion',
     label: 'Facturación',
+    requires: 'billing',
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
@@ -74,13 +80,20 @@ interface PortalSidebarProps {
   clientOptions: Array<{ id: string; name: string; logo_url: string | null }>
   activeClientId: string
   clientDisplayName: string
+  permissions: { can_billing: boolean; can_work: boolean }
 }
 
 export function PortalSidebar({
   clientOptions,
   activeClientId,
   clientDisplayName,
+  permissions,
 }: PortalSidebarProps) {
+  const visibleNavItems = navItems.filter((item) => {
+    if (item.requires === 'billing') return permissions.can_billing
+    if (item.requires === 'work') return permissions.can_work
+    return true
+  })
   const pathname = usePathname()
   const [logoError, setLogoError] = useState(false)
 
@@ -130,7 +143,7 @@ export function PortalSidebar({
 
         {/* Navegación */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive =
               item.href === '/portal/dashboard'
                 ? pathname === '/portal/dashboard'

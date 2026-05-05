@@ -26,7 +26,7 @@ export default async function QuotesListPage({
 
   let query = supabase
     .from('quotes')
-    .select('id, quote_number, issue_date, valid_until, total, status, client_snapshot_json, converted_invoice_id')
+    .select('id, quote_number, issue_date, valid_until, total, status, client_id, client_snapshot_json, converted_invoice_id')
     .order('created_at', { ascending: false })
 
   const statusFilter = params.status && STATUS_VALUES.includes(params.status as QuoteStatus) ? params.status as QuoteStatus : null
@@ -114,7 +114,14 @@ export default async function QuotesListPage({
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-fm-on-surface">{snap?.name ?? '—'}</td>
+                      <td className="px-4 py-3 text-fm-on-surface">
+                        {snap?.name ?? '—'}
+                        {!q.client_id && (
+                          <span className="ml-2 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded-full">
+                            Prospecto
+                          </span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-fm-on-surface-variant">{q.issue_date}</td>
                       <td className="px-4 py-3 text-fm-on-surface-variant">{q.valid_until ?? '—'}</td>
                       <td className="px-4 py-3 text-right font-semibold text-fm-on-surface">{formatCurrency(q.total)}</td>
