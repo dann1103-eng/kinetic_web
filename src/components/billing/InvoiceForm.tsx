@@ -15,7 +15,7 @@ import { EXTRA_CONTENT_PRICES, CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
 import { createInvoice, ensureScheduledCycle } from '@/app/actions/invoices'
 import { createQuote } from '@/app/actions/quotes'
 import { LineItemsEditor } from './LineItemsEditor'
-import type { Client, Plan, BillingCycle, CambiosPackage, ContentType, ExtraContentItem, InvoiceExtrasMetadata, Invoice, PaymentProvider, PersonType } from '@/types/db'
+import type { Client, Plan, BillingCycle, CambiosPackage, ContentType, ExtraContentItem, InvoiceExtrasMetadata, Invoice, PaymentProvider } from '@/types/db'
 
 interface CatalogItem {
   label: string
@@ -45,17 +45,9 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
   const [error, setError] = useState<string | null>(null)
 
   // En modo cotización el usuario puede elegir entre "cliente existente" o
-  // "prospecto" (datos manuales que se persisten en client_snapshot_json).
+  // "prospecto" (sin cliente; opcionalmente captura un nombre para identificarla).
   const [clientMode, setClientMode] = useState<'existing' | 'prospect'>('existing')
   const [manualName, setManualName] = useState('')
-  const [manualLegalName, setManualLegalName] = useState('')
-  const [manualPersonType, setManualPersonType] = useState<PersonType>('juridical')
-  const [manualNit, setManualNit] = useState('')
-  const [manualNrc, setManualNrc] = useState('')
-  const [manualDui, setManualDui] = useState('')
-  const [manualAddress, setManualAddress] = useState('')
-  const [manualEmail, setManualEmail] = useState('')
-  const [manualPhone, setManualPhone] = useState('')
 
   const [clientId, setClientId] = useState(initialClientId ?? '')
   const [cycleId, setCycleId] = useState(initialCycleId ?? '')
@@ -325,10 +317,6 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
     setError(null)
     const isProspectQuote = mode === 'quote' && clientMode === 'prospect'
     if (!isProspectQuote && !clientId) { setError('Seleccione un cliente'); return }
-    if (isProspectQuote && !manualName.trim()) {
-      setError('Ingrese el nombre del prospecto')
-      return
-    }
     const validItems = items.filter(it => it.description.trim() && (it.quantity > 0) && (it.unit_price >= 0))
     if (validItems.length === 0) { setError('Agregue al menos una línea válida'); return }
 
@@ -362,17 +350,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
       : await createQuote({
           clientId: isProspectQuote ? null : clientId,
           manualClient: isProspectQuote
-            ? {
-                name: manualName.trim(),
-                legal_name: manualLegalName.trim() || null,
-                person_type: manualPersonType,
-                nit: manualNit.trim() || null,
-                nrc: manualNrc.trim() || null,
-                dui: manualDui.trim() || null,
-                fiscal_address: manualAddress.trim() || null,
-                contact_email: manualEmail.trim() || null,
-                contact_phone: manualPhone.trim() || null,
-              }
+            ? { name: manualName.trim() || 'Sin cliente' }
             : undefined,
           items: validItems,
           taxRate,
@@ -445,99 +423,19 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
                 disabled={saving}
               />
             ) : (
-              <div className="space-y-3 rounded-xl border border-fm-surface-container-high p-3 bg-fm-background">
+              <div className="space-y-2 rounded-xl border border-fm-surface-container-high p-3 bg-fm-background">
+                <Label className="text-xs">Nombre del prospecto (opcional)</Label>
+                <Input
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  disabled={saving}
+                  placeholder="Déjalo vacío y aparecerá como “Sin cliente”"
+                  className="rounded-xl"
+                />
                 <p className="text-xs text-fm-on-surface-variant">
-                  Los datos quedan capturados en la cotización. Si luego aceptan,
-                  podrás crear el cliente en el sistema antes de facturar.
+                  La cotización se crea sin cliente vinculado. Si luego aceptan, crea el
+                  cliente en el sistema antes de facturarla.
                 </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">Nombre / Razón social *</Label>
-                    <Input
-                      value={manualName}
-                      onChange={(e) => setManualName(e.target.value)}
-                      disabled={saving}
-                      required
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Nombre legal</Label>
-                    <Input
-                      value={manualLegalName}
-                      onChange={(e) => setManualLegalName(e.target.value)}
-                      disabled={saving}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Tipo</Label>
-                    <select
-                      value={manualPersonType}
-                      onChange={(e) => setManualPersonType(e.target.value as PersonType)}
-                      disabled={saving}
-                      className="w-full py-2 px-3 text-sm bg-fm-surface-container-lowest border border-fm-surface-container-high rounded-xl text-fm-on-surface focus:outline-none focus:border-fm-primary"
-                    >
-                      <option value="juridical">Persona jurídica</option>
-                      <option value="natural">Persona natural</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">NIT</Label>
-                    <Input
-                      value={manualNit}
-                      onChange={(e) => setManualNit(e.target.value)}
-                      disabled={saving}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">NRC</Label>
-                    <Input
-                      value={manualNrc}
-                      onChange={(e) => setManualNrc(e.target.value)}
-                      disabled={saving}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">DUI</Label>
-                    <Input
-                      value={manualDui}
-                      onChange={(e) => setManualDui(e.target.value)}
-                      disabled={saving}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-xs">Dirección fiscal</Label>
-                    <Input
-                      value={manualAddress}
-                      onChange={(e) => setManualAddress(e.target.value)}
-                      disabled={saving}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Email</Label>
-                    <Input
-                      type="email"
-                      value={manualEmail}
-                      onChange={(e) => setManualEmail(e.target.value)}
-                      disabled={saving}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Teléfono</Label>
-                    <Input
-                      value={manualPhone}
-                      onChange={(e) => setManualPhone(e.target.value)}
-                      disabled={saving}
-                      className="rounded-xl"
-                    />
-                  </div>
-                </div>
               </div>
             )}
           </div>

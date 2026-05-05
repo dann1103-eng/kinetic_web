@@ -7,23 +7,39 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { requestRequirement } from '@/app/actions/requirementRequests'
+import type { ContentType } from '@/types/db'
 
 interface Props {
   open: boolean
   onClose: () => void
 }
 
-type ReqKind = 'reunion' | 'produccion'
+const REQUESTABLE_TYPES: { value: ContentType; label: string }[] = [
+  { value: 'reunion', label: 'Reunión' },
+  { value: 'produccion', label: 'Producción' },
+  { value: 'estatico', label: 'Estático' },
+  { value: 'video_corto', label: 'Video corto (30 seg)' },
+  { value: 'reel', label: 'Video largo (90 seg)' },
+  { value: 'short', label: 'Short (10 seg)' },
+  { value: 'historia', label: 'Historia' },
+]
+
+const SCHEDULED_TYPES: ContentType[] = ['reunion', 'produccion']
+const STORY_ELIGIBLE: ContentType[] = ['estatico', 'video_corto', 'reel', 'short']
 
 export function ClientRequestRequirementModal({ open, onClose }: Props) {
   const router = useRouter()
-  const [contentType, setContentType] = useState<ReqKind>('reunion')
+  const [contentType, setContentType] = useState<ContentType>('reunion')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [desiredAt, setDesiredAt] = useState('')
+  const [includesStory, setIncludesStory] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  const isScheduled = SCHEDULED_TYPES.includes(contentType)
+  const isStoryEligible = STORY_ELIGIBLE.includes(contentType)
 
   if (!open) return null
 
@@ -32,6 +48,7 @@ export function ClientRequestRequirementModal({ open, onClose }: Props) {
     setTitle('')
     setDescription('')
     setDesiredAt('')
+    setIncludesStory(false)
     setError(null)
     setSuccess(false)
   }
@@ -46,7 +63,10 @@ export function ClientRequestRequirementModal({ open, onClose }: Props) {
     e.preventDefault()
     setError(null)
     if (!title.trim()) { setError('Ingresa un título'); return }
-    if (!desiredAt) { setError('Selecciona la fecha y hora deseada'); return }
+    if (!desiredAt) {
+      setError(isScheduled ? 'Selecciona la fecha y hora deseada' : 'Selecciona la fecha de entrega deseada')
+      return
+    }
 
     startTransition(async () => {
       const r = await requestRequirement({
@@ -54,6 +74,7 @@ export function ClientRequestRequirementModal({ open, onClose }: Props) {
         title: title.trim(),
         description: description.trim(),
         desiredAt,
+        includesStory: isStoryEligible ? includesStory : false,
       })
       if ('error' in r) {
         setError(r.error)
@@ -92,32 +113,16 @@ export function ClientRequestRequirementModal({ open, onClose }: Props) {
 
             <div className="space-y-1.5">
               <Label>Tipo *</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setContentType('reunion')}
-                  disabled={isPending}
-                  className={`px-3 py-2 rounded-xl text-sm font-medium border transition ${
-                    contentType === 'reunion'
-                      ? 'bg-fm-primary/10 text-fm-primary border-fm-primary/30'
-                      : 'border-fm-surface-container-high text-fm-on-surface-variant hover:bg-fm-background'
-                  }`}
-                >
-                  Reunión
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setContentType('produccion')}
-                  disabled={isPending}
-                  className={`px-3 py-2 rounded-xl text-sm font-medium border transition ${
-                    contentType === 'produccion'
-                      ? 'bg-fm-primary/10 text-fm-primary border-fm-primary/30'
-                      : 'border-fm-surface-container-high text-fm-on-surface-variant hover:bg-fm-background'
-                  }`}
-                >
-                  Producción
-                </button>
-              </div>
+              <select
+                value={contentType}
+                onChange={(e) => setContentType(e.target.value as ContentType)}
+                disabled={isPending}
+                className="w-full py-2 px-3 text-sm bg-fm-background border border-fm-surface-container-high rounded-xl text-fm-on-surface focus:outline-none focus:border-fm-primary"
+              >
+                {REQUESTABLE_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
             </div>
 
             <div className="space-y-1.5">
@@ -145,9 +150,9 @@ export function ClientRequestRequirementModal({ open, onClose }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Fecha y hora deseada *</Label>
+              <Label>{isScheduled ? 'Fecha y hora deseada *' : 'Fecha de entrega deseada *'}</Label>
               <Input
-                type="datetime-local"
+                type={isScheduled ? 'datetime-local' : 'date'}
                 value={desiredAt}
                 onChange={(e) => setDesiredAt(e.target.value)}
                 disabled={isPending}
@@ -155,9 +160,24 @@ export function ClientRequestRequirementModal({ open, onClose }: Props) {
                 className="rounded-xl bg-fm-background border-fm-surface-container-high"
               />
               <p className="text-xs text-fm-outline">
-                El equipo confirmará si esta fecha es posible y te avisará el horario definitivo.
+                {isScheduled
+                  ? 'El equipo confirmará si esta fecha es posible y te avisará el horario definitivo.'
+                  : 'El equipo confirmará la fecha al aprobar la solicitud.'}
               </p>
             </div>
+
+            {isStoryEligible && (
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includesStory}
+                  onChange={(e) => setIncludesStory(e.target.checked)}
+                  disabled={isPending}
+                  className="h-4 w-4 accent-fm-primary"
+                />
+                <span className="text-sm text-fm-on-surface">Incluir historia</span>
+              </label>
+            )}
 
             {error && (
               <p className="text-sm text-fm-error bg-fm-error/5 rounded-xl px-3 py-2 border border-fm-error/20">

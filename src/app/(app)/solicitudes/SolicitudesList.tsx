@@ -36,7 +36,7 @@ export function SolicitudesList({ items, assignableUsers }: Props) {
                 Pendiente
               </span>
               <span className="text-[10px] font-semibold uppercase tracking-wide bg-fm-primary/10 text-fm-primary border border-fm-primary/20 px-1.5 py-0.5 rounded-full">
-                {it.content_type === 'reunion' ? 'Reunión' : 'Producción'}
+                {labelForType(it.content_type)}
               </span>
               <span className="text-xs text-fm-on-surface-variant">{it.client_name}</span>
             </div>
@@ -79,4 +79,17 @@ export function SolicitudesList({ items, assignableUsers }: Props) {
       )}
     </div>
   )
+}
+
+function labelForType(t: string): string {
+  switch (t) {
+    case 'reunion': return 'Reunión'
+    case 'produccion': return 'Producción'
+    case 'historia': return 'Historia'
+    case 'estatico': return 'Estático'
+    case 'video_corto': return 'Video corto'
+    case 'reel': return 'Video largo'
+    case 'short': return 'Short'
+    default: return t
+  }
 }

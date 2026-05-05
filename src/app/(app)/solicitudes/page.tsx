@@ -12,6 +12,7 @@ interface PendingRow {
   content_type: string
   client_requested_deadline: string | null
   starts_at: string | null
+  deadline: string | null
   registered_at: string
   requested_by_user_id: string | null
   billing_cycle_id: string
@@ -28,7 +29,7 @@ export default async function SolicitudesPage() {
 
   const { data: rows } = await supabase
     .from('requirements')
-    .select('id, title, notes, content_type, client_requested_deadline, starts_at, requested_by_user_id, billing_cycle_id, registered_at')
+    .select('id, title, notes, content_type, client_requested_deadline, starts_at, deadline, requested_by_user_id, billing_cycle_id, registered_at')
     .eq('approval_status', 'pending')
     .order('registered_at', { ascending: false })
 
@@ -84,6 +85,7 @@ export default async function SolicitudesPage() {
       content_type: p.content_type,
       client_requested_deadline: p.client_requested_deadline,
       starts_at: p.starts_at,
+      deadline: p.deadline,
       created_at: p.registered_at,
       client_name: client?.name ?? 'Cliente desconocido',
       requested_by_name: p.requested_by_user_id

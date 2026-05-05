@@ -8,12 +8,27 @@ import { assertNotImpersonating } from './impersonation'
 import type { ContentType, Priority } from '@/types/db'
 
 export interface RequestRequirementInput {
-  contentType: 'reunion' | 'produccion'
+  contentType: ContentType
   title: string
   description: string
-  /** ISO local datetime que el cliente propone como fecha/hora deseada. */
+  /**
+   * Para reunion/produccion: ISO datetime (starts_at).
+   * Para artes (historia, estatico, video_corto, reel, short): fecha YYYY-MM-DD (deadline).
+   */
   desiredAt: string
+  includesStory?: boolean
 }
+
+const ALLOWED_REQUEST_TYPES: ContentType[] = [
+  'historia',
+  'estatico',
+  'video_corto',
+  'reel',
+  'short',
+  'produccion',
+  'reunion',
+]
+const SCHEDULED_TYPES: ContentType[] = ['reunion', 'produccion']
 
 /**
  * Server action invocado desde el portal del cliente. Crea un requirement
@@ -29,11 +44,11 @@ export async function requestRequirement(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' }
 
-  if (input.contentType !== 'reunion' && input.contentType !== 'produccion') {
+  if (!ALLOWED_REQUEST_TYPES.includes(input.contentType)) {
     return { error: 'Tipo no permitido para solicitudes' }
   }
   if (!input.title.trim()) return { error: 'Ingresa un título' }
-  if (!input.desiredAt) return { error: 'Selecciona la fecha y hora deseada' }
+  if (!input.desiredAt) return { error: 'Selecciona la fecha deseada' }
 
   const activeClientId = await getActiveClientId()
   if (!activeClientId) return { error: 'No hay marca activa' }
@@ -61,11 +76,22 @@ export async function requestRequirement(
     .maybeSingle()
   if (!cycle) return { error: 'No hay ciclo de facturación activo para esta marca' }
 
+  const isScheduled = SCHEDULED_TYPES.includes(input.contentType)
+  // Para reunion/produccion el cliente da datetime → starts_at.
+  // Para artes el cliente da date (YYYY-MM-DD) → deadline.
+  const startsAt = isScheduled ? input.desiredAt : null
+  const deadline = isScheduled ? null : input.desiredAt
+  // client_requested_deadline acepta cualquier formato porque es timestamptz nullable;
+  // para artes lo guardamos como medianoche local del día.
+  const clientRequestedDeadline = isScheduled
+    ? input.desiredAt
+    : `${input.desiredAt}T00:00:00`
+
   const { data: inserted, error } = await admin
     .from('requirements')
     .insert({
       billing_cycle_id: cycle.id,
-      content_type: input.contentType as ContentType,
+      content_type: input.contentType,
       registered_by_user_id: user.id,
       title: input.title.trim(),
       notes: input.description.trim() || null,
@@ -74,13 +100,14 @@ export async function requestRequirement(
       phase: 'pendiente',
       carried_over: false,
       cambios_count: 0,
-      includes_story: false,
+      includes_story: input.includesStory ?? false,
       // Solicitud: marca pending y guarda fecha del cliente
       approval_status: 'pending',
       requested_by_user_id: user.id,
-      client_requested_deadline: input.desiredAt,
+      client_requested_deadline: clientRequestedDeadline,
       client_requested_notes: input.description.trim() || null,
-      starts_at: input.desiredAt,
+      starts_at: startsAt,
+      deadline,
       assigned_to: [],
     })
     .select('id')
@@ -98,11 +125,13 @@ export async function requestRequirement(
 
 export interface ApproveRequirementInput {
   requirementId: string
-  estimatedTimeMinutes: number
+  /** Solo se valida obligatorio para reunion/produccion. Para artes se ignora. */
+  estimatedTimeMinutes: number | null
   priority: Priority
   assignedTo: string[]
   deadline: string | null
-  startsAt: string
+  /** Solo aplica a reunion/produccion. */
+  startsAt: string | null
   consumptionOverridesJson?: Partial<Record<ContentType, number>> | null
 }
 
@@ -121,20 +150,26 @@ export async function approveRequirementRequest(
   }
 
   if (!input.assignedTo.length) return { error: 'Asigna al menos un responsable' }
-  if (!input.estimatedTimeMinutes || input.estimatedTimeMinutes <= 0) {
-    return { error: 'Ingresa la duración estimada en minutos' }
-  }
-  if (!input.startsAt) return { error: 'Selecciona la fecha y hora de inicio' }
 
   const admin = createAdminClient()
   const { data: existing } = await admin
     .from('requirements')
-    .select('id, approval_status')
+    .select('id, approval_status, content_type')
     .eq('id', input.requirementId)
     .maybeSingle()
   if (!existing) return { error: 'Solicitud no encontrada' }
   if (existing.approval_status !== 'pending') {
     return { error: 'Esta solicitud ya fue procesada' }
+  }
+
+  const isScheduled = SCHEDULED_TYPES.includes(existing.content_type as ContentType)
+  if (isScheduled) {
+    if (!input.estimatedTimeMinutes || input.estimatedTimeMinutes <= 0) {
+      return { error: 'Ingresa la duración estimada en minutos' }
+    }
+    if (!input.startsAt) return { error: 'Selecciona la fecha y hora de inicio' }
+  } else {
+    if (!input.deadline) return { error: 'Selecciona la fecha de entrega' }
   }
 
   const { error } = await admin
@@ -143,11 +178,11 @@ export async function approveRequirementRequest(
       approval_status: 'approved',
       approved_by_user_id: user.id,
       approved_at: new Date().toISOString(),
-      estimated_time_minutes: input.estimatedTimeMinutes,
+      estimated_time_minutes: isScheduled ? input.estimatedTimeMinutes : null,
       priority: input.priority,
       assigned_to: input.assignedTo,
       deadline: input.deadline,
-      starts_at: input.startsAt,
+      starts_at: isScheduled ? input.startsAt : null,
       consumption_overrides_json: input.consumptionOverridesJson ?? null,
     })
     .eq('id', input.requirementId)

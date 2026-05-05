@@ -16,12 +16,15 @@ export interface PendingRequest {
   id: string
   title: string
   notes: string | null
-  content_type: 'reunion' | 'produccion' | string
+  content_type: string
   client_requested_deadline: string | null
   starts_at: string | null
+  deadline: string | null
   client_name: string
   requested_by_name: string
 }
+
+const SCHEDULED = ['reunion', 'produccion']
 
 interface Props {
   request: PendingRequest
@@ -36,13 +39,18 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<'approve' | 'reject'>('approve')
 
+  const isScheduled = SCHEDULED.includes(request.content_type)
   const initialStart = request.starts_at ?? request.client_requested_deadline ?? ''
-  const [startsAt, setStartsAt] = useState(initialStart ? toLocalInputValue(initialStart) : '')
+  const initialDeadline = request.deadline
+    ?? (request.client_requested_deadline ? request.client_requested_deadline.slice(0, 10) : '')
+  const [startsAt, setStartsAt] = useState(
+    isScheduled && initialStart ? toLocalInputValue(initialStart) : '',
+  )
   const [estimatedHours, setEstimatedHours] = useState(1)
   const [estimatedMinutes, setEstimatedMinutes] = useState(0)
   const [priority, setPriority] = useState<Priority>('media')
   const [assigned, setAssigned] = useState<string[]>([])
-  const [deadline, setDeadline] = useState('')
+  const [deadline, setDeadline] = useState(isScheduled ? '' : initialDeadline)
   const [rejectReason, setRejectReason] = useState('')
 
   if (!open) return null
@@ -56,23 +64,41 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
   function handleApprove(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    const totalMin = estimatedHours * 60 + estimatedMinutes
-    if (totalMin <= 0) { setError('Ingresa la duración estimada'); return }
     if (assigned.length === 0) { setError('Asigna al menos un responsable'); return }
-    if (!startsAt) { setError('Selecciona la fecha y hora de inicio'); return }
-    startTransition(async () => {
-      const r = await approveRequirementRequest({
-        requirementId: request.id,
-        estimatedTimeMinutes: totalMin,
-        priority,
-        assignedTo: assigned,
-        deadline: deadline || null,
-        startsAt,
+
+    if (isScheduled) {
+      const totalMin = estimatedHours * 60 + estimatedMinutes
+      if (totalMin <= 0) { setError('Ingresa la duración estimada'); return }
+      if (!startsAt) { setError('Selecciona la fecha y hora de inicio'); return }
+      startTransition(async () => {
+        const r = await approveRequirementRequest({
+          requirementId: request.id,
+          estimatedTimeMinutes: totalMin,
+          priority,
+          assignedTo: assigned,
+          deadline: deadline || null,
+          startsAt,
+        })
+        if ('error' in r) { setError(r.error); return }
+        onClose()
+        router.refresh()
       })
-      if ('error' in r) { setError(r.error); return }
-      onClose()
-      router.refresh()
-    })
+    } else {
+      if (!deadline) { setError('Selecciona la fecha de entrega'); return }
+      startTransition(async () => {
+        const r = await approveRequirementRequest({
+          requirementId: request.id,
+          estimatedTimeMinutes: null,
+          priority,
+          assignedTo: assigned,
+          deadline,
+          startsAt: null,
+        })
+        if ('error' in r) { setError(r.error); return }
+        onClose()
+        router.refresh()
+      })
+    }
   }
 
   function handleReject() {
@@ -101,7 +127,7 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
           </p>
           <h2 className="text-lg font-semibold text-fm-on-surface mt-1">{request.title}</h2>
           <p className="text-xs text-fm-on-surface-variant mt-1">
-            Tipo: {request.content_type === 'reunion' ? 'Reunión' : 'Producción'}
+            Tipo: {labelForType(request.content_type)}
             {' · Solicitado por '}{request.requested_by_name}
           </p>
         </div>
@@ -149,43 +175,47 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
 
         {mode === 'approve' ? (
           <form onSubmit={handleApprove} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>Fecha y hora final *</Label>
-              <Input
-                type="datetime-local"
-                value={startsAt}
-                onChange={(e) => setStartsAt(e.target.value)}
-                disabled={isPending}
-                required
-                className="rounded-xl"
-              />
-            </div>
+            {isScheduled && (
+              <>
+                <div className="space-y-1.5">
+                  <Label>Fecha y hora final *</Label>
+                  <Input
+                    type="datetime-local"
+                    value={startsAt}
+                    onChange={(e) => setStartsAt(e.target.value)}
+                    disabled={isPending}
+                    required
+                    className="rounded-xl"
+                  />
+                </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Duración (horas)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  value={estimatedHours}
-                  onChange={(e) => setEstimatedHours(Math.max(0, Number(e.target.value)))}
-                  disabled={isPending}
-                  className="rounded-xl"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Duración (min)</Label>
-                <Input
-                  type="number"
-                  min={0}
-                  max={59}
-                  value={estimatedMinutes}
-                  onChange={(e) => setEstimatedMinutes(Math.max(0, Math.min(59, Number(e.target.value))))}
-                  disabled={isPending}
-                  className="rounded-xl"
-                />
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Duración (horas)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={estimatedHours}
+                      onChange={(e) => setEstimatedHours(Math.max(0, Number(e.target.value)))}
+                      disabled={isPending}
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Duración (min)</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={59}
+                      value={estimatedMinutes}
+                      onChange={(e) => setEstimatedMinutes(Math.max(0, Math.min(59, Number(e.target.value))))}
+                      disabled={isPending}
+                      className="rounded-xl"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="space-y-1.5">
               <Label>Urgencia *</Label>
@@ -231,12 +261,13 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
             </div>
 
             <div className="space-y-1.5">
-              <Label>Fecha de entrega (opcional)</Label>
+              <Label>Fecha de entrega {isScheduled ? '(opcional)' : '*'}</Label>
               <Input
                 type="date"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
                 disabled={isPending}
+                required={!isScheduled}
                 className="rounded-xl"
               />
             </div>
@@ -295,6 +326,19 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
       </div>
     </div>
   )
+}
+
+function labelForType(t: string): string {
+  switch (t) {
+    case 'reunion': return 'Reunión'
+    case 'produccion': return 'Producción'
+    case 'historia': return 'Historia'
+    case 'estatico': return 'Estático'
+    case 'video_corto': return 'Video corto'
+    case 'reel': return 'Video largo'
+    case 'short': return 'Short'
+    default: return t
+  }
 }
 
 function toLocalInputValue(iso: string): string {
