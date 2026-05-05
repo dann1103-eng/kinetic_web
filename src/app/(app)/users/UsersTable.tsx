@@ -498,6 +498,7 @@ function CreateUserModal({ onClose, onCreated }: {
         avatar_url: null,
         default_assignee: false,
         current_session_id: null,
+        can_quote: false,
       })
       onClose()
     })

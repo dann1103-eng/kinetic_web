@@ -25,9 +25,10 @@ export default async function QuoteDetailPage({
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
+  const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
   const role = appUser?.role
-  if (role !== 'admin' && role !== 'supervisor') redirect('/')
+  const canQuote = appUser?.can_quote ?? false
+  if (role !== 'admin' && role !== 'supervisor' && !canQuote) redirect('/')
 
   const { data: quoteRow } = await supabase.from('quotes').select('*').eq('id', id).maybeSingle()
   if (!quoteRow) notFound()

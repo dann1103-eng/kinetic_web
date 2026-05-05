@@ -15,6 +15,21 @@ import type {
 import type { Client, Invoice, Plan } from '@/types/db'
 
 /**
+ * Calcula los minutos desde ahora hasta el final del día indicado.
+ * Usado para que el link de pago viva hasta que venza la factura.
+ * Devuelve al menos 60 minutos para evitar links ya expirados.
+ */
+function minutesUntilEndOfDay(dateStr: string): number {
+  const target = new Date(dateStr)
+  target.setHours(23, 59, 59, 999)
+  const diffMs = target.getTime() - Date.now()
+  return Math.max(Math.ceil(diffMs / 60_000), 60)
+}
+
+/** 1 año en minutos — para links sin fecha de vencimiento explícita. */
+const ONE_YEAR_MINUTES = 525_600
+
+/**
  * Crea un payment link dinámico para una factura del CRM.
  * El webhook SuccessPayment posterior incluirá `orderReference=invoice.id`
  * y los items de `metadata`, permitiendo match directo.
@@ -33,7 +48,17 @@ export async function createInvoicePaymentLink(args: {
   /** Si no se pasa, se deriva de APP_URL + /n1co-callback?invoice=...&status=success. */
   successUrl?: string
   cancelUrl?: string
-  /** Default 4320 (3 días). */
+  /**
+   * Fecha de vencimiento de la factura (YYYY-MM-DD).
+   * Si se pasa, el link expira al final de ese día.
+   * Si no se pasa (extras one-off), el link dura 1 año.
+   * Ignorado si se pasa `expirationMinutes` explícito.
+   */
+  dueDate?: string | null
+  /**
+   * Override manual de expiración en minutos.
+   * Si se omite, se calcula desde `dueDate` o se usa 1 año.
+   */
   expirationMinutes?: number
   locationCode?: string
   /** Metadata adicional para el webhook (ej. extraType, extraQty para autoservicio). */
@@ -65,6 +90,10 @@ export async function createInvoicePaymentLink(args: {
   const cancelUrl = args.cancelUrl
     ?? `${appUrl}/n1co-callback?invoice=${encodeURIComponent(invoice.id)}&status=cancel`
 
+  const expirationMinutes =
+    args.expirationMinutes ??
+    (args.dueDate ? minutesUntilEndOfDay(args.dueDate) : ONE_YEAR_MINUTES)
+
   const input: CreatePaymentLinkInput = {
     orderReference: invoice.id,
     orderName,
@@ -72,7 +101,7 @@ export async function createInvoicePaymentLink(args: {
     amount: args.amount,
     successUrl,
     cancelUrl,
-    expirationMinutes: args.expirationMinutes ?? 4320,
+    expirationMinutes,
     locationCode: args.locationCode,
     metadata,
   }
@@ -134,7 +163,7 @@ export async function createPackagePaymentLink(args: {
     amount: args.amount,
     successUrl: args.successUrl,
     cancelUrl: args.cancelUrl,
-    expirationMinutes: args.expirationMinutes ?? 4320,
+    expirationMinutes: args.expirationMinutes ?? ONE_YEAR_MINUTES,
     locationCode: args.locationCode,
     metadata,
   }

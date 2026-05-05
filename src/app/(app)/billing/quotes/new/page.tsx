@@ -15,8 +15,9 @@ export default async function NewQuotePage({
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
-  if (appUser?.role !== 'admin') redirect('/billing')
+  const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
+  const canCreate = appUser?.role === 'admin' || appUser?.role === 'supervisor' || (appUser?.can_quote ?? false)
+  if (!canCreate) redirect('/billing')
 
   return (
     <div className="flex flex-col min-h-full">

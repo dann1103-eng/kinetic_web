@@ -297,6 +297,7 @@ export interface Database {
           avatar_url: string | null
           default_assignee: boolean
           current_session_id: string | null
+          can_quote: boolean
         }
         Insert: {
           id: string
@@ -306,6 +307,7 @@ export interface Database {
           avatar_url?: string | null
           default_assignee?: boolean
           current_session_id?: string | null
+          can_quote?: boolean
         }
         Update: {
           email?: string
@@ -314,6 +316,7 @@ export interface Database {
           avatar_url?: string | null
           default_assignee?: boolean
           current_session_id?: string | null
+          can_quote?: boolean
         }
         Relationships: []
       }

@@ -21,12 +21,13 @@ import type {
 } from '@/types/db'
 import { createInvoice } from './invoices'
 
-async function requireAdmin() {
+async function requireQuoteAccess() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' as const }
-  const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
-  if (appUser?.role !== 'admin') return { error: 'Solo admins pueden gestionar cotizaciones' as const }
+  const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
+  const allowed = appUser?.role === 'admin' || appUser?.role === 'supervisor' || (appUser?.can_quote ?? false)
+  if (!allowed) return { error: 'Sin permiso para gestionar cotizaciones' as const }
   return { userId: user.id }
 }
 
@@ -68,7 +69,7 @@ export async function createQuote(
   | { error: string }
   | { ok: true; quoteId: string; quoteNumber: string }
 > {
-  const auth = await requireAdmin()
+  const auth = await requireQuoteAccess()
   if ('error' in auth) return { error: auth.error as string }
 
   if (!input.items?.length) return { error: 'La cotización debe tener al menos un ítem' as const }
@@ -175,7 +176,7 @@ export async function createQuote(
 }
 
 export async function sendQuote(id: string): Promise<{ error: string } | { ok: true }> {
-  const auth = await requireAdmin()
+  const auth = await requireQuoteAccess()
   if ('error' in auth) return { error: auth.error as string }
   const admin = createAdminClient()
   const { error } = await admin
@@ -190,7 +191,7 @@ export async function sendQuote(id: string): Promise<{ error: string } | { ok: t
 }
 
 export async function markQuoteAccepted(id: string): Promise<{ error: string } | { ok: true }> {
-  const auth = await requireAdmin()
+  const auth = await requireQuoteAccess()
   if ('error' in auth) return { error: auth.error as string }
   const admin = createAdminClient()
   const { error } = await admin.from('quotes').update({ status: 'accepted' }).eq('id', id)
@@ -201,7 +202,7 @@ export async function markQuoteAccepted(id: string): Promise<{ error: string } |
 }
 
 export async function markQuoteRejected(id: string): Promise<{ error: string } | { ok: true }> {
-  const auth = await requireAdmin()
+  const auth = await requireQuoteAccess()
   if ('error' in auth) return { error: auth.error as string }
   const admin = createAdminClient()
   const { error } = await admin.from('quotes').update({ status: 'rejected' }).eq('id', id)
@@ -212,7 +213,7 @@ export async function markQuoteRejected(id: string): Promise<{ error: string } |
 }
 
 export async function deleteQuoteDraft(id: string): Promise<{ error: string } | { ok: true }> {
-  const auth = await requireAdmin()
+  const auth = await requireQuoteAccess()
   if ('error' in auth) return { error: auth.error as string }
   const admin = createAdminClient()
   const { data: q } = await admin.from('quotes').select('status').eq('id', id).single()
@@ -228,7 +229,7 @@ export async function deleteQuoteDraft(id: string): Promise<{ error: string } | 
 export async function convertQuoteToInvoice(
   quoteId: string
 ): Promise<{ error: string } | { ok: true; invoiceId: string; invoiceNumber: string }> {
-  const auth = await requireAdmin()
+  const auth = await requireQuoteAccess()
   if ('error' in auth) return { error: auth.error as string }
   const admin = createAdminClient()
 

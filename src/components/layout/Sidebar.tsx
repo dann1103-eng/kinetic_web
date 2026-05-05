@@ -164,7 +164,13 @@ export function SidebarContent({
   const inboxUnread = inboxList.reduce((sum, c) => sum + c.unread_count, 0)
 
   const visibleItems = navItems.filter(
-    (item) => !item.allowedRoles || item.allowedRoles.includes(user.role)
+    (item) => {
+      if (!item.allowedRoles) return true
+      if (item.allowedRoles.includes(user.role)) return true
+      // Excepción: usuarios con can_quote ven el link de Facturación
+      if (item.href === '/billing' && user.can_quote) return true
+      return false
+    }
   )
 
   return (

@@ -189,6 +189,7 @@ export async function createInvoice(
       clientName: client.name,
       plan: planRow as { id: string; name: string } | null,
       locationCode: emitter.n1co_location_code ?? undefined,
+      dueDate: resolvedDueDate,
     })
     if (link) {
       paymentLinkUrl = link.paymentLinkUrl
@@ -231,6 +232,8 @@ interface SafeLinkArgs {
   clientName: string
   plan: { id: string; name: string } | null
   locationCode?: string
+  /** Fecha de vencimiento (YYYY-MM-DD). El link expira al final de ese día. */
+  dueDate?: string | null
 }
 
 async function createPaymentLinkSafe(args: SafeLinkArgs) {
@@ -246,6 +249,7 @@ async function createPaymentLinkSafe(args: SafeLinkArgs) {
       client: { id: args.clientId, name: args.clientName },
       plan: args.plan,
       locationCode: args.locationCode,
+      dueDate: args.dueDate,
     })
     return link
   } catch (err) {
@@ -441,7 +445,7 @@ export async function regenerateN1coLink(
 
   const { data: inv } = await admin
     .from('invoices')
-    .select('id, invoice_number, total, total_a_pagar, currency, billing_cycle_id, client_id, status')
+    .select('id, invoice_number, total, total_a_pagar, currency, billing_cycle_id, client_id, status, due_date')
     .eq('id', invoiceId)
     .single()
   if (!inv) return { error: 'Factura no encontrada' as const }
@@ -469,6 +473,7 @@ export async function regenerateN1coLink(
     clientName: clientRow.name,
     plan: planRow as { id: string; name: string } | null,
     locationCode: emitter?.n1co_location_code ?? undefined,
+    dueDate: inv.due_date as string | null,
   })
 
   if (!link) return { error: 'No se pudo generar el link en n1co' as const }
