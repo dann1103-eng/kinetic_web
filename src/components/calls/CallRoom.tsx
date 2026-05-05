@@ -12,7 +12,7 @@ import {
 import { Track } from 'livekit-client'
 import type { TrackReference, TrackReferenceOrPlaceholder } from '@livekit/components-react'
 import '@livekit/components-styles'
-import { recordCallJoin, endCall } from '@/app/actions/calls'
+import { recordCallJoin, leaveCall } from '@/app/actions/calls'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import type { ActiveCallInfo } from '@/types/db'
 
@@ -201,7 +201,9 @@ export function CallRoom({ call, expanded, onLeave, onScreenShareChange }: CallR
   }, [call.conversationId, call.modality])
 
   async function handleDisconnected() {
-    await endCall(call.sessionId).catch(() => {})
+    // Solo marca left_at para el usuario actual — no cierra la sesión para todos.
+    // endCall() (que pone ended_at) solo se llama desde handleHangup en CallDock.
+    await leaveCall(call.sessionId).catch(() => {})
     onLeave()
   }
 
@@ -254,8 +256,8 @@ export function CallRoom({ call, expanded, onLeave, onScreenShareChange }: CallR
         <ControlBar
           controls={
             isVoice
-              ? { camera: false, screenShare: false, microphone: true, leave: true, settings: false }
-              : { camera: true, screenShare: !isVoice, microphone: true, leave: true, settings: false }
+              ? { camera: false, screenShare: false, microphone: true, leave: true, settings: false, chat: false }
+              : { camera: true, screenShare: !isVoice, microphone: true, leave: true, settings: false, chat: false }
           }
         />
       </div>

@@ -29,26 +29,31 @@ export function CallDock() {
   // El callback de screen share viene antes de los early returns para que el
   // orden de hooks sea estable cuando el dock aparece/desaparece.
   const autoFullscreenedRef = useRef(false)
+  // Cuando el usuario minimiza manualmente, no forzamos fullscreen aunque
+  // haya un screen share activo — respetamos la decisión del usuario.
+  const userMinimizedRef = useRef(false)
 
   const setFullscreen = ctx?.setFullscreen
   const handleScreenShareChange = useCallback(
     (active: boolean) => {
       if (!setFullscreen) return
-      if (active && !autoFullscreenedRef.current) {
+      if (active && !autoFullscreenedRef.current && !userMinimizedRef.current) {
         autoFullscreenedRef.current = true
         setFullscreen(true)
       }
       if (!active) {
-        // Permitimos que un próximo screen share vuelva a auto-fullscrenear.
         autoFullscreenedRef.current = false
+        // No resetear userMinimizedRef — si el user minimizó, lo respetamos
+        // incluso para el próximo screen share de esa sesión.
       }
     },
     [setFullscreen]
   )
 
-  // Si la llamada inicia con modalidad 'screen', auto-fullscreen inmediato.
+  // Si la llamada inicia con modalidad 'screen', auto-fullscreen inmediato
+  // (solo si el usuario no ha minimizado explícitamente antes).
   useEffect(() => {
-    if (ctx?.activeCall?.modality === 'screen') {
+    if (ctx?.activeCall?.modality === 'screen' && !userMinimizedRef.current) {
       ctx.setFullscreen(true)
       autoFullscreenedRef.current = true
     }
@@ -69,11 +74,13 @@ export function CallDock() {
   }
 
   function handleMinimize() {
+    userMinimizedRef.current = true
     ctx?.setFullscreen(false)
     setMinimized(true)
   }
 
   function handleExpand() {
+    userMinimizedRef.current = false
     setMinimized(false)
   }
 

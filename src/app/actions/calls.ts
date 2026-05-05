@@ -95,8 +95,9 @@ export async function startCall(payload: {
 }
 
 /**
- * Notifica al otro miembro de un DM que tiene una llamada entrante.
- * Para canales no se hace nada (la entrada/salida se maneja con presence).
+ * Notifica a los miembros de una conversación que hay una llamada entrante.
+ * - DM: notifica al otro usuario.
+ * - channel / voice_channel: notifica a todos los miembros excepto el que inició.
  */
 export async function notifyIncomingCall(payload: {
   conversationId: string
@@ -107,17 +108,15 @@ export async function notifyIncomingCall(payload: {
     const { supabase, user } = await getCurrentUser()
     const { conversationId, sessionId, modality } = payload
 
-    // Verifica tipo dm y obtiene el otro user
     const { data: conv } = await supabase
       .from('conversations')
-      .select('id, type')
+      .select('id, type, name')
       .eq('id', conversationId)
       .single()
 
-    if (!conv || conv.type !== 'dm') {
-      // Para canales no se notifica vía broadcast
-      return { ok: true }
-    }
+    if (!conv) return { ok: true }
+
+    const isChannel = conv.type === 'channel' || conv.type === 'voice_channel'
 
     const { data: members } = await supabase
       .from('conversation_members')
@@ -125,8 +124,8 @@ export async function notifyIncomingCall(payload: {
       .eq('conversation_id', conversationId)
 
     const targetIds = (members ?? [])
-      .map((m) => m.user_id)
-      .filter((id) => id !== user.id)
+      .map((m: { user_id: string }) => m.user_id)
+      .filter((id: string) => id !== user.id)
 
     if (targetIds.length === 0) return { ok: true }
 
@@ -136,6 +135,7 @@ export async function notifyIncomingCall(payload: {
       conversationId,
       roomName,
       modality,
+      channelName: isChannel ? (conv.name ?? null) : null,
       fromUser: {
         id: user.id,
         full_name: user.full_name,
@@ -143,10 +143,8 @@ export async function notifyIncomingCall(payload: {
       },
     }
 
-    // Envia broadcast a cada user (canal user:{id}). El cliente se suscribe
-    // a este canal en useIncomingCall para mostrar el toast.
     await Promise.all(
-      targetIds.map(async (targetId) => {
+      targetIds.map(async (targetId: string) => {
         const channel = supabase.channel(`user:${targetId}`)
         await channel.subscribe()
         await channel.send({
@@ -166,7 +164,31 @@ export async function notifyIncomingCall(payload: {
 }
 
 /**
- * Termina la llamada (opcional — el webhook de LiveKit también la cierra
+ * Marca que el usuario actual salió de la sesión (left_at) sin cerrarla para
+ * los demás. Usar en onDisconnected / F5 / cierre de pestaña.
+ * El webhook de LiveKit cierra la sesión (ended_at) cuando todos se van.
+ */
+export async function leaveCall(sessionId: string) {
+  try {
+    const { supabase, user } = await getCurrentUser()
+    const nowIso = new Date().toISOString()
+
+    await supabase
+      .from('call_participants')
+      .update({ left_at: nowIso })
+      .eq('session_id', sessionId)
+      .eq('user_id', user.id)
+      .is('left_at', null)
+
+    return { ok: true }
+  } catch (e) {
+    console.error('leaveCall failed:', e)
+    return { error: e instanceof Error ? e.message : 'Error desconocido' }
+  }
+}
+
+/**
+ * Termina la llamada para todos (opcional — el webhook de LiveKit también la cierra
  * cuando todos se van). Útil para "colgar y cerrar para todos" en DMs 1:1.
  */
 export async function endCall(sessionId: string) {

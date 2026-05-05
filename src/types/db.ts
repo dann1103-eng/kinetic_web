@@ -2016,4 +2016,6 @@ export interface IncomingCallPayload {
     full_name: string
     avatar_url: string | null
   }
+  /** Nombre del canal si la llamada es en un channel/voice_channel (ej: "general"). Null para DMs. */
+  channelName: string | null
 }

@@ -8,7 +8,7 @@ import { useIncomingCall } from '@/hooks/useIncomingCall'
 import { useActiveCallOrNull } from '@/contexts/ActiveCallContext'
 import { endCall } from '@/app/actions/calls'
 
-/** Tiempo máximo de timbrado antes de auto-rechazar y terminar la llamada. */
+/** Tiempo máximo de timbrado antes de auto-rechazar. */
 const MAX_RING_MS = 25_000
 
 export function IncomingCallToast() {
@@ -20,8 +20,9 @@ export function IncomingCallToast() {
 
   const activeCall = callCtx?.activeCall ?? null
   const inAnotherCall = !!(activeCall && incoming && activeCall.sessionId !== incoming.sessionId)
+  const isChannelCall = !!incoming?.channelName
 
-  /** Detiene el ringtone y limpia el timer del timeout. */
+  /** Detiene el ringtone y limpia el timer. */
   const stopRing = useCallback(() => {
     if (audioRef.current) {
       audioRef.current.pause()
@@ -33,31 +34,30 @@ export function IncomingCallToast() {
     }
   }, [])
 
-  /** Auto-rechazo tras MAX_RING_MS: termina la sesión y descarta el toast. */
+  /**
+   * Auto-rechazo tras MAX_RING_MS.
+   * - DM: termina la sesión (el caller queda sin contraparte).
+   * - Canal: solo descarta el toast; la sesión sigue viva para otros miembros.
+   */
   const autoReject = useCallback(async () => {
     stopRing()
-    if (incoming) {
+    if (incoming && !isChannelCall) {
       await endCall(incoming.sessionId).catch(() => {})
     }
     dismiss()
-  }, [incoming, stopRing, dismiss])
+  }, [incoming, isChannelCall, stopRing, dismiss])
 
-  // Si ya estamos en otra llamada distinta cuando llega un nuevo `incoming`,
-  // descartamos silenciosamente — sin sonar y sin que se quede colgado en el UI.
-  // Esto fixea el bug donde el ringtone seguía sonando en bucle de fondo y no
-  // se podía colgar mientras estabas en otra llamada activa.
+  // Si ya estamos en otra llamada, descartar silenciosamente.
   useEffect(() => {
     if (incoming && inAnotherCall) {
       stopRing()
-      // Cerramos la llamada que entró ya que no la podemos atender — el caller
-      // se desconectará vía el listener realtime de call_sessions.
-      endCall(incoming.sessionId).catch(() => {})
+      if (!isChannelCall) {
+        endCall(incoming.sessionId).catch(() => {})
+      }
       dismiss()
     }
-  }, [incoming, inAnotherCall, stopRing, dismiss])
+  }, [incoming, inAnotherCall, isChannelCall, stopRing, dismiss])
 
-  // Reproducir el ringtone MP3 en bucle hasta que el usuario actúe o se cumpla
-  // el timeout de MAX_RING_MS.
   useEffect(() => {
     if (!incoming || inAnotherCall) return
     const audio = new Audio('/ringtone.mp3')
@@ -65,13 +65,9 @@ export function IncomingCallToast() {
     audio.volume = 0.85
     audioRef.current = audio
     audio.play().catch((err) => {
-      // Algunos navegadores bloquean autoplay si el usuario no interactuó con
-      // la página todavía. No es crítico — el usuario verá el toast igual.
       console.warn('[ringtone] autoplay bloqueado:', err)
     })
-
     timeoutRef.current = window.setTimeout(autoReject, MAX_RING_MS)
-
     return () => {
       stopRing()
     }
@@ -96,15 +92,16 @@ export function IncomingCallToast() {
       conversationId: incoming.conversationId,
       roomName: incoming.roomName,
       modality: incoming.modality,
-      title: incoming.fromUser.full_name,
-      counterpartAvatarUrl: incoming.fromUser.avatar_url ?? null,
+      title: incoming.channelName ? `#${incoming.channelName}` : incoming.fromUser.full_name,
+      counterpartAvatarUrl: incoming.channelName ? null : (incoming.fromUser.avatar_url ?? null),
     })
     dismiss()
   }
 
   function handleReject() {
     stopRing()
-    if (incoming) {
+    // En canales solo descartar el toast; la sesión sigue para otros miembros.
+    if (incoming && !isChannelCall) {
       endCall(incoming.sessionId).catch(() => {})
     }
     dismiss()
@@ -114,20 +111,31 @@ export function IncomingCallToast() {
     <div className="fixed bottom-6 right-6 z-[300] w-[320px] bg-white border border-[#dfe3e6] rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4">
       <div className="px-4 py-3 bg-[#00675c]/5 border-b border-[#dfe3e6]">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-[#00675c]">
-          {modalityLabel} entrante
+          {modalityLabel} {isChannelCall ? 'en canal' : 'entrante'}
         </p>
       </div>
       <div className="px-4 py-4 flex items-center gap-3">
-        <UserAvatar
-          name={incoming.fromUser.full_name}
-          avatarUrl={incoming.fromUser.avatar_url}
-          size="md"
-        />
+        {!isChannelCall && (
+          <UserAvatar
+            name={incoming.fromUser.full_name}
+            avatarUrl={incoming.fromUser.avatar_url}
+            size="md"
+          />
+        )}
+        {isChannelCall && (
+          <div className="w-10 h-10 rounded-full bg-fm-primary/10 flex items-center justify-center text-fm-primary font-bold text-lg flex-shrink-0">
+            #
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-[#2a2a2a] truncate">
-            {incoming.fromUser.full_name}
+            {isChannelCall ? `#${incoming.channelName}` : incoming.fromUser.full_name}
           </p>
-          <p className="text-xs text-[#595c5e]">te está llamando…</p>
+          <p className="text-xs text-[#595c5e]">
+            {isChannelCall
+              ? `${incoming.fromUser.full_name} inició una llamada`
+              : 'te está llamando…'}
+          </p>
         </div>
       </div>
       <div className="px-4 pb-4 flex gap-2">
@@ -137,7 +145,7 @@ export function IncomingCallToast() {
           className="flex-1 h-10 rounded-lg bg-[#b31b25]/10 text-[#b31b25] hover:bg-[#b31b25]/20 flex items-center justify-center gap-2 font-semibold text-sm transition-colors"
         >
           <PhoneOffIcon size={16} />
-          Rechazar
+          {isChannelCall ? 'Ignorar' : 'Rechazar'}
         </button>
         <button
           type="button"
@@ -145,7 +153,7 @@ export function IncomingCallToast() {
           className="flex-1 h-10 rounded-lg bg-[#00675c] text-white hover:bg-[#00675c]/90 flex items-center justify-center gap-2 font-semibold text-sm transition-colors"
         >
           <PhoneIcon size={16} />
-          Aceptar
+          {isChannelCall ? 'Unirse' : 'Aceptar'}
         </button>
       </div>
     </div>
