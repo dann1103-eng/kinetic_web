@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { EffectivePresenceStatus, PresenceStatus } from '@/types/db'
 
@@ -34,6 +34,16 @@ export function useUsersPresence() {
   const [presence, setPresence] = useState<Map<string, PresenceStatus>>(new Map())
   const [inCall, setInCall] = useState<Set<string>>(new Set())
   const [activeConvCalls, setActiveConvCalls] = useState<Set<string>>(new Set())
+
+  // ID único por instancia del hook — evita colisión de nombres de canal
+  // cuando varios componentes usan useUsersPresence simultáneamente.
+  const instanceId = useRef<string>('')
+  if (!instanceId.current) {
+    instanceId.current =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID().slice(0, 8)
+        : Math.random().toString(36).slice(2, 10)
+  }
 
   const refresh = useCallback(async () => {
     try {
@@ -77,7 +87,7 @@ export function useUsersPresence() {
     refresh()
 
     const presenceChannel = supabase
-      .channel('presence-watch')
+      .channel(`presence-watch-${instanceId.current}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'user_presence' },
@@ -86,7 +96,7 @@ export function useUsersPresence() {
       .subscribe()
 
     const callsChannel = supabase
-      .channel('calls-presence-watch')
+      .channel(`calls-presence-watch-${instanceId.current}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'call_participants' },
