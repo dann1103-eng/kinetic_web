@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
@@ -153,12 +155,17 @@ async function _loadInitialList(): Promise<ConversationListItem[]> {
 }
 
 async function loadAllUsers(): Promise<Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[]> {
-  const supabase = await createClient()
-  const { data } = await supabase
-    .from('users')
-    .select('id, full_name, avatar_url, role')
-    .order('full_name', { ascending: true })
-  return (data ?? []) as Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[]
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('users')
+      .select('id, full_name, avatar_url, role')
+      .order('full_name', { ascending: true })
+    return (data ?? []) as Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[]
+  } catch (e) {
+    console.error('[inbox layout] loadAllUsers falló:', e)
+    return []
+  }
 }
 
 export default async function InboxLayout({ children }: { children: React.ReactNode }) {
