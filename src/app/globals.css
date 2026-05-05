@@ -487,3 +487,27 @@
 body.review-dialog-open .floating-chat-dock {
   display: none !important;
 }
+
+/* Animación de reacción de emoji flotante en llamadas */
+@keyframes fm-float-up {
+  0% {
+    transform: translateX(-50%) translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  15% {
+    transform: translateX(-50%) translateY(-12px) scale(1.25);
+    opacity: 1;
+  }
+  80% {
+    transform: translateX(-50%) translateY(-180px) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(-50%) translateY(-240px) scale(0.7);
+    opacity: 0;
+  }
+}
+
+.animate-fm-float-up {
+  animation: fm-float-up 4s ease-out forwards;
+}
