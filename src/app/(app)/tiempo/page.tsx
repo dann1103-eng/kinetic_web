@@ -44,6 +44,7 @@ export default async function TiempoPage() {
     .not('ended_at', 'is', null)
     .gte('started_at', monthStart)
     .lt('started_at', monthEnd)
+    .lte('started_at', new Date().toISOString())
     .order('started_at', { ascending: false })
   const entries = (entriesRaw ?? []) as unknown as TimeEntry[]
 

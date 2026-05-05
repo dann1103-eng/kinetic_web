@@ -520,6 +520,8 @@ export interface Database {
           extra_content_json: ExtraContentItem[]
           content_limits_override_json: Partial<Record<ContentType, number>> | null
           weekly_distribution_override_json: WeeklyDistribution | null
+          /** Timestamp del momento en que se emitió factura para este ciclo (manual o cron). */
+          auto_billed_at: string | null
         }
         Insert: {
           id?: string
@@ -539,6 +541,7 @@ export interface Database {
           extra_content_json?: ExtraContentItem[]
           content_limits_override_json?: Partial<Record<ContentType, number>> | null
           weekly_distribution_override_json?: WeeklyDistribution | null
+          auto_billed_at?: string | null
         }
         Update: {
           client_id?: string
@@ -557,6 +560,7 @@ export interface Database {
           extra_content_json?: ExtraContentItem[]
           content_limits_override_json?: Partial<Record<ContentType, number>> | null
           weekly_distribution_override_json?: WeeklyDistribution | null
+          auto_billed_at?: string | null
         }
         Relationships: [
           {
@@ -936,6 +940,8 @@ export interface Database {
           edited_at: string | null
           deleted_at: string | null
           created_at: string
+          /** Tipo del mensaje (migración 0077). 'text' por default; los de sistema se pintan distinto. */
+          kind: 'text' | 'system_missed_call'
         }
         Insert: {
           id?: string
@@ -945,11 +951,13 @@ export interface Database {
           edited_at?: string | null
           deleted_at?: string | null
           created_at?: string
+          kind?: 'text' | 'system_missed_call'
         }
         Update: {
           body?: string
           edited_at?: string | null
           deleted_at?: string | null
+          kind?: 'text' | 'system_missed_call'
         }
         Relationships: [
           {

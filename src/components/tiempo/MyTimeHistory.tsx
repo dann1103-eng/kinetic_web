@@ -119,6 +119,7 @@ export function MyTimeHistory({ userId, initialEntries, initialYear, initialMont
         .not('ended_at', 'is', null)
         .gte('started_at', start)
         .lt('started_at', end)
+        .lte('started_at', new Date().toISOString())
         .order('started_at', { ascending: false })
       setEntries((data ?? []) as unknown as TimeEntryWithContext[])
       setLoading(false)

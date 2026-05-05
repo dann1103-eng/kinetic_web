@@ -144,7 +144,7 @@ export function ClientRequestRequirementModal({ open, onClose }: Props) {
                 onChange={(e) => setDescription(e.target.value)}
                 disabled={isPending}
                 rows={3}
-                placeholder="Cuéntanos el contexto, lo que esperas de esta reunión/producción…"
+                placeholder="Cuéntanos el contexto, lo que esperas que hagamos por ti…"
                 className="rounded-xl bg-fm-background border-fm-surface-container-high"
               />
             </div>

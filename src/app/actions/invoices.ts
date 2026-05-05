@@ -92,7 +92,23 @@ export async function createInvoice(
   if (numberErr || !numberRow) return { error: 'Error al generar el correlativo' as const }
   const invoiceNumber = numberRow as unknown as string
 
-  const paymentProvider: PaymentProvider = input.paymentProvider ?? 'manual'
+  // Default a n1co_link cuando hay credencial configurada (uniforme con el cron).
+  // Cae a 'manual' si la integración no está disponible (el helper safe lo maneja).
+  const hasN1co = !!process.env.N1CO_CHECKOUT_LINK_SECRET
+  const paymentProvider: PaymentProvider = input.paymentProvider ?? (hasN1co ? 'n1co_link' : 'manual')
+
+  // Si el caller no pasó due_date pero conocemos el ciclo, usamos su period_start
+  // (el cliente paga por adelantado al inicio del período). Si es ad-hoc, sin ciclo,
+  // dejamos null para no asumir.
+  let resolvedDueDate: string | null = input.dueDate ?? null
+  if (!resolvedDueDate && input.billingCycleId) {
+    const { data: cycleRow } = await admin
+      .from('billing_cycles')
+      .select('period_start')
+      .eq('id', input.billingCycleId)
+      .maybeSingle()
+    resolvedDueDate = (cycleRow?.period_start as string | null) ?? null
+  }
 
   const { data: inserted, error: insertErr } = await admin
     .from('invoices')
@@ -102,7 +118,7 @@ export async function createInvoice(
       billing_cycle_id: input.billingCycleId ?? null,
       quote_id: input.quoteId ?? null,
       issue_date: todayString(),
-      due_date: input.dueDate ?? null,
+      due_date: resolvedDueDate,
       currency: 'USD',
       subtotal: totals.subtotal,
       discount_amount: totals.discount_amount,
@@ -139,6 +155,22 @@ export async function createInvoice(
   if (itemsErr) {
     await admin.from('invoices').delete().eq('id', inserted.id)
     return { error: 'Error al guardar los ítems de la factura' as const }
+  }
+
+  // Si la factura cubre un scheduled cycle, marcar auto_billed_at para que el
+  // cron no genere una segunda factura automática para el mismo período.
+  if (input.billingCycleId) {
+    const { data: cycleStatus } = await admin
+      .from('billing_cycles')
+      .select('status')
+      .eq('id', input.billingCycleId)
+      .maybeSingle()
+    if (cycleStatus?.status === 'scheduled') {
+      await admin
+        .from('billing_cycles')
+        .update({ auto_billed_at: new Date().toISOString() })
+        .eq('id', input.billingCycleId)
+    }
   }
 
   // Si el método de cobro es n1co_link: generar payment link dinámico ahora.

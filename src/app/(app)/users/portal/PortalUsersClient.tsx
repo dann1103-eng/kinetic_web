@@ -245,7 +245,7 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
       {mode.kind !== 'closed' && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={close}>
           <div
-            className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 max-w-lg w-full p-6 space-y-4"
+            className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 max-w-lg w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-fm-on-surface">

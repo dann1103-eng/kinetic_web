@@ -37,7 +37,7 @@ export default async function PortalCalendarioPage() {
   // Query requirements with a deadline or starts_at — include phase and notes for popup
   const { data: reqs } = await supabase
     .from('requirements')
-    .select('id, content_type, title, starts_at, deadline, estimated_time_minutes, assigned_to, billing_cycle_id, phase, notes')
+    .select('id, content_type, title, starts_at, deadline, estimated_time_minutes, assigned_to, billing_cycle_id, phase, notes, review_started_at')
     .eq('billing_cycle_id', cycle.id)
     .eq('voided', false)
     .eq('approval_status', 'approved')
@@ -52,6 +52,12 @@ export default async function PortalCalendarioPage() {
     end: string
     allDay: boolean
     phaseLabel: string | null
+    /** Fase real de pipeline — necesario para gatear el sheet de revisión cliente. */
+    phase: Phase | null
+    /** UUID del requirement para abrir el sheet. Null para eventos no-requirement. */
+    requirementId: string | null
+    /** Marca cuándo entró a revisión cliente; usado por el sheet de revisión. */
+    reviewStartedAt: string | null
     notes: string | null
     deadline: string | null
   }
@@ -93,6 +99,9 @@ export default async function PortalCalendarioPage() {
           : ev.end.toISOString(),
         allDay: ev.allDay,
         phaseLabel,
+        phase: (req.phase as Phase | null) ?? null,
+        requirementId: req.id,
+        reviewStartedAt: (req.review_started_at as string | null) ?? null,
         notes: req.notes ?? null,
         deadline: req.deadline ?? null,
       })
@@ -108,6 +117,9 @@ export default async function PortalCalendarioPage() {
         end: req.deadline + 'T23:59:59',
         allDay: true,
         phaseLabel,
+        phase: (req.phase as Phase | null) ?? null,
+        requirementId: req.id,
+        reviewStartedAt: (req.review_started_at as string | null) ?? null,
         notes: req.notes ?? null,
         deadline: req.deadline,
       })
@@ -117,13 +129,21 @@ export default async function PortalCalendarioPage() {
   // Default calendar date: start of current cycle or today
   const defaultDate = cycle.period_start ?? new Date().toISOString().split('T')[0]
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const currentUserId = user?.id ?? ''
+
   return (
     <div className="flex flex-col h-[calc(100vh-64px)]">
       <div className="p-6 pb-0">
         <h1 className="text-xl font-semibold text-fm-on-surface mb-4">Calendario</h1>
       </div>
       <div className="flex-1 px-6 pb-6 overflow-hidden">
-        <PortalCalendarioClient events={events} defaultDate={defaultDate} />
+        <PortalCalendarioClient
+          events={events}
+          defaultDate={defaultDate}
+          clientId={clientId}
+          currentUserId={currentUserId}
+        />
       </div>
     </div>
   )

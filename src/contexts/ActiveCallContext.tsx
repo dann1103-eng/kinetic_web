@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useUserOrNull } from '@/contexts/UserContext'
 import type { ActiveCallInfo } from '@/types/db'
 
 interface ActiveCallContextValue {
@@ -17,6 +18,7 @@ interface ActiveCallContextValue {
 const ActiveCallContext = createContext<ActiveCallContextValue | null>(null)
 
 export function ActiveCallProvider({ children }: { children: ReactNode }) {
+  const user = useUserOrNull()
   const [activeCall, setActiveCall] = useState<ActiveCallInfo | null>(null)
   const [minimized, setMinimized] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
@@ -62,6 +64,26 @@ export function ActiveCallProvider({ children }: { children: ReactNode }) {
       supabase.removeChannel(channel)
     }
   }, [activeCall, endActiveCall])
+
+  // Segunda vía: el caller hace broadcast a `user:{id}` con `call_ended` cuando
+  // cuelga en un DM. Garantiza que el receptor se desconecte aunque el
+  // postgres_changes UPDATE de call_sessions tarde en llegar.
+  useEffect(() => {
+    if (!user?.id) return
+    const supabase = createClient()
+    const ch = supabase
+      .channel(`user:${user.id}`)
+      .on('broadcast', { event: 'call_ended' }, ({ payload }) => {
+        const sessionId = (payload as { sessionId?: string } | null)?.sessionId
+        if (sessionId && activeCall?.sessionId === sessionId) {
+          endActiveCall()
+        }
+      })
+      .subscribe()
+    return () => {
+      supabase.removeChannel(ch)
+    }
+  }, [user?.id, activeCall?.sessionId, endActiveCall])
 
   const value = useMemo<ActiveCallContextValue>(
     () => ({

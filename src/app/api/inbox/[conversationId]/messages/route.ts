@@ -78,7 +78,7 @@ export async function GET(
 
     const { data: msgsRaw, error: msgsErr } = await supabase
       .from('messages')
-      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
       .gte('created_at', startUtcIso)
@@ -107,7 +107,7 @@ export async function GET(
   if (since) {
     const { data: msgsRaw, error: msgsErr } = await supabase
       .from('messages')
-      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
       .gt('created_at', since)
@@ -141,7 +141,7 @@ export async function GET(
 
     const { data: msgsRaw, error: msgsErr } = await supabase
       .from('messages')
-      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
       .gte('created_at', startUtcIso)
@@ -169,7 +169,7 @@ export async function GET(
   // Modo 3 (legacy / fallback): últimos N en orden ascendente.
   const { data: msgsRaw, error: msgsErr } = await supabase
     .from('messages')
-    .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+    .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
     .eq('conversation_id', conversationId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
@@ -207,6 +207,7 @@ async function enrichWithAttachments(
     edited_at: m.edited_at,
     deleted_at: m.deleted_at,
     created_at: m.created_at,
+    kind: (m as { kind?: 'text' | 'system_missed_call' }).kind ?? 'text',
     author: m.author,
     attachments: attByMsg.get(m.id) ?? [],
   }))

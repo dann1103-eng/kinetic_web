@@ -144,19 +144,38 @@ export function MessageList({
               {dayLabel(g.date)}
             </span>
           </div>
-          {g.items.map((m) => (
-            <MessageItem
-              key={m.id}
-              message={m}
-              currentUserId={currentUserId}
-              isAdmin={isAdmin}
-              onDeleted={() => removeMessage(m.id)}
-              onUpdated={(patch) => updateMessage(m.id, patch)}
-            />
-          ))}
+          {g.items.map((m) => {
+            if (m.kind === 'system_missed_call') {
+              const isFromMe = m.user_id === currentUserId
+              return <SystemMissedCallRow key={m.id} createdAt={m.created_at} isFromMe={isFromMe} />
+            }
+            return (
+              <MessageItem
+                key={m.id}
+                message={m}
+                currentUserId={currentUserId}
+                isAdmin={isAdmin}
+                onDeleted={() => removeMessage(m.id)}
+                onUpdated={(patch) => updateMessage(m.id, patch)}
+              />
+            )
+          })}
         </div>
       ))}
       <div ref={bottomRef} />
+    </div>
+  )
+}
+
+function SystemMissedCallRow({ createdAt, isFromMe }: { createdAt: string; isFromMe: boolean }) {
+  const time = format(parseISO(createdAt), 'HH:mm')
+  return (
+    <div className="flex justify-center">
+      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-fm-error/10 border border-fm-error/20 text-fm-error text-xs">
+        <span className="material-symbols-outlined text-base">phone_missed</span>
+        <span>{isFromMe ? 'Llamaste y no contestaron' : 'Llamada perdida'}</span>
+        <span className="text-fm-error/70">· {time}</span>
+      </div>
     </div>
   )
 }

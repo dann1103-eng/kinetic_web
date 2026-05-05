@@ -104,7 +104,7 @@ export default async function ConversationPage({ params }: PageProps) {
     // 2) Cargar todos los mensajes de ese día (cap por seguridad).
     const { data: dayMsgsRaw } = await supabase
       .from('messages')
-      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
       .gte('created_at', startUtcIso)
@@ -146,6 +146,7 @@ export default async function ConversationPage({ params }: PageProps) {
     edited_at: m.edited_at,
     deleted_at: m.deleted_at,
     created_at: m.created_at,
+    kind: (m as { kind?: 'text' | 'system_missed_call' }).kind ?? 'text',
     author: m.author,
     attachments: attByMsg.get(m.id) ?? [],
   }))

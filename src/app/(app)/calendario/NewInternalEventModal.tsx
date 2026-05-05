@@ -57,7 +57,7 @@ export function NewInternalEventModal({ open, onClose, initialDatetime = '', all
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose() }}>
-      <DialogContent className="max-w-md rounded-2xl border border-fm-outline-variant/20 shadow-xl p-0 overflow-hidden flex flex-col">
+      <DialogContent className="max-w-md max-h-[90vh] rounded-2xl border border-fm-outline-variant/20 shadow-xl p-0 overflow-hidden flex flex-col">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-fm-surface-container-low flex-shrink-0">
           <DialogTitle className="text-lg font-semibold text-fm-on-surface">Nueva reunión interna</DialogTitle>
           <p className="text-xs text-fm-on-surface-variant mt-0.5">El timer no inicia automáticamente — cada persona marca su tiempo.</p>

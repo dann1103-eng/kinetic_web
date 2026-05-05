@@ -71,6 +71,7 @@ export async function fetchTimesheetEntries(
       )
       .gte('started_at', params.startIso)
       .lt('started_at', params.endIso)
+      .lte('started_at', new Date().toISOString())
       .not('ended_at', 'is', null)
       .order('started_at', { ascending: false })
 

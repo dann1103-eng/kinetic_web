@@ -320,10 +320,17 @@ Deno.serve(async (_req) => {
       // ¿ya existe ciclo 'scheduled' para este cliente?
       const { data: existingScheduled } = await supabase
         .from('billing_cycles')
-        .select('id, period_start, period_end')
+        .select('id, period_start, period_end, auto_billed_at')
         .eq('client_id', client.id)
         .eq('status', 'scheduled')
         .maybeSingle()
+
+      // Si el scheduled cycle ya tiene auto_billed_at (manual o cron previo),
+      // saltamos para evitar duplicar la factura.
+      if (existingScheduled?.auto_billed_at) {
+        log.push(`⊘ Skip: scheduled cycle de ${client.name} ya tiene factura (auto_billed_at)`)
+        continue
+      }
 
       let scheduledCycleId: string
       let scheduledPeriodStart: string
@@ -493,6 +500,13 @@ Deno.serve(async (_req) => {
         // Fallback: factura queda en payment_provider='manual' (default).
         log.push(`✓ Factura auto-emitida para ${client.name} (${half ?? 'monthly'}) sin link n1co`)
       }
+
+      // Marca el scheduled cycle como auto-facturado para bloquear duplicaciones
+      // si el cron corre dos veces el mismo día.
+      await supabase
+        .from('billing_cycles')
+        .update({ auto_billed_at: new Date().toISOString() })
+        .eq('id', scheduledCycleId)
     }
 
     // ========== STEP 2: EXPIRE / RENEW CYCLES ==========

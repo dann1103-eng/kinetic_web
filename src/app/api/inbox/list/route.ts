@@ -131,17 +131,20 @@ export async function GET() {
   // Último mensaje visible por conversación (para preview)
   const { data: lastMsgsRaw } = await supabase
     .from('messages')
-    .select('conversation_id, body, created_at')
+    .select('conversation_id, body, created_at, kind')
     .in('conversation_id', convIds)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .limit(500)
 
-  const lastMsgs = (lastMsgsRaw ?? []) as LastMsgRow[]
+  const lastMsgs = (lastMsgsRaw ?? []) as Array<LastMsgRow & { kind?: string }>
   const previewByConv = new Map<string, string>()
   for (const m of lastMsgs) {
     if (!previewByConv.has(m.conversation_id)) {
-      previewByConv.set(m.conversation_id, formatSharePreview(m.body))
+      const preview = m.kind === 'system_missed_call'
+        ? '📞 Llamada perdida'
+        : formatSharePreview(m.body)
+      previewByConv.set(m.conversation_id, preview)
     }
   }
 

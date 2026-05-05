@@ -151,7 +151,7 @@ export default async function PortalDashboardPage() {
   // 1. Facturas issued no anuladas del cliente (= "pendientes de pago")
   const { data: pendingInvoicesRows } = await supabase
     .from('invoices')
-    .select('id, invoice_number, total, n1co_payment_link_url')
+    .select('id, invoice_number, total, n1co_payment_link_url, due_date')
     .eq('client_id', activeId)
     .eq('status', 'issued')
     .order('issue_date', { ascending: true })
@@ -160,6 +160,7 @@ export default async function PortalDashboardPage() {
     invoice_number: inv.invoice_number as string,
     total: Number(inv.total),
     n1co_payment_link_url: (inv.n1co_payment_link_url as string | null) ?? null,
+    due_date: (inv.due_date as string | null) ?? null,
   }))
 
   // 2. Scheduled cycle (renovación) y si ya está pagado

@@ -6,6 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { roomNameForConversation } from '@/lib/livekit/rooms'
 import { FORCE_CHANNEL_MEMBER_IDS } from '@/lib/domain/team'
 import { assertNotImpersonating } from './impersonation'
+import { recordMissedCall } from './missedCalls'
 import type { CallModality } from '@/types/db'
 
 async function getCurrentUser() {
@@ -218,6 +219,39 @@ export async function endCall(sessionId: string) {
       .eq('session_id', sessionId)
       .eq('user_id', user.id)
       .is('left_at', null)
+
+    // Broadcast `call_ended` a todos los demás miembros del conversation. Esto
+    // funciona como segunda vía de aviso por si el postgres_changes UPDATE no
+    // llega a tiempo (RLS, lag de replica, etc.) — el receptor también está
+    // suscrito a `user:{id}` en ActiveCallContext y ahí desconecta.
+    try {
+      const admin = createAdminClient()
+      const { data: members } = await admin
+        .from('conversation_members')
+        .select('user_id')
+        .eq('conversation_id', session.conversation_id)
+      const otherIds = (members ?? [])
+        .map((m) => m.user_id as string)
+        .filter((id) => id !== user.id)
+      await Promise.all(
+        otherIds.map((uid) =>
+          supabase
+            .channel(`user:${uid}`)
+            .send({
+              type: 'broadcast',
+              event: 'call_ended',
+              payload: { sessionId },
+            })
+            .catch(() => {}),
+        ),
+      )
+    } catch (broadcastErr) {
+      console.error('endCall broadcast failed (no crítico):', broadcastErr)
+    }
+
+    // Si la llamada terminó sin que el receptor la contestara, deja un mensaje
+    // de sistema en el chat (DM only). Ejecuta best-effort, no bloquea.
+    void recordMissedCall(sessionId)
 
     return { ok: true }
   } catch (e) {

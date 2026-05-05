@@ -103,7 +103,14 @@ export function daysUntilEnd(periodEnd: DateString, referenceDate?: DateString):
   return daysBetween(today, periodEnd)
 }
 
-/** Un ciclo entra a la bandeja de renovaciones si faltan ≤ 3 días o ya venció. */
+/**
+ * Ventana de renovación: clientes que vencen dentro de los próximos N días.
+ * Coincide con el lead time del cron de auto-billing para que el panel cubra
+ * a los próximos a auto-facturar.
+ */
+export const RENEWAL_WINDOW_DAYS = 10
+
+/** Un ciclo entra a la bandeja de renovaciones si faltan ≤ RENEWAL_WINDOW_DAYS o ya venció. */
 export function isRenewalDue(periodEnd: DateString, referenceDate?: DateString): boolean {
-  return daysUntilEnd(periodEnd, referenceDate) <= 3
+  return daysUntilEnd(periodEnd, referenceDate) <= RENEWAL_WINDOW_DAYS
 }

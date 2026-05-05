@@ -9,6 +9,7 @@ export interface PendingInvoiceForBanner {
   invoice_number: string
   total: number
   n1co_payment_link_url: string | null
+  due_date: string | null
 }
 
 interface Props {
@@ -101,6 +102,9 @@ function PendingInvoicesBanner({ invoices }: { invoices: PendingInvoiceForBanner
             <div className="text-xs">
               <p className="font-semibold text-amber-900">{inv.invoice_number}</p>
               <p className="text-amber-700">${Number(inv.total).toFixed(2)}</p>
+              {inv.due_date && (
+                <p className="text-amber-700/80 text-[10px]">Vence el {formatDateEs(inv.due_date)}</p>
+              )}
             </div>
             {inv.n1co_payment_link_url ? (
               <N1coPayButton

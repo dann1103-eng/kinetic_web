@@ -7,6 +7,8 @@ import { es } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
 import { KIND_COLORS, KIND_COLORS_DARK } from '@/lib/domain/calendar'
 import type { CalendarEventKind } from '@/lib/domain/calendar'
+import { ClientRequirementSheet } from './ClientRequirementSheet'
+import type { Phase } from '@/types/db'
 
 const locales = { es }
 const localizer = dateFnsLocalizer({
@@ -25,6 +27,9 @@ type SerialEvent = {
   end: string
   allDay: boolean
   phaseLabel: string | null
+  phase: Phase | null
+  requirementId: string | null
+  reviewStartedAt: string | null
   notes: string | null
   deadline: string | null
 }
@@ -37,6 +42,9 @@ type CalEvent = {
   end: Date
   allDay: boolean
   phaseLabel: string | null
+  phase: Phase | null
+  requirementId: string | null
+  reviewStartedAt: string | null
   notes: string | null
   deadline: string | null
 }
@@ -44,6 +52,8 @@ type CalEvent = {
 interface Props {
   events: SerialEvent[]
   defaultDate: string
+  clientId: string
+  currentUserId: string
 }
 
 type ViewType = 'month' | 'week' | 'day'
@@ -68,7 +78,7 @@ function phaseBadgeClass(label: string | null): string {
   return 'bg-fm-outline-variant/20 text-fm-on-surface-variant'
 }
 
-export function PortalCalendarioClient({ events, defaultDate }: Props) {
+export function PortalCalendarioClient({ events, defaultDate, clientId, currentUserId }: Props) {
   const [view, setView] = useState<ViewType>('month')
   const [date, setDate] = useState(() => {
     const parsed = parseISO(defaultDate)
@@ -78,6 +88,7 @@ export function PortalCalendarioClient({ events, defaultDate }: Props) {
     typeof document !== 'undefined' && document.documentElement.classList.contains('dark')
   )
   const [selectedEvent, setSelectedEvent] = useState<CalEvent | null>(null)
+  const [sheetReq, setSheetReq] = useState<CalEvent | null>(null)
 
   useEffect(() => {
     const obs = new MutationObserver(() => {
@@ -101,6 +112,9 @@ export function PortalCalendarioClient({ events, defaultDate }: Props) {
         end,
         allDay: e.allDay,
         phaseLabel: e.phaseLabel,
+        phase: e.phase,
+        requirementId: e.requirementId,
+        reviewStartedAt: e.reviewStartedAt,
         notes: e.notes,
         deadline: e.deadline,
       })
@@ -123,6 +137,12 @@ export function PortalCalendarioClient({ events, defaultDate }: Props) {
   }
 
   const handleSelectEvent = useCallback((event: CalEvent) => {
+    // Si el requerimiento está en revisión cliente, abrir el sheet con tabs
+    // (revisión + chat) en lugar del popup estático.
+    if (event.phase === 'revision_cliente' && event.requirementId) {
+      setSheetReq(event)
+      return
+    }
     setSelectedEvent(event)
   }, [])
 
@@ -211,6 +231,18 @@ export function PortalCalendarioClient({ events, defaultDate }: Props) {
             )}
           </div>
         </div>
+      )}
+
+      {sheetReq && sheetReq.requirementId && (
+        <ClientRequirementSheet
+          open
+          onClose={() => setSheetReq(null)}
+          requirementId={sheetReq.requirementId}
+          requirementTitle={sheetReq.title}
+          clientId={clientId}
+          currentUserId={currentUserId}
+          reviewStartedAt={sheetReq.reviewStartedAt}
+        />
       )}
     </div>
   )

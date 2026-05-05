@@ -42,7 +42,10 @@ export async function createInternalEvent(input: {
       phase: 'administrative',
       title: input.title,
       notes: input.notes ?? null,
-      // Closed immediately so it doesn't block the one-active-timer constraint
+      // Se cierra de inmediato para no chocar con el constraint
+      // `time_entries_one_active_per_user`. Las queries de agregación filtran
+      // `started_at <= now()` para no contar reuniones futuras como tiempo
+      // trabajado hasta que llegue su hora.
       started_at: scheduledAt.toISOString(),
       ended_at: scheduledEnd.toISOString(),
       duration_seconds: input.scheduled_duration_minutes * 60,

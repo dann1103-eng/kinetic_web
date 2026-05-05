@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { PortalAvatarSection } from '@/components/portal/PortalAvatarSection'
 
 export default function PortalConfigPage() {
   const [currentPassword, setCurrentPassword] = useState('')
@@ -62,9 +63,13 @@ export default function PortalConfigPage() {
   }
 
   return (
-    <div className="p-6 max-w-md">
-      <h1 className="text-xl font-semibold text-fm-on-surface mb-1">Configuración</h1>
-      <p className="text-sm text-fm-on-surface-variant mb-6">Establece o cambia tu contraseña de acceso al portal.</p>
+    <div className="p-6 max-w-md space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold text-fm-on-surface mb-1">Configuración</h1>
+        <p className="text-sm text-fm-on-surface-variant">Tu foto personal y contraseña de acceso al portal.</p>
+      </div>
+
+      <PortalAvatarSection />
 
       <form onSubmit={handleSubmit} className="glass-panel p-5 space-y-4">
         <h2 className="text-base font-semibold text-fm-on-surface">Cambiar contraseña</h2>

@@ -67,6 +67,7 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
       edited_at: null,
       deleted_at: null,
       created_at: new Date().toISOString(),
+      kind: 'text',
       author: {
         id: user.id,
         full_name: user.full_name,

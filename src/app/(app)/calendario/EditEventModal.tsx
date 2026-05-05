@@ -98,7 +98,7 @@ export function EditEventModal({ open, onClose, initial, allUsers }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose() }}>
-      <DialogContent className="max-w-md rounded-2xl border border-fm-outline-variant/20 shadow-xl p-0 overflow-hidden flex flex-col">
+      <DialogContent className="max-w-md max-h-[90vh] rounded-2xl border border-fm-outline-variant/20 shadow-xl p-0 overflow-hidden flex flex-col">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-fm-surface-container-low flex-shrink-0">
           <DialogTitle className="text-lg font-semibold text-fm-on-surface">
             Editar {initial.source === 'requirement' ? 'requerimiento' : 'reunión interna'}

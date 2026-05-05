@@ -34,6 +34,7 @@ export function AdminTimePanel({ users }: Props) {
       .eq('user_id', uid)
       .gte('started_at', start)
       .lt('started_at', end)
+      .lte('started_at', new Date().toISOString())
       .order('started_at', { ascending: false })
     setEntries((data ?? []) as TimeEntry[])
     setLoading(false)

@@ -404,6 +404,14 @@ export function RequirementHistory({
                             <p className={`text-[10px] ${isDimmed ? 'text-fm-outline-variant/60' : 'text-fm-outline-variant'}`}>
                               Cambio {logs.length - i} ·{' '}
                               {new Date(log.created_at).toLocaleDateString('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              {log.created_by && (
+                                <>
+                                  {' · '}
+                                  <span className="font-semibold text-fm-on-surface-variant">
+                                    {userMap[log.created_by] ?? 'Usuario'}
+                                  </span>
+                                </>
+                              )}
                             </p>
 
                             {/* Badge de estado */}
