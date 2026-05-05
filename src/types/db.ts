@@ -2046,6 +2046,17 @@ export interface ActiveCallInfo {
   title: string
   /** Avatar para DMs; null para canales. */
   counterpartAvatarUrl?: string | null
+  /**
+   * True si la llamada es en un canal/voice_channel (afecta hangup: en canales
+   * solo el usuario actual sale; en DMs colgar termina para los dos).
+   */
+  isChannelCall: boolean
+  /**
+   * True si este usuario inició la llamada (afecta auto-share: solo el iniciador
+   * de modality='screen' auto-publica su pantalla; los receptores se conectan
+   * a recibir, no a compartir).
+   */
+  isInitiator: boolean
 }
 
 /** Payload del broadcast de "incoming call" en canal user:{userId}. */

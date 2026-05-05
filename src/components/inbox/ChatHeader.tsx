@@ -93,6 +93,7 @@ export function ChatHeader({
           conversationId={conversation.id}
           title={isChannel ? `#${conversation.name ?? 'canal'}` : counterpart?.full_name ?? 'Usuario'}
           counterpartAvatarUrl={isChannel ? null : counterpart?.avatar_url}
+          isChannelCall={isChannel}
         />
         {showDetailsButton && (
           <button

@@ -94,6 +94,8 @@ export function IncomingCallToast() {
       modality: incoming.modality,
       title: incoming.channelName ? `#${incoming.channelName}` : incoming.fromUser.full_name,
       counterpartAvatarUrl: incoming.channelName ? null : (incoming.fromUser.avatar_url ?? null),
+      isChannelCall: !!incoming.channelName,
+      isInitiator: false,
     })
     dismiss()
   }

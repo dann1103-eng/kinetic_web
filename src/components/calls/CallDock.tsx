@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { useActiveCallOrNull } from '@/contexts/ActiveCallContext'
-import { endCall } from '@/app/actions/calls'
+import { endCall, leaveCall } from '@/app/actions/calls'
 import { cn } from '@/lib/utils'
 
 // CallRoom incluye el SDK pesado de LiveKit (~150KB gz). Se carga solo
@@ -50,10 +50,13 @@ export function CallDock() {
     [setFullscreen]
   )
 
-  // Si la llamada inicia con modalidad 'screen', auto-fullscreen inmediato
-  // (solo si el usuario no ha minimizado explícitamente antes).
+  // Al cambiar de sesión (nueva llamada), reseteamos los refs para que la
+  // siguiente llamada arranque limpia: auto-fullscreen funciona y la decisión
+  // anterior de minimizar no se hereda.
   useEffect(() => {
-    if (ctx?.activeCall?.modality === 'screen' && !userMinimizedRef.current) {
+    autoFullscreenedRef.current = false
+    userMinimizedRef.current = false
+    if (ctx?.activeCall?.modality === 'screen') {
       ctx.setFullscreen(true)
       autoFullscreenedRef.current = true
     }
@@ -65,7 +68,13 @@ export function CallDock() {
 
   async function handleHangup() {
     if (!activeCall) return
-    await endCall(activeCall.sessionId).catch(() => {})
+    // En canales: solo el usuario actual sale (los demás siguen en la llamada).
+    // En DMs: cierra la sesión completa para los dos.
+    if (activeCall.isChannelCall) {
+      await leaveCall(activeCall.sessionId).catch(() => {})
+    } else {
+      await endCall(activeCall.sessionId).catch(() => {})
+    }
     endActiveCall()
   }
 

@@ -234,7 +234,9 @@ export function CallRoom({ call, expanded, onLeave, onScreenShareChange }: CallR
 
   const isVoice = call.modality === 'voice'
   const startWithVideo = call.modality === 'video'
-  const startWithScreen = call.modality === 'screen'
+  // Solo el iniciador auto-publica su pantalla. Los receptores se conectan
+  // a recibir el track del iniciador, no a compartir su propia pantalla.
+  const startWithScreen = call.modality === 'screen' && call.isInitiator
 
   return (
     <LiveKitRoom

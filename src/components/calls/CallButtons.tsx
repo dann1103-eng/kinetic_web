@@ -22,6 +22,8 @@ interface CallButtonsProps {
    * 'dark' — para fondos oscuros (header del bubble): blanco sobre blanco/15.
    */
   variant?: Variant
+  /** True si la conversación es channel/voice_channel (afecta hangup behavior). */
+  isChannelCall: boolean
 }
 
 const STYLES: Record<Variant, string> = {
@@ -36,6 +38,7 @@ export function CallButtons({
   voiceOnly = false,
   compact = false,
   variant = 'light',
+  isChannelCall,
 }: CallButtonsProps) {
   // useActiveCallOrNull para no crashear si por alguna razón el provider no
   // está disponible — preferimos no renderizar los botones a romper el header.
@@ -71,6 +74,8 @@ export function CallButtons({
         modality,
         title,
         counterpartAvatarUrl,
+        isChannelCall,
+        isInitiator: true,
       })
     } finally {
       setBusy(false)

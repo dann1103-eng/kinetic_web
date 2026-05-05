@@ -135,6 +135,7 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
               counterpartAvatarUrl={
                 conversation.type === 'dm' ? conversation.counterpart?.avatar_url : null
               }
+              isChannelCall={conversation.type !== 'dm'}
               compact
               variant="dark"
             />
