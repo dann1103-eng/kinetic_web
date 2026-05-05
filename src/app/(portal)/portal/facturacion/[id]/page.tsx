@@ -182,7 +182,7 @@ export default async function PortalInvoiceDetailPage({
 
         {/* Panel lateral — acciones del cliente */}
         <div className="space-y-4">
-          {invoice.status === 'issued' && invoice.n1co_payment_link_url && (
+          {invoice.status === 'issued' && invoice.n1co_payment_link_url && !isLinkExpired(invoice.due_date) && (
             <div className="bg-fm-surface-container-lowest rounded-2xl border-2 border-fm-primary/30 p-4 space-y-3">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-outline-variant">
@@ -203,6 +203,40 @@ export default async function PortalInvoiceDetailPage({
               <p className="text-[10px] text-fm-outline text-center">
                 Pago seguro · n1co · Tu tarjeta no pasa por nuestros servidores
               </p>
+            </div>
+          )}
+
+          {invoice.status === 'issued' && invoice.n1co_payment_link_url && isLinkExpired(invoice.due_date) && (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 space-y-3">
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-amber-600 text-xl mt-0.5">link_off</span>
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">Link de pago vencido</p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    El enlace de pago de esta factura ya no está disponible. Comunícate con tu agencia para que generen uno nuevo.
+                  </p>
+                </div>
+              </div>
+              <div className="border-t border-amber-200 pt-3 space-y-1.5 text-xs text-amber-800">
+                {emitterSnap.phone && (
+                  <a
+                    href={`tel:${emitterSnap.phone}`}
+                    className="flex items-center gap-1.5 hover:text-amber-900 font-medium"
+                  >
+                    <span className="material-symbols-outlined text-sm">phone</span>
+                    {emitterSnap.phone}
+                  </a>
+                )}
+                {emitterSnap.email && (
+                  <a
+                    href={`mailto:${emitterSnap.email}?subject=Solicitud de link de pago · ${invoice.invoice_number}`}
+                    className="flex items-center gap-1.5 hover:text-amber-900 font-medium"
+                  >
+                    <span className="material-symbols-outlined text-sm">mail</span>
+                    {emitterSnap.email}
+                  </a>
+                )}
+              </div>
             </div>
           )}
 
@@ -228,6 +262,17 @@ export default async function PortalInvoiceDetailPage({
       </div>
     </div>
   )
+}
+
+/**
+ * Devuelve true si el due_date de la factura ya pasó (el link n1co ha expirado).
+ * Facturas sin due_date usan links de 1 año → no se consideran vencidas aquí.
+ */
+function isLinkExpired(dueDate: string | null | undefined): boolean {
+  if (!dueDate) return false
+  const endOfDueDate = new Date(dueDate)
+  endOfDueDate.setHours(23, 59, 59, 999)
+  return endOfDueDate < new Date()
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

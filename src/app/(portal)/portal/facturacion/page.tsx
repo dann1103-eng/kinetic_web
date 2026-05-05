@@ -85,7 +85,7 @@ export default async function PortalFacturacionPage() {
                     </td>
                     <td className="py-2.5 text-right">
                       <div className="flex items-center justify-end gap-2">
-                        {inv.status === 'issued' && inv.n1co_payment_link_url && (
+                        {inv.status === 'issued' && inv.n1co_payment_link_url && !isLinkExpired(inv.due_date) && (
                           <N1coPayButton
                             paymentLinkUrl={inv.n1co_payment_link_url}
                             invoiceId={inv.id}
@@ -94,6 +94,16 @@ export default async function PortalFacturacionPage() {
                             <span className="material-symbols-outlined" style={{ fontSize: 13 }}>credit_card</span>
                             Pagar
                           </N1coPayButton>
+                        )}
+                        {inv.status === 'issued' && inv.n1co_payment_link_url && isLinkExpired(inv.due_date) && (
+                          <Link
+                            href={`/portal/facturacion/${inv.id}`}
+                            className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 px-3 py-1 text-[11px] font-semibold text-amber-700 hover:bg-amber-200"
+                            title="Link de pago vencido — haz clic para más información"
+                          >
+                            <span className="material-symbols-outlined" style={{ fontSize: 13 }}>link_off</span>
+                            Link vencido
+                          </Link>
                         )}
                         <Link
                           href={`/portal/facturacion/${inv.id}`}
@@ -178,4 +188,11 @@ export default async function PortalFacturacionPage() {
       </section>
     </div>
   )
+}
+
+function isLinkExpired(dueDate: string | null | undefined): boolean {
+  if (!dueDate) return false
+  const endOfDueDate = new Date(dueDate)
+  endOfDueDate.setHours(23, 59, 59, 999)
+  return endOfDueDate < new Date()
 }
