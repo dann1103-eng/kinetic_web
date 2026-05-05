@@ -192,18 +192,24 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
                           const billing = first?.can_billing
                           const work = first?.can_work
                           return (
-                            <>
+                            <span className="inline-flex items-center gap-1 ml-1">
                               {billing && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                                  Facturación
+                                <span
+                                  title="Facturación"
+                                  className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-purple-50 text-purple-600 border border-purple-200 dark:bg-purple-500/20 dark:text-purple-200 dark:border-purple-400/30"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] leading-none">receipt_long</span>
                                 </span>
                               )}
                               {work && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-teal-500/10 text-teal-700 dark:text-teal-400 border border-teal-500/20">
-                                  Gestión
+                                <span
+                                  title="Gestión de trabajo"
+                                  className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-lime-50 text-lime-700 border border-lime-200 dark:bg-lime-500/20 dark:text-lime-200 dark:border-lime-400/30"
+                                >
+                                  <span className="material-symbols-outlined text-[14px] leading-none">task_alt</span>
                                 </span>
                               )}
-                            </>
+                            </span>
                           )
                         })()}
                       </div>
