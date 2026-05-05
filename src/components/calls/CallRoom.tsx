@@ -334,11 +334,15 @@ function VideoCallLayout() {
   return (
     <div className="flex-1 flex flex-col gap-2 p-2 overflow-hidden min-h-0">
       {hasScreen && (
-        <div className="flex-1 flex flex-wrap gap-2 justify-center items-center min-h-0 content-center">
+        // items-stretch (default) + sin aspect-video en el tile permite que la
+        // pantalla compartida llene toda el área vertical/horizontal disponible.
+        // El object-contain en el VideoTrack mantiene la proporción real del
+        // video (con letterbox si la pantalla del emisor no es 16:9).
+        <div className="flex-1 min-h-0 flex gap-2 items-stretch">
           {screenTracks.map((t) => (
             <div
               key={`${t.participant.identity}-screen`}
-              className="relative flex-1 basis-[480px] min-w-[320px] max-w-full max-h-full aspect-video rounded-xl overflow-hidden bg-[#111]"
+              className="relative flex-1 min-w-0 min-h-0 rounded-xl overflow-hidden bg-[#111]"
             >
               <VideoTrack
                 trackRef={t as TrackReference}
@@ -354,8 +358,10 @@ function VideoCallLayout() {
 
       <div
         className={cn(
-          'flex flex-wrap gap-2 justify-center items-center content-center min-h-0',
-          hasScreen ? 'h-[140px] flex-shrink-0' : 'flex-1'
+          'flex gap-2 justify-center items-stretch min-h-0',
+          hasScreen
+            ? 'h-[140px] flex-shrink-0 overflow-x-auto'
+            : 'flex-1 flex-wrap content-center items-center overflow-auto'
         )}
       >
         {participants.map((p) => {
