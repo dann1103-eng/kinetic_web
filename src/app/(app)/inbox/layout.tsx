@@ -169,7 +169,14 @@ async function loadAllUsers(): Promise<Pick<AppUser, 'id' | 'full_name' | 'avata
 }
 
 export default async function InboxLayout({ children }: { children: React.ReactNode }) {
-  const [initialList, allUsers] = await Promise.all([loadInitialList(), loadAllUsers()])
+  let initialList: ConversationListItem[] = []
+  let allUsers: Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[] = []
+
+  try {
+    ;[initialList, allUsers] = await Promise.all([loadInitialList(), loadAllUsers()])
+  } catch (e) {
+    console.error('[inbox layout] Promise.all falló:', e)
+  }
 
   return (
     <div className="flex flex-col h-full">
