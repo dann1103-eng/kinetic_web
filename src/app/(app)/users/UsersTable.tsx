@@ -124,30 +124,37 @@ function UserRow({
   }
 
   return (
-    <div className="flex items-center gap-4 px-4 py-3 border-b border-fm-surface-container-high last:border-0">
-      {/* Avatar */}
-      <UserAvatar name={user.full_name || user.email} avatarUrl={user.avatar_url} size="sm" />
-
-      {/* Name + email */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-fm-on-surface truncate">
-          {user.full_name ?? user.email}
-        </p>
-        <p className="text-xs text-fm-on-surface-variant truncate">{user.email}</p>
+    <div className="grid grid-cols-[minmax(0,1fr)_96px_120px_72px_140px_160px] items-center gap-4 px-4 py-3 border-b border-fm-surface-container-high last:border-0">
+      {/* Usuario: avatar + nombre + email */}
+      <div className="flex items-center gap-3 min-w-0">
+        <UserAvatar name={user.full_name || user.email} avatarUrl={user.avatar_url} size="sm" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-fm-on-surface truncate">
+              {user.full_name ?? user.email}
+            </p>
+            {isCurrentUser && (
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-fm-primary bg-fm-primary/10 border border-fm-primary/20 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                Tu cuenta
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-fm-on-surface-variant truncate">{user.email}</p>
+        </div>
       </div>
 
-      {/* Role badge */}
-      <div className="hidden sm:block w-24 flex-shrink-0">
+      {/* Rol actual */}
+      <div className="hidden sm:flex items-center">
         <RoleBadge role={user.role} />
       </div>
 
-      {/* Created at */}
-      <div className="hidden md:block w-32 flex-shrink-0 text-xs text-fm-on-surface-variant">
+      {/* Creado */}
+      <div className="hidden md:block text-xs text-fm-on-surface-variant">
         {formatDate(user.created_at)}
       </div>
 
       {/* Default assignee toggle */}
-      <div className="w-20 flex-shrink-0 flex items-center justify-center">
+      <div className="flex items-center justify-center">
         <button
           onClick={handleToggleDefaultAssignee}
           disabled={isTogglingDefault}
@@ -168,8 +175,8 @@ function UserRow({
         </button>
       </div>
 
-      {/* Role selector */}
-      <div className="w-36 flex-shrink-0">
+      {/* Cambiar rol */}
+      <div className="min-w-0">
         <Select
           value={user.role}
           onValueChange={handleRoleChange}
@@ -184,52 +191,52 @@ function UserRow({
             <SelectItem value="operator">Operador</SelectItem>
           </SelectContent>
         </Select>
-        {error && <p className="mt-1 text-xs text-fm-error">{error}</p>}
-        {isCurrentUser && <p className="mt-1 text-xs text-fm-on-surface-variant">Tu cuenta</p>}
+        {error && <p className="mt-1 text-xs text-fm-error truncate">{error}</p>}
       </div>
 
-      {/* Edit profile */}
-      <button
-        onClick={() => onEdit(user)}
-        title="Editar perfil"
-        className="p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-background hover:text-fm-primary transition-colors flex-shrink-0"
-      >
-        <span className="material-symbols-outlined text-base">edit</span>
-      </button>
+      {/* Acciones — siempre 4 slots (placeholder cuando "ver como" no aplica) */}
+      <div className="grid grid-cols-4 gap-1 justify-items-center">
+        <button
+          onClick={() => onEdit(user)}
+          title="Editar perfil"
+          className="p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-background hover:text-fm-primary transition-colors"
+        >
+          <span className="material-symbols-outlined text-base">edit</span>
+        </button>
 
-      {/* Change password */}
-      <button
-        onClick={() => onChangePassword(user)}
-        title="Cambiar contraseña"
-        className="p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-background hover:text-fm-primary transition-colors flex-shrink-0"
-      >
-        <span className="material-symbols-outlined text-base">key</span>
-      </button>
+        <button
+          onClick={() => onChangePassword(user)}
+          title="Cambiar contraseña"
+          className="p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-background hover:text-fm-primary transition-colors"
+        >
+          <span className="material-symbols-outlined text-base">key</span>
+        </button>
 
-      {/* Ver como (modo espectador) — solo para no-admins */}
-      {user.role !== 'admin' && !isCurrentUser && (
-        <form action={startImpersonation.bind(null, user.id)}>
-          <button
-            type="submit"
-            title={`Ver como ${user.full_name}`}
-            className="p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-background hover:text-amber-600 dark:hover:text-amber-400 transition-colors flex-shrink-0"
-          >
-            <span className="material-symbols-outlined text-base">visibility</span>
-          </button>
-        </form>
-      )}
+        {user.role !== 'admin' && !isCurrentUser ? (
+          <form action={startImpersonation.bind(null, user.id)}>
+            <button
+              type="submit"
+              title={`Ver como ${user.full_name}`}
+              className="p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-background hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
+            >
+              <span className="material-symbols-outlined text-base">visibility</span>
+            </button>
+          </form>
+        ) : (
+          <span aria-hidden className="block w-7 h-7" />
+        )}
 
-      {/* Delete */}
-      <button
-        onClick={handleDelete}
-        disabled={isCurrentUser || isDeleting}
-        title={isCurrentUser ? 'No puedes eliminar tu propia cuenta' : 'Eliminar usuario'}
-        className="p-1.5 rounded-lg text-fm-error hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
-      >
-        <span className="material-symbols-outlined text-base">
-          {isDeleting ? 'hourglass_empty' : 'delete'}
-        </span>
-      </button>
+        <button
+          onClick={handleDelete}
+          disabled={isCurrentUser || isDeleting}
+          title={isCurrentUser ? 'No puedes eliminar tu propia cuenta' : 'Eliminar usuario'}
+          className="p-1.5 rounded-lg text-fm-error hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+        >
+          <span className="material-symbols-outlined text-base">
+            {isDeleting ? 'hourglass_empty' : 'delete'}
+          </span>
+        </button>
+      </div>
     </div>
   )
 }
@@ -589,24 +596,14 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
   return (
     <>
       <div className="glass-panel overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center gap-4 px-4 py-3 bg-fm-background border-b border-fm-surface-container-high">
-          <div className="flex-1 text-xs font-semibold text-fm-on-surface-variant uppercase tracking-wide">
-            Usuario
-          </div>
-          <div className="hidden sm:block w-24 flex-shrink-0 text-xs font-semibold text-fm-on-surface-variant uppercase tracking-wide">
-            Rol actual
-          </div>
-          <div className="hidden md:block w-32 flex-shrink-0 text-xs font-semibold text-fm-on-surface-variant uppercase tracking-wide">
-            Creado
-          </div>
-          <div className="w-20 flex-shrink-0 text-xs font-semibold text-fm-on-surface-variant uppercase tracking-wide text-center">
-            Default
-          </div>
-          <div className="w-36 flex-shrink-0 text-xs font-semibold text-fm-on-surface-variant uppercase tracking-wide">
-            Cambiar rol
-          </div>
-          <div className="w-24 flex-shrink-0" />
+        {/* Header — mismo grid template que UserRow para alinear todas las columnas */}
+        <div className="grid grid-cols-[minmax(0,1fr)_96px_120px_72px_140px_160px] items-center gap-4 px-4 py-3 bg-fm-background border-b border-fm-surface-container-high text-xs font-semibold text-fm-on-surface-variant uppercase tracking-wide">
+          <div>Usuario</div>
+          <div className="hidden sm:block">Rol actual</div>
+          <div className="hidden md:block">Creado</div>
+          <div className="text-center">Default</div>
+          <div>Cambiar rol</div>
+          <div className="text-center">Acciones</div>
         </div>
 
         {users.length === 0 ? (
