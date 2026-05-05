@@ -3,7 +3,18 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { assertNotImpersonating } from './impersonation'
-import type { WorkSession, WorkSessionBreak, ShiftBreakType } from '@/types/db'
+import { setPresenceStatus } from './presence'
+import type { PresenceStatus, WorkSession, WorkSessionBreak, ShiftBreakType } from '@/types/db'
+
+// Mantiene el indicador de presencia del topnav alineado con el estado de la
+// jornada. Falla silenciosamente si la presencia no se puede actualizar.
+async function syncPresenceFromShift(status: PresenceStatus) {
+  try {
+    await setPresenceStatus(status)
+  } catch {
+    /* no crítico */
+  }
+}
 
 async function getAuthUser() {
   const supabase = await createClient()
@@ -39,6 +50,7 @@ export async function startShift(notes?: string): Promise<{ ok: true; sessionId:
     .select('id')
     .single()
   if (error || !data) return { error: error?.message ?? 'No se pudo iniciar la jornada.' }
+  await syncPresenceFromShift('online')
   revalidatePath('/tiempo')
   return { ok: true, sessionId: data.id }
 }
@@ -68,12 +80,14 @@ export async function endShift(): Promise<{ ok: true } | { error: string }> {
   }, 0)
   const totalSeconds = Math.max(0, elapsed - breaksSeconds)
 
-  // Sumar tiempo productivo (time_entries del usuario en la ventana de la jornada)
+  // Sumar tiempo productivo (time_entries del usuario en la ventana de la jornada).
+  // Cotamos `started_at <= now` para no arrastrar entradas futuras.
   const { data: prodRows } = await supabase
     .from('time_entries')
     .select('duration_seconds, started_at, ended_at')
     .eq('user_id', user.id)
     .gte('started_at', active.started_at)
+    .lte('started_at', now.toISOString())
     .not('ended_at', 'is', null)
   const productiveSeconds = (prodRows ?? []).reduce(
     (sum, r) => sum + ((r.duration_seconds as number | null) ?? 0),
@@ -113,6 +127,7 @@ export async function startBreak(type: ShiftBreakType): Promise<{ ok: true } | {
     .update({ status: newStatus, breaks_json: breaks })
     .eq('id', active.id)
   if (error) return { error: error.message }
+  await syncPresenceFromShift(type === 'lunch' ? 'almuerzo' : 'away')
   revalidatePath('/tiempo')
   return { ok: true }
 }
@@ -138,6 +153,7 @@ export async function endBreak(): Promise<{ ok: true } | { error: string }> {
     .update({ status: 'active', breaks_json: breaks })
     .eq('id', active.id)
   if (error) return { error: error.message }
+  await syncPresenceFromShift('online')
   revalidatePath('/tiempo')
   return { ok: true }
 }

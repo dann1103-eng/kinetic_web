@@ -11,22 +11,37 @@ export interface ShiftDayRow {
   isActive: boolean
 }
 
-function calcOnlineSeconds(s: WorkSession, now: Date): number {
+/**
+ * Resuelve hasta qué punto extender una sesión "abierta" al calcular sus
+ * métricas. Si la jornada del reporte ya terminó (día pasado), usamos el
+ * fin del día; de lo contrario, "now". Esto evita que jornadas olvidadas
+ * abiertas inflen los totales más allá del día consultado.
+ */
+function effectiveSessionEnd(s: WorkSession, now: Date, dayEnd: Date): Date {
+  if (s.ended_at) return new Date(s.ended_at)
+  return now < dayEnd ? now : dayEnd
+}
+
+function calcOnlineSeconds(s: WorkSession, now: Date, dayEnd: Date): number {
   if (s.total_seconds != null) return s.total_seconds
-  const elapsed = Math.max(0, Math.round((now.getTime() - new Date(s.started_at).getTime()) / 1000))
-  const breaks = (s.breaks_json ?? []) as WorkSessionBreak[]
-  const breaksSec = breaks.reduce((sum, b) => {
-    const end = b.ended_at ? new Date(b.ended_at) : now
-    return sum + Math.round((end.getTime() - new Date(b.started_at).getTime()) / 1000)
-  }, 0)
+  const end = effectiveSessionEnd(s, now, dayEnd)
+  const elapsed = Math.max(0, Math.round((end.getTime() - new Date(s.started_at).getTime()) / 1000))
+  const breaksSec = sumBreakSeconds(s, end)
   return Math.max(0, elapsed - breaksSec)
 }
 
-function calcBreakSeconds(s: WorkSession, now: Date): number {
+function calcBreakSeconds(s: WorkSession, now: Date, dayEnd: Date): number {
+  return sumBreakSeconds(s, effectiveSessionEnd(s, now, dayEnd))
+}
+
+function sumBreakSeconds(s: WorkSession, sessionEnd: Date): number {
   const breaks = (s.breaks_json ?? []) as WorkSessionBreak[]
   return breaks.reduce((sum, b) => {
-    const end = b.ended_at ? new Date(b.ended_at) : now
-    return sum + Math.round((end.getTime() - new Date(b.started_at).getTime()) / 1000)
+    const start = new Date(b.started_at)
+    if (start >= sessionEnd) return sum
+    const rawEnd = b.ended_at ? new Date(b.ended_at) : sessionEnd
+    const end = rawEnd > sessionEnd ? sessionEnd : rawEnd
+    return sum + Math.max(0, Math.round((end.getTime() - start.getTime()) / 1000))
   }, 0)
 }
 
@@ -57,7 +72,8 @@ export async function fetchShiftsReportForDate(dateStr: string): Promise<ShiftDa
 
   const now = new Date()
 
-  // Calcular productive_seconds para sesiones aún abiertas
+  // Calcular productive_seconds para sesiones aún abiertas. Cota superior:
+  // fin del día consultado (evita arrastrar tiempo más allá del día reportado).
   const openSessions = list.filter((s) => !s.ended_at)
   const liveProductive = new Map<string, number>()
   if (openSessions.length > 0) {
@@ -68,6 +84,7 @@ export async function fetchShiftsReportForDate(dateStr: string): Promise<ShiftDa
       .in('user_id', userIds)
       .not('ended_at', 'is', null)
       .gte('started_at', dayStartUTC.toISOString())
+      .lte('started_at', dayEndUTC.toISOString())
     for (const s of openSessions) {
       const total = (entries ?? [])
         .filter((e) => e.user_id === s.user_id && e.started_at >= s.started_at)
@@ -86,8 +103,8 @@ export async function fetchShiftsReportForDate(dateStr: string): Promise<ShiftDa
       productiveSeconds: 0,
       isActive: false,
     }
-    row.onlineSeconds += calcOnlineSeconds(s, now)
-    row.breakSeconds += calcBreakSeconds(s, now)
+    row.onlineSeconds += calcOnlineSeconds(s, now, dayEndUTC)
+    row.breakSeconds += calcBreakSeconds(s, now, dayEndUTC)
     row.productiveSeconds += s.productive_seconds ?? liveProductive.get(s.id) ?? 0
     row.isActive = row.isActive || !s.ended_at
     agg.set(s.user_id, row)
