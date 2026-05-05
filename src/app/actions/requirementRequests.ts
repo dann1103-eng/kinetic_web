@@ -125,15 +125,20 @@ export async function requestRequirement(
 
 export interface ApproveRequirementInput {
   requirementId: string
-  /** Solo se valida obligatorio para reunion/produccion. Para artes se ignora. */
+  /** Obligatorio para reunion/produccion. Opcional para artes. */
   estimatedTimeMinutes: number | null
   priority: Priority
   assignedTo: string[]
   deadline: string | null
   /** Solo aplica a reunion/produccion. */
   startsAt: string | null
+  /** Solo aplica a artes story-eligible (estatico, video_corto, reel, short). */
+  includesStory?: boolean
+  /** Solo admins pueden enviar overrides; el server lo ignora si no lo es. */
   consumptionOverridesJson?: Partial<Record<ContentType, number>> | null
 }
+
+const STORY_ELIGIBLE: ContentType[] = ['estatico', 'video_corto', 'reel', 'short']
 
 export async function approveRequirementRequest(
   input: ApproveRequirementInput,
@@ -162,7 +167,9 @@ export async function approveRequirementRequest(
     return { error: 'Esta solicitud ya fue procesada' }
   }
 
-  const isScheduled = SCHEDULED_TYPES.includes(existing.content_type as ContentType)
+  const ct = existing.content_type as ContentType
+  const isScheduled = SCHEDULED_TYPES.includes(ct)
+  const isStoryEligible = STORY_ELIGIBLE.includes(ct)
   if (isScheduled) {
     if (!input.estimatedTimeMinutes || input.estimatedTimeMinutes <= 0) {
       return { error: 'Ingresa la duración estimada en minutos' }
@@ -172,18 +179,24 @@ export async function approveRequirementRequest(
     if (!input.deadline) return { error: 'Selecciona la fecha de entrega' }
   }
 
+  // Solo admins pueden forzar consumo personalizado.
+  const isAdmin = appUser.role === 'admin'
+  const overrides = isAdmin ? (input.consumptionOverridesJson ?? null) : null
+  const hasOverrides = overrides && Object.values(overrides).some((v) => (v ?? 0) > 0)
+
   const { error } = await admin
     .from('requirements')
     .update({
       approval_status: 'approved',
       approved_by_user_id: user.id,
       approved_at: new Date().toISOString(),
-      estimated_time_minutes: isScheduled ? input.estimatedTimeMinutes : null,
+      estimated_time_minutes: input.estimatedTimeMinutes ?? null,
       priority: input.priority,
       assigned_to: input.assignedTo,
       deadline: input.deadline,
       starts_at: isScheduled ? input.startsAt : null,
-      consumption_overrides_json: input.consumptionOverridesJson ?? null,
+      includes_story: isStoryEligible ? !!input.includesStory : false,
+      consumption_overrides_json: hasOverrides ? overrides : null,
     })
     .eq('id', input.requirementId)
 

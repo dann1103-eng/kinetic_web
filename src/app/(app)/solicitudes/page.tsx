@@ -103,7 +103,7 @@ export default async function SolicitudesPage() {
           completar los detalles (horario, asignados, duración) y agendarla en el calendario,
           o rechaza con un motivo.
         </p>
-        <SolicitudesList items={items} assignableUsers={assignable} />
+        <SolicitudesList items={items} assignableUsers={assignable} isAdmin={role === 'admin'} />
       </div>
     </div>
   )

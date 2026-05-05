@@ -10,9 +10,10 @@ interface Item extends PendingRequest {
 interface Props {
   items: Item[]
   assignableUsers: { id: string; full_name: string }[]
+  isAdmin: boolean
 }
 
-export function SolicitudesList({ items, assignableUsers }: Props) {
+export function SolicitudesList({ items, assignableUsers, isAdmin }: Props) {
   const [active, setActive] = useState<Item | null>(null)
 
   if (items.length === 0) {
@@ -73,6 +74,7 @@ export function SolicitudesList({ items, assignableUsers }: Props) {
         <ApproveRequestModal
           request={active}
           assignableUsers={assignableUsers}
+          isAdmin={isAdmin}
           open
           onClose={() => setActive(null)}
         />

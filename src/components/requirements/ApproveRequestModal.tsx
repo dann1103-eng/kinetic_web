@@ -10,7 +10,8 @@ import {
   approveRequirementRequest,
   rejectRequirementRequest,
 } from '@/app/actions/requirementRequests'
-import type { Priority } from '@/types/db'
+import type { ContentType, Priority } from '@/types/db'
+import { CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
 
 export interface PendingRequest {
   id: string
@@ -25,32 +26,46 @@ export interface PendingRequest {
 }
 
 const SCHEDULED = ['reunion', 'produccion']
+const STORY_ELIGIBLE: ContentType[] = ['estatico', 'video_corto', 'reel', 'short']
+// Tipos disponibles para consumo personalizado (admin)
+const OVERRIDE_TYPES: ContentType[] = [
+  'historia',
+  'estatico',
+  'video_corto',
+  'reel',
+  'short',
+]
 
 interface Props {
   request: PendingRequest
   assignableUsers: { id: string; full_name: string }[]
+  /** Si true, el usuario actual es admin y puede definir consumo personalizado. */
+  isAdmin: boolean
   open: boolean
   onClose: () => void
 }
 
-export function ApproveRequestModal({ request, assignableUsers, open, onClose }: Props) {
+export function ApproveRequestModal({ request, assignableUsers, isAdmin, open, onClose }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [mode, setMode] = useState<'approve' | 'reject'>('approve')
 
   const isScheduled = SCHEDULED.includes(request.content_type)
+  const isStoryEligible = STORY_ELIGIBLE.includes(request.content_type as ContentType)
   const initialStart = request.starts_at ?? request.client_requested_deadline ?? ''
   const initialDeadline = request.deadline
     ?? (request.client_requested_deadline ? request.client_requested_deadline.slice(0, 10) : '')
   const [startsAt, setStartsAt] = useState(
     isScheduled && initialStart ? toLocalInputValue(initialStart) : '',
   )
-  const [estimatedHours, setEstimatedHours] = useState(1)
+  const [estimatedHours, setEstimatedHours] = useState(isScheduled ? 1 : 0)
   const [estimatedMinutes, setEstimatedMinutes] = useState(0)
   const [priority, setPriority] = useState<Priority>('media')
   const [assigned, setAssigned] = useState<string[]>([])
   const [deadline, setDeadline] = useState(isScheduled ? '' : initialDeadline)
+  const [includesStory, setIncludesStory] = useState(true)
+  const [overrides, setOverrides] = useState<Partial<Record<ContentType, number>>>({})
   const [rejectReason, setRejectReason] = useState('')
 
   if (!open) return null
@@ -66,8 +81,16 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
     setError(null)
     if (assigned.length === 0) { setError('Asigna al menos un responsable'); return }
 
+    const totalMin = estimatedHours * 60 + estimatedMinutes
+    const cleanOverrides: Partial<Record<ContentType, number>> = {}
+    for (const [type, qty] of Object.entries(overrides)) {
+      if ((qty ?? 0) > 0) cleanOverrides[type as ContentType] = qty
+    }
+    const overridesPayload = isAdmin && Object.keys(cleanOverrides).length > 0
+      ? cleanOverrides
+      : null
+
     if (isScheduled) {
-      const totalMin = estimatedHours * 60 + estimatedMinutes
       if (totalMin <= 0) { setError('Ingresa la duración estimada'); return }
       if (!startsAt) { setError('Selecciona la fecha y hora de inicio'); return }
       startTransition(async () => {
@@ -78,6 +101,8 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
           assignedTo: assigned,
           deadline: deadline || null,
           startsAt,
+          includesStory: false,
+          consumptionOverridesJson: overridesPayload,
         })
         if ('error' in r) { setError(r.error); return }
         onClose()
@@ -88,11 +113,13 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
       startTransition(async () => {
         const r = await approveRequirementRequest({
           requirementId: request.id,
-          estimatedTimeMinutes: null,
+          estimatedTimeMinutes: totalMin > 0 ? totalMin : null,
           priority,
           assignedTo: assigned,
           deadline,
           startsAt: null,
+          includesStory: isStoryEligible ? includesStory : false,
+          consumptionOverridesJson: overridesPayload,
         })
         if ('error' in r) { setError(r.error); return }
         onClose()
@@ -176,46 +203,46 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
         {mode === 'approve' ? (
           <form onSubmit={handleApprove} className="space-y-4">
             {isScheduled && (
-              <>
-                <div className="space-y-1.5">
-                  <Label>Fecha y hora final *</Label>
-                  <Input
-                    type="datetime-local"
-                    value={startsAt}
-                    onChange={(e) => setStartsAt(e.target.value)}
-                    disabled={isPending}
-                    required
-                    className="rounded-xl"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Duración (horas)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      value={estimatedHours}
-                      onChange={(e) => setEstimatedHours(Math.max(0, Number(e.target.value)))}
-                      disabled={isPending}
-                      className="rounded-xl"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Duración (min)</Label>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={59}
-                      value={estimatedMinutes}
-                      onChange={(e) => setEstimatedMinutes(Math.max(0, Math.min(59, Number(e.target.value))))}
-                      disabled={isPending}
-                      className="rounded-xl"
-                    />
-                  </div>
-                </div>
-              </>
+              <div className="space-y-1.5">
+                <Label>Fecha y hora final *</Label>
+                <Input
+                  type="datetime-local"
+                  value={startsAt}
+                  onChange={(e) => setStartsAt(e.target.value)}
+                  disabled={isPending}
+                  required
+                  className="rounded-xl"
+                />
+              </div>
             )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>
+                  Duración (horas) {isScheduled ? '*' : <span className="text-fm-outline font-normal">(opcional)</span>}
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={estimatedHours}
+                  onChange={(e) => setEstimatedHours(Math.max(0, Number(e.target.value)))}
+                  disabled={isPending}
+                  className="rounded-xl"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Duración (min)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={estimatedMinutes}
+                  onChange={(e) => setEstimatedMinutes(Math.max(0, Math.min(59, Number(e.target.value))))}
+                  disabled={isPending}
+                  className="rounded-xl"
+                />
+              </div>
+            </div>
 
             <div className="space-y-1.5">
               <Label>Urgencia *</Label>
@@ -271,6 +298,71 @@ export function ApproveRequestModal({ request, assignableUsers, open, onClose }:
                 className="rounded-xl"
               />
             </div>
+
+            {isStoryEligible && (
+              <label className="flex items-center justify-between gap-3 rounded-xl border border-fm-surface-container-high bg-fm-background px-3 py-2 cursor-pointer">
+                <div>
+                  <p className="text-sm text-fm-on-surface font-medium">Incluye historia</p>
+                  <p className="text-xs text-fm-on-surface-variant">
+                    Suma una historia al consumo del ciclo automáticamente.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={includesStory}
+                  onClick={() => setIncludesStory((v) => !v)}
+                  disabled={isPending}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    includesStory ? 'bg-fm-primary' : 'bg-fm-outline-variant'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                      includesStory ? 'translate-x-5' : 'translate-x-0.5'
+                    }`}
+                  />
+                </button>
+              </label>
+            )}
+
+            {isAdmin && !isScheduled && (
+              <div className="space-y-2 rounded-xl border border-purple-200 dark:border-purple-400/30 bg-purple-50/30 dark:bg-purple-500/5 p-3">
+                <div>
+                  <p className="text-sm font-semibold text-fm-on-surface">Consumo personalizado</p>
+                  <p className="text-xs text-fm-on-surface-variant">
+                    Solo admin. Si lo dejas en cero, el consumo se contabiliza normal según el tipo
+                    e historia. Úsalo para forzar cargas distintas.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {OVERRIDE_TYPES.map((type) => {
+                    const val = overrides[type] ?? 0
+                    return (
+                      <div key={type} className="flex items-center justify-between gap-2 rounded-lg bg-fm-surface-container-lowest border border-fm-surface-container-high px-2 py-1.5">
+                        <span className="text-xs text-fm-on-surface truncate">
+                          {CONTENT_TYPE_LABELS[type]}
+                        </span>
+                        <Input
+                          type="number"
+                          min={0}
+                          value={val || ''}
+                          placeholder="0"
+                          onChange={(e) =>
+                            setOverrides((prev) => ({
+                              ...prev,
+                              [type]: Math.max(0, Number(e.target.value) || 0),
+                            }))
+                          }
+                          disabled={isPending}
+                          className="h-7 w-16 text-xs rounded-lg text-center"
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {error && (
               <p className="text-sm text-fm-error bg-fm-error/5 rounded-xl px-3 py-2 border border-fm-error/20">

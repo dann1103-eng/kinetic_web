@@ -46,10 +46,34 @@ export function InboxSidebar({ initialList, allUsers }: InboxSidebarProps) {
     return map
   }, [data])
 
-  const teamMembers = useMemo(
-    () => allUsers.filter((u) => u.id !== user.id),
-    [allUsers, user.id]
-  )
+  // Orden estilo WhatsApp:
+  //   1. Miembros con mensajes no leídos (más recientes primero).
+  //   2. Miembros con DM existente sin no leídos (por último mensaje).
+  //   3. Resto del equipo, alfabético.
+  const teamMembers = useMemo(() => {
+    const others = allUsers.filter((u) => u.id !== user.id)
+    return others.slice().sort((a, b) => {
+      const dmA = dmByUserId.get(a.id)
+      const dmB = dmByUserId.get(b.id)
+      const unreadA = dmA?.unread_count ?? 0
+      const unreadB = dmB?.unread_count ?? 0
+
+      // Tier 1: con no leídos > sin no leídos
+      const tierA = unreadA > 0 ? 0 : dmA ? 1 : 2
+      const tierB = unreadB > 0 ? 0 : dmB ? 1 : 2
+      if (tierA !== tierB) return tierA - tierB
+
+      // Dentro del tier 0 y 1: por last_message_at desc
+      if (tierA < 2) {
+        const tA = dmA?.last_message_at ? Date.parse(dmA.last_message_at) : 0
+        const tB = dmB?.last_message_at ? Date.parse(dmB.last_message_at) : 0
+        if (tA !== tB) return tB - tA
+      }
+
+      // Tier 2: alfabético por nombre
+      return (a.full_name ?? '').localeCompare(b.full_name ?? '', 'es', { sensitivity: 'base' })
+    })
+  }, [allUsers, user.id, dmByUserId])
 
   const activeId = pathname.startsWith('/inbox/') ? pathname.split('/')[2] : null
 

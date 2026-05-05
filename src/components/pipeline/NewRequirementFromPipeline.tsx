@@ -192,6 +192,7 @@ export function NewRequirementFromPipeline({ clients, isAdmin, canAssign }: Prop
           isUnifiedPool={isUnifiedPool}
           poolUsage={poolUsage}
           isAdmin={isAdmin}
+          isStrictAdmin={isAdmin}
           canAssign={canAssign}
           assignableUsers={assignableUsers}
         />
