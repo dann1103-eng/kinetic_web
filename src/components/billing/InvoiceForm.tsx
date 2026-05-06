@@ -230,6 +230,20 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
   const catalog = useMemo<{ group: string; items: CatalogItem[] }[]>(() => {
     const groups: { group: string; items: CatalogItem[] }[] = []
 
+    // Solo en cotizaciones: planes disponibles como ítems de línea.
+    // No llevan extrasMetadata (no generan créditos al pagar; son solo texto descriptivo).
+    if (mode === 'quote' && plans.length > 0) {
+      groups.push({
+        group: 'Planes',
+        items: plans.map((p) => ({
+          label: p.name,
+          description: p.name,
+          unit_price: p.price_usd,
+          quantity: 1,
+        })),
+      })
+    }
+
     // Contenido extra estándar — cada item del catálogo lleva su `extrasMetadata`
     // para que al pagar la factura se materialice como crédito de contenido.
     const contentItems: CatalogItem[] = (Object.entries(EXTRA_CONTENT_PRICES) as [keyof typeof EXTRA_CONTENT_PRICES, number][])
@@ -287,7 +301,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
     }
 
     return groups
-  }, [cycle])
+  }, [cycle, mode, plans])
 
   const [catalogOpen, setCatalogOpen] = useState(false)
 
