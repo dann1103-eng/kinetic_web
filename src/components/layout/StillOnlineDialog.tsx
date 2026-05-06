@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { endShift } from '@/app/actions/work-sessions'
-import { stopActiveEntry } from '@/app/actions/time'
+import { stopAllActiveEntries } from '@/app/actions/time'
 import { clearAllTimerKeysForUser } from '@/lib/domain/timer'
 import { createClient } from '@/lib/supabase/client'
 import { useBrowserNotifications } from '@/hooks/useBrowserNotifications'
@@ -31,15 +31,22 @@ export function StillOnlineDialog({
   const [remaining, setRemaining] = useState(countdownSeconds)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const triggeredRef = useRef(false)
+  // Momento en que se abrió el diálogo — para calcular tiempo real transcurrido
+  // aunque el tab estuviera en background y setInterval se haya throttleado.
+  const openedAtRef = useRef<number | null>(null)
   const { dispatch: dispatchBrowserNotif } = useBrowserNotifications()
 
   useEffect(() => {
     if (!open) {
       setRemaining(countdownSeconds)
       triggeredRef.current = false
+      openedAtRef.current = null
       if (intervalRef.current) clearInterval(intervalRef.current)
       return
     }
+
+    openedAtRef.current = Date.now()
+    triggeredRef.current = false
 
     // Disparar browser notif al abrirse (probablemente la pestaña no está activa).
     dispatchBrowserNotif({
@@ -50,7 +57,6 @@ export function StillOnlineDialog({
     })
 
     setRemaining(countdownSeconds)
-    triggeredRef.current = false
 
     intervalRef.current = setInterval(() => {
       setRemaining((r) => {
@@ -66,24 +72,42 @@ export function StillOnlineDialog({
       })
     }, 1000)
 
+    // Fallback para tabs en background: el setInterval puede throttlearse y
+    // nunca llegar a 0. Al volver al tab calculamos el tiempo real transcurrido.
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return
+      if (!openedAtRef.current || triggeredRef.current) return
+      const elapsedSec = (Date.now() - openedAtRef.current) / 1000
+      if (elapsedSec >= countdownSeconds) {
+        // El countdown ya expiró mientras el tab estaba en background → logout inmediato
+        if (intervalRef.current) clearInterval(intervalRef.current)
+        triggeredRef.current = true
+        void forceLogout()
+      } else {
+        // Sincronizar el display con el tiempo real restante
+        setRemaining(Math.max(1, Math.ceil(countdownSeconds - elapsedSec)))
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current)
+      document.removeEventListener('visibilitychange', onVisible)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, countdownSeconds])
 
   async function forceLogout() {
     try {
-      // Obtener userId antes de cerrar la sesión para poder limpiar localStorage
       const supabase = createClient()
       const { data: { user: authUser } } = await supabase.auth.getUser()
-      await stopActiveEntry().catch(() => {})
+      // Cerrar TODOS los time_entries abiertos, no solo el último
+      await stopAllActiveEntries().catch(() => {})
       await endShift().catch(() => {})
       // Limpiar claves de localStorage para evitar timers "fantasma" en el próximo login
       if (authUser) clearAllTimerKeysForUser(authUser.id)
     } finally {
       onForceLogout?.()
-      // Redirige al endpoint que limpia la sesión y vuelve a /login
       window.location.href = '/auth/signout'
     }
   }

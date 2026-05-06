@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { ChatHeader } from './ChatHeader'
 import { MessageList } from './MessageList'
 import { MessageComposer } from './MessageComposer'
@@ -36,6 +36,15 @@ export function ConversationView({
   isAdmin,
 }: ConversationViewProps) {
   const [detailsOpen, setDetailsOpen] = useState(conversation.type === 'channel')
+  const [replyTo, setReplyTo] = useState<{ id: string; body: string; authorName: string } | null>(null)
+
+  const handleReply = useCallback((msg: MessageWithMeta) => {
+    setReplyTo({
+      id: msg.id,
+      body: msg.body,
+      authorName: msg.author?.full_name ?? 'Usuario',
+    })
+  }, [])
 
   const counterpart =
     conversation.type === 'dm'
@@ -65,8 +74,14 @@ export function ConversationView({
           initialMessages={initialMessages}
           initialDayKey={initialDayKey}
           initialHasMoreBefore={initialHasMoreBefore}
+          onReply={handleReply}
         />
-        <MessageComposer conversationId={conversation.id} placeholder={composerPlaceholder} />
+        <MessageComposer
+          conversationId={conversation.id}
+          placeholder={composerPlaceholder}
+          replyTo={replyTo}
+          onClearReply={() => setReplyTo(null)}
+        />
       </main>
       {conversation.type === 'channel' && detailsOpen && (
         <ChannelDetailsPanel

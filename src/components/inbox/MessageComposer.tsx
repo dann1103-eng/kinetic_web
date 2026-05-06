@@ -11,9 +11,17 @@ import {
   type UploadedChatAttachment,
 } from '@/lib/supabase/upload-chat-attachment'
 
+interface ReplyTo {
+  id: string
+  body: string
+  authorName: string
+}
+
 interface MessageComposerProps {
   conversationId: string
   placeholder?: string
+  replyTo?: ReplyTo | null
+  onClearReply?: () => void
 }
 
 interface PendingFile {
@@ -23,7 +31,7 @@ interface PendingFile {
   uploading: boolean
 }
 
-export function MessageComposer({ conversationId, placeholder }: MessageComposerProps) {
+export function MessageComposer({ conversationId, placeholder, replyTo, onClearReply }: MessageComposerProps) {
   const router = useRouter()
   const [body, setBody] = useState('')
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([])
@@ -87,6 +95,7 @@ export function MessageComposer({ conversationId, placeholder }: MessageComposer
       const res = await sendMessage({
         conversationId,
         body: text,
+        replyToMessageId: replyTo?.id ?? null,
         attachments: ready,
       })
       if ('error' in res && res.error) {
@@ -102,6 +111,7 @@ export function MessageComposer({ conversationId, placeholder }: MessageComposer
       setBody('')
       setPendingFiles([])
       setError(null)
+      onClearReply?.()
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto'
       }
@@ -119,6 +129,26 @@ export function MessageComposer({ conversationId, placeholder }: MessageComposer
   return (
     <div className="p-4 safe-bottom border-t border-fm-surface-container-high bg-fm-surface-container-lowest">
       <div className="bg-fm-background rounded-lg border border-fm-surface-container-high p-2">
+        {replyTo && (
+          <div className="flex items-start gap-2 px-2 pb-2 border-b border-fm-surface-container-high mb-2">
+            <div className="flex-1 min-w-0 border-l-2 border-fm-primary pl-2">
+              <p className="text-[10px] font-semibold text-fm-primary truncate">
+                Respondiendo a {replyTo.authorName}
+              </p>
+              <p className="text-[10px] text-fm-on-surface-variant truncate">{replyTo.body}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClearReply}
+              className="text-fm-on-surface-variant/60 hover:text-fm-error flex-shrink-0 mt-0.5"
+              aria-label="Cancelar respuesta"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+              </svg>
+            </button>
+          </div>
+        )}
         {pendingFiles.length > 0 && (
           <div className="flex flex-wrap gap-2 px-1 pb-2">
             {pendingFiles.map((p) => (

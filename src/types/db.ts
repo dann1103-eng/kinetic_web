@@ -945,6 +945,8 @@ export interface Database {
           created_at: string
           /** Tipo del mensaje (migración 0077). 'text' por default; los de sistema se pintan distinto. */
           kind: 'text' | 'system_missed_call'
+          /** FK al mensaje original al que se responde (migración 0080). */
+          reply_to_message_id: string | null
         }
         Insert: {
           id?: string
@@ -955,12 +957,14 @@ export interface Database {
           deleted_at?: string | null
           created_at?: string
           kind?: 'text' | 'system_missed_call'
+          reply_to_message_id?: string | null
         }
         Update: {
           body?: string
           edited_at?: string | null
           deleted_at?: string | null
           kind?: 'text' | 'system_missed_call'
+          reply_to_message_id?: string | null
         }
         Relationships: [
           {
@@ -1921,6 +1925,8 @@ export interface NotificationItem {
 export interface MessageWithMeta extends Message {
   author: Pick<AppUser, 'id' | 'full_name' | 'avatar_url'> | null
   attachments: MessageAttachment[]
+  /** Extracto del mensaje al que responde, para mostrar la cita en UI. */
+  reply_preview?: { body: string; author_name: string } | null
 }
 
 /** Item de la lista de bandeja: conversación + metadata para sidebar */

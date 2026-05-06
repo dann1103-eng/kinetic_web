@@ -142,6 +142,36 @@ export async function stopActiveEntry() {
   return { success: true, durationSeconds }
 }
 
+/**
+ * Cierra TODOS los time_entries abiertos del usuario (sin `assertNotImpersonating`
+ * para que funcione desde el force-logout del StillOnlineDialog).
+ */
+export async function stopAllActiveEntries(): Promise<{ ok: true; count: number } | { error: string }> {
+  const { supabase, user } = await getAuthUser()
+  const now = new Date()
+
+  const { data: actives } = await supabase
+    .from('time_entries')
+    .select('id, started_at')
+    .eq('user_id', user.id)
+    .is('ended_at', null)
+
+  if (!actives || actives.length === 0) return { ok: true, count: 0 }
+
+  for (const entry of actives) {
+    const durationSeconds = Math.round(
+      (now.getTime() - new Date(entry.started_at).getTime()) / 1000
+    )
+    await supabase
+      .from('time_entries')
+      .update({ ended_at: now.toISOString(), duration_seconds: durationSeconds })
+      .eq('id', entry.id)
+  }
+
+  revalidatePath('/tiempo')
+  return { ok: true, count: actives.length }
+}
+
 // ── Get active entry (for UI polling) ─────────────────────────────────────
 
 export async function getMyActiveEntry() {

@@ -33,6 +33,7 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
   const [failedIds, setFailedIds] = useState<Set<string>>(new Set())
+  const [replyTo, setReplyTo] = useState<{ id: string; body: string; authorName: string } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const label =
@@ -68,6 +69,8 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
       deleted_at: null,
       created_at: new Date().toISOString(),
       kind: 'text',
+      reply_to_message_id: replyTo?.id ?? null,
+      reply_preview: replyTo ? { body: replyTo.body, author_name: replyTo.authorName } : null,
       author: {
         id: user.id,
         full_name: user.full_name,
@@ -76,7 +79,7 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
       attachments: [],
     }
     addLocalMessage(optimistic)
-    const res = await sendMessage({ conversationId: conversation.id, body: text })
+    const res = await sendMessage({ conversationId: conversation.id, body: text, replyToMessageId: replyTo?.id ?? null })
     setSending(false)
     if ('error' in res && res.error) {
       setFailedIds((prev) => {
@@ -87,6 +90,7 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
       setBody(text)
       return
     }
+    setReplyTo(null)
     // El realtime insertará la fila real; eliminamos el optimistic al llegar.
     // Como fallback, limpiamos el temp tras un refresh.
     refresh()
@@ -181,31 +185,70 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
               const isFailed = failedIds.has(msg.id)
               const share = parseReqShareBody(msg.body)
               return (
-                <div key={msg.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <div key={msg.id} className={`flex flex-col group/msg ${isMe ? 'items-end' : 'items-start'}`}>
                   {!isMe && (
                     <span className="text-[10px] text-fm-on-surface-variant mb-0.5 px-1">
                       {msg.author?.full_name ?? 'Usuario'}
                     </span>
                   )}
-                  {share ? (
-                    <div className={`max-w-[95%] ${isPending && !isFailed ? 'opacity-60' : ''} ${isFailed ? 'ring-1 ring-[#b31b25] rounded-lg' : ''}`}>
-                      <RequirementShareCard
-                        requirementId={share.requirementId}
-                        title={share.title}
-                        isMine={isMe}
-                      />
-                    </div>
-                  ) : (
+                  {/* Preview de mensaje citado */}
+                  {msg.reply_preview && (
                     <div
-                      className={`max-w-[90%] rounded-xl px-3 py-1.5 text-xs transition-opacity ${
+                      className={`max-w-[90%] px-2 py-1 rounded-md border-l-2 text-[9px] mb-0.5 ${
                         isMe
-                          ? 'bg-[#00675c] text-white rounded-br-sm'
-                          : 'bg-fm-surface-container-low text-fm-on-surface border border-fm-surface-container-high rounded-bl-sm'
-                      } ${isPending && !isFailed ? 'opacity-60' : ''} ${isFailed ? 'ring-1 ring-[#b31b25]' : ''}`}
+                          ? 'bg-white/15 border-white/50 text-white/70'
+                          : 'bg-fm-surface-container-high border-[#00675c]/50 text-fm-on-surface-variant'
+                      }`}
                     >
-                      {msg.body}
+                      <span className="font-semibold block truncate">{msg.reply_preview.author_name}</span>
+                      <span className="block truncate opacity-80">{msg.reply_preview.body}</span>
                     </div>
                   )}
+                  <div className="flex items-center gap-1">
+                    {isMe && !isPending && (
+                      <button
+                        type="button"
+                        onClick={() => setReplyTo({ id: msg.id, body: msg.body, authorName: msg.author?.full_name ?? 'Usuario' })}
+                        className="opacity-0 group-hover/msg:opacity-100 transition-opacity text-fm-on-surface-variant/60 hover:text-fm-primary"
+                        title="Responder"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
+                        </svg>
+                      </button>
+                    )}
+                    {share ? (
+                      <div className={`max-w-[95%] ${isPending && !isFailed ? 'opacity-60' : ''} ${isFailed ? 'ring-1 ring-[#b31b25] rounded-lg' : ''}`}>
+                        <RequirementShareCard
+                          requirementId={share.requirementId}
+                          title={share.title}
+                          isMine={isMe}
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        className={`max-w-[90%] rounded-xl px-3 py-1.5 text-xs transition-opacity ${
+                          isMe
+                            ? 'bg-[#00675c] text-white rounded-br-sm'
+                            : 'bg-fm-surface-container-low text-fm-on-surface border border-fm-surface-container-high rounded-bl-sm'
+                        } ${isPending && !isFailed ? 'opacity-60' : ''} ${isFailed ? 'ring-1 ring-[#b31b25]' : ''}`}
+                      >
+                        {msg.body}
+                      </div>
+                    )}
+                    {!isMe && !isPending && (
+                      <button
+                        type="button"
+                        onClick={() => setReplyTo({ id: msg.id, body: msg.body, authorName: msg.author?.full_name ?? 'Usuario' })}
+                        className="opacity-0 group-hover/msg:opacity-100 transition-opacity text-fm-on-surface-variant/60 hover:text-fm-primary"
+                        title="Responder"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/>
+                        </svg>
+                      </button>
+                    )}
+                  </div>
                   {isFailed ? (
                     <button
                       type="button"
@@ -226,6 +269,26 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
             })}
             <div ref={bottomRef} />
           </div>
+
+          {/* Reply strip */}
+          {replyTo && (
+            <div className="flex items-start gap-2 px-3 py-1.5 border-t border-fm-surface-container-high bg-fm-surface-container-lowest">
+              <div className="flex-1 min-w-0 border-l-2 border-[#00675c] pl-2">
+                <p className="text-[9px] font-semibold text-[#00675c] truncate">↩ {replyTo.authorName}</p>
+                <p className="text-[9px] text-fm-on-surface-variant truncate">{replyTo.body}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReplyTo(null)}
+                className="text-fm-on-surface-variant/60 hover:text-fm-error flex-shrink-0"
+                aria-label="Cancelar respuesta"
+              >
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </button>
+            </div>
+          )}
 
           {/* Input */}
           <form onSubmit={handleSend} className="flex items-center gap-1 px-2 py-2 border-t border-fm-surface-container-high">

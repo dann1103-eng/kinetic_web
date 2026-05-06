@@ -27,6 +27,7 @@ import {
 import { invoicePeriodLabel } from '@/lib/domain/billing'
 import { nextCycleDates } from '@/lib/domain/cycles'
 import { today as todayString } from '@/lib/domain/dates'
+import { movePhase } from '@/lib/domain/pipeline'
 import { CONTENT_TYPE_LABELS, EXTRA_CONTENT_PRICES } from '@/lib/domain/plans'
 import { createInvoicePaymentLink, createPackagePaymentLink, extractPaymentLinkId } from '@/lib/n1co/payment-links'
 import { N1coApiError } from '@/lib/n1co/types'
@@ -320,4 +321,65 @@ export async function purchaseExtraContent(args: {
   revalidatePath('/portal/dashboard')
   revalidatePath('/portal/facturacion')
   return { ok: true, paymentLinkUrl, invoiceId: inserted.id as string }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cliente aprueba requerimiento desde revisión → mueve a fase 'aprobado'
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function clientApproveRequirement(
+  requirementId: string
+): Promise<{ ok: true } | { error: string }> {
+  await assertNotImpersonating()
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const admin = createAdminClient()
+
+  // Cargar el requerimiento y verificar que esté en revision_cliente
+  const { data: req } = await admin
+    .from('requirements')
+    .select('id, phase, content_type, billing_cycle_id')
+    .eq('id', requirementId)
+    .maybeSingle()
+
+  if (!req) return { error: 'Requerimiento no encontrado.' }
+  if (req.phase !== 'revision_cliente') {
+    return { error: 'Solo puedes aprobar requerimientos en revisión.' }
+  }
+
+  // Verificar que el usuario sea client_user del cliente dueño del ciclo
+  const { data: cycle } = await admin
+    .from('billing_cycles')
+    .select('client_id')
+    .eq('id', req.billing_cycle_id)
+    .maybeSingle()
+
+  if (!cycle) return { error: 'Ciclo no encontrado.' }
+
+  const { data: membership } = await supabase
+    .from('client_users')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('client_id', cycle.client_id)
+    .maybeSingle()
+
+  if (!membership) return { error: 'No tienes acceso a este requerimiento.' }
+
+  // Mover la fase usando admin client (clientes no tienen RLS de escritura en requirements)
+  const result = await movePhase(admin, {
+    requirementId,
+    currentPhase: 'revision_cliente',
+    contentType: req.content_type as ContentType,
+    toPhase: 'aprobado',
+    movedBy: user.id,
+    notes: 'Aprobado por el cliente desde el portal',
+  })
+
+  if (result.error) return { error: result.error }
+
+  revalidatePath('/portal/pipeline')
+  revalidatePath('/portal/calendario')
+  return { ok: true }
 }

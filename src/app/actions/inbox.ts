@@ -155,6 +155,7 @@ export async function createChannel(payload: {
 export async function sendMessage(payload: {
   conversationId: string
   body: string
+  replyToMessageId?: string | null
   attachments?: Array<{
     storage_path: string
     file_name: string
@@ -177,6 +178,7 @@ export async function sendMessage(payload: {
         conversation_id: payload.conversationId,
         user_id: userId,
         body,
+        reply_to_message_id: payload.replyToMessageId ?? null,
       })
       .select('id, created_at')
       .single()

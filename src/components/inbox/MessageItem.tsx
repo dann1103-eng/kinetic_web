@@ -16,9 +16,10 @@ interface MessageItemProps {
   isAdmin?: boolean
   onUpdated: (patch: Partial<MessageWithMeta>) => void
   onDeleted: () => void
+  onReply?: (message: MessageWithMeta) => void
 }
 
-export function MessageItem({ message, currentUserId, isAdmin = false, onUpdated, onDeleted }: MessageItemProps) {
+export function MessageItem({ message, currentUserId, isAdmin = false, onUpdated, onDeleted, onReply }: MessageItemProps) {
   const isMine = message.user_id === currentUserId
   const canDelete = isMine || isAdmin
   const [editing, setEditing] = useState(false)
@@ -91,6 +92,21 @@ export function MessageItem({ message, currentUserId, isAdmin = false, onUpdated
           )}
         </div>
 
+        {/* Preview del mensaje citado */}
+        {message.reply_preview && (
+          <div
+            className={cn(
+              'max-w-[80%] px-2.5 py-1.5 rounded-md border-l-2 text-xs text-fm-on-surface-variant mb-0.5',
+              isMine
+                ? 'bg-white/15 border-white/50 text-white/80'
+                : 'bg-fm-surface-container-high border-fm-primary/50'
+            )}
+          >
+            <span className="font-semibold block truncate">{message.reply_preview.author_name}</span>
+            <span className="block truncate opacity-80">{message.reply_preview.body}</span>
+          </div>
+        )}
+
         {editing ? (
           <div className="max-w-[80%]">
             <textarea
@@ -159,8 +175,13 @@ export function MessageItem({ message, currentUserId, isAdmin = false, onUpdated
 
         {error && <div className="text-[10px] text-fm-error">{error}</div>}
 
-        {!editing && (isMine || canDelete) && (
+        {!editing && (
           <div className="flex items-center gap-2 text-[10px] text-fm-on-surface-variant/70 opacity-0 group-hover:opacity-100 transition-opacity">
+            {onReply && (
+              <button onClick={() => onReply(message)} className="hover:text-fm-primary">
+                Responder
+              </button>
+            )}
             {isMine && (
               <button onClick={() => setEditing(true)} className="hover:text-fm-primary">
                 Editar
