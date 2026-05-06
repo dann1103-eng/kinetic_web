@@ -23,7 +23,7 @@ export default async function QuotesListPage({
   const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
   const role = appUser?.role
   const canQuote = appUser?.can_quote ?? false
-  if (role !== 'admin' && role !== 'supervisor' && !canQuote) redirect('/')
+  if (role !== 'admin' && !canQuote) redirect('/')
 
   let query = supabase
     .from('quotes')

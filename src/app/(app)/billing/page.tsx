@@ -14,9 +14,9 @@ export default async function BillingDashboardPage() {
   const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
   const role = appUser?.role
   const canQuote = appUser?.can_quote ?? false
-  if (role !== 'admin' && role !== 'supervisor' && !canQuote) redirect('/')
+  if (role !== 'admin' && !canQuote) redirect('/')
   // Usuarios con solo can_quote van directo a cotizaciones, no al hub completo
-  if (canQuote && role !== 'admin' && role !== 'supervisor') redirect('/billing/quotes')
+  if (canQuote && role !== 'admin') redirect('/billing/quotes')
 
   const [
     { count: draftCount },

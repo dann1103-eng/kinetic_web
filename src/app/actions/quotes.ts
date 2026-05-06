@@ -26,7 +26,7 @@ async function requireQuoteAccess() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' as const }
   const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
-  const allowed = appUser?.role === 'admin' || appUser?.role === 'supervisor' || (appUser?.can_quote ?? false)
+  const allowed = appUser?.role === 'admin' || (appUser?.can_quote ?? false)
   if (!allowed) return { error: 'Sin permiso para gestionar cotizaciones' as const }
   return { userId: user.id }
 }

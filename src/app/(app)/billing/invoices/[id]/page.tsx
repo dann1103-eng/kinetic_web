@@ -30,7 +30,7 @@ export default async function InvoiceDetailPage({
   if (!user) redirect('/login')
   const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
   const role = appUser?.role
-  if (role !== 'admin' && role !== 'supervisor') redirect('/')
+  if (role !== 'admin') redirect('/')
 
   const { data: invoiceRow } = await supabase
     .from('invoices')
