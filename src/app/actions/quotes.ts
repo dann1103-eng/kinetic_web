@@ -61,6 +61,8 @@ export interface CreateQuoteInput {
   retentionRate?: number
   validUntil?: string | null
   notes?: string | null
+  /** Si se pasa, sobrescribe el snapshot global de T&C para esta cotización. */
+  termsSnapshotJson?: TermAndCondition[] | null
 }
 
 export async function createQuote(
@@ -107,7 +109,9 @@ export async function createQuote(
   if (numberErr || !numberRow) return { error: 'Error al generar el correlativo' as const }
   const quoteNumber = numberRow as unknown as string
 
-  const termsSnapshot: TermAndCondition[] = (emitter.terms_and_conditions_json ?? []) as TermAndCondition[]
+  const termsSnapshot: TermAndCondition[] = input.termsSnapshotJson != null
+    ? input.termsSnapshotJson
+    : (emitter.terms_and_conditions_json ?? []) as TermAndCondition[]
 
   const clientSnapshot: ClientFiscalSnapshot = client
     ? buildClientSnapshot(client)

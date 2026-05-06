@@ -1,4 +1,4 @@
-import type { PlanLimits, ContentType } from '@/types/db'
+import type { PlanLimits, ContentType, Plan } from '@/types/db'
 
 /** Tipos vendibles como contenido extra y su precio unitario (USD) */
 export const EXTRA_CONTENT_PRICES: Partial<Record<ContentType, number>> = {
@@ -154,6 +154,47 @@ export function applyUnifiedPool(
     out[t] = remaining + (totals[t] ?? 0)
   }
   return out
+}
+
+/**
+ * Genera una descripción legible del contenido incluido en un plan.
+ * Usada como descripción de la línea de item en cotizaciones.
+ * Ejemplo: "Pool de 12 contenidos · 4 historias · 5 cambios"
+ */
+export function formatPlanDescription(plan: Plan): string {
+  const limits = plan.limits_json as PlanLimits
+  const parts: string[] = []
+
+  if (plan.unified_content_limit != null) {
+    // Plan con pool unificado de contenidos tippables
+    parts.push(`Pool de ${plan.unified_content_limit} contenidos`)
+    const historias = limits.historias ?? 0
+    if (historias > 0) parts.push(`${historias} historia${historias !== 1 ? 's' : ''}`)
+    const producciones = limits.producciones ?? 0
+    if (producciones > 0) parts.push(`${producciones} producción${producciones !== 1 ? 'es' : ''}`)
+    const reuniones = limits.reuniones ?? 0
+    if (reuniones > 0) parts.push(`${reuniones} reunión${reuniones !== 1 ? 'es' : ''}`)
+  } else {
+    // Plan con límites individuales por tipo de contenido
+    const entries: Array<[number, string, string]> = [
+      [limits.estaticos ?? 0,     'estático',    'estáticos'],
+      [limits.videos_cortos ?? 0, 'video corto', 'videos cortos'],
+      [limits.reels ?? 0,         'reel',        'reels'],
+      [limits.shorts ?? 0,        'short',       'shorts'],
+      [limits.historias ?? 0,     'historia',    'historias'],
+      [limits.producciones ?? 0,  'producción',  'producciones'],
+      [limits.reuniones ?? 0,     'reunión',     'reuniones'],
+    ]
+    for (const [qty, singular, plural] of entries) {
+      if (qty > 0) parts.push(`${qty} ${qty === 1 ? singular : plural}`)
+    }
+  }
+
+  if (plan.cambios_included > 0) {
+    parts.push(`${plan.cambios_included} cambio${plan.cambios_included !== 1 ? 's' : ''}`)
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : plan.name
 }
 
 /**

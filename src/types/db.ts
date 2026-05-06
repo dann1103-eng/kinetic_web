@@ -1330,6 +1330,7 @@ export interface Database {
           dte_pdf_url: string | null
           dte_received_at: string | null
           extras_metadata: InvoiceExtrasMetadata | null
+          terms_snapshot_json: TermAndCondition[] | null
         }
         Insert: {
           id?: string
@@ -1375,6 +1376,7 @@ export interface Database {
           dte_pdf_url?: string | null
           dte_received_at?: string | null
           extras_metadata?: InvoiceExtrasMetadata | null
+          terms_snapshot_json?: TermAndCondition[] | null
         }
         Update: {
           invoice_number?: string

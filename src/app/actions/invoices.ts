@@ -55,6 +55,8 @@ export interface CreateInvoiceInput {
   paymentProvider?: PaymentProvider
   /** Si la factura corresponde a un paquete extra (cambios o contenido). Se materializa como crédito al pagar. */
   extrasMetadata?: InvoiceExtrasMetadata | null
+  /** Snapshot de términos y condiciones para esta factura. Si no se pasa, no se incluyen T&C. */
+  termsSnapshotJson?: import('@/types/db').TermAndCondition[] | null
 }
 
 export async function createInvoice(
@@ -136,6 +138,7 @@ export async function createInvoice(
       biweekly_half: input.biweeklyHalf ?? null,
       payment_provider: paymentProvider,
       extras_metadata: input.extrasMetadata ?? null,
+      terms_snapshot_json: input.termsSnapshotJson ?? null,
     })
     .select('id')
     .single()
