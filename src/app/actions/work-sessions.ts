@@ -132,6 +132,36 @@ export async function startBreak(type: ShiftBreakType): Promise<{ ok: true } | {
   return { ok: true }
 }
 
+/**
+ * Convierte automáticamente una pausa de almuerzo en "away" cuando excede el límite.
+ * Cierra el break de lunch con ended_at=now y abre uno nuevo de tipo away,
+ * cambiando el status de la sesión a on_away. Operación atómica.
+ */
+export async function convertLunchToAway(): Promise<{ ok: true } | { error: string }> {
+  await assertNotImpersonating()
+  const { supabase, user } = await getAuthUser()
+  const active = await getMyActive(supabase, user.id)
+  if (!active) return { error: 'No hay jornada activa.' }
+  if (active.status !== 'on_lunch') return { error: 'No estás en almuerzo.' }
+
+  const breaks = [...((active.breaks_json ?? []) as WorkSessionBreak[])]
+  const last = breaks[breaks.length - 1]
+  if (!last || last.ended_at) return { error: 'No hay pausa de almuerzo abierta.' }
+
+  const now = new Date().toISOString()
+  breaks[breaks.length - 1] = { ...last, ended_at: now }
+  breaks.push({ type: 'away', started_at: now })
+
+  const { error } = await supabase
+    .from('work_sessions')
+    .update({ status: 'on_away', breaks_json: breaks })
+    .eq('id', active.id)
+  if (error) return { error: error.message }
+  await syncPresenceFromShift('away')
+  revalidatePath('/tiempo')
+  return { ok: true }
+}
+
 export async function endBreak(): Promise<{ ok: true } | { error: string }> {
   await assertNotImpersonating()
   const { supabase, user } = await getAuthUser()

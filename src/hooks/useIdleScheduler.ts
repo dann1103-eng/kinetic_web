@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * Calcula el próximo "checkpoint" de presencia basado en hora local.
@@ -52,16 +52,39 @@ export function useIdleScheduler({
   onCheckpoint: () => void
 }) {
   const [reschedTick, setReschedTick] = useState(0)
+  // Guardamos el target en un ref para que visibilitychange pueda chequearlo
+  const targetRef = useRef<Date | null>(null)
+  const firedRef = useRef(false)
 
   useEffect(() => {
     if (!enabled) return
     const now = new Date()
     const target = nextCheckpoint(now)
+    targetRef.current = target
+    firedRef.current = false
     const ms = Math.max(1000, target.getTime() - now.getTime())
-    const t = window.setTimeout(() => {
+
+    function fire() {
+      if (firedRef.current) return
+      firedRef.current = true
       onCheckpoint()
-    }, ms)
-    return () => window.clearTimeout(t)
+    }
+
+    const t = window.setTimeout(fire, ms)
+
+    // Fallback: si el tab estaba en background y el setTimeout se retrasó,
+    // disparar el checkpoint en cuanto el usuario vuelva a la pestaña.
+    function onVisible() {
+      if (document.visibilityState === 'visible' && targetRef.current) {
+        if (new Date() >= targetRef.current) fire()
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      window.clearTimeout(t)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [enabled, onCheckpoint, reschedTick])
 
   function reschedule() {
