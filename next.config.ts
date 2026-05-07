@@ -6,7 +6,6 @@ const nextConfig: NextConfig = {
   // no están en el type Database de src/types/db.ts, así que las queries devuelven
   // never. Se quitará cuando se agreguen los tipos.
   typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
   async headers() {
     return [
       {
