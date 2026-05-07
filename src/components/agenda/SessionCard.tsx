@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { startTherapySession, finishTherapySession } from '@/app/actions/therapy-sessions'
-import type { Appointment, TherapySession } from '@/types/db'
+import type { Appointment, TherapySession, SessionReport } from '@/types/db'
 
 type AppointmentWithChild = Appointment & {
   child_full_name?: string
@@ -12,7 +12,11 @@ type AppointmentWithChild = Appointment & {
 interface SessionCardProps {
   appointment: AppointmentWithChild
   session: TherapySession | null
+  report?: SessionReport | null
+  /** Click on "Dejar nota" — opens journal entries panel for the child. */
   onNoteClick?: (appointmentId: string) => void
+  /** Click on "Llenar reporte" / "Corregir" / "Ver reporte" — opens session report modal. */
+  onReportClick?: (sessionId: string) => void
 }
 
 function formatElapsed(seconds: number): string {
@@ -28,7 +32,7 @@ function formatDuration(started: string, ended: string): string {
   return `${mins} min`
 }
 
-export function SessionCard({ appointment, session, onNoteClick }: SessionCardProps) {
+export function SessionCard({ appointment, session, report, onNoteClick, onReportClick }: SessionCardProps) {
   const [, setTick] = useState(0)
   const [isPending, startTransition] = useTransition()
 
@@ -121,17 +125,76 @@ export function SessionCard({ appointment, session, onNoteClick }: SessionCardPr
               </span>
               {formatDuration(session.started_at, session.ended_at)}
             </div>
-            {onNoteClick && (
-              <button
-                onClick={() => onNoteClick(appointment.id)}
-                className="ml-auto text-sm font-medium text-fm-primary hover:underline"
-              >
-                Dejar nota
-              </button>
-            )}
+            <div className="ml-auto flex items-center gap-2">
+              {onReportClick && session && <ReportButton report={report} sessionId={session.id} onClick={onReportClick} />}
+              {onNoteClick && (
+                <button
+                  onClick={() => onNoteClick(appointment.id)}
+                  className="text-xs font-medium text-fm-on-surface-variant hover:text-fm-primary hover:underline"
+                >
+                  Dejar nota
+                </button>
+              )}
+            </div>
           </>
         )}
       </div>
     </div>
   )
+}
+
+interface ReportButtonProps {
+  report: SessionReport | null | undefined
+  sessionId: string
+  onClick: (sessionId: string) => void
+}
+
+function ReportButton({ report, sessionId, onClick }: ReportButtonProps) {
+  const status = report?.status
+
+  if (!report || status === 'draft') {
+    return (
+      <button
+        onClick={() => onClick(sessionId)}
+        className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-fm-primary text-white hover:bg-fm-primary/90 transition-colors"
+      >
+        Llenar reporte
+      </button>
+    )
+  }
+
+  if (status === 'submitted') {
+    return (
+      <button
+        onClick={() => onClick(sessionId)}
+        className="px-3 py-1.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 transition-colors"
+      >
+        Esperando aprobación · Ver
+      </button>
+    )
+  }
+
+  if (status === 'approved' || status === 'sent_to_family') {
+    return (
+      <button
+        onClick={() => onClick(sessionId)}
+        className="px-3 py-1.5 rounded-full text-xs font-medium bg-green-500/10 text-green-700 hover:bg-green-500/20 transition-colors"
+      >
+        Reporte aprobado · Ver
+      </button>
+    )
+  }
+
+  if (status === 'rejected') {
+    return (
+      <button
+        onClick={() => onClick(sessionId)}
+        className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-fm-error text-white hover:bg-fm-error/90 transition-colors"
+      >
+        Corregir reporte
+      </button>
+    )
+  }
+
+  return null
 }

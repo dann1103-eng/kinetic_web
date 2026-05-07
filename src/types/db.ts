@@ -2430,3 +2430,33 @@ export interface ChildJournalEntry {
   created_at: string
   updated_at: string
 }
+
+export type SessionReportStatus =
+  | 'draft'
+  | 'submitted'
+  | 'approved'
+  | 'rejected'
+  | 'sent_to_family'
+
+export interface SessionReport {
+  id: string
+  session_id: string
+  appointment_id: string
+  child_id: string
+  therapist_id: string | null
+  actividades: string
+  respuesta_del_nino: string
+  tarea_para_casa: string
+  observaciones_internas: string
+  visible_to_family: boolean
+  status: SessionReportStatus
+  submitted_at: string | null
+  approved_by_user_id: string | null
+  approved_at: string | null
+  rejected_by_user_id: string | null
+  rejected_at: string | null
+  rejection_reason: string | null
+  sent_to_family_at: string | null
+  created_at: string
+  updated_at: string
+}

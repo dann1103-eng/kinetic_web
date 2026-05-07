@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { PortalJournalClient } from './PortalJournalClient'
-import type { ChildJournalEntry } from '@/types/db'
+import { SessionReportsList } from '@/components/portal/SessionReportsList'
+import type { ChildJournalEntry, SessionReport } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -47,6 +48,7 @@ export default async function PortalAgendaDigitalPage() {
 
   const childIds = children.map((c) => c.id)
   const entriesByChild: Record<string, ChildJournalEntry[]> = {}
+  let sessionReports: SessionReport[] = []
 
   if (childIds.length > 0) {
     const { data: entriesRaw } = await supabase
@@ -59,16 +61,47 @@ export default async function PortalAgendaDigitalPage() {
       if (!entriesByChild[e.child_id]) entriesByChild[e.child_id] = []
       entriesByChild[e.child_id].push(e)
     }
+
+    // Reportes de sesión enviados a la familia. RLS también filtra,
+    // pero filtramos server-side para no traer datos extra al cliente.
+    const { data: reportsRaw } = await supabase
+      .from('session_reports')
+      .select('id, session_id, child_id, actividades, respuesta_del_nino, tarea_para_casa, visible_to_family, status, sent_to_family_at')
+      .in('child_id', childIds)
+      .eq('status', 'sent_to_family')
+      .eq('visible_to_family', true)
+      .order('sent_to_family_at', { ascending: false })
+      .limit(20)
+
+    sessionReports = (reportsRaw ?? []) as SessionReport[]
   }
+
+  const childNamesById: Record<string, string> = Object.fromEntries(
+    children.map((c) => [c.id, c.preferred_name ?? c.full_name]),
+  )
 
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
       <TopNav title="Agenda digital" />
-      <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto w-full">
-        <PortalJournalClient
-          childrenData={children}
-          entriesByChild={entriesByChild}
-        />
+      <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto w-full space-y-6">
+        {sessionReports.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-fm-on-surface uppercase tracking-wider">
+              Reportes recientes
+            </h2>
+            <SessionReportsList reports={sessionReports} childNamesById={childNamesById} />
+          </section>
+        )}
+
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-fm-on-surface uppercase tracking-wider">
+            Agenda digital
+          </h2>
+          <PortalJournalClient
+            childrenData={children}
+            entriesByChild={entriesByChild}
+          />
+        </section>
       </div>
     </div>
   )

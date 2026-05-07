@@ -4,7 +4,7 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { MiDiaClient } from './MiDiaClient'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
-import type { Appointment, TherapySession, ChildJournalEntry } from '@/types/db'
+import type { Appointment, TherapySession, ChildJournalEntry, SessionReport } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +49,18 @@ export default async function MiDiaPage() {
     .gte('started_at', todayStart.toISOString())
 
   const sessions = (sessionsRaw ?? []) as TherapySession[]
+
+  // Session reports for today's sessions (one per session, may not exist yet)
+  const sessionIds = sessions.map((s) => s.id)
+  const { data: reportsRaw } = sessionIds.length
+    ? await supabase
+        .from('session_reports')
+        .select('*')
+        .in('session_id', sessionIds)
+    : { data: [] }
+  const reportsBySession: Record<string, SessionReport> = Object.fromEntries(
+    ((reportsRaw ?? []) as SessionReport[]).map((r) => [r.session_id, r]),
+  )
 
   // Journal entries for children in today's appointments
   const childIds = Array.from(
@@ -112,6 +124,7 @@ export default async function MiDiaPage() {
         <MiDiaClient
           appointments={appointments as (Appointment & { child_full_name?: string; child_preferred_name?: string })[]}
           sessions={sessions}
+          reportsBySession={reportsBySession}
           entriesByChild={entriesByChild}
           authorNames={authorNames}
           currentUserId={userId}

@@ -54,6 +54,14 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    href: '/aprobaciones',
+    label: 'Aprobaciones',
+    allowedRoles: ['directora', 'admin'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>check_circle</span>
+    ),
+  },
+  {
     href: '/inbox',
     label: 'Equipo',
     icon: (
