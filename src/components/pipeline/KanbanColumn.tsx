@@ -37,7 +37,7 @@ export function KanbanColumn({
             style={{
               background: PHASE_CATEGORY[phase] === 'passive_timer' ? '#f59e0b'
                 : PHASE_CATEGORY[phase] === 'timestamp_only' ? '#22c55e'
-                : '#00675c',
+                : '#1FA4DA',
             }}
           />
           <h3 className="text-sm font-semibold text-fm-on-surface">{PHASE_LABELS[phase]}</h3>

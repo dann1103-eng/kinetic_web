@@ -177,7 +177,7 @@ function UpcomingBanner({
 }) {
   const tone = days <= 3
     ? { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-900', accent: '#d97706', icon: 'schedule' }
-    : { bg: 'bg-fm-primary/5', border: 'border-fm-primary/30', text: 'text-fm-on-surface', accent: '#00675c', icon: 'event_available' }
+    : { bg: 'bg-fm-primary/5', border: 'border-fm-primary/30', text: 'text-fm-on-surface', accent: '#1FA4DA', icon: 'event_available' }
 
   const title = days === 0
     ? 'Tu ciclo termina hoy'

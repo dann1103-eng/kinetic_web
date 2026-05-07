@@ -16,13 +16,13 @@ interface NotificationToastProps {
 function kindIcon(kind: NotificationItem['kind']) {
   if (kind === 'dm' || kind === 'channel') {
     return (
-      <svg className="w-4 h-4 text-[#00675c]" viewBox="0 0 24 24" fill="currentColor">
+      <svg className="w-4 h-4 text-[#1FA4DA]" viewBox="0 0 24 24" fill="currentColor">
         <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM9 11H7V9h2v2zm4 0h-2V9h2v2zm4 0h-2V9h2v2z"/>
       </svg>
     )
   }
   return (
-    <svg className="w-4 h-4 text-[#b31b25]" viewBox="0 0 24 24" fill="currentColor">
+    <svg className="w-4 h-4 text-[#E5316E]" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
     </svg>
   )

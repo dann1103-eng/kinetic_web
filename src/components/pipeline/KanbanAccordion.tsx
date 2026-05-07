@@ -58,7 +58,7 @@ export function KanbanAccordion({
             ? '#f59e0b'
             : PHASE_CATEGORY[phase] === 'timestamp_only'
               ? '#22c55e'
-              : '#00675c'
+              : '#1FA4DA'
 
         return (
           <div

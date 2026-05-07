@@ -4,7 +4,12 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* ── FM Communication Solutions — Design Tokens ── */
+/* ── Kinetic — Design Tokens ──
+ * Paleta inspirada en el logo de Kinetic (azul, rosa, amarillo, verde, naranja).
+ * Los tokens conservan el prefijo `--fm-*` por compatibilidad histórica con el
+ * resto del codebase. NO renombrar a `--kinetic-*` — tocaría cientos de archivos
+ * sin valor agregado. Tratar `fm` aquí como "framework", no como "FM Solutions".
+ */
 @theme inline {
   /* shadcn base tokens */
   --color-background: var(--background);
@@ -95,162 +100,167 @@
 }
 
 :root {
-  /* shadcn tokens mapped to FM palette */
-  --background: #f5f7f9;
-  --foreground: #2c2f31;
+  /* shadcn tokens mapped to Kinetic palette */
+  --background: #f5f8fa;
+  --foreground: #1c2935;
   --card: #ffffff;
-  --card-foreground: #2c2f31;
+  --card-foreground: #1c2935;
   --popover: #ffffff;
-  --popover-foreground: #2c2f31;
-  --primary: #00675c;
-  --primary-foreground: #c1fff2;
-  --secondary: #e2e0f7;
-  --secondary-foreground: #1f1c5e;
-  --muted: #eef1f3;
-  --muted-foreground: #595c5e;
-  --accent: #5bf4de;
-  --accent-foreground: #00594f;
-  --destructive: #b31b25;
-  --border: #abadaf;
-  --input: #dfe3e6;
-  --ring: #48e5d0;
+  --popover-foreground: #1c2935;
+  --primary: #1FA4DA;
+  --primary-foreground: #e6f6ff;
+  --secondary: #FFE9C2;
+  --secondary-foreground: #6b4500;
+  --muted: #eef2f6;
+  --muted-foreground: #5a6772;
+  --accent: #5bd4ff;
+  --accent-foreground: #003b55;
+  --destructive: #E5316E;
+  --border: #c5cdd4;
+  --input: #dde3e9;
+  --ring: #5bd4ff;
   --radius: 0.75rem;
 
-  /* FM palette — modo claro (Material Design inspired) */
-  --fm-primary:                  #00675c;
-  --fm-primary-dim:              #005a50;
-  --fm-primary-container:        #5bf4de;
-  --fm-primary-fixed:            #5bf4de;
-  --fm-primary-fixed-dim:        #48e5d0;
-  --fm-on-primary:               #c1fff2;
-  --fm-on-primary-container:     #00594f;
-  --fm-on-primary-fixed:         #00443c;
-  --fm-on-primary-fixed-variant: #006358;
+  /* Kinetic palette — modo claro (Material 3 inspired)
+   * Primario: azul del logotipo "kinetic" (#1FA4DA)
+   * Secundario: amarillo del personaje central (#F7B945)
+   * Terciario: verde del personaje derecho (#7CC74F)
+   * Error: rosa/magenta del personaje izquierdo (#E5316E)
+   * Tokens conservan prefijo --fm-* por compatibilidad. */
+  --fm-primary:                  #1FA4DA;
+  --fm-primary-dim:              #1690c2;
+  --fm-primary-container:        #b9eaff;
+  --fm-primary-fixed:            #b9eaff;
+  --fm-primary-fixed-dim:        #87daff;
+  --fm-on-primary:               #ffffff;
+  --fm-on-primary-container:     #003b55;
+  --fm-on-primary-fixed:         #002432;
+  --fm-on-primary-fixed-variant: #00536f;
 
-  --fm-secondary:                #534FBB;
-  --fm-secondary-dim:            #3f3a9b;
-  --fm-secondary-container:      #e2e0f7;
-  --fm-secondary-fixed:          #e2e0f7;
-  --fm-secondary-fixed-dim:      #c8c5ed;
-  --fm-on-secondary:             #f0eeff;
-  --fm-on-secondary-container:   #1f1c5e;
-  --fm-on-secondary-fixed:       #100c4f;
-  --fm-on-secondary-fixed-variant: #3f3a9b;
+  --fm-secondary:                #F7B945;
+  --fm-secondary-dim:            #d99a26;
+  --fm-secondary-container:      #ffe9c2;
+  --fm-secondary-fixed:          #ffe9c2;
+  --fm-secondary-fixed-dim:      #ffd58f;
+  --fm-on-secondary:             #3a2500;
+  --fm-on-secondary-container:   #6b4500;
+  --fm-on-secondary-fixed:       #2c1c00;
+  --fm-on-secondary-fixed-variant: #6b4500;
 
-  --fm-tertiary:                 #006385;
-  --fm-tertiary-dim:             #005675;
-  --fm-tertiary-container:       #1dc0fe;
-  --fm-tertiary-fixed:           #1dc0fe;
-  --fm-tertiary-fixed-dim:       #00b2ed;
-  --fm-on-tertiary:              #e7f5ff;
-  --fm-on-tertiary-container:    #00374c;
-  --fm-on-tertiary-fixed:        #001e2b;
-  --fm-on-tertiary-fixed-variant: #004058;
+  --fm-tertiary:                 #7CC74F;
+  --fm-tertiary-dim:             #65a73d;
+  --fm-tertiary-container:       #d6f0c0;
+  --fm-tertiary-fixed:           #d6f0c0;
+  --fm-tertiary-fixed-dim:       #b6e094;
+  --fm-on-tertiary:              #ffffff;
+  --fm-on-tertiary-container:    #1f3d0c;
+  --fm-on-tertiary-fixed:        #122507;
+  --fm-on-tertiary-fixed-variant: #345d1c;
 
-  --fm-error:                    #b31b25;
-  --fm-error-dim:                #9f0519;
-  --fm-error-container:          #fb5151;
-  --fm-on-error:                 #ffefee;
-  --fm-on-error-container:       #570008;
+  --fm-error:                    #E5316E;
+  --fm-error-dim:                #c81f5a;
+  --fm-error-container:          #ffd6e2;
+  --fm-on-error:                 #ffffff;
+  --fm-on-error-container:       #5a0023;
 
-  --fm-surface:                  #f5f7f9;
-  --fm-surface-dim:              #d0d5d8;
-  --fm-surface-bright:           #f5f7f9;
-  --fm-surface-variant:          #d9dde0;
-  --fm-surface-tint:             #00675c;
+  --fm-surface:                  #f5f8fa;
+  --fm-surface-dim:              #d4dade;
+  --fm-surface-bright:           #f5f8fa;
+  --fm-surface-variant:          #dee3e8;
+  --fm-surface-tint:             #1FA4DA;
   --fm-surface-container-lowest: #ffffff;
-  --fm-surface-container-low:    #eef1f3;
-  --fm-surface-container:        #e5e9eb;
-  --fm-surface-container-high:   #dfe3e6;
-  --fm-surface-container-highest: #d9dde0;
-  --fm-on-surface:               #2c2f31;
-  --fm-on-surface-variant:       #595c5e;
-  --fm-on-background:            #2c2f31;
-  --fm-background:               #f5f7f9;
+  --fm-surface-container-low:    #eef2f6;
+  --fm-surface-container:        #e6ecf1;
+  --fm-surface-container-high:   #dde3e9;
+  --fm-surface-container-highest: #d4dade;
+  --fm-on-surface:               #1c2935;
+  --fm-on-surface-variant:       #5a6772;
+  --fm-on-background:            #1c2935;
+  --fm-background:               #f5f8fa;
 
-  --fm-outline:                  #747779;
-  --fm-outline-variant:          #abadaf;
-  --fm-inverse-surface:          #0b0f10;
-  --fm-inverse-on-surface:       #9a9d9f;
-  --fm-inverse-primary:          #65fde6;
+  --fm-outline:                  #6f7c87;
+  --fm-outline-variant:          #c5cdd4;
+  --fm-inverse-surface:          #0b1419;
+  --fm-inverse-on-surface:       #9aa5ad;
+  --fm-inverse-primary:          #87daff;
 
-  /* Iconos de tipo de contenido — paleta unificada */
-  --fm-content-icon:             #534FBB;
-  --fm-content-accent:           #DAE54E;
+  /* Iconos de tipo de contenido — paleta unificada (azul + naranja como acento) */
+  --fm-content-icon:             #1FA4DA;
+  --fm-content-accent:           #F7B945;
 }
 
 .dark {
   /* shadcn tokens */
-  --background: #0e1113;
-  --foreground: #e4e8eb;
-  --card: #1a1d1f;
-  --card-foreground: #e4e8eb;
-  --popover: #1a1d1f;
-  --popover-foreground: #e4e8eb;
-  --primary: #48e5d0;
-  --primary-foreground: #003731;
-  --secondary: #b8b3ff;
-  --secondary-foreground: #100c4f;
-  --muted: #232729;
-  --muted-foreground: #a8adb0;
-  --accent: #5bf4de;
-  --accent-foreground: #003731;
-  --destructive: #ff6b6b;
-  --border: #2a2e31;
-  --input: #2a2e31;
-  --ring: #48e5d0;
+  --background: #0c1419;
+  --foreground: #e4eaef;
+  --card: #161e23;
+  --card-foreground: #e4eaef;
+  --popover: #161e23;
+  --popover-foreground: #e4eaef;
+  --primary: #87daff;
+  --primary-foreground: #002432;
+  --secondary: #ffd58f;
+  --secondary-foreground: #2c1c00;
+  --muted: #1d262c;
+  --muted-foreground: #a4adb5;
+  --accent: #5bd4ff;
+  --accent-foreground: #002432;
+  --destructive: #ff7aa6;
+  --border: #2a333a;
+  --input: #2a333a;
+  --ring: #87daff;
 
-  /* FM palette — versión oscura (Material 3 neutral-warm) */
-  --fm-primary:                  #48e5d0;
-  --fm-primary-dim:              #5bf4de;
-  --fm-primary-container:        #00453d;
-  --fm-on-primary:               #00332c;
-  --fm-on-primary-container:     #c1fff2;
+  /* Kinetic palette — modo oscuro */
+  --fm-primary:                  #87daff;
+  --fm-primary-dim:              #b9eaff;
+  --fm-primary-container:        #00536f;
+  --fm-on-primary:               #002432;
+  --fm-on-primary-container:     #b9eaff;
 
-  --fm-secondary:                #b8b3ff;
-  --fm-secondary-dim:            #c8c5ed;
-  --fm-secondary-container:      #2a2680;
-  --fm-secondary-fixed:          #2a2680;
-  --fm-secondary-fixed-dim:      #1f1c5e;
-  --fm-on-secondary:             #100c4f;
-  --fm-on-secondary-container:   #e2e0f7;
+  --fm-secondary:                #ffd58f;
+  --fm-secondary-dim:            #ffe9c2;
+  --fm-secondary-container:      #6b4500;
+  --fm-secondary-fixed:          #6b4500;
+  --fm-secondary-fixed-dim:      #4a2f00;
+  --fm-on-secondary:             #2c1c00;
+  --fm-on-secondary-container:   #ffe9c2;
 
-  --fm-tertiary:                 #79d1ff;
-  --fm-tertiary-dim:             #1dc0fe;
-  --fm-tertiary-container:       #004b66;
-  --fm-on-tertiary:              #00344a;
-  --fm-on-tertiary-container:    #c5e7ff;
+  --fm-tertiary:                 #b6e094;
+  --fm-tertiary-dim:             #d6f0c0;
+  --fm-tertiary-container:       #345d1c;
+  --fm-on-tertiary:              #122507;
+  --fm-on-tertiary-container:    #d6f0c0;
 
-  --fm-error:                    #ffb3b0;
-  --fm-error-dim:                #ff8a87;
-  --fm-error-container:          #8c0010;
-  --fm-on-error:                 #570008;
-  --fm-on-error-container:       #ffdad6;
+  --fm-error:                    #ff7aa6;
+  --fm-error-dim:                #ff5891;
+  --fm-error-container:          #5a0023;
+  --fm-on-error:                 #5a0023;
+  --fm-on-error-container:       #ffd6e2;
 
-  --fm-surface:                  #0e1113;
-  --fm-surface-dim:              #0a0c0d;
-  --fm-surface-bright:           #34383b;
-  --fm-surface-variant:          #2a2e31;
-  --fm-surface-tint:             #48e5d0;
-  --fm-surface-container-lowest: #0a0c0d;
-  --fm-surface-container-low:    #16191b;
-  --fm-surface-container:        #1a1d1f;
-  --fm-surface-container-high:   #232729;
-  --fm-surface-container-highest:#2c3033;
-  --fm-on-surface:               #e4e8eb;
-  --fm-on-surface-variant:       #b8bcbf;
-  --fm-on-background:            #e4e8eb;
-  --fm-background:               #0e1113;
+  --fm-surface:                  #0c1419;
+  --fm-surface-dim:              #080f13;
+  --fm-surface-bright:           #2f3a42;
+  --fm-surface-variant:          #2a333a;
+  --fm-surface-tint:             #87daff;
+  --fm-surface-container-lowest: #080f13;
+  --fm-surface-container-low:    #131b21;
+  --fm-surface-container:        #161e23;
+  --fm-surface-container-high:   #1d262c;
+  --fm-surface-container-highest:#252e35;
+  --fm-on-surface:               #e4eaef;
+  --fm-on-surface-variant:       #b6c0c8;
+  --fm-on-background:            #e4eaef;
+  --fm-background:               #0c1419;
 
-  --fm-outline:                  #80868a;
-  --fm-outline-variant:          #3a3e41;
-  --fm-inverse-surface:          #e4e8eb;
-  --fm-inverse-on-surface:       #1a1d1f;
-  --fm-inverse-primary:          #00675c;
+  --fm-outline:                  #7d8892;
+  --fm-outline-variant:          #3a434a;
+  --fm-inverse-surface:          #e4eaef;
+  --fm-inverse-on-surface:       #161e23;
+  --fm-inverse-primary:          #1FA4DA;
 
-  /* Invierte la paleta de iconos de contenido en modo oscuro */
-  --fm-content-icon:             #DAE54E;
-  --fm-content-accent:           #534FBB;
+  /* Iconos de tipo de contenido en modo oscuro — invertido */
+  --fm-content-icon:             #F7B945;
+  --fm-content-accent:           #87daff;
 }
 
 @layer base {
@@ -265,13 +275,13 @@
 /* ── Shared utility classes (used across components) ── */
 @layer utilities {
   .signature-gradient {
-    background: linear-gradient(135deg, #00675c 0%, #5bf4de 100%);
+    background: linear-gradient(135deg, #1FA4DA 0%, #87daff 100%);
   }
   .secondary-gradient {
-    background: linear-gradient(135deg, #3f3a9b 0%, #b8b3ff 100%);
+    background: linear-gradient(135deg, #d99a26 0%, #ffd58f 100%);
   }
   .tertiary-gradient {
-    background: linear-gradient(135deg, #006385 0%, #1dc0fe 100%);
+    background: linear-gradient(135deg, #65a73d 0%, #b6e094 100%);
   }
   .avatar-purple {
     background: linear-gradient(135deg, #5c4a8a 0%, #b89cff 100%);

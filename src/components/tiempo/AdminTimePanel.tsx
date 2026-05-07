@@ -173,7 +173,7 @@ function AdminEntryRow({ entry, onEdit, onDelete, disabled }: {
 
   return (
     <div className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors ${isActive ? 'bg-fm-primary-container/30' : 'bg-fm-surface-container-low hover:bg-fm-surface-container-low'}`}>
-      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: isReq ? '#00675c' : '#abadaf' }} />
+      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: isReq ? '#1FA4DA' : '#abadaf' }} />
       <p className="text-sm text-fm-on-surface flex-1 truncate">{label}</p>
       <p className="text-xs text-fm-on-surface-variant tabular-nums">
         {formatTime(entry.started_at)} – {entry.ended_at ? formatTime(entry.ended_at) : <span className="text-fm-primary font-bold">activo</span>}

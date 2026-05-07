@@ -184,7 +184,7 @@ export default function ProfilePage() {
               type="submit"
               disabled={isPending || uploading}
               className="w-full rounded-xl text-white font-semibold"
-              style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+              style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
             >
               {isPending ? 'Guardando...' : 'Guardar cambios'}
             </Button>
@@ -288,7 +288,7 @@ export default function ProfilePage() {
               type="submit"
               disabled={pwLoading}
               className="w-full rounded-xl text-white font-semibold"
-              style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+              style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
             >
               {pwLoading ? 'Actualizando...' : 'Actualizar contraseña'}
             </Button>

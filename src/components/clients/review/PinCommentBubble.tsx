@@ -84,14 +84,14 @@ export function PinCommentBubble({
           }}
           placeholder="Escribir un mensaje... (@ para mencionar)"
           rows={2}
-          className="w-full text-xs text-[#2a2a2a] placeholder:text-[#8a8f93] bg-[#f5f7f9] rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-[#00675c]/30"
+          className="w-full text-xs text-[#2a2a2a] placeholder:text-[#8a8f93] bg-[#f5f7f9] rounded-md px-2 py-1.5 resize-none focus:outline-none focus:ring-2 focus:ring-[#1FA4DA]/30"
         />
       </div>
       <div className="flex justify-end mt-1">
         <button
           onClick={handleSubmit}
           disabled={!body.trim() || submitting}
-          className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#00675c] text-white text-[11px] font-semibold disabled:opacity-40 hover:bg-[#004d45] transition-colors"
+          className="flex items-center gap-1 px-2 py-1 rounded-md bg-[#1FA4DA] text-white text-[11px] font-semibold disabled:opacity-40 hover:bg-[#004d45] transition-colors"
         >
           <SendIcon className="w-3 h-3" />
           Enviar

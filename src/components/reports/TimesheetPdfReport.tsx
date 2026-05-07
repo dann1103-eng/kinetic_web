@@ -41,7 +41,7 @@ function fmtEntryWhen(iso: string): string {
 const s = StyleSheet.create({
   page: { fontFamily: 'Helvetica', backgroundColor: '#ffffff', paddingHorizontal: 40, paddingVertical: 36, fontSize: 9, color: '#191c1e' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#e8ecef' },
-  logoBox: { backgroundColor: '#00675c', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4 },
+  logoBox: { backgroundColor: '#1FA4DA', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4 },
   logoText: { color: '#ffffff', fontFamily: 'Helvetica-Bold', fontSize: 11, letterSpacing: 0.5 },
   title: { fontFamily: 'Helvetica-Bold', fontSize: 16, color: '#191c1e', marginBottom: 4 },
   subtitle: { fontSize: 9, color: '#5c5f61', marginBottom: 2 },
@@ -68,7 +68,7 @@ const s = StyleSheet.create({
   // Footer
   footer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 24, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e8ecef', position: 'absolute', bottom: 24, left: 40, right: 40 },
   footerText: { fontSize: 7.5, color: '#5c5f61', letterSpacing: 0.5 },
-  footerBrand: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#00675c', letterSpacing: 0.5 },
+  footerBrand: { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#1FA4DA', letterSpacing: 0.5 },
 
   totalRow: { flexDirection: 'row', paddingVertical: 6, paddingHorizontal: 6, borderTopWidth: 1, borderTopColor: '#dfe3e6', backgroundColor: '#f5f7f9' },
 })
@@ -156,7 +156,7 @@ export function TimesheetPdfReport({
           </View>
           <View>
             <Text style={[s.textBold, { textAlign: 'right' }]}>Total</Text>
-            <Text style={[s.title, { textAlign: 'right', color: '#00675c' }]}>
+            <Text style={[s.title, { textAlign: 'right', color: '#1FA4DA' }]}>
               {formatDurationHMS(totalSeconds)}
             </Text>
           </View>

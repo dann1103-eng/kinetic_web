@@ -38,7 +38,7 @@ function CallbackUI({ status, invoiceId }: { status: 'success' | 'cancel'; invoi
   const subtitle = isSuccess
     ? 'Estamos confirmando con n1co. Esta ventana se cerrará automáticamente.'
     : 'No se realizó ningún cobro. Puedes cerrar esta ventana.'
-  const color = isSuccess ? '#00675c' : '#b31b25'
+  const color = isSuccess ? '#1FA4DA' : '#E5316E'
 
   // Inline script: postMessage al parent y mostrar UI de éxito.
   // No hay React state porque la página puede cerrarse por sí misma — el padre la cierra al recibir el mensaje.

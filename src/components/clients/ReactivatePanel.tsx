@@ -162,7 +162,7 @@ export function ReactivatePanel({ client, plans }: ReactivatePanelProps) {
           onClick={handleReactivate}
           disabled={loading}
           className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-90"
-          style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+          style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
         >
           {loading ? 'Reactivando...' : 'Reactivar cliente y crear ciclo'}
         </button>

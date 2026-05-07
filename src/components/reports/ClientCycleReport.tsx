@@ -58,9 +58,9 @@ function fmtDate(d: string): string {
 }
 
 function barColor(pct: number): string {
-  if (pct >= 90) return '#b31b25'
+  if (pct >= 90) return '#E5316E'
   if (pct >= 70) return '#f59e0b'
-  return '#00675c'
+  return '#1FA4DA'
 }
 
 const PHASE_LABELS: Record<Phase, string> = {
@@ -80,7 +80,7 @@ const PHASE_LABELS: Record<Phase, string> = {
 
 const PHASE_COLORS: Record<Phase, { bg: string; text: string }> = {
   pendiente:           { bg: '#f2f4f6', text: '#abadaf' },
-  proceso_edicion:     { bg: '#e8f5f3', text: '#00675c' },
+  proceso_edicion:     { bg: '#e8f5f3', text: '#1FA4DA' },
   proceso_diseno:      { bg: '#e0f5fb', text: '#0891b2' },
   proceso_animacion:   { bg: '#f3f0ff', text: '#7c3aed' },
   cambios:             { bg: '#fff4ed', text: '#ea580c' },
@@ -90,7 +90,7 @@ const PHASE_COLORS: Record<Phase, { bg: string; text: string }> = {
   revision_cliente:    { bg: '#e8f0fb', text: '#3b6fd4' },
   aprobado:            { bg: '#f0f7e8', text: '#4a6319' },
   pendiente_publicar:  { bg: '#f7fee7', text: '#65a30d' },
-  publicado_entregado: { bg: '#e8f5f3', text: '#00675c' },
+  publicado_entregado: { bg: '#e8f5f3', text: '#1FA4DA' },
 }
 
 const ROLLOVER_KEY: Record<ContentType, keyof PlanLimits> = {
@@ -111,7 +111,7 @@ const s = StyleSheet.create({
 
   // Header
   headerRow:       { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: '#e8ecef' },
-  logoBox:         { backgroundColor: '#00675c', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4 },
+  logoBox:         { backgroundColor: '#1FA4DA', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 4 },
   logoText:        { color: '#ffffff', fontFamily: 'Helvetica-Bold', fontSize: 11, letterSpacing: 0.5 },
   clientName:      { fontFamily: 'Helvetica-Bold', fontSize: 18, color: '#191c1e', marginBottom: 4 },
   metaRow:         { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 3 },
@@ -120,11 +120,11 @@ const s = StyleSheet.create({
   badgePaid:       { backgroundColor: '#a1f1e3', color: '#005047', fontSize: 7, fontFamily: 'Helvetica-Bold', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
   badgeUnpaid:     { backgroundColor: '#ffdad6', color: '#93000a', fontSize: 7, fontFamily: 'Helvetica-Bold', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
   clientCircle:    { width: 44, height: 44, borderRadius: 22, backgroundColor: '#eceef0', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#dfe3e6' },
-  clientInitials:  { fontFamily: 'Helvetica-Bold', fontSize: 13, color: '#00675c' },
+  clientInitials:  { fontFamily: 'Helvetica-Bold', fontSize: 13, color: '#1FA4DA' },
 
   // Section title
   sectionTitle:    { fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#5c5f61', letterSpacing: 1.4, textTransform: 'uppercase', marginBottom: 10 },
-  sectionLine:     { width: 16, height: 1, backgroundColor: '#00675c', marginRight: 6 },
+  sectionLine:     { width: 16, height: 1, backgroundColor: '#1FA4DA', marginRight: 6 },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
 
   // Cards
@@ -147,7 +147,7 @@ const s = StyleSheet.create({
   cambiosTopRow:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 },
   cambiosTitle:    { fontFamily: 'Helvetica-Bold', fontSize: 11, color: '#191c1e' },
   cambiosSubtitle: { fontSize: 7, color: '#5c5f61', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 },
-  cambiosUsed:     { fontFamily: 'Helvetica-Bold', fontSize: 14, color: '#00675c' },
+  cambiosUsed:     { fontFamily: 'Helvetica-Bold', fontSize: 14, color: '#1FA4DA' },
   cambiosBarTrack: { width: '100%', height: 5, backgroundColor: '#e1e3e5', borderRadius: 2, overflow: 'hidden', marginBottom: 10 },
   cambiosDotRow:   { flexDirection: 'row', gap: 16, flexWrap: 'wrap', alignItems: 'center' },
   dotItem:         { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -160,7 +160,7 @@ const s = StyleSheet.create({
   groupHeaderText: { fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#5c5f61', letterSpacing: 1.2, textTransform: 'uppercase' },
   groupWrap:       { borderWidth: 1, borderColor: '#e8ecef', borderRadius: 6, overflow: 'hidden', marginBottom: 10 },
   reqRow:          { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 7, borderBottomWidth: 1, borderBottomColor: '#f2f4f6', gap: 7 },
-  reqBullet:       { width: 4, height: 4, borderRadius: 2, backgroundColor: '#00675c', flexShrink: 0 },
+  reqBullet:       { width: 4, height: 4, borderRadius: 2, backgroundColor: '#1FA4DA', flexShrink: 0 },
   reqTitle:        { flex: 1, fontSize: 8.5, color: '#191c1e' },
   phasePill:       { fontSize: 6.5, fontFamily: 'Helvetica-Bold', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 8 },
   cambiosBadge:    { fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#5c5f61', backgroundColor: '#eceef0', paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
@@ -168,7 +168,7 @@ const s = StyleSheet.create({
   // Footer
   footer:          { flexDirection: 'row', justifyContent: 'space-between', marginTop: 24, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#e8ecef' },
   footerText:      { fontSize: 7.5, color: '#5c5f61', letterSpacing: 0.5 },
-  footerBrand:     { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#00675c', letterSpacing: 0.5 },
+  footerBrand:     { fontSize: 7.5, fontFamily: 'Helvetica-Bold', color: '#1FA4DA', letterSpacing: 0.5 },
 })
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -303,19 +303,19 @@ export function ClientCycleReport({ client, cycle, requirements, includeDetail, 
           </View>
           <View style={s.cambiosDotRow}>
             <View style={s.dotItem}>
-              <View style={[s.dot, { backgroundColor: '#00675c' }]} />
+              <View style={[s.dot, { backgroundColor: '#1FA4DA' }]} />
               <Text style={s.dotText}>Plan: <Text style={{ fontFamily: 'Helvetica-Bold' }}>{planBase} incluidos</Text></Text>
             </View>
             {pkgTotal > 0 && (
               <View style={s.dotItem}>
-                <View style={[s.dot, { backgroundColor: '#5bf4de' }]} />
+                <View style={[s.dot, { backgroundColor: '#87daff' }]} />
                 <Text style={s.dotText}>
-                  Comprados: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#00675c' }}>+{pkgTotal}</Text>
+                  Comprados: <Text style={{ fontFamily: 'Helvetica-Bold', color: '#1FA4DA' }}>+{pkgTotal}</Text>
                   {packages[0]?.note ? <Text style={{ color: '#abadaf' }}> — {packages[0].note}</Text> : null}
                 </Text>
               </View>
             )}
-            <Text style={[s.cambiosAvail, { color: cambiosAvail === 0 ? '#b31b25' : '#5c5f61' }]}>
+            <Text style={[s.cambiosAvail, { color: cambiosAvail === 0 ? '#E5316E' : '#5c5f61' }]}>
               {cambiosAvail} disponibles
             </Text>
           </View>

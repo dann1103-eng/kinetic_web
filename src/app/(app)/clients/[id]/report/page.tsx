@@ -23,9 +23,9 @@ function formatDateShort(d: string): string {
 }
 
 function barColor(pct: number): string {
-  if (pct >= 90) return '#b31b25'
+  if (pct >= 90) return '#E5316E'
   if (pct >= 70) return '#f59e0b'
-  return '#00675c'
+  return '#1FA4DA'
 }
 
 export default async function ClientReportPage({
@@ -187,7 +187,7 @@ export default async function ClientReportPage({
                       <span
                         className="font-bold"
                         style={{
-                          color: daysLeft < 0 ? '#b31b25' : daysLeft <= 3 ? '#f59e0b' : '#00675c',
+                          color: daysLeft < 0 ? '#E5316E' : daysLeft <= 3 ? '#f59e0b' : '#1FA4DA',
                         }}
                       >
                         {daysLeft < 0
@@ -252,7 +252,7 @@ export default async function ClientReportPage({
                         <td className="py-3 pr-4 font-semibold text-fm-on-surface">{CONTENT_TYPE_LABELS[type]}</td>
                         <td className="py-3 px-4 text-right font-extrabold text-fm-on-surface">{consumed}</td>
                         <td className="py-3 px-4 text-right text-fm-on-surface-variant">{limit}</td>
-                        <td className="py-3 px-4 text-right" style={{ color: remaining === 0 ? '#b31b25' : '#595c5e' }}>
+                        <td className="py-3 px-4 text-right" style={{ color: remaining === 0 ? '#E5316E' : '#595c5e' }}>
                           {remaining}
                         </td>
                         <td className="py-3 pl-4 text-right font-bold" style={{ color }}>{pct}%</td>

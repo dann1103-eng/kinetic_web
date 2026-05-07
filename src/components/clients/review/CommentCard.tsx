@@ -119,7 +119,7 @@ function CommentRow({
             className="w-6 h-6 rounded-full object-cover"
           />
         ) : (
-          <div className="w-6 h-6 rounded-full bg-[#00675c] text-white text-[10px] font-semibold flex items-center justify-center">
+          <div className="w-6 h-6 rounded-full bg-[#1FA4DA] text-white text-[10px] font-semibold flex items-center justify-center">
             {initialsOf(user?.full_name ?? '?')}
           </div>
         )}
@@ -299,7 +299,7 @@ export function CommentCard({
       }`}
     >
       <div className="flex items-start gap-2 mb-1.5">
-        <div className="w-5 h-5 rounded-full bg-[#00675c] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+        <div className="w-5 h-5 rounded-full bg-[#1FA4DA] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">
           {pin.pin_number}
         </div>
         <div className="flex-1 min-w-0">

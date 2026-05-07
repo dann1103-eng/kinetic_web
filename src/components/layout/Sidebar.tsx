@@ -187,17 +187,17 @@ export function SidebarContent({
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={agencyLogoUrl}
-              alt="FM"
+              alt="Kinetic"
               className="w-full h-full object-contain p-0.5"
               onError={() => setLogoError(true)}
             />
           ) : (
-            <span className="text-white font-bold text-sm">FM</span>
+            <span className="text-white font-bold text-sm">K</span>
           )}
         </div>
         <div>
-          <p className="font-bold text-fm-on-surface text-sm leading-tight">FM Communication</p>
-          <p className="text-fm-on-surface-variant text-xs">Solutions</p>
+          <p className="font-bold text-fm-on-surface text-sm leading-tight">Kinetic</p>
+          <p className="text-fm-on-surface-variant text-xs">muévete y aprende</p>
         </div>
       </div>
 

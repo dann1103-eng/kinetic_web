@@ -16,9 +16,9 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const avatarGradients = [
-  'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)',
-  'linear-gradient(135deg, #3f3a9b 0%, #b8b3ff 100%)',
-  'linear-gradient(135deg, #006385 0%, #1dc0fe 100%)',
+  'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)',
+  'linear-gradient(135deg, #d99a26 0%, #ffd58f 100%)',
+  'linear-gradient(135deg, #65a73d 0%, #b6e094 100%)',
   'linear-gradient(135deg, #5c4a8a 0%, #b89cff 100%)',
   'linear-gradient(135deg, #7a4f00 0%, #ffcc5c 100%)',
 ]

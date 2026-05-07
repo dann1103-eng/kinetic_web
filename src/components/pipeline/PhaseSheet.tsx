@@ -677,7 +677,7 @@ export function PhaseSheet({
                   onClick={handleSaveEdit}
                   disabled={savingEdit || !editTitle.trim()}
                   className="w-full py-2 text-sm font-semibold rounded-xl text-white disabled:opacity-50"
-                  style={{ background: 'linear-gradient(135deg,#00675c,#5bf4de)' }}
+                  style={{ background: 'linear-gradient(135deg,#1FA4DA,#87daff)' }}
                 >
                   {savingEdit ? 'Guardando…' : 'Guardar cambios'}
                 </button>
@@ -953,7 +953,7 @@ export function PhaseSheet({
                             style={{
                               background: isPassiveTimerPhase(log.to_phase as Phase) ? '#f59e0b'
                                 : PHASE_CATEGORY[log.to_phase as Phase] === 'timestamp_only' ? '#22c55e'
-                                : '#00675c',
+                                : '#1FA4DA',
                             }}
                           />
                           {idx < logs.length - 1 && (
@@ -1076,7 +1076,7 @@ export function PhaseSheet({
               onClick={handleMove}
               disabled={moving || toPhase === currentPhase}
               className="flex-1 rounded-xl text-white font-semibold h-9 text-sm"
-              style={{ background: 'linear-gradient(135deg,#00675c,#5bf4de)' }}
+              style={{ background: 'linear-gradient(135deg,#1FA4DA,#87daff)' }}
             >
               {moving ? 'Moviendo…' : 'Mover fase'}
             </Button>

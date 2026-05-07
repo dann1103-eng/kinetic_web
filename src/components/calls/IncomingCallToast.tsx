@@ -111,8 +111,8 @@ export function IncomingCallToast() {
 
   return (
     <div className="fixed bottom-6 right-6 z-[300] w-[320px] bg-white border border-[#dfe3e6] rounded-xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4">
-      <div className="px-4 py-3 bg-[#00675c]/5 border-b border-[#dfe3e6]">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#00675c]">
+      <div className="px-4 py-3 bg-[#1FA4DA]/5 border-b border-[#dfe3e6]">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#1FA4DA]">
           {modalityLabel} {isChannelCall ? 'en canal' : 'entrante'}
         </p>
       </div>
@@ -144,7 +144,7 @@ export function IncomingCallToast() {
         <button
           type="button"
           onClick={handleReject}
-          className="flex-1 h-10 rounded-lg bg-[#b31b25]/10 text-[#b31b25] hover:bg-[#b31b25]/20 flex items-center justify-center gap-2 font-semibold text-sm transition-colors"
+          className="flex-1 h-10 rounded-lg bg-[#E5316E]/10 text-[#E5316E] hover:bg-[#E5316E]/20 flex items-center justify-center gap-2 font-semibold text-sm transition-colors"
         >
           <PhoneOffIcon size={16} />
           {isChannelCall ? 'Ignorar' : 'Rechazar'}
@@ -152,7 +152,7 @@ export function IncomingCallToast() {
         <button
           type="button"
           onClick={handleAccept}
-          className="flex-1 h-10 rounded-lg bg-[#00675c] text-white hover:bg-[#00675c]/90 flex items-center justify-center gap-2 font-semibold text-sm transition-colors"
+          className="flex-1 h-10 rounded-lg bg-[#1FA4DA] text-white hover:bg-[#1FA4DA]/90 flex items-center justify-center gap-2 font-semibold text-sm transition-colors"
         >
           <PhoneIcon size={16} />
           {isChannelCall ? 'Unirse' : 'Aceptar'}

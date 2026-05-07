@@ -11,7 +11,7 @@ export function SolicitarRequerimientoButton() {
         type="button"
         onClick={() => setOpen(true)}
         className="inline-flex items-center gap-2 text-sm font-semibold text-white px-4 py-2 rounded-xl shadow-sm hover:shadow"
-        style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+        style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
       >
         <span className="material-symbols-outlined text-base">add_task</span>
         Solicitar requerimiento

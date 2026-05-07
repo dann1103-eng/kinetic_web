@@ -331,7 +331,7 @@ export function RequirementChat({ requirementId, currentUserId, isAdmin = false,
                         style={{
                           background: isMine
                             ? 'linear-gradient(135deg,#5c4a8a,#b89cff)'
-                            : 'linear-gradient(135deg,#00675c,#5bf4de)',
+                            : 'linear-gradient(135deg,#1FA4DA,#87daff)',
                         }}
                       >
                         {initials(name)}
@@ -370,7 +370,7 @@ export function RequirementChat({ requirementId, currentUserId, isAdmin = false,
                         <div
                           className={`px-3 py-2 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                             isMine
-                              ? 'text-white rounded-br-sm bg-gradient-to-br from-[#00675c] to-[#029e90] dark:bg-none dark:bg-fm-primary/25 dark:text-teal-100 dark:border dark:border-fm-primary/40'
+                              ? 'text-white rounded-br-sm bg-gradient-to-br from-[#1FA4DA] to-[#029e90] dark:bg-none dark:bg-fm-primary/25 dark:text-teal-100 dark:border dark:border-fm-primary/40'
                               : 'bg-fm-surface-container-low text-fm-on-surface rounded-bl-sm'
                           }`}
                         >
@@ -494,7 +494,7 @@ export function RequirementChat({ requirementId, currentUserId, isAdmin = false,
           onClick={handleSend}
           disabled={(!body.trim() && !pendingFile) || sending}
           className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 disabled:opacity-40 transition-opacity"
-          style={{ background: 'linear-gradient(135deg,#00675c,#5bf4de)' }}
+          style={{ background: 'linear-gradient(135deg,#1FA4DA,#87daff)' }}
         >
           {sending ? (
             <span className="material-symbols-outlined text-base text-white animate-spin">progress_activity</span>

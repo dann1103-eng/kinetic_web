@@ -109,7 +109,7 @@ export const PRIORITY_LABELS: Record<Priority, string> = {
 export const PRIORITY_COLORS: Record<Priority, string> = {
   baja:  '#27ae60',
   media: '#f2c94c',
-  alta:  '#b31b25',
+  alta:  '#E5316E',
 }
 
 export type ClientStatus = 'active' | 'paused' | 'overdue'

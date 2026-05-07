@@ -40,7 +40,7 @@ export function ClientNotesPanel({ clientId, initialNotes }: ClientNotesPanelPro
           disabled={saving}
           className="px-6 py-2.5 text-white font-bold rounded-full shadow-lg hover:scale-[1.02] transition-transform active:scale-95 text-sm disabled:opacity-60"
           style={{
-            background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)',
+            background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)',
             boxShadow: '0 4px 15px rgba(0,103,92,0.2)',
           }}
         >

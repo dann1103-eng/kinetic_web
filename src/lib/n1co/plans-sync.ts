@@ -53,7 +53,7 @@ export function mapCrmPlanToN1co(args: {
 
   return {
     name: args.plan.name,
-    description: `${args.plan.name} — FM Communications`,
+    description: `${args.plan.name} — Kinetic`,
     amount: args.plan.price_usd,
     billingCycleType: cycle.type,
     billingCyclesNumber: cycle.n,

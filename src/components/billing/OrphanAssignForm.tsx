@@ -58,7 +58,7 @@ export function OrphanAssignForm({ eventId, invoices }: Props) {
         disabled={pending || !invoiceId}
         onClick={submit}
         className="w-full rounded-xl text-white text-xs"
-        style={{ background: '#00675c' }}
+        style={{ background: '#1FA4DA' }}
       >
         {pending ? 'Asignando…' : 'Asignar pago'}
       </Button>

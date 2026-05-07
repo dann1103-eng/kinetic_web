@@ -67,7 +67,7 @@ export async function createInvoicePaymentLink(args: {
   const { invoice, client, plan, periodLabel } = args
 
   const orderName = plan?.name
-    ? `FM Communications · ${plan.name}${periodLabel ? ` (${periodLabel})` : ''}`
+    ? `Kinetic · ${plan.name}${periodLabel ? ` (${periodLabel})` : ''}`
     : `Factura ${invoice.invoice_number}`
 
   const orderDescription = `Factura ${invoice.invoice_number} · Cliente: ${client.name}`

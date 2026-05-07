@@ -20,9 +20,9 @@ const MONTHS_SHORT = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct
 const MONTHS_FULL  = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
 
 function barColor(pct: number): string {
-  if (pct >= 90) return '#b31b25'
+  if (pct >= 90) return '#E5316E'
   if (pct >= 70) return '#f59e0b'
-  return '#00675c'
+  return '#1FA4DA'
 }
 
 function AccordionSection({
@@ -276,11 +276,11 @@ export default async function ReportsPage() {
         <AccordionSection title="Indicadores clave" subtitle={cycleMonth} defaultOpen>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             {[
-              { label: 'Clientes activos', value: totalActive, color: '#00675c' },
+              { label: 'Clientes activos', value: totalActive, color: '#1FA4DA' },
               { label: 'Clientes pausados', value: totalPaused, color: '#595c5e' },
-              { label: 'Clientes morosos', value: totalOverdue, color: '#b31b25' },
-              { label: 'MRR cobrado', value: `$${mrrCobrado.toLocaleString('en-US', { minimumFractionDigits: 0 })}`, color: '#00675c' },
-              { label: 'Pendiente cobro', value: `$${ingresosPendientes.toLocaleString('en-US', { minimumFractionDigits: 0 })}`, color: ingresosPendientes > 0 ? '#b31b25' : '#595c5e' },
+              { label: 'Clientes morosos', value: totalOverdue, color: '#E5316E' },
+              { label: 'MRR cobrado', value: `$${mrrCobrado.toLocaleString('en-US', { minimumFractionDigits: 0 })}`, color: '#1FA4DA' },
+              { label: 'Pendiente cobro', value: `$${ingresosPendientes.toLocaleString('en-US', { minimumFractionDigits: 0 })}`, color: ingresosPendientes > 0 ? '#E5316E' : '#595c5e' },
             ].map((card) => (
               <div key={card.label} className="rounded-2xl bg-fm-background border border-fm-surface-container-high p-5 space-y-2">
                 <p className="text-[11px] font-extrabold uppercase tracking-wider text-fm-on-surface-variant">{card.label}</p>
@@ -342,7 +342,7 @@ export default async function ReportsPage() {
                 >
                   <span
                     className="text-2xl font-black"
-                    style={{ color: count > 0 ? '#00675c' : '#abadaf' }}
+                    style={{ color: count > 0 ? '#1FA4DA' : '#abadaf' }}
                   >
                     {count}
                   </span>
@@ -375,9 +375,9 @@ export default async function ReportsPage() {
                   {clientRows.map((row) => {
                     const daysColor =
                       row.daysLeft === null ? '#595c5e'
-                      : row.daysLeft < 0 ? '#b31b25'
+                      : row.daysLeft < 0 ? '#E5316E'
                       : row.daysLeft <= 3 ? '#f59e0b'
-                      : '#00675c'
+                      : '#1FA4DA'
                     const daysLabel =
                       row.daysLeft === null ? '—'
                       : row.daysLeft < 0 ? 'Vencido'

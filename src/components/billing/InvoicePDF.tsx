@@ -8,8 +8,8 @@ import type {
 } from '@/types/db'
 import { PAYMENT_METHOD_LABELS } from '@/types/db'
 
-const TEAL = '#00675c'
-const RED = '#b31b25'
+const TEAL = '#1FA4DA'
+const RED = '#E5316E'
 const GRAY = '#595c5e'
 const BORDER = '#dfe3e6'
 const BG_SOFT = '#f5f7f9'

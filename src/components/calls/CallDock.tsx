@@ -163,7 +163,7 @@ export function CallDock() {
               type="button"
               onClick={handleHangup}
               title="Colgar"
-              className="w-7 h-7 rounded-full bg-[#b31b25] hover:bg-[#b31b25]/90 flex items-center justify-center transition-colors text-white"
+              className="w-7 h-7 rounded-full bg-[#E5316E] hover:bg-[#E5316E]/90 flex items-center justify-center transition-colors text-white"
             >
               <PhoneOffIcon size={12} />
             </button>
@@ -182,14 +182,14 @@ export function CallDock() {
           <span className="text-xs font-semibold text-[#2a2a2a] max-w-[120px] truncate">
             {activeCall.title}
           </span>
-          <span className="text-[10px] text-[#00675c] font-bold uppercase">
+          <span className="text-[10px] text-[#1FA4DA] font-bold uppercase">
             en llamada
           </span>
           <button
             type="button"
             onClick={handleExpand}
             title="Expandir"
-            className="w-7 h-7 rounded-full bg-[#00675c]/10 text-[#00675c] hover:bg-[#00675c]/20 flex items-center justify-center transition-colors"
+            className="w-7 h-7 rounded-full bg-[#1FA4DA]/10 text-[#1FA4DA] hover:bg-[#1FA4DA]/20 flex items-center justify-center transition-colors"
           >
             <Maximize2Icon size={13} />
           </button>
@@ -197,7 +197,7 @@ export function CallDock() {
             type="button"
             onClick={handleHangup}
             title="Colgar"
-            className="w-7 h-7 rounded-full bg-[#b31b25] text-white hover:bg-[#b31b25]/90 flex items-center justify-center transition-colors"
+            className="w-7 h-7 rounded-full bg-[#E5316E] text-white hover:bg-[#E5316E]/90 flex items-center justify-center transition-colors"
           >
             <PhoneOffIcon size={13} />
           </button>

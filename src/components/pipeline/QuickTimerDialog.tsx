@@ -279,7 +279,7 @@ export function QuickTimerDialog({
                   : windowLabel ?? undefined
               }
               className="flex-1 rounded-xl h-10 text-white font-semibold disabled:opacity-50"
-              style={canStart && hasActiveShift !== false ? { background: 'linear-gradient(135deg,#00675c,#5bf4de)' } : {}}
+              style={canStart && hasActiveShift !== false ? { background: 'linear-gradient(135deg,#1FA4DA,#87daff)' } : {}}
             >
               {busy ? 'Iniciando…' : 'Iniciar timer'}
             </Button>

@@ -45,7 +45,7 @@ function buildBrowserNotifPayload(item: NotificationItem): { title: string; body
       body: item.requirement_title ?? 'Tienes un requerimiento vencido',
     }
   }
-  return { title: 'Notificación FM CRM', body: '' }
+  return { title: 'Notificación Kinetic', body: '' }
 }
 
 function buildHref(item: NotificationItem): string {

@@ -23,8 +23,8 @@ const EXCLUDED_FROM_CARD = new Set<ContentType>(['produccion', 'reunion'])
 function progressColor(consumed: number, limit: number): string {
   if (limit === 0) return 'bg-fm-outline-variant'
   const pct = (consumed / limit) * 100
-  if (pct >= 90) return 'bg-fm-error dark:bg-[#ff6b6b]'
-  if (pct >= 70) return 'bg-amber-500 dark:bg-[#DAE54E]'
+  if (pct >= 90) return 'bg-fm-error dark:bg-[#ff7aa6]'
+  if (pct >= 70) return 'bg-amber-500 dark:bg-[#F7B945]'
   return 'bg-fm-primary'
 }
 
@@ -53,9 +53,9 @@ function getAvatarText(name: string): string {
 }
 
 const avatarGradients = [
-  'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)',
-  'linear-gradient(135deg, #3f3a9b 0%, #b8b3ff 100%)',
-  'linear-gradient(135deg, #006385 0%, #1dc0fe 100%)',
+  'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)',
+  'linear-gradient(135deg, #d99a26 0%, #ffd58f 100%)',
+  'linear-gradient(135deg, #65a73d 0%, #b6e094 100%)',
   'linear-gradient(135deg, #5c4a8a 0%, #b89cff 100%)',
   'linear-gradient(135deg, #7a4f00 0%, #ffcc5c 100%)',
 ]
@@ -75,7 +75,7 @@ export function ClientCard({ item }: { item: ClientDashboardItem }) {
       : 0
     : overallProgress(totals, limits)
   const barColor =
-    pct >= 90 ? 'bg-fm-error dark:bg-[#ff6b6b]' : pct >= 70 ? 'bg-amber-500 dark:bg-[#DAE54E]' : 'bg-fm-primary'
+    pct >= 90 ? 'bg-fm-error dark:bg-[#ff7aa6]' : pct >= 70 ? 'bg-amber-500 dark:bg-[#F7B945]' : 'bg-fm-primary'
 
   // Mini-counters per type only for non-unified plans.
   const visibleTypes = isContentPackage

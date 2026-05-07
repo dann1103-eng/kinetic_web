@@ -145,7 +145,7 @@ export function DteRegisterForm({ invoice }: Props) {
       )}
 
       <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={pending} className="flex-1 rounded-xl text-xs text-white" style={{ background: '#00675c' }}>
+        <Button type="submit" size="sm" disabled={pending} className="flex-1 rounded-xl text-xs text-white" style={{ background: '#1FA4DA' }}>
           {pending ? 'Guardando…' : 'Guardar DTE'}
         </Button>
         {invoice.dte_codigo_generacion && (

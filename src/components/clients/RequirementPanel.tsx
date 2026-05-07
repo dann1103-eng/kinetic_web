@@ -30,16 +30,16 @@ const COUNTER_ONLY_TYPES: ContentType[] = ['matriz_contenido', 'produccion', 're
 
 // Progress bar color based on percentage
 function barColor(pct: number): string {
-  if (pct >= 90) return '#b31b25'
+  if (pct >= 90) return '#E5316E'
   if (pct >= 70) return '#f59e0b'
-  return '#00675c'
+  return '#1FA4DA'
 }
 
 // Avatar gradients (consistent with dashboard)
 const avatarGradients = [
-  'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)',
-  'linear-gradient(135deg, #3f3a9b 0%, #b8b3ff 100%)',
-  'linear-gradient(135deg, #006385 0%, #1dc0fe 100%)',
+  'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)',
+  'linear-gradient(135deg, #d99a26 0%, #ffd58f 100%)',
+  'linear-gradient(135deg, #65a73d 0%, #b6e094 100%)',
   'linear-gradient(135deg, #5c4a8a 0%, #b89cff 100%)',
   'linear-gradient(135deg, #7a4f00 0%, #ffcc5c 100%)',
 ]
@@ -448,7 +448,7 @@ export function RequirementPanel({
                   onClick={() => !buttonBlocked && setModalOpen(true)}
                   disabled={buttonBlocked}
                   className={`flex-1 md:flex-none px-5 py-2.5 text-white font-bold rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-sm ${buttonBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110'}`}
-                  style={{ background: buttonBlocked ? '#b31b25' : 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
+                  style={{ background: buttonBlocked ? '#E5316E' : 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
                 >
                   <span className="material-symbols-outlined text-base">{buttonBlocked ? 'block' : 'add'}</span>
                   {label}
@@ -509,7 +509,7 @@ export function RequirementPanel({
               onClick={handleRenewContentPackage}
               disabled={renewingPackage}
               className="flex items-center gap-2 px-5 py-2.5 text-white font-bold rounded-full text-sm disabled:opacity-60 flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
+              style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
             >
               <span className="material-symbols-outlined text-base">add_shopping_cart</span>
               {renewingPackage ? 'Creando…' : 'Contratar nuevo paquete'}
@@ -529,7 +529,7 @@ export function RequirementPanel({
             {!isUnifiedPool && daysLeft !== null && (
               <>
                 {' '}·{' '}
-                <span style={{ color: daysLeft < 0 ? '#b31b25' : daysLeft <= 3 ? '#b31b25' : '#00675c' }}>
+                <span style={{ color: daysLeft < 0 ? '#E5316E' : daysLeft <= 3 ? '#E5316E' : '#1FA4DA' }}>
                   {daysLeft < 0 ? 'Vencido' : daysLeft === 0 ? 'Vence hoy' : `${daysLeft} días restantes`}
                 </span>
               </>
@@ -562,7 +562,7 @@ export function RequirementPanel({
                     </p>
                   </div>
                 </div>
-                <p className="text-xs font-bold" style={{ color: available === 0 ? '#b31b25' : '#00675c' }}>
+                <p className="text-xs font-bold" style={{ color: available === 0 ? '#E5316E' : '#1FA4DA' }}>
                   {available} disponibles
                 </p>
               </div>
@@ -694,7 +694,7 @@ export function RequirementPanel({
           const used = requirements.filter(r => !r.voided).reduce((s, r) => s + r.cambios_count, 0)
           const available = Math.max(0, totalBudget - used)
           const pct = totalBudget > 0 ? Math.min(100, Math.round((used / totalBudget) * 100)) : 0
-          const color = pct >= 90 ? '#b31b25' : pct >= 70 ? '#f59e0b' : '#00675c'
+          const color = pct >= 90 ? '#E5316E' : pct >= 70 ? '#f59e0b' : '#1FA4DA'
 
           return (
             <div className="glass-panel rounded-2xl px-5 py-3 flex items-center gap-6 flex-wrap">
@@ -737,7 +737,7 @@ export function RequirementPanel({
                 )}
               </div>
 
-              <p className="text-[11px] font-bold ml-auto shrink-0" style={{ color: available === 0 ? '#b31b25' : '#595c5e' }}>
+              <p className="text-[11px] font-bold ml-auto shrink-0" style={{ color: available === 0 ? '#E5316E' : '#595c5e' }}>
                 {available} disponibles
               </p>
             </div>
@@ -766,7 +766,7 @@ export function RequirementPanel({
                     style={week.isCurrent ? { background: 'rgba(0,103,92,0.05)', border: '2px solid rgba(0,103,92,0.3)' } : {}}
                   >
                     <div className="flex justify-between items-start mb-4">
-                      <p className="text-[11px] font-extrabold uppercase tracking-widest" style={{ color: week.isCurrent ? '#00675c' : '#595c5e' }}>
+                      <p className="text-[11px] font-extrabold uppercase tracking-widest" style={{ color: week.isCurrent ? '#1FA4DA' : '#595c5e' }}>
                         {weekLabel}{week.isCurrent && ' · Actual'}
                       </p>
                       {week.isCurrent && <span className="flex h-2 w-2 rounded-full bg-fm-primary animate-pulse flex-shrink-0" />}
@@ -794,7 +794,7 @@ export function RequirementPanel({
                           const extra = week.overflow[type] ?? 0
                           const pct = budget > 0 ? Math.min(100, Math.round((consumed / budget) * 100)) : 0
                           const isComplete = budget > 0 && consumed >= budget
-                          const weekBarColor = isComplete ? '#00675c' : isFuture ? '#e5e9eb' : '#f59e0b'
+                          const weekBarColor = isComplete ? '#1FA4DA' : isFuture ? '#e5e9eb' : '#f59e0b'
                           return (
                             <div key={type}>
                               <div className="flex justify-between items-center mb-1">
@@ -977,7 +977,7 @@ export function RequirementPanel({
                   disabled={savingNotes}
                   className="px-6 py-2.5 text-white font-bold rounded-full shadow-lg hover:scale-[1.02] transition-transform active:scale-95 text-sm disabled:opacity-60"
                   style={{
-                    background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)',
+                    background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)',
                     boxShadow: '0 4px 15px rgba(0,103,92,0.2)',
                   }}
                 >

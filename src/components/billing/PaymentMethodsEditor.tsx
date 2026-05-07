@@ -161,7 +161,7 @@ export function PaymentMethodsEditor({ initialMethods }: PaymentMethodsEditorPro
             onClick={save}
             disabled={isPending}
             className="rounded-lg text-white text-sm"
-            style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+            style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
           >
             Guardar
           </Button>

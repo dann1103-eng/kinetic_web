@@ -36,7 +36,7 @@ export async function tryCreateN1coPaymentLink(
   const payBaseUrl = env === 'production'
     ? 'https://api-pay.n1co.shop/api'
     : 'https://api-pay-sandbox.n1co.shop/api'
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? 'https://fm-full-y-connect.vercel.app').replace(/\/$/, '')
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? 'http://localhost:3000').replace(/\/$/, '')
 
   try {
     const res = await fetch(`${payBaseUrl}/paymentlink/checkout`, {
@@ -48,7 +48,7 @@ export async function tryCreateN1coPaymentLink(
       },
       body: JSON.stringify({
         orderReference: args.invoiceId,
-        orderName: `FM Communications · Plan ${args.planName} (${args.periodLabel})`,
+        orderName: `Kinetic · ${args.planName} (${args.periodLabel})`,
         orderDescription: `Factura ${args.invoiceNumber} · Cliente: ${args.clientName}`,
         amount: args.amount,
         successUrl: `${appUrl}/n1co-callback?invoice=${encodeURIComponent(args.invoiceId)}&status=success`,

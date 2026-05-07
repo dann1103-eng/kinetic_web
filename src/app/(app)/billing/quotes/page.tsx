@@ -62,7 +62,7 @@ export default async function QuotesListPage({
           <Link
             href="/billing/quotes/new"
             className="text-sm font-semibold text-white px-4 py-2 rounded-xl"
-            style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+            style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
           >
             + Nueva cotización
           </Link>

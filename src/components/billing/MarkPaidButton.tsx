@@ -48,7 +48,7 @@ export function MarkPaidButton({ invoiceId, linkedToCycle }: MarkPaidButtonProps
       <Button
         onClick={() => setOpen(true)}
         className="rounded-xl text-white font-semibold"
-        style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+        style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
       >
         Marcar pagada
       </Button>
@@ -109,7 +109,7 @@ export function MarkPaidButton({ invoiceId, linkedToCycle }: MarkPaidButtonProps
           onClick={handleConfirm}
           disabled={isPending}
           className="flex-1 rounded-xl text-white font-semibold"
-          style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+          style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
         >
           {isPending ? 'Guardando…' : 'Confirmar pago'}
         </Button>

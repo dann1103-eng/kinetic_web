@@ -155,7 +155,7 @@ export function ReviewLeftColumn({
                             <button
                               onClick={() => handleDeleteVersion(version)}
                               disabled={deletingId === version.id}
-                              className="flex items-center justify-center px-2 py-1.5 rounded text-[#b31b25] hover:bg-[#b31b25]/10 transition-colors disabled:opacity-40"
+                              className="flex items-center justify-center px-2 py-1.5 rounded text-[#E5316E] hover:bg-[#E5316E]/10 transition-colors disabled:opacity-40"
                               title="Eliminar versión"
                             >
                               <Trash2Icon className="w-3 h-3" />

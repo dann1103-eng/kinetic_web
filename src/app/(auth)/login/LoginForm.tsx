@@ -109,7 +109,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
             className="w-16 h-16 rounded-2xl mb-4 shadow-lg overflow-hidden flex items-center justify-center"
             style={
               !showLogo
-                ? { background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }
+                ? { background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }
                 : undefined
             }
           >
@@ -117,16 +117,16 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={agencyLogoUrl!}
-                alt="FM Communication Solutions"
+                alt="Kinetic"
                 className="w-full h-full object-cover"
                 onError={() => setLogoError(true)}
               />
             ) : (
-              <span className="text-white font-bold text-2xl">FM</span>
+              <span className="text-white font-bold text-2xl">K</span>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-white drop-shadow-md">FM Communication</h1>
-          <p className="text-white/90 text-sm mt-1 drop-shadow">Solutions — CRM Interno</p>
+          <h1 className="text-2xl font-bold text-white drop-shadow-md">Kinetic</h1>
+          <p className="text-white/90 text-sm mt-1 drop-shadow">Centro de Estimulación y Desarrollo Intelectual</p>
         </div>
 
         {/* Form card */}
@@ -153,7 +153,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
             <>
               <h2 className="text-lg font-semibold text-fm-on-surface mb-1">Iniciar sesión</h2>
               <p className="text-sm text-fm-on-surface-variant mb-6">
-                Accede con tu cuenta de agencia.
+                Accede con tu cuenta de Kinetic.
               </p>
 
               <form onSubmit={handlePasswordLogin} className="space-y-4">
@@ -202,7 +202,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
                   type="submit"
                   disabled={loading}
                   className="w-full h-11 font-semibold text-white rounded-xl mt-2"
-                  style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+                  style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
                 >
                   {loading ? 'Ingresando...' : 'Ingresar'}
                 </Button>
@@ -255,7 +255,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
                   type="submit"
                   disabled={loading}
                   className="w-full h-11 font-semibold text-white rounded-xl mt-2"
-                  style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+                  style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
                 >
                   {loading ? 'Enviando...' : 'Enviar link de acceso'}
                 </Button>

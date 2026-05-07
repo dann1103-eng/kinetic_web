@@ -14,7 +14,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#00675c",
+  themeColor: "#1FA4DA",
 };
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -35,13 +35,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const appleIconUrl = agencyLogoUrl ?? '/icons/apple-touch-icon.png'
 
   return {
-    title: 'FM Communication Solutions — CRM',
-    description: 'Plataforma de gestión de clientes y requerimientos de contenido',
+    title: 'Kinetic — Centro de Estimulación y Desarrollo Intelectual',
+    description: 'Plataforma de gestión clínica y educativa para niños neurodivergentes',
     manifest: '/manifest.json',
     appleWebApp: {
       capable: true,
       statusBarStyle: 'default',
-      title: 'FM CRM',
+      title: 'Kinetic',
     },
     icons: {
       icon: iconUrl,

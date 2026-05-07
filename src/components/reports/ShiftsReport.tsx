@@ -95,7 +95,7 @@ export function ShiftsReport({ users }: { users: UserMini[] }) {
                     ? Math.min(100, Math.round((row.productiveSeconds / row.onlineSeconds) * 100))
                     : 0
                 const pctColor =
-                  pct >= 70 ? '#00675c' : pct >= 40 ? '#f59e0b' : '#b31b25'
+                  pct >= 70 ? '#1FA4DA' : pct >= 40 ? '#f59e0b' : '#E5316E'
                 return (
                   <tr
                     key={row.userId}

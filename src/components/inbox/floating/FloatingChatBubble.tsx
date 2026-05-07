@@ -110,7 +110,7 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
   return (
     <div className="flex flex-col bg-fm-surface-container-lowest border border-fm-surface-container-high rounded-xl shadow-xl w-[322px] max-w-[calc(100vw-2rem)]">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 bg-[#00675c] text-white rounded-t-xl overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 bg-[#1FA4DA] text-white rounded-t-xl overflow-hidden">
         <div className="flex items-center gap-2 min-w-0">
           {conversation.type === 'dm' ? (
             <span className="relative inline-block">
@@ -188,7 +188,7 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
                     </span>
                   )}
                   {share ? (
-                    <div className={`max-w-[95%] ${isPending && !isFailed ? 'opacity-60' : ''} ${isFailed ? 'ring-1 ring-[#b31b25] rounded-lg' : ''}`}>
+                    <div className={`max-w-[95%] ${isPending && !isFailed ? 'opacity-60' : ''} ${isFailed ? 'ring-1 ring-[#E5316E] rounded-lg' : ''}`}>
                       <RequirementShareCard
                         requirementId={share.requirementId}
                         title={share.title}
@@ -199,9 +199,9 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
                     <div
                       className={`max-w-[90%] rounded-xl px-3 py-1.5 text-xs transition-opacity ${
                         isMe
-                          ? 'bg-[#00675c] text-white rounded-br-sm'
+                          ? 'bg-[#1FA4DA] text-white rounded-br-sm'
                           : 'bg-fm-surface-container-low text-fm-on-surface border border-fm-surface-container-high rounded-bl-sm'
-                      } ${isPending && !isFailed ? 'opacity-60' : ''} ${isFailed ? 'ring-1 ring-[#b31b25]' : ''}`}
+                      } ${isPending && !isFailed ? 'opacity-60' : ''} ${isFailed ? 'ring-1 ring-[#E5316E]' : ''}`}
                     >
                       {msg.body}
                     </div>
@@ -210,7 +210,7 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
                     <button
                       type="button"
                       onClick={() => retryFailed(msg.id)}
-                      className="text-[9px] text-[#b31b25] px-1 mt-0.5 hover:underline"
+                      className="text-[9px] text-[#E5316E] px-1 mt-0.5 hover:underline"
                     >
                       Error al enviar · Reintentar
                     </button>
@@ -244,7 +244,7 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
             <button
               type="submit"
               disabled={!body.trim() || sending}
-              className="p-1.5 rounded-lg bg-[#00675c] text-white disabled:opacity-40 hover:bg-[#005549] transition-colors"
+              className="p-1.5 rounded-lg bg-[#1FA4DA] text-white disabled:opacity-40 hover:bg-[#005549] transition-colors"
             >
               <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>

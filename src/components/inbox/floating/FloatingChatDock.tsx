@@ -115,7 +115,7 @@ export function FloatingChatDock() {
           <div className="px-4 py-3 border-b border-[#dfe3e6] flex items-center justify-between">
             <span className="text-sm font-bold text-[#2a2a2a]">Mensajes</span>
             {totalUnread > 0 && (
-              <span className="text-xs font-semibold text-[#b31b25]">
+              <span className="text-xs font-semibold text-[#E5316E]">
                 {totalUnread} nuevo{totalUnread !== 1 ? 's' : ''}
               </span>
             )}
@@ -143,8 +143,8 @@ export function FloatingChatDock() {
                   className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-[#f5f7f9] transition-colors text-left"
                 >
                   {conv.type === 'channel' ? (
-                    <div className="w-8 h-8 rounded-full bg-[#00675c]/10 flex items-center justify-center flex-shrink-0">
-                      <span className="text-sm font-bold text-[#00675c]">#</span>
+                    <div className="w-8 h-8 rounded-full bg-[#1FA4DA]/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-[#1FA4DA]">#</span>
                     </div>
                   ) : (
                     <div className="flex-shrink-0">
@@ -165,7 +165,7 @@ export function FloatingChatDock() {
                     )}
                   </div>
                   {conv.unread_count > 0 && (
-                    <span className="bg-[#b31b25] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center flex-shrink-0">
+                    <span className="bg-[#E5316E] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center flex-shrink-0">
                       {conv.unread_count > 99 ? '99+' : conv.unread_count}
                     </span>
                   )}

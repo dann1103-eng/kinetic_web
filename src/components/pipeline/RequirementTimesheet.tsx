@@ -301,7 +301,7 @@ export function RequirementTimesheet({
 
   const phaseColor: Record<string, string> = {
     pendiente:           '#abadaf',
-    proceso_edicion:     '#00675c',
+    proceso_edicion:     '#1FA4DA',
     proceso_diseno:      '#0891b2',
     proceso_animacion:   '#7c3aed',
     cambios:             '#ea580c',
@@ -353,7 +353,7 @@ export function RequirementTimesheet({
       {/* Active timer */}
       {canTrackTime && activeTimer && (
         <div className="rounded-2xl p-4 border border-fm-primary/30 flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg,#00675c08,#5bf4de10)' }}>
+          style={{ background: 'linear-gradient(135deg,#1FA4DA08,#87daff10)' }}>
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-[10px] font-bold text-fm-on-surface-variant uppercase tracking-wider mb-1">Timer activo</p>
@@ -437,7 +437,7 @@ export function RequirementTimesheet({
                 onClick={startTimer}
                 disabled={saving}
                 className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-white rounded-xl disabled:opacity-50"
-                style={{ background: 'linear-gradient(135deg,#00675c,#5bf4de)' }}
+                style={{ background: 'linear-gradient(135deg,#1FA4DA,#87daff)' }}
               >
                 <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-white"><path d="M8 5v14l11-7z"/></svg>
                 Iniciar timer

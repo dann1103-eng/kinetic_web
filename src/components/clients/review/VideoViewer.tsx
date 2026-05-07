@@ -164,7 +164,7 @@ export function VideoViewer({
   return (
     <div className="relative flex-1 flex flex-col overflow-hidden">
       {error && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-[#b31b25] text-white text-xs px-3 py-1.5 rounded-md shadow">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 bg-[#E5316E] text-white text-xs px-3 py-1.5 rounded-md shadow">
           {error}
         </div>
       )}
@@ -221,7 +221,7 @@ export function VideoViewer({
             {pending && (
               <>
                 <div
-                  className="absolute -translate-x-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-[#00675c] text-white flex items-center justify-center text-[11px] font-bold shadow-md ring-2 ring-white"
+                  className="absolute -translate-x-1/2 -translate-y-1/2 z-10 w-6 h-6 rounded-full bg-[#1FA4DA] text-white flex items-center justify-center text-[11px] font-bold shadow-md ring-2 ring-white"
                   style={{ left: `${pending.xPct}%`, top: `${pending.yPct}%` }}
                 >
                   {pins.length + 1}
@@ -247,7 +247,7 @@ export function VideoViewer({
         <div className="flex items-center gap-3">
           <button
             onClick={togglePlay}
-            className="text-[#2a2a2a] hover:text-[#00675c] transition-colors"
+            className="text-[#2a2a2a] hover:text-[#1FA4DA] transition-colors"
             aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
           >
             {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
@@ -261,7 +261,7 @@ export function VideoViewer({
           >
             <div className="w-full h-1.5 bg-[#dfe3e6] rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#00675c] transition-all"
+                className="h-full bg-[#1FA4DA] transition-all"
                 style={{ width: `${durationMs ? (currentMs / durationMs) * 100 : 0}%` }}
               />
             </div>

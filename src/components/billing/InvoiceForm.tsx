@@ -721,7 +721,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
 
         <div className="space-y-2">
           <Button type="submit" disabled={saving} className="w-full rounded-xl text-white font-semibold"
-            style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}>
+            style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}>
             {saving ? 'Guardando…' : (mode === 'invoice' ? 'Crear factura' : 'Crear cotización')}
           </Button>
           <Button type="button" variant="outline" onClick={() => router.back()} className="w-full rounded-xl">

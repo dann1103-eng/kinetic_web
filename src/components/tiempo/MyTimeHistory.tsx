@@ -268,7 +268,7 @@ function EntryRow({ entry, onOpenReq }: { entry: TimeEntryWithContext; onOpenReq
       <div className="flex items-center gap-3">
         <span
           className="w-2 h-2 rounded-full flex-shrink-0"
-          style={{ backgroundColor: isReq ? '#00675c' : '#abadaf' }}
+          style={{ backgroundColor: isReq ? '#1FA4DA' : '#abadaf' }}
         />
         <p className="text-sm text-fm-on-surface flex-1 truncate">{label}</p>
         <p className="text-xs text-fm-on-surface-variant tabular-nums">

@@ -27,7 +27,7 @@ interface Props {
 const PHASE_DOT: Record<ClientPhase, string> = {
   diseno:             '#595c5e',
   revision_cliente:   '#5b6af4',
-  aprobado:           '#00675c',
+  aprobado:           '#1FA4DA',
   pendiente_publicar: '#e09f12',
   publicado:          '#27ae60',
 }

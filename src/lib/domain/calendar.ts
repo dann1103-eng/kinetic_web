@@ -125,15 +125,15 @@ export function timeEntryToCalendarEvent(entry: {
 }
 
 export const KIND_COLORS: Record<CalendarEventKind, string> = {
-  arte:            '#00675c',
+  arte:            '#1FA4DA',
   reunion:         '#5b6af4',
-  produccion:      '#b31b25',
+  produccion:      '#E5316E',
   reunion_interna: '#595c5e',
 }
 
 /** Colors adjusted for dark-mode (lighter so they pop on dark surfaces). */
 export const KIND_COLORS_DARK: Record<CalendarEventKind, string> = {
-  arte:            '#48e5d0',
+  arte:            '#87daff',
   reunion:         '#818cf8',
   produccion:      '#f87171',
   reunion_interna: '#9ca3af',

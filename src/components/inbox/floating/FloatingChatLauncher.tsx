@@ -11,7 +11,7 @@ export function FloatingChatLauncher({ unreadCount, open, onClick }: FloatingCha
     <button
       type="button"
       onClick={onClick}
-      className="relative w-12 h-12 rounded-full bg-[#00675c] text-white shadow-lg flex items-center justify-center hover:bg-[#005549] transition-colors"
+      className="relative w-12 h-12 rounded-full bg-[#1FA4DA] text-white shadow-lg flex items-center justify-center hover:bg-[#005549] transition-colors"
       aria-label="Chat"
     >
       {open ? (
@@ -24,7 +24,7 @@ export function FloatingChatLauncher({ unreadCount, open, onClick }: FloatingCha
         </svg>
       )}
       {unreadCount > 0 && !open && (
-        <span className="absolute -top-1 -right-1 bg-[#b31b25] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
+        <span className="absolute -top-1 -right-1 bg-[#E5316E] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center">
           {unreadCount > 99 ? '99+' : unreadCount}
         </span>
       )}

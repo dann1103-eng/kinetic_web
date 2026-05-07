@@ -502,7 +502,7 @@ export function CallRoom({ call, onLeave, onScreenShareChange }: CallRoomProps) 
 
   if (error) {
     return (
-      <div className="p-4 text-sm text-[#b31b25]">
+      <div className="p-4 text-sm text-[#E5316E]">
         Error de llamada: {error}
         <button type="button" onClick={onLeave} className="ml-2 underline">
           Cerrar

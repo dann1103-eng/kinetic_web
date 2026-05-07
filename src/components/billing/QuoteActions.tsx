@@ -67,7 +67,7 @@ export function QuoteActions({ quoteId, status, convertedInvoiceId, isProspect =
             onClick={() => run(() => sendQuote(quoteId))}
             disabled={isPending}
             className="rounded-xl text-white font-semibold"
-            style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+            style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
           >
             Marcar como enviada
           </Button>
@@ -83,7 +83,7 @@ export function QuoteActions({ quoteId, status, convertedInvoiceId, isProspect =
             onClick={() => run(() => markQuoteAccepted(quoteId))}
             disabled={isPending}
             className="rounded-xl text-white font-semibold"
-            style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+            style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
           >
             Marcar aceptada
           </Button>
@@ -103,7 +103,7 @@ export function QuoteActions({ quoteId, status, convertedInvoiceId, isProspect =
           onClick={handleConvert}
           disabled={isPending}
           className="rounded-xl text-white font-semibold w-full"
-          style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+          style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
         >
           Convertir a factura
         </Button>

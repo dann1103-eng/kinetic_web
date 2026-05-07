@@ -123,7 +123,7 @@ export function StillOnlineDialog({
             onAcknowledge()
           }}
           className="w-full px-5 py-3 rounded-full text-white font-bold text-sm"
-          style={{ background: 'linear-gradient(135deg, #00675c 0%, #5bf4de 100%)' }}
+          style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
         >
           Sí, sigo aquí
         </button>

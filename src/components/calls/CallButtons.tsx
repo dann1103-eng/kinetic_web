@@ -27,7 +27,7 @@ interface CallButtonsProps {
 }
 
 const STYLES: Record<Variant, string> = {
-  light: 'bg-[#00675c]/10 text-[#00675c] hover:bg-[#00675c]/20',
+  light: 'bg-[#1FA4DA]/10 text-[#1FA4DA] hover:bg-[#1FA4DA]/20',
   dark: 'bg-white/15 text-white hover:bg-white/25',
 }
 
