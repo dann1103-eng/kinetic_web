@@ -2244,6 +2244,132 @@ export interface ReferralSource {
   updated_at: string
 }
 
+// =============================================================================
+// Kinetic — Fase 2: Agenda y citas
+// =============================================================================
+
+export type EventType =
+  | 'terapia'
+  | 'entrevista_directora'
+  | 'reunion_padres'
+  | 'reunion_colegio'
+  | 'evaluacion'
+  | 'programa_matutino'
+
+export const EVENT_TYPE_LABELS: Record<EventType, string> = {
+  terapia: 'Terapia',
+  entrevista_directora: 'Entrevista con Directora',
+  reunion_padres: 'Reunión con padres',
+  reunion_colegio: 'Reunión con colegio',
+  evaluacion: 'Evaluación',
+  programa_matutino: 'Programa matutino',
+}
+
+export type ServiceType =
+  | 'lenguaje'
+  | 'motricidad_gruesa'
+  | 'motricidad_fina'
+  | 'sensorial'
+  | 'psicologica'
+  | 'ocupacional'
+  | 'fisica'
+  | 'lectoescritura'
+  | 'funciones_ejecutivas'
+  | 'conductual'
+  | 'otra'
+
+export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
+  lenguaje: 'Lenguaje',
+  motricidad_gruesa: 'Motricidad gruesa',
+  motricidad_fina: 'Motricidad fina',
+  sensorial: 'Sensorial',
+  psicologica: 'Psicológica',
+  ocupacional: 'Ocupacional',
+  fisica: 'Física',
+  lectoescritura: 'Lectoescritura',
+  funciones_ejecutivas: 'Funciones ejecutivas',
+  conductual: 'Conductual',
+  otra: 'Otra',
+}
+
+export type Modality = 'presencial' | 'virtual'
+
+export type AppointmentStatus =
+  | 'scheduled'
+  | 'in_progress'
+  | 'completed'
+  | 'no_show'
+  | 'late_cancel'
+  | 'rescheduled'
+  | 'replacement'
+
+export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
+  scheduled: 'Programada',
+  in_progress: 'En curso',
+  completed: 'Completada',
+  no_show: 'No se presentó',
+  late_cancel: 'Cancelación tardía',
+  rescheduled: 'Reagendada',
+  replacement: 'Reposición',
+}
+
+export interface Appointment {
+  id: string
+  child_id: string
+  therapist_id: string | null
+  event_type: EventType
+  service_type: ServiceType | null
+  modality: Modality
+  starts_at: string
+  ends_at: string
+  status: AppointmentStatus
+  parent_appointment_id: string | null
+  recurrence_rule: string | null
+  google_calendar_event_id: string | null
+  meet_link: string | null
+  notification_sent_24h: boolean
+  notification_sent_1h: boolean
+  notes: string | null
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type InstitutionalClosureType = 'holiday' | 'closure' | 'gov_decree' | 'kinetic_break'
+
+export const INSTITUTIONAL_CLOSURE_TYPE_LABELS: Record<InstitutionalClosureType, string> = {
+  holiday: 'Asueto',
+  closure: 'Cierre',
+  gov_decree: 'Decreto gubernamental',
+  kinetic_break: 'Receso Kinetic',
+}
+
+export interface InstitutionalClosure {
+  id: string
+  date: string
+  type: InstitutionalClosureType
+  name: string
+  description: string | null
+  all_day: boolean
+  year_recurring: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface VirtualMeeting {
+  id: string
+  appointment_id: string | null
+  context: 'therapy' | 'directora_interview' | 'parents_meeting' | 'school_meeting' | 'evaluation'
+  provider: 'google_meet'
+  external_event_id: string | null
+  join_url: string | null
+  scheduled_for: string
+  ends_at: string | null
+  status: 'scheduled' | 'started' | 'ended' | 'cancelled'
+  created_by_user_id: string | null
+  created_at: string
+}
+
 export interface Child {
   id: string
   family_id: string
