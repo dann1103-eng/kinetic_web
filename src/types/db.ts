@@ -115,7 +115,7 @@ export const PRIORITY_COLORS: Record<Priority, string> = {
 export type ClientStatus = 'active' | 'paused' | 'overdue'
 export type CycleStatus = 'current' | 'archived' | 'pending_renewal' | 'scheduled'
 export type PaymentStatus = 'paid' | 'unpaid'
-export type UserRole = 'admin' | 'supervisor' | 'operator' | 'client'
+export type UserRole = 'admin' | 'supervisor' | 'operator' | 'client' | 'directora' | 'coordinadora_familias' | 'coordinadora_terapias' | 'terapista' | 'maestra' | 'recepcion' | 'contable' | 'family'
 export type ConversationType = 'dm' | 'channel' | 'voice_channel'
 
 export type CallModality = 'voice' | 'video' | 'screen'
