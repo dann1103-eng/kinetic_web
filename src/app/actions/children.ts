@@ -1,0 +1,159 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
+import type {
+  Child,
+  DiagnosisCode,
+  IntakePhase,
+  MorningProgram,
+  ReferralSourceType,
+  TreatmentStatus,
+} from '@/types/db'
+
+/**
+ * Crea un niño dentro de una familia. El código se autoasigna por trigger
+ * (function `generate_child_code` en migración 0091).
+ */
+export async function createChild(input: {
+  family_id: string
+  full_name: string
+  preferred_name?: string | null
+  birth_date?: string | null
+  gender?: 'M' | 'F' | 'other' | null
+  blood_type?: string | null
+  allergies_text?: string | null
+  medications_text?: string | null
+  preferred_hospital?: string | null
+  school_name?: string | null
+  school_grade?: string | null
+  diagnoses_json?: DiagnosisCode[]
+  diagnoses_display_text?: string | null
+  referral_source_type?: ReferralSourceType | null
+  referral_source_id?: string | null
+  referral_notes?: string | null
+  intake_phase?: IntakePhase
+  enrolled_program?: MorningProgram | null
+  notes?: string | null
+}): Promise<{ ok: true; childId: string; code: string } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+
+  const allowed = ['admin', 'supervisor', 'directora', 'coordinadora_familias']
+  if (!allowed.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos para registrar niños' }
+  }
+
+  if (!input.family_id) return { ok: false, error: 'Falta family_id' }
+  if (!input.full_name?.trim()) return { ok: false, error: 'El nombre completo es obligatorio' }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('children')
+    .insert({
+      family_id: input.family_id,
+      full_name: input.full_name.trim(),
+      preferred_name: input.preferred_name?.trim() || null,
+      birth_date: input.birth_date || null,
+      gender: input.gender ?? null,
+      blood_type: input.blood_type?.trim() || null,
+      allergies_text: input.allergies_text?.trim() || null,
+      medications_text: input.medications_text?.trim() || null,
+      preferred_hospital: input.preferred_hospital?.trim() || null,
+      school_name: input.school_name?.trim() || null,
+      school_grade: input.school_grade?.trim() || null,
+      diagnoses_json: input.diagnoses_json ?? [],
+      diagnoses_display_text: input.diagnoses_display_text?.trim() || null,
+      referral_source_type: input.referral_source_type ?? null,
+      referral_source_id: input.referral_source_id ?? null,
+      referral_notes: input.referral_notes?.trim() || null,
+      intake_phase: input.intake_phase ?? 'solicitud_informacion',
+      enrolled_program: input.enrolled_program ?? null,
+      notes: input.notes?.trim() || null,
+      created_by_user_id: ctx.appUser.id,
+      // code: se autoasigna por trigger BEFORE INSERT
+    })
+    .select('id, code')
+    .single()
+
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? 'Error desconocido al crear niño' }
+  }
+
+  revalidatePath(`/familias/${input.family_id}`)
+  return { ok: true, childId: data.id, code: data.code ?? '' }
+}
+
+export async function updateChild(
+  childId: string,
+  patch: Partial<Omit<Child, 'id' | 'family_id' | 'code' | 'created_at' | 'created_by_user_id' | 'updated_at'>>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+
+  const allowed = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'coordinadora_terapias', 'terapista', 'maestra']
+  if (!allowed.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos' }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('children')
+    .update(patch)
+    .eq('id', childId)
+    .select('family_id')
+    .single()
+
+  if (error) return { ok: false, error: error.message }
+
+  if (data?.family_id) revalidatePath(`/familias/${data.family_id}`)
+  return { ok: true }
+}
+
+export async function setChildIntakePhase(
+  childId: string,
+  phase: IntakePhase,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return updateChild(childId, {
+    intake_phase: phase,
+    intake_phase_changed_at: new Date().toISOString(),
+  })
+}
+
+export async function setChildTreatmentStatus(
+  childId: string,
+  status: TreatmentStatus,
+  notes?: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return updateChild(childId, {
+    treatment_status: status,
+    treatment_status_changed_at: new Date().toISOString(),
+    treatment_status_notes: notes?.trim() || null,
+  })
+}
+
+export async function deleteChild(
+  childId: string,
+): Promise<{ ok: true; familyId: string } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+  if (ctx.appUser.role !== 'admin') return { ok: false, error: 'Solo admin puede eliminar' }
+
+  const supabase = await createClient()
+  const { data: childRow } = await supabase
+    .from('children')
+    .select('family_id')
+    .eq('id', childId)
+    .single()
+
+  const { error } = await supabase.from('children').delete().eq('id', childId)
+  if (error) return { ok: false, error: error.message }
+
+  if (childRow?.family_id) {
+    revalidatePath(`/familias/${childRow.family_id}`)
+    return { ok: true, familyId: childRow.family_id }
+  }
+  redirect('/familias')
+}

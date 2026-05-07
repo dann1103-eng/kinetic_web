@@ -1,0 +1,175 @@
+import { redirect, notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
+import { TopNav } from '@/components/layout/TopNav'
+import {
+  INTAKE_PHASE_LABELS,
+  TREATMENT_STATUS_LABELS,
+  MORNING_PROGRAM_LABELS,
+} from '@/types/db'
+import type { Child } from '@/types/db'
+
+export const dynamic = 'force-dynamic'
+
+interface PageProps {
+  params: Promise<{ id: string; childId: string }>
+}
+
+export default async function ChildProfilePage({ params }: PageProps) {
+  const { id: familyId, childId } = await params
+  const ctx = await getEffectiveUser()
+  if (!ctx) redirect('/login')
+
+  const supabase = await createClient()
+  const { data: child, error } = await supabase
+    .from('children')
+    .select('*')
+    .eq('id', childId)
+    .eq('family_id', familyId)
+    .maybeSingle()
+
+  if (error || !child) notFound()
+  const c = child as Child
+
+  const ageYears = c.birth_date
+    ? Math.floor((new Date().getTime() - new Date(c.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
+    : null
+
+  return (
+    <div className="flex flex-col min-h-full">
+      <TopNav title={c.full_name} backHref={`/familias/${familyId}`} />
+
+      <div className="flex-1 p-6 space-y-6">
+        {/* Header del niño */}
+        <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold text-fm-on-surface">{c.full_name}</h1>
+                {c.code && (
+                  <span className="text-xs font-mono text-fm-on-surface-variant bg-fm-surface-container px-2 py-0.5 rounded">
+                    {c.code}
+                  </span>
+                )}
+              </div>
+              {c.preferred_name && <p className="text-sm text-fm-on-surface-variant italic">&ldquo;{c.preferred_name}&rdquo;</p>}
+              <p className="text-sm text-fm-on-surface-variant mt-1">
+                {ageYears !== null && <span>{ageYears} años</span>}
+                {c.gender && <span> · {c.gender === 'M' ? 'Masculino' : c.gender === 'F' ? 'Femenino' : 'Otro'}</span>}
+                {c.birth_date && <span> · Nacido el {new Date(c.birth_date).toLocaleDateString('es-SV', { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
+              </p>
+              {c.diagnoses_display_text && (
+                <p className="text-sm text-fm-primary italic mt-2">{c.diagnoses_display_text}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+            {c.enrolled_program && (
+              <span className="text-xs px-3 py-1 rounded-full bg-fm-secondary/15 text-fm-secondary font-medium">
+                Programa: {MORNING_PROGRAM_LABELS[c.enrolled_program]}
+              </span>
+            )}
+            <span className="text-xs px-3 py-1 rounded-full bg-fm-primary/10 text-fm-primary font-medium">
+              Fase: {INTAKE_PHASE_LABELS[c.intake_phase]}
+            </span>
+            <span className="text-xs px-3 py-1 rounded-full bg-fm-surface-container text-fm-on-surface-variant font-medium">
+              {TREATMENT_STATUS_LABELS[c.treatment_status]}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Datos clínicos */}
+          <Section title="Datos clínicos" icon="medical_services">
+            <Field label="Tipo de sangre" value={c.blood_type} />
+            <Field label="Hospital preferido" value={c.preferred_hospital} />
+            <FieldLong label="Alergias / reacciones a medicamentos" value={c.allergies_text} highlight />
+            <FieldLong label="Medicamentos actuales" value={c.medications_text} />
+          </Section>
+
+          {/* Escolaridad */}
+          <Section title="Escolaridad" icon="school">
+            <Field label="Colegio actual" value={c.school_name} />
+            <Field label="Grado que cursa" value={c.school_grade} />
+          </Section>
+
+          {/* Diagnósticos */}
+          <Section title="Diagnósticos" icon="psychology">
+            {c.diagnoses_json && c.diagnoses_json.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {c.diagnoses_json.map((d) => (
+                  <span key={d} className="text-xs px-3 py-1 rounded-full bg-fm-surface-container border border-fm-outline-variant/30 text-fm-on-surface-variant">
+                    {d}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <span className="text-sm text-fm-on-surface-variant">Sin diagnósticos registrados</span>
+            )}
+            {c.diagnoses_display_text && (
+              <p className="text-xs text-fm-on-surface-variant mt-3 italic">
+                Texto editorial para informes: <span className="not-italic font-medium">{c.diagnoses_display_text}</span>
+              </p>
+            )}
+          </Section>
+
+          {/* Origen / referencia */}
+          <Section title="Origen del paciente" icon="share">
+            <Field label="Tipo" value={c.referral_source_type} />
+            <FieldLong label="Notas de referencia" value={c.referral_notes} />
+          </Section>
+        </div>
+
+        {/* Notas internas */}
+        {c.notes && (
+          <div className="bg-fm-surface-container-low rounded-2xl border border-fm-outline-variant/20 p-4">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant mb-2">Notas internas</h3>
+            <p className="text-sm text-fm-on-surface whitespace-pre-wrap">{c.notes}</p>
+          </div>
+        )}
+
+        <div className="bg-fm-surface-container-low rounded-2xl border border-fm-outline-variant/20 p-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant mb-2">Próximos pasos (Fase 2+)</h3>
+          <p className="text-sm text-fm-on-surface-variant">
+            Las siguientes secciones se habilitarán en fases posteriores: agenda de citas y terapias (Fase 2),
+            sesiones de terapia y reportes de avance cuatrimestrales (Fase 3), evaluaciones estructuradas (Fase 6),
+            facturación y pagos (Fase 7).
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Section({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="material-symbols-outlined text-fm-primary text-lg">{icon}</span>
+        <h2 className="text-sm font-semibold text-fm-on-surface">{title}</h2>
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  )
+}
+
+function Field({ label, value }: { label: string; value: string | null }) {
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">{label}</div>
+      <div className="text-sm text-fm-on-surface mt-0.5">{value || <span className="text-fm-on-surface-variant">—</span>}</div>
+    </div>
+  )
+}
+
+function FieldLong({ label, value, highlight }: { label: string; value: string | null; highlight?: boolean }) {
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">{label}</div>
+      <div className={`text-sm mt-0.5 whitespace-pre-wrap ${highlight && value ? 'text-fm-error font-medium' : 'text-fm-on-surface'}`}>
+        {value || <span className="text-fm-on-surface-variant font-normal">—</span>}
+      </div>
+    </div>
+  )
+}
