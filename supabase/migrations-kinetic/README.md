@@ -4,11 +4,20 @@ Esta carpeta contiene migraciones específicas para **Kinetic** (proyecto Supaba
 
 ## Orden de ejecución en proyecto Supabase Kinetic (fresco)
 
-| # | Archivo | Origen | Notas |
+| # | Archivo | Origen | Estado |
 |---|---|---|---|
 | 1 | `../migrations/0001_init.sql` | FM CRM | Schema base. **Ya corrida.** |
-| 2 | `0002_to_0079_merged.sql` | **Merged FM 0002→0079** | Pegar y ejecutar de una sola vez en SQL Editor |
-| 3 | `0080_kinetic_init.sql` | Kinetic | Re-seed `company_settings` + crea `professional_signatures` + `test_catalog` |
+| 2 | `0002_to_0079_merged.sql` | **Merged FM 0002→0079** (78 archivos) | **Ya corrida.** |
+| 3 | `0080_to_0081_fm_delta.sql` | **Delta FM 0080–0081** (catch-up de master) | ⚠️ **Pendiente**: correr ahora |
+| 4 | `0090_kinetic_init.sql` | Kinetic (Fase 0) | **Ya corrida.** Si se reaplica, las upserts son idempotentes |
+
+Si ya corriste 0090 y luego mergearon más migraciones FM, solo aplicá el nuevo delta (paso 3) — no necesitás re-correr 0090, pero podés (es idempotente con `on conflict do nothing` y `where not exists`).
+
+## Sobre el numeración 0080-0089 vs 0090+
+
+- **0080–0089** se reservan para futuras migraciones FM-style (catch-ups del CRM original).
+- **0090+** son migraciones específicas de Kinetic (rebrand, dominio clínico, etc.).
+- **Migración Kinetic Fase 1+** empieza desde `0091_kinetic_families_and_children.sql`.
 
 ## Sobre `0002_to_0079_merged.sql`
 
@@ -23,13 +32,18 @@ Combinación de las 78 migraciones del FM CRM (0002 al 0079) en un solo SQL.
 
 ## Migraciones futuras de Kinetic
 
-Las próximas migraciones específicas de Kinetic (Fase 1+) deben numerarse a partir de `0081`:
-- `0081_kinetic_families_and_children.sql` — núcleo familiar (Fase 1)
-- `0082_kinetic_appointments_meet.sql` — agenda + Google Meet (Fase 2)
-- `0083_kinetic_progress_reports.sql` — reportería con aprobación (Fase 3)
-- ... etc.
+| Migración | Fase | Contenido |
+|---|---|---|
+| `0091_kinetic_families_and_children.sql` | **Fase 1** | `families`, `children`, `family_users`, `referral_sources`, generación de código del niño, roles nuevos |
+| `0092_kinetic_appointments_meet.sql` | Fase 2 | `appointments`, `virtual_meetings`, `google_workspace_config`, `institutional_calendar` |
+| `0093_kinetic_progress_reports.sql` | Fase 3 | `therapy_sessions`, `session_reports`, `progress_reports`, `report_templates`, `child_journal_entries` |
+| `0094_kinetic_replacements_quarantines.sql` | Fase 4 | `late_charges`, `illness_records`, motor de reposiciones |
+| `0095_kinetic_morning_programs.sql` | Fase 5 | `programs`, `program_attendance`, `daily_journal_entries`, `morning_program_indicators` |
+| `0096_kinetic_evaluations.sql` | Fase 6 | `evaluations`, `evaluation_reports`, `test_score_entries`, `external_forms` |
+| `0097_kinetic_payments_agreements.sql` | Fase 7 | `monthly_billing_cycles`, `family_agreements`, `payment_proofs`, `payment_suspensions`, `family_credits` |
+| `0098_kinetic_accounting.sql` | Fase 8 | `expenses`, `budgets` |
 
 ## Notas
 
 - El folder `migrations/` (FM) **no se toca**. Está congelado como referencia.
-- Si el cliente decide eventualmente arrancar Kinetic desde un schema 100% nuevo (sin la base de FM), se puede colapsar `0002_to_0079_merged.sql` + `0080_kinetic_init.sql` en un solo `0001_kinetic_clean_init.sql`. Pero eso es trabajo adicional sin valor inmediato.
+- Si en el futuro se quiere arrancar Kinetic desde un schema 100% nuevo (sin la base de FM), se puede colapsar todo en un solo init. Pero eso es trabajo adicional sin valor inmediato.

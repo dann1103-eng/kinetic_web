@@ -2092,3 +2092,187 @@ export interface IncomingCallPayload {
   /** Nombre del canal si la llamada es en un channel/voice_channel (ej: "general"). Null para DMs. */
   channelName: string | null
 }
+
+
+// =============================================================================
+// Kinetic — Tipos del dominio clínico (Fase 1+)
+// =============================================================================
+// Tipos correspondientes a las tablas creadas en migrations-kinetic/0091+.
+// Coexisten con tipos FM (Client, Plan, Requirement, etc.) — los reemplazos de
+// dominio se harán gradualmente en fases siguientes.
+// =============================================================================
+
+/** Roles de Kinetic — extiende los roles FM ('admin' | 'supervisor' | 'operator' | 'client'). */
+export type KineticRole =
+  | 'admin'
+  | 'supervisor'
+  | 'operator'
+  | 'client'                  // legacy: portal padres (mantenido por compat)
+  | 'directora'               // Directora General — aprueba reportes
+  | 'coordinadora_familias'   // captación + intake (fases 1-3 del pipeline)
+  | 'coordinadora_terapias'   // gestión de horarios y reposiciones
+  | 'terapista'               // terapista individual
+  | 'maestra'                 // programas matutinos
+  | 'recepcion'               // agenda + cobros pendientes
+  | 'contable'                // facturación + contabilidad sin acceso clínico
+  | 'family'                  // alias semántico de 'client' para Kinetic
+
+export type FamilyStatus = 'active' | 'paused' | 'overdue' | 'dropped'
+
+export type FamilyUserRole = 'owner' | 'viewer'
+
+export type ReferralSourceType =
+  | 'school'
+  | 'doctor'
+  | 'direct'
+  | 'social_media'
+  | 'walk_in'
+  | 'referral_other'
+
+/** 12 fases del pipeline de atención del paciente (ver plan v0.7 sección A). */
+export type IntakePhase =
+  | 'solicitud_informacion'
+  | 'bateria_preguntas'
+  | 'entrevista_directora'
+  | 'propuesta_observacion_evaluacion'
+  | 'propuesta_economica_evaluacion'
+  | 'agenda_observacion'
+  | 'en_observacion_evaluacion'
+  | 'informe_resultados'
+  | 'propuesta_plan_terapias'
+  | 'propuesta_economica_terapias'
+  | 'en_terapias'
+  | 'alta'
+
+export const INTAKE_PHASE_LABELS: Record<IntakePhase, string> = {
+  solicitud_informacion: 'Solicitud de información',
+  bateria_preguntas: 'Batería de preguntas',
+  entrevista_directora: 'Entrevista con directora',
+  propuesta_observacion_evaluacion: 'Propuesta de observación/evaluación',
+  propuesta_economica_evaluacion: 'Propuesta económica (evaluación)',
+  agenda_observacion: 'Agenda de observación',
+  en_observacion_evaluacion: 'En observación/evaluación',
+  informe_resultados: 'Informe de resultados',
+  propuesta_plan_terapias: 'Propuesta de plan de terapias',
+  propuesta_economica_terapias: 'Propuesta económica (terapias)',
+  en_terapias: 'En terapias',
+  alta: 'Alta',
+}
+
+export type TreatmentStatus =
+  | 'active'
+  | 'considering_discharge'
+  | 'discharged_conditional'
+  | 'discharged_final'
+  | 'paused'
+  | 'dropped'
+
+export const TREATMENT_STATUS_LABELS: Record<TreatmentStatus, string> = {
+  active: 'Activo',
+  considering_discharge: 'Considerando alta',
+  discharged_conditional: 'Alta condicional',
+  discharged_final: 'Alta final',
+  paused: 'Pausado',
+  dropped: 'Baja',
+}
+
+export type MorningProgram = 'blue_kids' | 'learning_kids' | 'aula_educativa'
+
+export const MORNING_PROGRAM_LABELS: Record<MorningProgram, string> = {
+  blue_kids: 'BlueKids',
+  learning_kids: 'LearningKids',
+  aula_educativa: 'Aula Educativa',
+}
+
+export type DiagnosisCode =
+  | 'autismo'
+  | 'tdah'
+  | 'altas_capacidades'
+  | 'doble_excepcionalidad'
+  | 'dificultades_aprendizaje'
+  | 'trastorno_lenguaje'
+  | 'trastorno_motriz'
+  | 'trastorno_sensorial'
+  | 'trastorno_neurodesarrollo'
+  | 'otro'
+
+export interface Family {
+  id: string
+  code: string | null
+  primary_contact_name: string
+  primary_contact_email: string | null
+  primary_contact_phone: string | null
+  secondary_contact_name: string | null
+  secondary_contact_phone: string | null
+  emergency_contact_name: string | null
+  emergency_contact_phone: string | null
+  emergency_contact_relation: string | null
+  fiscal_legal_name: string | null
+  fiscal_nit: string | null
+  fiscal_dui: string | null
+  fiscal_address: string | null
+  status: FamilyStatus
+  notes: string | null
+  created_at: string
+  created_by_user_id: string | null
+  updated_at: string
+}
+
+export interface FamilyUser {
+  id: string
+  family_id: string
+  user_id: string
+  role: FamilyUserRole
+  can_billing: boolean
+  can_work: boolean
+  created_at: string
+}
+
+export interface ReferralSource {
+  id: string
+  type: ReferralSourceType
+  name: string
+  contact_name: string | null
+  contact_phone: string | null
+  contact_email: string | null
+  specialty: string | null
+  address: string | null
+  notes: string | null
+  can_receive_reports: boolean
+  partnership_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface Child {
+  id: string
+  family_id: string
+  code: string | null              // auto-generado por trigger si null al insert
+  full_name: string
+  preferred_name: string | null
+  birth_date: string | null
+  gender: 'M' | 'F' | 'other' | null
+  blood_type: string | null
+  allergies_text: string | null
+  medications_text: string | null
+  preferred_hospital: string | null
+  school_name: string | null
+  school_grade: string | null
+  diagnoses_json: DiagnosisCode[]
+  diagnoses_display_text: string | null
+  referral_source_type: ReferralSourceType | null
+  referral_source_id: string | null
+  referral_notes: string | null
+  intake_phase: IntakePhase
+  intake_phase_changed_at: string
+  treatment_status: TreatmentStatus
+  treatment_status_changed_at: string
+  treatment_status_notes: string | null
+  enrolled_program: MorningProgram | null
+  enrollment_started_at: string | null
+  enrollment_ended_at: string | null
+  notes: string | null
+  created_at: string
+  created_by_user_id: string | null
+  updated_at: string
+}
