@@ -14,7 +14,32 @@ export default async function PortalLayout({ children }: { children: React.React
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
 
-  // Solo clientes (reales o suplantados) acceden al portal.
+  // Kinetic family users bypass the FM client-selector flow entirely.
+  if (ctx.appUser.role === 'family') {
+    return (
+      <UserProvider
+        user={ctx.appUser}
+        isImpersonating={false}
+        realAdminName={null}
+      >
+        <div className="flex h-screen overflow-hidden bg-fm-background">
+          <PortalSidebar
+            clientOptions={[]}
+            activeClientId=""
+            clientDisplayName="Kinetic"
+            permissions={{ can_billing: false, can_work: true }}
+          />
+          <div className="flex flex-col flex-1 md:ml-64 overflow-hidden">
+            <PortalTopNav clientDisplayName="Kinetic" />
+            <main className="flex-1 overflow-y-auto">{children}</main>
+          </div>
+        </div>
+        <SessionSentinel />
+      </UserProvider>
+    )
+  }
+
+  // Solo clientes de FM (reales o suplantados) acceden al portal.
   if (ctx.appUser.role !== 'client') redirect('/dashboard')
 
   const ids = await getActiveClientIds()

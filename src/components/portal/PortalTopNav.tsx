@@ -45,6 +45,15 @@ const navItems = [
     ),
   },
   {
+    href: '/portal/agenda-digital',
+    label: 'Agenda digital',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/>
+      </svg>
+    ),
+  },
+  {
     href: '/portal/empresa',
     label: 'Mi empresa',
     icon: (
@@ -65,12 +74,13 @@ const navItems = [
 ]
 
 const PATH_TITLES: Record<string, string> = {
-  '/portal/dashboard':   'Dashboard',
-  '/portal/pipeline':    'Pipeline',
-  '/portal/calendario':  'Calendario',
-  '/portal/facturacion': 'Facturación',
-  '/portal/empresa':     'Mi empresa',
-  '/portal/config':      'Configuración',
+  '/portal/dashboard':        'Dashboard',
+  '/portal/pipeline':         'Pipeline',
+  '/portal/calendario':       'Calendario',
+  '/portal/facturacion':      'Facturación',
+  '/portal/agenda-digital':   'Agenda digital',
+  '/portal/empresa':          'Mi empresa',
+  '/portal/config':           'Configuración',
 }
 
 function DarkModeToggle() {
