@@ -100,7 +100,7 @@ export default async function MiDiaPage() {
         ;(appt as Appointment & { child_full_name?: string; child_preferred_name?: string }).child_full_name =
           child.full_name
         ;(appt as Appointment & { child_preferred_name?: string }).child_preferred_name =
-          child.preferred_name
+          child.preferred_name ?? undefined
       }
     }
   }
