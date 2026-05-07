@@ -2402,3 +2402,31 @@ export interface Child {
   created_by_user_id: string | null
   updated_at: string
 }
+
+// ── Fase 3-A+D ────────────────────────────────────────────────────────────────
+
+export interface TherapySession {
+  id: string
+  appointment_id: string
+  therapist_id: string | null
+  child_id: string
+  started_at: string
+  ended_at: string | null
+  status: 'active' | 'completed'
+  created_at: string
+}
+
+export type JournalCategory = 'home_exercise' | 'observation' | 'question' | 'response'
+
+export interface ChildJournalEntry {
+  id: string
+  child_id: string
+  author_user_id: string | null
+  category: JournalCategory
+  body: string
+  attachments_json: unknown[]
+  visible_to_family: boolean
+  linked_appointment_id: string | null
+  created_at: string
+  updated_at: string
+}
