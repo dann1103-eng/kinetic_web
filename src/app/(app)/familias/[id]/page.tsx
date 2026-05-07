@@ -5,6 +5,7 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { FamilyForm } from '@/components/families/FamilyForm'
 import { ChildForm } from '@/components/families/ChildForm'
+import { JournalTab } from './JournalTab'
 import {
   INTAKE_PHASE_LABELS,
   TREATMENT_STATUS_LABELS,
@@ -183,6 +184,21 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
             </div>
           )}
         </div>
+
+        {/* Agenda digital por niño */}
+        {childrenList.length > 0 && (
+          <div className="space-y-6">
+            <h2 className="text-base font-semibold text-fm-on-surface">Agenda digital</h2>
+            {childrenList.map((child) => (
+              <div key={child.id} className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-5">
+                <JournalTab
+                  childId={child.id}
+                  childName={child.preferred_name ?? child.full_name}
+                />
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Notas internas */}
         {familyTyped.notes && (
