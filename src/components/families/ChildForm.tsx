@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createChild } from '@/app/actions/children'
 import { computeChildCodeBase } from '@/lib/domain/child-code'
+import { useDialogA11y } from '@/hooks/useDialogA11y'
 import type { DiagnosisCode, MorningProgram } from '@/types/db'
 
 const DIAGNOSIS_OPTIONS: { code: DiagnosisCode; label: string }[] = [
@@ -34,6 +35,14 @@ export function ChildForm({ familyId }: ChildFormProps) {
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const titleId = useId()
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useDialogA11y({
+    open,
+    onClose: () => !submitting && setOpen(false),
+    ref: dialogRef,
+  })
 
   const [form, setForm] = useState({
     full_name: '',
@@ -101,113 +110,128 @@ export function ChildForm({ familyId }: ChildFormProps) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium bg-fm-tertiary text-fm-on-tertiary hover:bg-fm-tertiary-dim transition-colors"
+        className="inline-flex items-center justify-center min-h-[44px] gap-2 px-3 py-2 rounded-xl text-xs font-medium bg-fm-tertiary text-fm-on-tertiary hover:bg-fm-tertiary-dim transition-colors"
       >
         + Registrar niño/a
       </button>
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !submitting && setOpen(false)}>
-          <form
-            onSubmit={handleSubmit}
+          <div
+            ref={dialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
             onClick={(e) => e.stopPropagation()}
             className="bg-fm-surface-container-lowest text-fm-on-surface w-full max-w-2xl rounded-2xl shadow-xl border border-fm-outline-variant/30 max-h-[90vh] overflow-y-auto"
           >
-            <div className="px-6 py-4 border-b border-fm-outline-variant/20 flex items-center justify-between sticky top-0 bg-fm-surface-container-lowest">
-              <h2 className="text-base font-semibold">Registrar niño/a</h2>
-              <button type="button" onClick={() => setOpen(false)} disabled={submitting} className="text-fm-on-surface-variant hover:text-fm-on-surface">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="px-6 py-4 border-b border-fm-outline-variant/20 flex items-center justify-between sticky top-0 bg-fm-surface-container-lowest z-10">
+                <h2 id={titleId} className="text-base font-semibold">Registrar niño/a</h2>
+                <button
+                  type="button"
+                  onClick={() => setOpen(false)}
+                  disabled={submitting}
+                  aria-label="Cerrar"
+                  className="text-fm-on-surface-variant hover:text-fm-on-surface min-h-[44px] min-w-[44px] flex items-center justify-center"
+                >
+                  <span className="material-symbols-outlined" aria-hidden="true">close</span>
+                </button>
+              </div>
 
-            <div className="p-6 space-y-5">
-              <fieldset className="space-y-3">
-                <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Identidad</legend>
-                <div>
-                  <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">Nombre completo*</label>
-                  <input
-                    value={form.full_name}
-                    onChange={(e) => setField('full_name', e.target.value)}
-                    required
-                    placeholder="Roberto Andrés Flores Morataya"
-                    className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
-                  />
-                  {previewCode && (
-                    <p className="text-[10px] text-fm-on-surface-variant mt-1">Código generado: <span className="font-mono font-semibold">{previewCode}</span> (se asignará un sufijo si está tomado)</p>
-                  )}
-                </div>
-                <div className="grid grid-cols-3 gap-3">
-                  <Field label="Apodo / nombre como le dicen" value={form.preferred_name} onChange={(v) => setField('preferred_name', v)} placeholder="Andrés" />
-                  <Field label="Fecha de nacimiento" type="date" value={form.birth_date} onChange={(v) => setField('birth_date', v)} />
+              <div className="p-6 space-y-5">
+                <fieldset className="space-y-3">
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Identidad</legend>
                   <div>
-                    <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">Sexo</label>
-                    <select value={form.gender} onChange={(e) => setField('gender', e.target.value)} className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary">
-                      <option value="">—</option>
-                      <option value="M">Masculino</option>
-                      <option value="F">Femenino</option>
-                      <option value="other">Otro</option>
-                    </select>
+                    <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">Nombre completo*</label>
+                    <input
+                      value={form.full_name}
+                      onChange={(e) => setField('full_name', e.target.value)}
+                      required
+                      placeholder="Roberto Andrés Flores Morataya"
+                      className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
+                    />
+                    {previewCode && (
+                      <p className="text-[10px] text-fm-on-surface-variant mt-1">Código generado: <span className="font-mono font-semibold">{previewCode}</span> (se asignará un sufijo si está tomado)</p>
+                    )}
                   </div>
-                </div>
-              </fieldset>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <Field label="Apodo / nombre como le dicen" value={form.preferred_name} onChange={(v) => setField('preferred_name', v)} placeholder="Andrés" />
+                    <Field label="Fecha de nacimiento" type="date" value={form.birth_date} onChange={(v) => setField('birth_date', v)} />
+                    <div>
+                      <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">Sexo</label>
+                      <select value={form.gender} onChange={(e) => setField('gender', e.target.value)} className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary">
+                        <option value="">—</option>
+                        <option value="M">Masculino</option>
+                        <option value="F">Femenino</option>
+                        <option value="other">Otro</option>
+                      </select>
+                    </div>
+                  </div>
+                </fieldset>
 
-              <fieldset className="space-y-3">
-                <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Datos clínicos</legend>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Tipo de sangre" value={form.blood_type} onChange={(v) => setField('blood_type', v)} placeholder="O+" />
-                  <Field label="Hospital preferido" value={form.preferred_hospital} onChange={(v) => setField('preferred_hospital', v)} placeholder="Hospital de Diagnóstico" />
-                </div>
-                <Textarea label="Alergias / reacciones a medicamentos" value={form.allergies_text} onChange={(v) => setField('allergies_text', v)} />
-                <Textarea label="Medicamentos actuales" value={form.medications_text} onChange={(v) => setField('medications_text', v)} />
-              </fieldset>
+                <fieldset className="space-y-3">
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Datos clínicos</legend>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Tipo de sangre" value={form.blood_type} onChange={(v) => setField('blood_type', v)} placeholder="O+" />
+                    <Field label="Hospital preferido" value={form.preferred_hospital} onChange={(v) => setField('preferred_hospital', v)} placeholder="Hospital de Diagnóstico" />
+                  </div>
+                  <Textarea label="Alergias / reacciones a medicamentos" value={form.allergies_text} onChange={(v) => setField('allergies_text', v)} />
+                  <Textarea label="Medicamentos actuales" value={form.medications_text} onChange={(v) => setField('medications_text', v)} />
+                </fieldset>
 
-              <fieldset className="space-y-3">
-                <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Escolaridad</legend>
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Colegio actual" value={form.school_name} onChange={(v) => setField('school_name', v)} placeholder="Liceo San Luis" />
-                  <Field label="Grado" value={form.school_grade} onChange={(v) => setField('school_grade', v)} placeholder="Preparatoria" />
-                </div>
-              </fieldset>
+                <fieldset className="space-y-3">
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Escolaridad</legend>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <Field label="Colegio actual" value={form.school_name} onChange={(v) => setField('school_name', v)} placeholder="Liceo San Luis" />
+                    <Field label="Grado" value={form.school_grade} onChange={(v) => setField('school_grade', v)} placeholder="Preparatoria" />
+                  </div>
+                </fieldset>
 
-              <fieldset className="space-y-3">
-                <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Diagnósticos</legend>
-                <div className="flex flex-wrap gap-2">
-                  {DIAGNOSIS_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.code}
-                      type="button"
-                      onClick={() => toggleDiagnosis(opt.code)}
-                      className={`text-xs px-3 py-1 rounded-full border transition-colors ${diagnoses.includes(opt.code) ? 'bg-fm-primary/10 border-fm-primary text-fm-primary' : 'bg-fm-surface-container-low border-fm-surface-container-high text-fm-on-surface-variant hover:border-fm-primary/40'}`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-                <Field label="Texto custom para mostrar en el header de informes (opcional)" value={form.diagnoses_display_text} onChange={(v) => setField('diagnoses_display_text', v)} placeholder="Doble excepcionalidad: TDAH y Altas Capacidades" />
-              </fieldset>
+                <fieldset className="space-y-3">
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Diagnósticos</legend>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Diagnósticos del niño">
+                    {DIAGNOSIS_OPTIONS.map((opt) => {
+                      const active = diagnoses.includes(opt.code)
+                      return (
+                        <button
+                          key={opt.code}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => toggleDiagnosis(opt.code)}
+                          className={`text-xs min-h-[36px] px-3 py-1 rounded-full border transition-colors ${active ? 'bg-fm-primary/10 border-fm-primary text-fm-primary' : 'bg-fm-surface-container-low border-fm-surface-container-high text-fm-on-surface-variant hover:border-fm-primary/40'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <Field label="Texto custom para mostrar en el header de informes (opcional)" value={form.diagnoses_display_text} onChange={(v) => setField('diagnoses_display_text', v)} placeholder="Doble excepcionalidad: TDAH y Altas Capacidades" />
+                </fieldset>
 
-              <fieldset className="space-y-3">
-                <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Inscripción en programa matutino</legend>
-                <select value={form.enrolled_program} onChange={(e) => setField('enrolled_program', e.target.value)} className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary">
-                  <option value="">No inscrito (solo terapias individuales)</option>
-                  {PROGRAM_OPTIONS.map((p) => (
-                    <option key={p.code} value={p.code}>{p.label}</option>
-                  ))}
-                </select>
-              </fieldset>
+                <fieldset className="space-y-3">
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Inscripción en programa matutino</legend>
+                  <select value={form.enrolled_program} onChange={(e) => setField('enrolled_program', e.target.value)} className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary">
+                    <option value="">No inscrito (solo terapias individuales)</option>
+                    {PROGRAM_OPTIONS.map((p) => (
+                      <option key={p.code} value={p.code}>{p.label}</option>
+                    ))}
+                  </select>
+                </fieldset>
 
-              <Textarea label="Notas internas" value={form.notes} onChange={(v) => setField('notes', v)} />
+                <Textarea label="Notas internas" value={form.notes} onChange={(v) => setField('notes', v)} />
 
-              {error && <p className="text-xs text-fm-error">{error}</p>}
-            </div>
+                {error && <p role="alert" className="text-xs text-fm-error">{error}</p>}
+              </div>
 
-            <div className="px-6 py-4 border-t border-fm-outline-variant/20 flex items-center justify-end gap-2 sticky bottom-0 bg-fm-surface-container-lowest">
-              <button type="button" onClick={() => setOpen(false)} disabled={submitting} className="px-4 py-2 text-sm rounded-xl text-fm-on-surface-variant hover:bg-fm-surface-container">Cancelar</button>
-              <button type="submit" disabled={submitting} className="px-4 py-2 text-sm rounded-xl bg-fm-primary text-fm-on-primary hover:bg-fm-primary-dim disabled:opacity-50">
-                {submitting ? 'Guardando…' : 'Registrar niño/a'}
-              </button>
-            </div>
-          </form>
+              <div className="px-6 py-4 border-t border-fm-outline-variant/20 flex items-center justify-end gap-2 sticky bottom-0 bg-fm-surface-container-lowest z-10">
+                <button type="button" onClick={() => setOpen(false)} disabled={submitting} className="min-h-[44px] px-4 py-2 text-sm rounded-xl text-fm-on-surface-variant hover:bg-fm-surface-container">Cancelar</button>
+                <button type="submit" disabled={submitting} className="min-h-[44px] px-4 py-2 text-sm rounded-xl bg-fm-primary text-fm-on-primary hover:bg-fm-primary-dim disabled:opacity-50">
+                  {submitting ? 'Guardando…' : 'Registrar niño/a'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </>
@@ -215,19 +239,28 @@ export function ChildForm({ familyId }: ChildFormProps) {
 }
 
 function Field(props: { label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string }) {
+  const id = useId()
   return (
     <div>
-      <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">{props.label}</label>
-      <input type={props.type ?? 'text'} value={props.value} onChange={(e) => props.onChange(e.target.value)} placeholder={props.placeholder} className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary" />
+      <label htmlFor={id} className="text-xs font-medium text-fm-on-surface-variant block mb-1">{props.label}</label>
+      <input
+        id={id}
+        type={props.type ?? 'text'}
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        placeholder={props.placeholder}
+        className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
+      />
     </div>
   )
 }
 
 function Textarea(props: { label: string; value: string; onChange: (v: string) => void }) {
+  const id = useId()
   return (
     <div>
-      <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">{props.label}</label>
-      <textarea value={props.value} onChange={(e) => props.onChange(e.target.value)} rows={2} className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary" />
+      <label htmlFor={id} className="text-xs font-medium text-fm-on-surface-variant block mb-1">{props.label}</label>
+      <textarea id={id} value={props.value} onChange={(e) => props.onChange(e.target.value)} rows={2} className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary" />
     </div>
   )
 }

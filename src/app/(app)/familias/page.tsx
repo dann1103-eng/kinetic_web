@@ -19,29 +19,17 @@ export default async function FamiliasPage() {
 
   const supabase = await createClient()
 
-  // Listado de familias con conteo de niños (vía agg subquery a children).
+  // Listado de familias con conteo de niños via PostgREST nested count
+  // (una sola query, sin N+1).
   const { data: families } = await supabase
     .from('families')
-    .select('*')
+    .select('*, children(count)')
     .order('primary_contact_name')
 
-  // Conteo de niños por familia (Postgres RPC sería más limpio, pero hago una
-  // segunda query y agrupo en TS por simplicidad — los volúmenes son chicos).
-  const familyIds = (families ?? []).map((f) => f.id)
-  const childrenCounts = new Map<string, number>()
-  if (familyIds.length > 0) {
-    const { data: childRows } = await supabase
-      .from('children')
-      .select('family_id')
-      .in('family_id', familyIds)
-    for (const row of childRows ?? []) {
-      childrenCounts.set(row.family_id, (childrenCounts.get(row.family_id) ?? 0) + 1)
-    }
-  }
-
-  const enriched = (families ?? []).map((f: Family) => ({
+  type FamilyWithChildCount = Family & { children: { count: number }[] }
+  const enriched = ((families ?? []) as FamilyWithChildCount[]).map((f) => ({
     ...f,
-    children_count: childrenCounts.get(f.id) ?? 0,
+    children_count: f.children?.[0]?.count ?? 0,
   }))
 
   return (

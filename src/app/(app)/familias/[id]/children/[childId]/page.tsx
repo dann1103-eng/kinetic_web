@@ -80,8 +80,8 @@ export default async function ChildProfilePage({ params }: PageProps) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Datos clínicos */}
-          <Section title="Datos clínicos" icon="medical_services">
+          {/* Datos clínicos — único section header con icono porque es info de emergencia */}
+          <Section title="Datos clínicos" icon="emergency" tone="urgent">
             <Field label="Tipo de sangre" value={c.blood_type} />
             <Field label="Hospital preferido" value={c.preferred_hospital} />
             <FieldLong label="Alergias / reacciones a medicamentos" value={c.allergies_text} highlight />
@@ -89,13 +89,13 @@ export default async function ChildProfilePage({ params }: PageProps) {
           </Section>
 
           {/* Escolaridad */}
-          <Section title="Escolaridad" icon="school">
+          <Section title="Escolaridad">
             <Field label="Colegio actual" value={c.school_name} />
             <Field label="Grado que cursa" value={c.school_grade} />
           </Section>
 
           {/* Diagnósticos */}
-          <Section title="Diagnósticos" icon="psychology">
+          <Section title="Diagnósticos">
             {c.diagnoses_json && c.diagnoses_json.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {c.diagnoses_json.map((d) => (
@@ -108,14 +108,14 @@ export default async function ChildProfilePage({ params }: PageProps) {
               <span className="text-sm text-fm-on-surface-variant">Sin diagnósticos registrados</span>
             )}
             {c.diagnoses_display_text && (
-              <p className="text-xs text-fm-on-surface-variant mt-3 italic">
+              <p className="text-xs text-fm-on-surface-variant mt-3 italic max-w-prose">
                 Texto editorial para informes: <span className="not-italic font-medium">{c.diagnoses_display_text}</span>
               </p>
             )}
           </Section>
 
           {/* Origen / referencia */}
-          <Section title="Origen del paciente" icon="share">
+          <Section title="Origen del paciente">
             <Field label="Tipo" value={c.referral_source_type} />
             <FieldLong label="Notas de referencia" value={c.referral_notes} />
           </Section>
@@ -125,28 +125,36 @@ export default async function ChildProfilePage({ params }: PageProps) {
         {c.notes && (
           <div className="bg-fm-surface-container-low rounded-2xl border border-fm-outline-variant/20 p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant mb-2">Notas internas</h3>
-            <p className="text-sm text-fm-on-surface whitespace-pre-wrap">{c.notes}</p>
+            <p className="text-sm text-fm-on-surface whitespace-pre-wrap max-w-prose">{c.notes}</p>
           </div>
         )}
-
-        <div className="bg-fm-surface-container-low rounded-2xl border border-fm-outline-variant/20 p-4">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant mb-2">Próximos pasos (Fase 2+)</h3>
-          <p className="text-sm text-fm-on-surface-variant">
-            Las siguientes secciones se habilitarán en fases posteriores: agenda de citas y terapias (Fase 2),
-            sesiones de terapia y reportes de avance cuatrimestrales (Fase 3), evaluaciones estructuradas (Fase 6),
-            facturación y pagos (Fase 7).
-          </p>
-        </div>
       </div>
     </div>
   )
 }
 
-function Section({ title, icon, children }: { title: string; icon: string; children: React.ReactNode }) {
+function Section({
+  title,
+  icon,
+  tone,
+  children,
+}: {
+  title: string
+  icon?: string
+  tone?: 'urgent' | 'default'
+  children: React.ReactNode
+}) {
   return (
     <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
       <div className="flex items-center gap-2 mb-3">
-        <span className="material-symbols-outlined text-fm-primary text-lg">{icon}</span>
+        {icon && (
+          <span
+            className={`material-symbols-outlined text-lg ${tone === 'urgent' ? 'text-fm-error' : 'text-fm-primary'}`}
+            aria-hidden="true"
+          >
+            {icon}
+          </span>
+        )}
         <h2 className="text-sm font-semibold text-fm-on-surface">{title}</h2>
       </div>
       <div className="space-y-3">{children}</div>
@@ -167,7 +175,7 @@ function FieldLong({ label, value, highlight }: { label: string; value: string |
   return (
     <div>
       <div className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">{label}</div>
-      <div className={`text-sm mt-0.5 whitespace-pre-wrap ${highlight && value ? 'text-fm-error font-medium' : 'text-fm-on-surface'}`}>
+      <div className={`text-sm mt-0.5 whitespace-pre-wrap max-w-prose ${highlight && value ? 'text-fm-error font-medium' : 'text-fm-on-surface'}`}>
         {value || <span className="text-fm-on-surface-variant font-normal">—</span>}
       </div>
     </div>

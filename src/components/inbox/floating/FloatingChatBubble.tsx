@@ -194,14 +194,14 @@ export function FloatingChatBubble({ conversation, onClose, onMinimize, minimize
                   {/* Preview de mensaje citado */}
                   {msg.reply_preview && (
                     <div
-                      className={`max-w-[90%] px-2 py-1 rounded-md border-l-2 text-[9px] mb-0.5 ${
+                      className={`max-w-[90%] pl-2 pr-2 py-1 rounded-md text-[9px] mb-0.5 ${
                         isMe
-                          ? 'bg-white/15 border-white/50 text-white/70'
-                          : 'bg-fm-surface-container-high border-[#1FA4DA]/50 text-fm-on-surface-variant'
+                          ? 'bg-white/10 text-white/75'
+                          : 'bg-fm-surface-container-high text-fm-on-surface-variant'
                       }`}
                     >
-                      <span className="font-semibold block truncate">{msg.reply_preview.author_name}</span>
-                      <span className="block truncate opacity-80">{msg.reply_preview.body}</span>
+                      <span className="font-semibold block truncate text-[10px] opacity-90">↳ {msg.reply_preview.author_name}</span>
+                      <span className="block truncate opacity-70">{msg.reply_preview.body}</span>
                     </div>
                   )}
                   <div className="flex items-center gap-1">

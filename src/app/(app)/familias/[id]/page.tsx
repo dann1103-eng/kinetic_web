@@ -48,15 +48,19 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
   const childrenList = (children ?? []) as Child[]
   const familyTyped = family as Family
 
+  const hasEmergency = !!familyTyped.emergency_contact_name
+  const hasSecondary = !!familyTyped.secondary_contact_name
+  const hasFiscal = !!familyTyped.fiscal_legal_name
+
   return (
     <div className="flex flex-col min-h-full">
       <TopNav title={familyTyped.primary_contact_name} backHref="/familias" />
 
       <div className="flex-1 p-6 space-y-6">
         {/* Header de familia */}
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-2xl font-bold text-fm-on-surface">{familyTyped.primary_contact_name}</h1>
               <StatusBadge status={familyTyped.status} />
             </div>
@@ -69,46 +73,88 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
           <FamilyForm initialFamily={familyTyped} />
         </div>
 
-        {/* Datos de contacto + fiscales */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <InfoCard title="Contacto secundario">
-            {familyTyped.secondary_contact_name ? (
-              <>
-                <div className="text-sm text-fm-on-surface">{familyTyped.secondary_contact_name}</div>
-                <div className="text-xs text-fm-on-surface-variant">{familyTyped.secondary_contact_phone}</div>
-              </>
-            ) : (
-              <span className="text-xs text-fm-on-surface-variant">No registrado</span>
+        {/* Información de contacto — layout asimétrico para evitar identical-card-grid.
+            Emergencia toma protagonismo (es la card que más urgencia tiene) y el resto
+            queda como inline definitions con dividers, no cards anidadas. */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
+          {/* Emergencia: card grande con espacio para urgencia */}
+          <section
+            className={`lg:col-span-2 rounded-2xl border p-5 ${
+              hasEmergency
+                ? 'bg-fm-surface-container-lowest border-fm-outline-variant/20'
+                : 'bg-fm-error/5 border-fm-error/30'
+            }`}
+            aria-labelledby="emergency-heading"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant">
+                  Contacto de emergencia
+                </p>
+                {hasEmergency ? (
+                  <>
+                    <h2 id="emergency-heading" className="text-xl font-semibold text-fm-on-surface">
+                      {familyTyped.emergency_contact_name}
+                    </h2>
+                    <p className="text-sm text-fm-on-surface-variant">
+                      {familyTyped.emergency_contact_phone}
+                      {familyTyped.emergency_contact_relation && (
+                        <span className="text-fm-on-surface-variant/80"> · {familyTyped.emergency_contact_relation}</span>
+                      )}
+                    </p>
+                  </>
+                ) : (
+                  <h2 id="emergency-heading" className="text-base font-semibold text-fm-error">
+                    Sin contacto de emergencia registrado
+                  </h2>
+                )}
+              </div>
+              {!hasEmergency && (
+                <span className="material-symbols-outlined text-fm-error" aria-hidden="true">
+                  warning
+                </span>
+              )}
+            </div>
+            {!hasEmergency && (
+              <p className="text-xs text-fm-error/80 mt-2 max-w-prose">
+                En caso de accidente o malestar, Kinetic necesita un segundo contacto al que llamar si no se localiza al padre/madre.
+              </p>
             )}
-          </InfoCard>
+          </section>
 
-          <InfoCard title="Contacto de emergencia">
-            {familyTyped.emergency_contact_name ? (
-              <>
-                <div className="text-sm text-fm-on-surface">{familyTyped.emergency_contact_name}</div>
-                <div className="text-xs text-fm-on-surface-variant">
-                  {familyTyped.emergency_contact_phone}
-                  {familyTyped.emergency_contact_relation && ` · ${familyTyped.emergency_contact_relation}`}
-                </div>
-              </>
-            ) : (
-              <span className="text-xs text-fm-error">⚠️ Sin contacto de emergencia</span>
-            )}
-          </InfoCard>
+          {/* Detalles complementarios — sin card anidada, solo inline definitions */}
+          <section className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-5 space-y-4" aria-label="Datos complementarios">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant">
+                Contacto secundario
+              </p>
+              {hasSecondary ? (
+                <>
+                  <p className="text-sm text-fm-on-surface mt-1">{familyTyped.secondary_contact_name}</p>
+                  <p className="text-xs text-fm-on-surface-variant">{familyTyped.secondary_contact_phone}</p>
+                </>
+              ) : (
+                <p className="text-xs text-fm-on-surface-variant/70 mt-1">Sin segundo padre/tutor en contacto.</p>
+              )}
+            </div>
 
-          <InfoCard title="Datos fiscales">
-            {familyTyped.fiscal_legal_name ? (
-              <>
-                <div className="text-sm text-fm-on-surface">{familyTyped.fiscal_legal_name}</div>
-                <div className="text-xs text-fm-on-surface-variant">
-                  {familyTyped.fiscal_nit && <>NIT {familyTyped.fiscal_nit}</>}
-                  {familyTyped.fiscal_dui && !familyTyped.fiscal_nit && <>DUI {familyTyped.fiscal_dui}</>}
-                </div>
-              </>
-            ) : (
-              <span className="text-xs text-fm-on-surface-variant">No registrado</span>
-            )}
-          </InfoCard>
+            <div className="border-t border-fm-outline-variant/15 pt-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant">
+                Datos fiscales
+              </p>
+              {hasFiscal ? (
+                <>
+                  <p className="text-sm text-fm-on-surface mt-1">{familyTyped.fiscal_legal_name}</p>
+                  <p className="text-xs text-fm-on-surface-variant">
+                    {familyTyped.fiscal_nit && <>NIT {familyTyped.fiscal_nit}</>}
+                    {familyTyped.fiscal_dui && !familyTyped.fiscal_nit && <>DUI {familyTyped.fiscal_dui}</>}
+                  </p>
+                </>
+              ) : (
+                <p className="text-xs text-fm-on-surface-variant/70 mt-1">Necesarios para emitir factura.</p>
+              )}
+            </div>
+          </section>
         </div>
 
         {/* Niños */}
@@ -120,24 +166,29 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
             <ChildForm familyId={id} />
           </div>
 
-          {childrenList.length === 0 && (
-            <div className="text-sm text-fm-on-surface-variant py-8 text-center bg-fm-surface-container-low rounded-2xl border border-fm-outline-variant/20">
-              Esta familia aún no tiene niños/as registrados.
+          {childrenList.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-fm-outline-variant/40 bg-fm-surface-container-low/40 px-6 py-10 text-center">
+              <p className="text-sm font-medium text-fm-on-surface">
+                Esta familia aún no tiene niños/as registrados.
+              </p>
+              <p className="text-xs text-fm-on-surface-variant mt-1 max-w-prose mx-auto">
+                Hacé clic en <span className="font-semibold text-fm-on-surface">Registrar niño/a</span> arriba para crear el primer expediente clínico.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {childrenList.map((child) => (
+                <ChildCard key={child.id} familyId={id} child={child} />
+              ))}
             </div>
           )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {childrenList.map((child) => (
-              <ChildCard key={child.id} familyId={id} child={child} />
-            ))}
-          </div>
         </div>
 
         {/* Notas internas */}
         {familyTyped.notes && (
           <div className="bg-fm-surface-container-low rounded-2xl border border-fm-outline-variant/20 p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant mb-2">Notas internas</h3>
-            <p className="text-sm text-fm-on-surface whitespace-pre-wrap">{familyTyped.notes}</p>
+            <p className="text-sm text-fm-on-surface whitespace-pre-wrap max-w-prose">{familyTyped.notes}</p>
           </div>
         )}
       </div>
@@ -156,15 +207,6 @@ function StatusBadge({ status }: { status: string }) {
     <span className={`text-xs px-2 py-0.5 rounded-full ${colors[status] ?? 'bg-fm-surface-container'}`}>
       {FAMILY_STATUS_LABELS[status] ?? status}
     </span>
-  )
-}
-
-function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-fm-surface-container-low rounded-2xl border border-fm-outline-variant/20 p-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant mb-2">{title}</h3>
-      <div>{children}</div>
-    </div>
   )
 }
 
@@ -191,7 +233,7 @@ function ChildCard({ familyId, child }: { familyId: string; child: Child }) {
             {child.school_grade && ` (${child.school_grade})`}
           </p>
         </div>
-        <span className="material-symbols-outlined text-fm-on-surface-variant">chevron_right</span>
+        <span className="material-symbols-outlined text-fm-on-surface-variant" aria-hidden="true">chevron_right</span>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mt-3">
