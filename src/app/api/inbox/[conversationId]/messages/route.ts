@@ -18,6 +18,7 @@ type MessageRow = {
   edited_at: string | null
   deleted_at: string | null
   created_at: string
+  reply_to_message_id: string | null
   author: {
     id: string
     full_name: string
@@ -78,7 +79,7 @@ export async function GET(
 
     const { data: msgsRaw, error: msgsErr } = await supabase
       .from('messages')
-      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, reply_to_message_id, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
       .gte('created_at', startUtcIso)
@@ -107,7 +108,7 @@ export async function GET(
   if (since) {
     const { data: msgsRaw, error: msgsErr } = await supabase
       .from('messages')
-      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, reply_to_message_id, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
       .gt('created_at', since)
@@ -141,7 +142,7 @@ export async function GET(
 
     const { data: msgsRaw, error: msgsErr } = await supabase
       .from('messages')
-      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, reply_to_message_id, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
       .gte('created_at', startUtcIso)
@@ -169,7 +170,7 @@ export async function GET(
   // Modo 3 (legacy / fallback): últimos N en orden ascendente.
   const { data: msgsRaw, error: msgsErr } = await supabase
     .from('messages')
-    .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+    .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, reply_to_message_id, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
     .eq('conversation_id', conversationId)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
@@ -188,6 +189,8 @@ async function enrichWithAttachments(
 ): Promise<MessageWithMeta[]> {
   if (msgs.length === 0) return []
   const msgIds = msgs.map((m) => m.id)
+
+  // Adjuntos
   const { data: attsRaw } = await supabase
     .from('message_attachments')
     .select('*')
@@ -199,6 +202,25 @@ async function enrichWithAttachments(
     list.push(a)
     attByMsg.set(a.message_id, list)
   }
+
+  // Previews de mensajes citados
+  const replyIds = [...new Set(
+    msgs.map((m) => m.reply_to_message_id).filter((id): id is string => !!id)
+  )]
+  const replyPreviewMap = new Map<string, { body: string; author_name: string }>()
+  if (replyIds.length > 0) {
+    const { data: replyMsgsRaw } = await supabase
+      .from('messages')
+      .select('id, body, author:users!messages_user_id_fkey(full_name)')
+      .in('id', replyIds)
+    for (const r of (replyMsgsRaw ?? []) as unknown as Array<{ id: string; body: string; author: { full_name: string } | null }>) {
+      replyPreviewMap.set(r.id, {
+        body: r.body,
+        author_name: r.author?.full_name ?? 'Usuario',
+      })
+    }
+  }
+
   return msgs.map((m) => ({
     id: m.id,
     conversation_id: m.conversation_id,
@@ -208,6 +230,8 @@ async function enrichWithAttachments(
     deleted_at: m.deleted_at,
     created_at: m.created_at,
     kind: (m as { kind?: 'text' | 'system_missed_call' }).kind ?? 'text',
+    reply_to_message_id: m.reply_to_message_id,
+    reply_preview: m.reply_to_message_id ? (replyPreviewMap.get(m.reply_to_message_id) ?? null) : null,
     author: m.author,
     attachments: attByMsg.get(m.id) ?? [],
   }))

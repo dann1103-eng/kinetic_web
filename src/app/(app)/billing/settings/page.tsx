@@ -13,8 +13,9 @@ export default async function BillingSettingsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
-  if (appUser?.role !== 'admin') redirect('/billing')
+  const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
+  const canAccessSettings = appUser?.role === 'admin' || (appUser?.can_quote ?? false)
+  if (!canAccessSettings) redirect('/billing')
 
   const admin = createAdminClient()
   const { data: settingsRow } = await admin.from('company_settings').select('*').limit(1).maybeSingle()

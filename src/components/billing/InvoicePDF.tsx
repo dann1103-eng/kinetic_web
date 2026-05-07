@@ -5,6 +5,7 @@ import type {
   EmitterSnapshot,
   Invoice,
   InvoiceItem,
+  TermAndCondition,
 } from '@/types/db'
 import { PAYMENT_METHOD_LABELS } from '@/types/db'
 
@@ -52,6 +53,13 @@ const styles = StyleSheet.create({
   notesLabel: { fontSize: 7, color: GRAY, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 },
   notesText: { fontSize: 9, color: '#1e293b', lineHeight: 1.5 },
   footer: { position: 'absolute', bottom: 30, left: 40, right: 40, textAlign: 'center', fontSize: 7, color: GRAY, borderTopWidth: 0.5, borderColor: BORDER, paddingTop: 8 },
+  tcHeader: { marginBottom: 20 },
+  tcTitle: { fontSize: 18, fontFamily: 'Helvetica-Bold', color: TEAL, marginBottom: 4 },
+  tcSubtitle: { fontSize: 10, color: GRAY },
+  tcItem: { flexDirection: 'row', marginBottom: 10, gap: 8 },
+  tcNumber: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: RED, width: 22 },
+  tcText: { fontSize: 9, color: '#1e293b', lineHeight: 1.5, flex: 1 },
+  tcFooter: { position: 'absolute', bottom: 30, left: 40, right: 40, textAlign: 'center', fontSize: 7, color: GRAY, borderTopWidth: 0.5, borderColor: BORDER, paddingTop: 8 },
 })
 
 interface InvoicePDFProps {
@@ -67,6 +75,7 @@ export function InvoicePDF({ invoice, items }: InvoicePDFProps) {
   const emitter = invoice.emitter_snapshot_json as EmitterSnapshot
   const client = invoice.client_snapshot_json as ClientFiscalSnapshot
   const logoUrl = emitter.logo_url ?? null
+  const terms = ((invoice.terms_snapshot_json ?? []) as TermAndCondition[]).sort((a, b) => a.order - b.order)
 
   return (
     <Document>
@@ -206,6 +215,26 @@ export function InvoicePDF({ invoice, items }: InvoicePDFProps) {
           <Text style={styles.footer}>{emitter.invoice_footer_note}</Text>
         )}
       </Page>
+
+      {terms.length > 0 && (
+        <Page size="LETTER" style={styles.page}>
+          <View style={styles.tcHeader}>
+            <Text style={styles.tcTitle}>Términos y Condiciones</Text>
+            <Text style={styles.tcSubtitle}>Factura {invoice.invoice_number}</Text>
+          </View>
+          {terms.map((t, idx) => (
+            <View key={t.id} style={styles.tcItem}>
+              <Text style={styles.tcNumber}>{idx + 1}.</Text>
+              <Text style={styles.tcText}>{t.text}</Text>
+            </View>
+          ))}
+          <Text style={styles.tcFooter}>
+            {emitter.trade_name ?? emitter.legal_name}
+            {emitter.phone ? ` · ${emitter.phone}` : ''}
+            {emitter.email ? ` · ${emitter.email}` : ''}
+          </Text>
+        </Page>
+      )}
     </Document>
   )
 }

@@ -11,11 +11,11 @@ import { createClient } from '@/lib/supabase/client'
 import { calculateTotals, formatCurrency, suggestItemsFromPlan, STANDARD_CAMBIOS_PACKAGES, type LineItemInput } from '@/lib/domain/invoices'
 import { invoicePeriodLabel } from '@/lib/domain/billing'
 import { nextCycleDates } from '@/lib/domain/cycles'
-import { EXTRA_CONTENT_PRICES, CONTENT_TYPE_LABELS } from '@/lib/domain/plans'
+import { EXTRA_CONTENT_PRICES, CONTENT_TYPE_LABELS, formatPlanDescription } from '@/lib/domain/plans'
 import { createInvoice, ensureScheduledCycle } from '@/app/actions/invoices'
 import { createQuote } from '@/app/actions/quotes'
 import { LineItemsEditor } from './LineItemsEditor'
-import type { Client, Plan, BillingCycle, CambiosPackage, ContentType, ExtraContentItem, InvoiceExtrasMetadata, Invoice, PaymentProvider } from '@/types/db'
+import type { Client, Plan, BillingCycle, CambiosPackage, ContentType, ExtraContentItem, InvoiceExtrasMetadata, Invoice, PaymentProvider, TermAndCondition } from '@/types/db'
 
 interface CatalogItem {
   label: string
@@ -65,15 +65,23 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
   /** Metadata de paquete extra; se establece al agregar un item del catálogo de extras. Solo una factura puede ser un paquete (no se mezclan con plan). */
   const [extrasMetadata, setExtrasMetadata] = useState<InvoiceExtrasMetadata | null>(null)
 
+  // Términos y condiciones editables por documento
+  const [terms, setTerms] = useState<TermAndCondition[]>([])
+  const [termsOpen, setTermsOpen] = useState(false)
+  const [termsEditingId, setTermsEditingId] = useState<string | null>(null)
+  const [termsEditingText, setTermsEditingText] = useState('')
+
   useEffect(() => {
     async function load() {
       const supabase = createClient()
-      const [{ data: cs }, { data: ps }] = await Promise.all([
+      const [{ data: cs }, { data: ps }, { data: settings }] = await Promise.all([
         supabase.from('clients').select('*').order('name'),
         supabase.from('plans').select('*').eq('active', true),
+        supabase.from('company_settings').select('terms_and_conditions_json').limit(1).maybeSingle(),
       ])
       setClients((cs ?? []) as Client[])
       setPlans((ps ?? []) as Plan[])
+      setTerms((settings?.terms_and_conditions_json ?? []) as TermAndCondition[])
       setLoading(false)
     }
     load()
@@ -230,6 +238,23 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
   const catalog = useMemo<{ group: string; items: CatalogItem[] }[]>(() => {
     const groups: { group: string; items: CatalogItem[] }[] = []
 
+    // Solo en cotizaciones: planes disponibles como ítems de línea.
+    // No llevan extrasMetadata (no generan créditos al pagar; son solo texto descriptivo).
+    if (mode === 'quote' && plans.length > 0) {
+      groups.push({
+        group: 'Planes',
+        items: plans.map((p) => {
+          const planDesc = formatPlanDescription(p)
+          return {
+            label: p.name,
+            description: planDesc ? `${p.name} — ${planDesc}` : p.name,
+            unit_price: p.price_usd,
+            quantity: 1,
+          }
+        }),
+      })
+    }
+
     // Contenido extra estándar — cada item del catálogo lleva su `extrasMetadata`
     // para que al pagar la factura se materialice como crédito de contenido.
     const contentItems: CatalogItem[] = (Object.entries(EXTRA_CONTENT_PRICES) as [keyof typeof EXTRA_CONTENT_PRICES, number][])
@@ -287,9 +312,53 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
     }
 
     return groups
-  }, [cycle])
+  }, [cycle, mode, plans])
 
   const [catalogOpen, setCatalogOpen] = useState(false)
+
+  // — helpers para T&C —
+  function addTerm() {
+    const newTerm: TermAndCondition = {
+      id: crypto.randomUUID(),
+      order: terms.length + 1,
+      text: '',
+    }
+    setTerms(prev => [...prev, newTerm])
+    setTermsEditingId(newTerm.id)
+    setTermsEditingText('')
+  }
+
+  function saveTermEdit(id: string) {
+    setTerms(prev => prev.map(t => t.id === id ? { ...t, text: termsEditingText } : t))
+    setTermsEditingId(null)
+    setTermsEditingText('')
+  }
+
+  function cancelTermEdit(id: string) {
+    // Si el texto original estaba vacío y no se escribió nada, eliminar
+    const original = terms.find(t => t.id === id)
+    if (original && !original.text.trim() && !termsEditingText.trim()) {
+      setTerms(prev => prev.filter(t => t.id !== id))
+    }
+    setTermsEditingId(null)
+    setTermsEditingText('')
+  }
+
+  function deleteTerm(id: string) {
+    setTerms(prev => prev.filter(t => t.id !== id).map((t, i) => ({ ...t, order: i + 1 })))
+  }
+
+  function moveTerm(id: string, direction: 'up' | 'down') {
+    setTerms(prev => {
+      const idx = prev.findIndex(t => t.id === id)
+      if (idx === -1) return prev
+      const next = [...prev]
+      const swap = direction === 'up' ? idx - 1 : idx + 1
+      if (swap < 0 || swap >= next.length) return prev
+      ;[next[idx], next[swap]] = [next[swap], next[idx]]
+      return next.map((t, i) => ({ ...t, order: i + 1 }))
+    })
+  }
 
   function addFromCatalog(item: CatalogItem) {
     if (item.extrasMetadata) {
@@ -346,6 +415,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           biweeklyHalf: cycleId && selectedClient?.billing_period === 'biweekly' ? biweeklyHalf : null,
           paymentProvider,
           extrasMetadata,
+          termsSnapshotJson: terms.length > 0 ? terms : null,
         })
       : await createQuote({
           clientId: isProspectQuote ? null : clientId,
@@ -358,6 +428,7 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           retentionRate,
           validUntil: validUntil || null,
           notes: notes || null,
+          termsSnapshotJson: terms.length > 0 ? terms : null,
         })
 
     setSaving(false)
@@ -653,6 +724,129 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
           <Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)}
             placeholder="Notas internas o para el cliente…"
             className="rounded-xl bg-fm-background border-fm-surface-container-high resize-none" />
+        </div>
+
+        {/* Términos y condiciones editables por documento */}
+        <div className="rounded-xl border border-fm-outline-variant/30 bg-fm-background overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setTermsOpen(o => !o)}
+            className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-fm-on-surface hover:bg-fm-surface-container-high/50 transition-colors"
+          >
+            <span className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-fm-primary" style={{ fontSize: 16 }}>gavel</span>
+              Términos y condiciones
+              <span className="text-xs font-normal text-fm-on-surface-variant">
+                ({terms.length} {terms.length === 1 ? 'cláusula' : 'cláusulas'})
+              </span>
+            </span>
+            <span className="material-symbols-outlined text-fm-on-surface-variant" style={{ fontSize: 18 }}>
+              {termsOpen ? 'expand_less' : 'expand_more'}
+            </span>
+          </button>
+
+          {termsOpen && (
+            <div className="px-4 pb-4 pt-1 space-y-2 border-t border-fm-outline-variant/20">
+              <p className="text-xs text-fm-on-surface-variant pb-1">
+                Se cargan los T&C globales como base. Puedes personalizar, agregar o eliminar cláusulas para este documento.
+              </p>
+
+              {terms.length === 0 && (
+                <p className="text-xs text-fm-outline italic py-2">Sin cláusulas. Agrega una con el botón de abajo.</p>
+              )}
+
+              <div className="space-y-2">
+                {terms.map((term, idx) => (
+                  <div key={term.id} className="flex gap-2 items-start group">
+                    {/* Número */}
+                    <span className="mt-2 flex-shrink-0 w-5 text-center text-xs font-bold text-fm-on-surface-variant">{idx + 1}.</span>
+
+                    {/* Contenido */}
+                    {termsEditingId === term.id ? (
+                      <div className="flex-1 space-y-1.5">
+                        <Textarea
+                          autoFocus
+                          rows={3}
+                          value={termsEditingText}
+                          onChange={(e) => setTermsEditingText(e.target.value)}
+                          className="rounded-xl bg-fm-surface-container-high border-fm-primary/40 resize-none text-sm w-full"
+                          placeholder="Escribe la cláusula…"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => saveTermEdit(term.id)}
+                            className="text-white rounded-lg h-7 px-3 text-xs"
+                            style={{ background: 'linear-gradient(135deg,#1FA4DA,#87daff)' }}
+                          >
+                            Guardar
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => cancelTermEdit(term.id)}
+                            className="rounded-lg h-7 px-3 text-xs"
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p
+                        onClick={() => { setTermsEditingId(term.id); setTermsEditingText(term.text) }}
+                        className="flex-1 text-sm text-fm-on-surface py-1.5 px-2 rounded-lg cursor-pointer hover:bg-fm-surface-container-high/60 transition-colors"
+                      >
+                        {term.text || <span className="italic text-fm-outline">Vacío — clic para editar</span>}
+                      </p>
+                    )}
+
+                    {/* Acciones */}
+                    {termsEditingId !== term.id && (
+                      <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => moveTerm(term.id, 'up')}
+                          disabled={idx === 0}
+                          className="p-0.5 rounded text-fm-on-surface-variant hover:text-fm-primary disabled:opacity-30 transition-colors"
+                          title="Subir"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_upward</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveTerm(term.id, 'down')}
+                          disabled={idx === terms.length - 1}
+                          className="p-0.5 rounded text-fm-on-surface-variant hover:text-fm-primary disabled:opacity-30 transition-colors"
+                          title="Bajar"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>arrow_downward</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteTerm(term.id)}
+                          className="p-0.5 rounded text-fm-on-surface-variant hover:text-fm-error transition-colors"
+                          title="Eliminar"
+                        >
+                          <span className="material-symbols-outlined" style={{ fontSize: 14 }}>delete</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={addTerm}
+                className="mt-1 flex items-center gap-1.5 text-xs font-medium text-fm-primary hover:underline"
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 14 }}>add_circle</span>
+                Agregar cláusula
+              </button>
+            </div>
+          )}
         </div>
 
         {error && (

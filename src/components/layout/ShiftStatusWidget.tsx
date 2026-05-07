@@ -10,6 +10,7 @@ import {
   endShift,
   startBreak,
   endBreak,
+  convertLunchToAway,
 } from '@/app/actions/work-sessions'
 import { stopActiveEntry } from '@/app/actions/time'
 import { formatDuration } from '@/lib/domain/time'
@@ -19,6 +20,7 @@ import { EndShiftConfirmDialog } from '@/components/tiempo/EndShiftConfirmDialog
 import { ActiveTimerWarningDialog } from '@/components/layout/ActiveTimerWarningDialog'
 
 const SYNC_INTERVAL_MS = 30_000
+const LUNCH_LIMIT_SECONDS = 60 * 60 // 1 hora
 
 function elapsedSeconds(from: string, to?: Date): number {
   const end = to ?? new Date()
@@ -40,6 +42,7 @@ export function ShiftStatusWidget() {
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [, setTick] = useState(0)
+  const convertedBreakRef = useRef<string | null>(null)
   const [endConfirm, setEndConfirm] = useState<{ open: boolean; label: string | null }>({
     open: false,
     label: null,
@@ -51,7 +54,7 @@ export function ShiftStatusWidget() {
   }>({ open: false, timerLabel: null, breakType: null })
   const dropdownRef = useRef<HTMLDivElement>(null)
 
-  // Cargar shift al montar
+  // Cargar shift al montar + re-sync cada 30s
   useEffect(() => {
     let cancelled = false
     getMyActiveShift().then((s) => {
@@ -66,13 +69,68 @@ export function ShiftStatusWidget() {
       cancelled = true
       window.clearInterval(sync)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Cronómetro vivo (1s) — solo si hay shift activa
+  // Cronómetro vivo (1s) — solo si hay shift activa.
+  // También maneja dos comportamientos de fondo:
+  // 1. visibilitychange: al volver al tab fuerza tick + re-sync inmediato
+  //    para que el display no muestre un valor congelado.
+  // 2. Auto-convierte almuerzo → away después de LUNCH_LIMIT_SECONDS.
+  //    Se comprueba en cada tick Y al volver al tab (por si el usuario
+  //    estaba en otra ventana durante la hora de almuerzo).
   useEffect(() => {
     if (!shift) return
-    const t = setInterval(() => setTick((n) => n + 1), 1000)
-    return () => clearInterval(t)
+
+    function checkLunchOvertime(currentShift: WorkSession) {
+      if (currentShift.status !== 'on_lunch') {
+        convertedBreakRef.current = null
+        return
+      }
+      const breaks = (currentShift.breaks_json ?? []) as WorkSessionBreak[]
+      const last = breaks[breaks.length - 1]
+      if (!last || last.ended_at) return
+      // Ya procesamos este break antes
+      if (convertedBreakRef.current === last.started_at) return
+      if (elapsedSeconds(last.started_at) < LUNCH_LIMIT_SECONDS) return
+
+      // Marcar antes de la llamada async para evitar disparos dobles
+      convertedBreakRef.current = last.started_at
+      void convertLunchToAway().then((r) => {
+        if ('ok' in r) {
+          getMyActiveShift().then((s) => setShift(s))
+          // Notificación del navegador si el permiso está concedido
+          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+            new Notification('Almuerzo excedido', {
+              body: 'Llevas más de 1 hora de almuerzo. Tu estado cambió automáticamente a Away.',
+              tag: 'lunch-overtime',
+            })
+          }
+        }
+      })
+    }
+
+    const t = setInterval(() => {
+      setTick((n) => n + 1)
+      checkLunchOvertime(shift)
+    }, 1000)
+
+    // Al volver al tab: actualizar display inmediatamente y revisar almuerzo
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return
+      setTick((n) => n + 1)
+      getMyActiveShift().then((s) => {
+        setShift(s)
+        if (s) checkLunchOvertime(s)
+      })
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      clearInterval(t)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shift])
 
   // Cerrar dropdown al click afuera

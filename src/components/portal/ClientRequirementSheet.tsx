@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { RequirementChat } from '@/components/pipeline/RequirementChat'
 import { ContentReviewPanel } from '@/components/clients/review/ContentReviewPanel'
+import { clientApproveRequirement } from '@/app/actions/portalSelfService'
 
 type Tab = 'chat' | 'revision'
 
@@ -42,7 +43,24 @@ export function ClientRequirementSheet({
   reviewStartedAt,
 }: ClientRequirementSheetProps) {
   const [tab, setTab] = useState<Tab>('revision')
+  const [approving, startApprove] = useTransition()
+  const [approved, setApproved] = useState(false)
+  const [approveError, setApproveError] = useState<string | null>(null)
   const since = formatReviewSince(reviewStartedAt)
+
+  function handleApprove() {
+    setApproveError(null)
+    startApprove(async () => {
+      const res = await clientApproveRequirement(requirementId)
+      if ('error' in res) {
+        setApproveError(res.error)
+      } else {
+        setApproved(true)
+        // Cerrar el sheet después de un breve delay para que el usuario vea el confirmación
+        setTimeout(() => onClose(), 1500)
+      }
+    })
+  }
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose() }}>
@@ -52,7 +70,7 @@ export function ClientRequirementSheet({
       >
         {/* Header */}
         <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-fm-surface-container-high pr-14 flex-shrink-0">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2 className="text-base font-semibold text-fm-on-surface truncate">
               {requirementTitle || 'Requerimiento'}
             </h2>
@@ -60,6 +78,27 @@ export function ClientRequirementSheet({
               <p className="text-xs text-fm-on-surface-variant mt-0.5">
                 En revisión {since}
               </p>
+            )}
+          </div>
+          <div className="flex-shrink-0 ml-3">
+            {approved ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1FA4DA]/10 text-[#1FA4DA] text-xs font-semibold">
+                <span className="material-symbols-outlined text-sm">check_circle</span>
+                ¡Aprobado!
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleApprove}
+                disabled={approving}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-[#1FA4DA] text-white text-xs font-bold hover:bg-[#005549] disabled:opacity-60 transition-colors"
+              >
+                <span className="material-symbols-outlined text-sm">thumb_up</span>
+                {approving ? 'Aprobando…' : 'Aprobar'}
+              </button>
+            )}
+            {approveError && (
+              <p className="text-[10px] text-[#E5316E] mt-1 text-right">{approveError}</p>
             )}
           </div>
         </div>

@@ -80,6 +80,7 @@ export default async function ConversationPage({ params }: PageProps) {
     edited_at: string | null
     deleted_at: string | null
     created_at: string
+    reply_to_message_id: string | null
     author: { id: string; full_name: string; avatar_url: string | null } | null
   }
 
@@ -104,7 +105,7 @@ export default async function ConversationPage({ params }: PageProps) {
     // 2) Cargar todos los mensajes de ese día (cap por seguridad).
     const { data: dayMsgsRaw } = await supabase
       .from('messages')
-      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
+      .select('id, conversation_id, user_id, body, edited_at, deleted_at, created_at, kind, reply_to_message_id, author:users!messages_user_id_fkey(id, full_name, avatar_url)')
       .eq('conversation_id', conversationId)
       .is('deleted_at', null)
       .gte('created_at', startUtcIso)
@@ -138,6 +139,24 @@ export default async function ConversationPage({ params }: PageProps) {
     attByMsg.set(a.message_id, list)
   }
 
+  // Previews de mensajes citados para carga inicial
+  const replyIds = [...new Set(
+    msgsAsc.map((m) => m.reply_to_message_id).filter((id): id is string => !!id)
+  )]
+  const replyPreviewMap = new Map<string, { body: string; author_name: string }>()
+  if (replyIds.length > 0) {
+    const { data: replyMsgsRaw } = await supabase
+      .from('messages')
+      .select('id, body, author:users!messages_user_id_fkey(full_name)')
+      .in('id', replyIds)
+    for (const r of (replyMsgsRaw ?? []) as unknown as Array<{ id: string; body: string; author: { full_name: string } | null }>) {
+      replyPreviewMap.set(r.id, {
+        body: r.body,
+        author_name: r.author?.full_name ?? 'Usuario',
+      })
+    }
+  }
+
   const initialMessages: MessageWithMeta[] = msgsAsc.map((m) => ({
     id: m.id,
     conversation_id: m.conversation_id,
@@ -147,6 +166,8 @@ export default async function ConversationPage({ params }: PageProps) {
     deleted_at: m.deleted_at,
     created_at: m.created_at,
     kind: (m as { kind?: 'text' | 'system_missed_call' }).kind ?? 'text',
+    reply_to_message_id: m.reply_to_message_id,
+    reply_preview: m.reply_to_message_id ? (replyPreviewMap.get(m.reply_to_message_id) ?? null) : null,
     author: m.author,
     attachments: attByMsg.get(m.id) ?? [],
   }))

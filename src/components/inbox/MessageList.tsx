@@ -15,6 +15,7 @@ interface MessageListProps {
   initialMessages: MessageWithMeta[]
   initialDayKey: string | null
   initialHasMoreBefore: boolean
+  onReply?: (message: MessageWithMeta) => void
 }
 
 function dayLabel(iso: string): string {
@@ -31,6 +32,7 @@ export function MessageList({
   initialMessages,
   initialDayKey,
   initialHasMoreBefore,
+  onReply,
 }: MessageListProps) {
   const {
     messages,
@@ -157,6 +159,7 @@ export function MessageList({
                 isAdmin={isAdmin}
                 onDeleted={() => removeMessage(m.id)}
                 onUpdated={(patch) => updateMessage(m.id, patch)}
+                onReply={onReply}
               />
             )
           })}
