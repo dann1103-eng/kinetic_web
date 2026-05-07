@@ -6,11 +6,10 @@ import { SidebarContent } from '@/components/layout/Sidebar'
 import { useMobileSidebar } from '@/components/layout/MobileSidebarProvider'
 
 interface MobileSidebarProps {
-  renewalCount?: number
   agencyLogoUrl?: string | null
 }
 
-export function MobileSidebar({ renewalCount, agencyLogoUrl }: MobileSidebarProps) {
+export function MobileSidebar({ agencyLogoUrl }: MobileSidebarProps) {
   const { open, setOpen } = useMobileSidebar()
   const pathname = usePathname()
 
@@ -44,7 +43,6 @@ export function MobileSidebar({ renewalCount, agencyLogoUrl }: MobileSidebarProp
         }`}
       >
         <SidebarContent
-          renewalCount={renewalCount}
           agencyLogoUrl={agencyLogoUrl}
           onNavigate={() => setOpen(false)}
         />

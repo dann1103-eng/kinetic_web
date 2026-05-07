@@ -19,22 +19,6 @@ interface AppLayoutProps {
   children: React.ReactNode
 }
 
-async function getPendingRenewalsCount(
-  supabase: Awaited<ReturnType<typeof createClient>>
-): Promise<number> {
-  const in3Days = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split('T')[0]
-
-  const { count } = await supabase
-    .from('billing_cycles')
-    .select('*', { count: 'exact', head: true })
-    .in('status', ['current', 'pending_renewal'])
-    .lte('period_end', in3Days)
-
-  return count ?? 0
-}
-
 export default async function AppLayout({ children }: AppLayoutProps) {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
@@ -49,7 +33,6 @@ export default async function AppLayout({ children }: AppLayoutProps) {
   }
 
   const supabase = await createClient()
-  const renewalCount = await getPendingRenewalsCount(supabase)
 
   const { data: logoSetting } = await supabase
     .from('app_settings')
@@ -68,8 +51,8 @@ export default async function AppLayout({ children }: AppLayoutProps) {
         <MobileSidebarProvider>
           <SpectatorBanner />
           <div className="flex h-screen overflow-hidden bg-fm-background">
-            <Sidebar renewalCount={renewalCount} agencyLogoUrl={agencyLogoUrl} />
-            <MobileSidebar renewalCount={renewalCount} agencyLogoUrl={agencyLogoUrl} />
+            <Sidebar agencyLogoUrl={agencyLogoUrl} />
+            <MobileSidebar agencyLogoUrl={agencyLogoUrl} />
             <div className="flex flex-col flex-1 md:ml-64 overflow-hidden">
               <main className="flex-1 overflow-y-auto">{children}</main>
             </div>
