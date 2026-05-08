@@ -1,0 +1,210 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
+import type { ProgressReport, ProgressReportData } from '@/types/db'
+
+/** Respeta impersonación. */
+async function getActor() {
+  const supabase = await createClient()
+  const ctx = await getEffectiveUser()
+  if (!ctx) throw new Error('No autenticado')
+  return { supabase, user: { id: ctx.appUser.id, role: ctx.appUser.role } }
+}
+
+export interface CreateProgressReportInput {
+  childId: string
+  serviceType: string
+  periodStarts: string // YYYY-MM-DD
+  periodEnds: string   // YYYY-MM-DD
+}
+
+/**
+ * Crea un draft de progress_report. Si ya existe uno para
+ * (childId, serviceType, periodStarts) lo retorna en su estado actual.
+ */
+export async function createProgressReport(input: CreateProgressReportInput): Promise<
+  | { ok: true; report: ProgressReport }
+  | { ok: false; error: string }
+> {
+  const { supabase, user } = await getActor()
+
+  if (!input.childId || !input.serviceType) {
+    return { ok: false, error: 'Faltan datos del niño/a o tipo de terapia.' }
+  }
+  if (!input.periodStarts || !input.periodEnds) {
+    return { ok: false, error: 'Faltan fechas del período.' }
+  }
+  if (input.periodStarts > input.periodEnds) {
+    return { ok: false, error: 'La fecha de inicio del período debe ser anterior a la de fin.' }
+  }
+
+  const { data: existing } = await supabase
+    .from('progress_reports')
+    .select('*')
+    .eq('child_id', input.childId)
+    .eq('service_type', input.serviceType)
+    .eq('period_starts', input.periodStarts)
+    .maybeSingle()
+
+  if (existing) {
+    return { ok: true, report: existing as ProgressReport }
+  }
+
+  const { data: created, error: insertErr } = await supabase
+    .from('progress_reports')
+    .insert({
+      child_id: input.childId,
+      service_type: input.serviceType,
+      period_starts: input.periodStarts,
+      period_ends: input.periodEnds,
+      authored_by_user_id: user.id,
+      data_json: {},
+    })
+    .select('*')
+    .single()
+
+  if (insertErr || !created) {
+    return { ok: false, error: insertErr?.message ?? 'Error al crear el informe.' }
+  }
+
+  revalidatePath(`/familias/${input.childId}`)
+  return { ok: true, report: created as ProgressReport }
+}
+
+export interface UpdateProgressReportDraftInput {
+  data: ProgressReportData
+  visibleToFamily: boolean
+  sessionsAttendedCount: number
+  periodStarts?: string
+  periodEnds?: string
+}
+
+export async function updateProgressReportDraft(
+  reportId: string,
+  input: UpdateProgressReportDraftInput,
+): Promise<{ ok: true; report: ProgressReport } | { ok: false; error: string }> {
+  const { supabase } = await getActor()
+
+  const patch: Record<string, unknown> = {
+    data_json: input.data,
+    visible_to_family: input.visibleToFamily,
+    sessions_attended_count: Math.max(0, Math.floor(input.sessionsAttendedCount || 0)),
+  }
+  if (input.periodStarts) patch.period_starts = input.periodStarts
+  if (input.periodEnds) patch.period_ends = input.periodEnds
+
+  const { data, error } = await supabase
+    .from('progress_reports')
+    .update(patch)
+    .eq('id', reportId)
+    .select('*')
+    .single()
+
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? 'No se pudo guardar el borrador.' }
+  }
+
+  revalidatePath(`/familias/${(data as ProgressReport).child_id}`)
+  return { ok: true, report: data as ProgressReport }
+}
+
+export async function submitProgressReport(reportId: string): Promise<
+  | { ok: true; report: ProgressReport }
+  | { ok: false; error: string }
+> {
+  const { supabase } = await getActor()
+
+  const { data, error } = await supabase.rpc('submit_progress_report', {
+    p_report_id: reportId,
+  })
+
+  if (error) {
+    const msg = error.message ?? ''
+    if (msg.includes('report_not_found')) return { ok: false, error: 'Informe no encontrado.' }
+    if (msg.includes('not_authorized')) return { ok: false, error: 'No autorizado.' }
+    if (msg.includes('invalid_state_for_submit')) {
+      return { ok: false, error: 'El informe no está en estado borrador.' }
+    }
+    if (msg.includes('seguimiento_required')) {
+      return { ok: false, error: 'Llená la sección de seguimiento antes de enviar.' }
+    }
+    if (msg.includes('logros_required')) {
+      return { ok: false, error: 'Llená la sección de logros obtenidos antes de enviar.' }
+    }
+    return { ok: false, error: 'Error al enviar el informe.' }
+  }
+
+  const report = data as ProgressReport
+  revalidatePath(`/familias/${report.child_id}`)
+  revalidatePath('/aprobaciones')
+  return { ok: true, report }
+}
+
+export async function approveProgressReport(reportId: string): Promise<
+  | { ok: true; report: ProgressReport }
+  | { ok: false; error: string }
+> {
+  const { supabase } = await getActor()
+
+  const { data, error } = await supabase.rpc('approve_progress_report', {
+    p_report_id: reportId,
+  })
+
+  if (error) {
+    const msg = error.message ?? ''
+    if (msg.includes('report_not_found')) return { ok: false, error: 'Informe no encontrado.' }
+    if (msg.includes('not_authorized')) {
+      return { ok: false, error: 'Solo la directora o admin pueden aprobar.' }
+    }
+    if (msg.includes('invalid_state_for_approve')) {
+      return { ok: false, error: 'El informe no está esperando aprobación.' }
+    }
+    return { ok: false, error: 'Error al aprobar el informe.' }
+  }
+
+  const report = data as ProgressReport
+  revalidatePath(`/familias/${report.child_id}`)
+  revalidatePath('/aprobaciones')
+  if (report.status === 'sent_to_family') {
+    revalidatePath('/portal/agenda-digital')
+  }
+  return { ok: true, report }
+}
+
+export async function rejectProgressReport(
+  reportId: string,
+  reason: string,
+): Promise<{ ok: true; report: ProgressReport } | { ok: false; error: string }> {
+  const { supabase } = await getActor()
+
+  if (!reason || reason.trim().length < 10) {
+    return { ok: false, error: 'El motivo debe tener al menos 10 caracteres.' }
+  }
+
+  const { data, error } = await supabase.rpc('reject_progress_report', {
+    p_report_id: reportId,
+    p_reason: reason.trim(),
+  })
+
+  if (error) {
+    const msg = error.message ?? ''
+    if (msg.includes('report_not_found')) return { ok: false, error: 'Informe no encontrado.' }
+    if (msg.includes('not_authorized')) {
+      return { ok: false, error: 'Solo la directora o admin pueden rechazar.' }
+    }
+    if (msg.includes('invalid_state_for_reject')) {
+      return { ok: false, error: 'El informe no está esperando aprobación.' }
+    }
+    if (msg.includes('reason_too_short')) {
+      return { ok: false, error: 'El motivo debe tener al menos 10 caracteres.' }
+    }
+    return { ok: false, error: 'Error al rechazar el informe.' }
+  }
+
+  const report = data as ProgressReport
+  revalidatePath(`/familias/${report.child_id}`)
+  revalidatePath('/aprobaciones')
+  return { ok: true, report }
+}

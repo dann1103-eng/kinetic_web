@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { ChildSessionReportsHistory } from '@/components/agenda/ChildSessionReportsHistory'
+import { ChildProgressReportsHistory } from '@/components/agenda/ChildProgressReportsHistory'
+import { NewProgressReportButton } from '@/components/agenda/NewProgressReportButton'
 import {
   INTAKE_PHASE_LABELS,
   TREATMENT_STATUS_LABELS,
@@ -129,6 +131,15 @@ export default async function ChildProfilePage({ params }: PageProps) {
             <p className="text-sm text-fm-on-surface whitespace-pre-wrap max-w-prose">{c.notes}</p>
           </div>
         )}
+
+        {/* Informes de avances cuatrimestrales */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold text-fm-on-surface">Informes de avances</h2>
+            <NewProgressReportButton familyId={familyId} childId={childId} />
+          </div>
+          <ChildProgressReportsHistory familyId={familyId} childId={childId} />
+        </div>
 
         {/* Histórico de reportes de sesión */}
         <div className="space-y-3">

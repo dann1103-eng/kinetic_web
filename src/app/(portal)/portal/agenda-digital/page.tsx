@@ -4,7 +4,8 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { PortalJournalClient } from './PortalJournalClient'
 import { SessionReportsList } from '@/components/portal/SessionReportsList'
-import type { ChildJournalEntry, SessionReport } from '@/types/db'
+import { ProgressReportsList } from '@/components/portal/ProgressReportsList'
+import type { ChildJournalEntry, SessionReport, ProgressReport } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,7 @@ export default async function PortalAgendaDigitalPage() {
   const childIds = children.map((c) => c.id)
   const entriesByChild: Record<string, ChildJournalEntry[]> = {}
   let sessionReports: SessionReport[] = []
+  let progressReports: ProgressReport[] = []
 
   if (childIds.length > 0) {
     const { data: entriesRaw } = await supabase
@@ -74,6 +76,18 @@ export default async function PortalAgendaDigitalPage() {
       .limit(20)
 
     sessionReports = (reportsRaw ?? []) as SessionReport[]
+
+    // Informes de avances cuatrimestrales aprobados.
+    const { data: progressRaw } = await supabase
+      .from('progress_reports')
+      .select('*')
+      .in('child_id', childIds)
+      .eq('status', 'sent_to_family')
+      .eq('visible_to_family', true)
+      .order('sent_to_family_at', { ascending: false })
+      .limit(20)
+
+    progressReports = (progressRaw ?? []) as ProgressReport[]
   }
 
   const childNamesById: Record<string, string> = Object.fromEntries(
@@ -84,6 +98,15 @@ export default async function PortalAgendaDigitalPage() {
     <div className="flex flex-col min-h-full bg-fm-background">
       <TopNav title="Agenda digital" />
       <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto w-full space-y-6">
+        {progressReports.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold text-fm-on-surface uppercase tracking-wider">
+              Informes de avances
+            </h2>
+            <ProgressReportsList reports={progressReports} childNamesById={childNamesById} />
+          </section>
+        )}
+
         {sessionReports.length > 0 && (
           <section className="space-y-3">
             <h2 className="text-sm font-semibold text-fm-on-surface uppercase tracking-wider">

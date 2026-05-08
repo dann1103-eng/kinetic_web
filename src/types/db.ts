@@ -2460,3 +2460,44 @@ export interface SessionReport {
   created_at: string
   updated_at: string
 }
+
+export type ProgressReportStatus =
+  | 'draft'
+  | 'submitted'
+  | 'approved'
+  | 'rejected'
+  | 'sent_to_family'
+
+/** Estructura del template hardcoded v0.7 (Fase 3-C1).
+ *  Persistido como JSONB en progress_reports.data_json. */
+export interface ProgressReportData {
+  seguimiento?: string
+  dificultades_ingreso?: string
+  objetivos_terapeuticos?: string
+  actividades_ejercicios?: string
+  logros_obtenidos?: string
+  orientaciones_casa?: string
+  recomendaciones?: string
+}
+
+export interface ProgressReport {
+  id: string
+  child_id: string
+  service_type: string
+  period_starts: string
+  period_ends: string
+  authored_by_user_id: string | null
+  sessions_attended_count: number
+  data_json: ProgressReportData
+  status: ProgressReportStatus
+  visible_to_family: boolean
+  submitted_at: string | null
+  approved_by_user_id: string | null
+  approved_at: string | null
+  rejected_by_user_id: string | null
+  rejected_at: string | null
+  rejection_reason: string | null
+  sent_to_family_at: string | null
+  created_at: string
+  updated_at: string
+}

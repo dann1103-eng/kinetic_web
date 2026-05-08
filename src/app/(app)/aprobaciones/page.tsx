@@ -3,7 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { SessionReportApprovalList } from '@/components/aprobaciones/SessionReportApprovalList'
-import type { SessionReport } from '@/types/db'
+import { ProgressReportApprovalList } from '@/components/aprobaciones/ProgressReportApprovalList'
+import type { SessionReport, ProgressReport } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,30 +17,48 @@ export default async function AprobacionesPage() {
 
   const supabase = await createClient()
 
-  const { data: reportsRaw } = await supabase
+  // ─── Session reports submitted ────────────────────────────────────────────
+  const { data: sessionReportsRaw } = await supabase
     .from('session_reports')
     .select('*')
     .eq('status', 'submitted')
     .order('submitted_at', { ascending: false })
 
-  const reports = (reportsRaw ?? []) as SessionReport[]
+  const sessionReports = (sessionReportsRaw ?? []) as SessionReport[]
 
-  // Enrich with child + therapist + appointment info.
-  const childIds = Array.from(new Set(reports.map((r) => r.child_id)))
-  const therapistIds = Array.from(
-    new Set(reports.map((r) => r.therapist_id).filter(Boolean) as string[]),
+  // ─── Progress reports submitted ───────────────────────────────────────────
+  const { data: progressReportsRaw } = await supabase
+    .from('progress_reports')
+    .select('*')
+    .eq('status', 'submitted')
+    .order('submitted_at', { ascending: false })
+
+  const progressReports = (progressReportsRaw ?? []) as ProgressReport[]
+
+  // ─── Enrich (one round trip per join) ─────────────────────────────────────
+  const allChildIds = Array.from(
+    new Set([
+      ...sessionReports.map((r) => r.child_id),
+      ...progressReports.map((r) => r.child_id),
+    ]),
   )
-  const appointmentIds = Array.from(new Set(reports.map((r) => r.appointment_id)))
+  const allUserIds = Array.from(
+    new Set([
+      ...sessionReports.map((r) => r.therapist_id).filter(Boolean) as string[],
+      ...progressReports.map((r) => r.authored_by_user_id).filter(Boolean) as string[],
+    ]),
+  )
+  const sessionApptIds = Array.from(new Set(sessionReports.map((r) => r.appointment_id)))
 
-  const [childrenRes, therapistsRes, appointmentsRes] = await Promise.all([
-    childIds.length
-      ? supabase.from('children').select('id, full_name, preferred_name').in('id', childIds)
+  const [childrenRes, usersRes, appointmentsRes] = await Promise.all([
+    allChildIds.length
+      ? supabase.from('children').select('id, full_name, preferred_name').in('id', allChildIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string; preferred_name: string | null }[] }),
-    therapistIds.length
-      ? supabase.from('users').select('id, full_name').in('id', therapistIds)
+    allUserIds.length
+      ? supabase.from('users').select('id, full_name').in('id', allUserIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
-    appointmentIds.length
-      ? supabase.from('appointments').select('id, starts_at, service_type').in('id', appointmentIds)
+    sessionApptIds.length
+      ? supabase.from('appointments').select('id, starts_at, service_type').in('id', sessionApptIds)
       : Promise.resolve({ data: [] as { id: string; starts_at: string; service_type: string | null }[] }),
   ])
 
@@ -49,8 +68,8 @@ export default async function AprobacionesPage() {
       c,
     ]),
   )
-  const therapistMap = Object.fromEntries(
-    (therapistsRes.data ?? []).map((u: { id: string; full_name: string }) => [u.id, u.full_name]),
+  const userMap = Object.fromEntries(
+    (usersRes.data ?? []).map((u: { id: string; full_name: string }) => [u.id, u.full_name]),
   )
   const appointmentMap = Object.fromEntries(
     (appointmentsRes.data ?? []).map((a: { id: string; starts_at: string; service_type: string | null }) => [
@@ -59,21 +78,45 @@ export default async function AprobacionesPage() {
     ]),
   )
 
+  const totalPending = sessionReports.length + progressReports.length
+
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
       <TopNav title="Aprobaciones pendientes" />
-      <div className="flex-1 p-4 md:p-6 max-w-3xl mx-auto w-full">
-        {reports.length === 0 ? (
+      <div className="flex-1 p-4 md:p-6 max-w-3xl mx-auto w-full space-y-8">
+        {totalPending === 0 ? (
           <div className="py-20 text-center text-sm text-fm-on-surface-variant">
-            No hay reportes esperando aprobación.
+            Bandeja al día. No hay reportes ni informes esperando aprobación.
           </div>
         ) : (
-          <SessionReportApprovalList
-            reports={reports}
-            childMap={childMap}
-            therapistMap={therapistMap}
-            appointmentMap={appointmentMap}
-          />
+          <>
+            {progressReports.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-base font-semibold text-fm-on-surface">
+                  Informes de avances · {progressReports.length}
+                </h2>
+                <ProgressReportApprovalList
+                  reports={progressReports}
+                  childMap={childMap}
+                  authorMap={userMap}
+                />
+              </section>
+            )}
+
+            {sessionReports.length > 0 && (
+              <section className="space-y-3">
+                <h2 className="text-base font-semibold text-fm-on-surface">
+                  Reportes de sesión · {sessionReports.length}
+                </h2>
+                <SessionReportApprovalList
+                  reports={sessionReports}
+                  childMap={childMap}
+                  therapistMap={userMap}
+                  appointmentMap={appointmentMap}
+                />
+              </section>
+            )}
+          </>
         )}
       </div>
     </div>
