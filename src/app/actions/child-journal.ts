@@ -2,13 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { JournalCategory } from '@/types/db'
 
-async function getAuthUser() {
+/** Respeta impersonación: si el admin impersona, las acciones se ejecutan
+ * con el rol e id del usuario efectivo. */
+async function getActor() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('No autenticado')
-  return { supabase, user }
+  const ctx = await getEffectiveUser()
+  if (!ctx) throw new Error('No autenticado')
+  return { supabase, user: { id: ctx.appUser.id, role: ctx.appUser.role } }
 }
 
 function revalidateJournalPaths(childId: string) {
@@ -29,15 +32,9 @@ export async function createJournalEntry(input: CreateJournalEntryInput): Promis
   | { ok: true }
   | { ok: false; error: string }
 > {
-  const { supabase, user } = await getAuthUser()
+  const { supabase, user } = await getActor()
 
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  const isFamily = profile?.role === 'family'
+  const isFamily = user.role === 'family'
 
   const category: JournalCategory = isFamily ? 'response' : input.category
   const visibleToFamily = isFamily ? true : input.visibleToFamily
@@ -61,16 +58,9 @@ export async function toggleJournalEntryVisibility(entryId: string): Promise<
   | { ok: true; visibleToFamily: boolean }
   | { ok: false; error: string }
 > {
-  const { supabase, user } = await getAuthUser()
+  const { supabase, user } = await getActor()
 
-  // Single role fetch — used for both family guard and admin check
-  const { data: profile } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (profile?.role === 'family') {
+  if (user.role === 'family') {
     return { ok: false, error: 'No autorizado.' }
   }
 
@@ -84,7 +74,7 @@ export async function toggleJournalEntryVisibility(entryId: string): Promise<
     return { ok: false, error: 'Entrada no encontrada.' }
   }
 
-  const isAdmin = profile?.role === 'admin'
+  const isAdmin = user.role === 'admin'
 
   if (entry.author_user_id !== user.id && !isAdmin) {
     return { ok: false, error: 'Solo puedes cambiar la visibilidad de tus propias entradas.' }

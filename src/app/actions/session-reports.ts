@@ -2,13 +2,15 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { SessionReport } from '@/types/db'
 
-async function getAuthUser() {
+/** Respeta impersonación. */
+async function getActor() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('No autenticado')
-  return { supabase, user }
+  const ctx = await getEffectiveUser()
+  if (!ctx) throw new Error('No autenticado')
+  return { supabase, user: { id: ctx.appUser.id, role: ctx.appUser.role } }
 }
 
 export interface SessionReportDraftInput {
@@ -27,7 +29,7 @@ export async function createOrGetSessionReport(sessionId: string): Promise<
   | { ok: true; report: SessionReport }
   | { ok: false; error: string }
 > {
-  const { supabase, user } = await getAuthUser()
+  const { supabase, user } = await getActor()
 
   // Buscar reporte existente
   const { data: existing } = await supabase
@@ -84,7 +86,7 @@ export async function updateSessionReportDraft(
   reportId: string,
   fields: SessionReportDraftInput,
 ): Promise<{ ok: true; report: SessionReport } | { ok: false; error: string }> {
-  const { supabase } = await getAuthUser()
+  const { supabase } = await getActor()
 
   const { data, error } = await supabase
     .from('session_reports')
@@ -111,7 +113,7 @@ export async function submitSessionReport(reportId: string): Promise<
   | { ok: true; report: SessionReport }
   | { ok: false; error: string }
 > {
-  const { supabase } = await getAuthUser()
+  const { supabase } = await getActor()
 
   const { data, error } = await supabase.rpc('submit_session_report', {
     p_report_id: reportId,
@@ -139,7 +141,7 @@ export async function approveSessionReport(reportId: string): Promise<
   | { ok: true; report: SessionReport }
   | { ok: false; error: string }
 > {
-  const { supabase } = await getAuthUser()
+  const { supabase } = await getActor()
 
   const { data, error } = await supabase.rpc('approve_session_report', {
     p_report_id: reportId,
@@ -170,7 +172,7 @@ export async function rejectSessionReport(
   reportId: string,
   reason: string,
 ): Promise<{ ok: true; report: SessionReport } | { ok: false; error: string }> {
-  const { supabase } = await getAuthUser()
+  const { supabase } = await getActor()
 
   if (!reason || reason.trim().length < 10) {
     return { ok: false, error: 'El motivo debe tener al menos 10 caracteres.' }
