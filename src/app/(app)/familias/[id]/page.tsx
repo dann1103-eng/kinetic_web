@@ -5,6 +5,8 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { FamilyForm } from '@/components/families/FamilyForm'
 import { ChildForm } from '@/components/families/ChildForm'
+import { FamilyPortalAccess } from '@/components/families/FamilyPortalAccess'
+import { listFamilyUsers } from '@/app/actions/familyUsers'
 import { JournalTab } from './JournalTab'
 import {
   INTAKE_PHASE_LABELS,
@@ -52,6 +54,11 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
   const hasEmergency = !!familyTyped.emergency_contact_name
   const hasSecondary = !!familyTyped.secondary_contact_name
   const hasFiscal = !!familyTyped.fiscal_legal_name
+
+  // Solo admin/directora ven y gestionan accesos al portal.
+  const canManagePortalAccess =
+    ctx.appUser.role === 'admin' || ctx.appUser.role === 'directora'
+  const portalUsers = canManagePortalAccess ? await listFamilyUsers(id) : []
 
   return (
     <div className="flex flex-col min-h-full">
@@ -157,6 +164,16 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
             </div>
           </section>
         </div>
+
+        {/* Accesos al portal familia (solo admin/directora) */}
+        {canManagePortalAccess && (
+          <FamilyPortalAccess
+            familyId={id}
+            primaryContactName={familyTyped.primary_contact_name}
+            primaryContactEmail={familyTyped.primary_contact_email}
+            initialUsers={portalUsers}
+          />
+        )}
 
         {/* Niños */}
         <div className="space-y-3">
