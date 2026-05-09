@@ -19,10 +19,12 @@ export default async function UsersPage() {
     .single()
   if (appUser?.role !== 'admin') redirect('/')
 
+  // Solo usuarios staff: excluir 'client' (FM legacy) y 'family' (portal Kinetic).
+  // Esos se gestionan en /usuarios-portal.
   const { data: users } = await supabase
     .from('users')
     .select('id, email, full_name, role, created_at, avatar_url, default_assignee')
-    .not('role', 'eq', 'client')
+    .not('role', 'in', '(client,family)')
     .order('created_at')
 
   return (

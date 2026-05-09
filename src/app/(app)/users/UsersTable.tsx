@@ -34,24 +34,34 @@ function formatDate(dateStr: string): string {
   })
 }
 
-function RoleBadge({ role }: { role: UserRole }) {
-  if (role === 'admin') {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-fm-primary/10 text-fm-primary">
-        Admin
-      </span>
-    )
-  }
-  if (role === 'supervisor') {
-    return (
-      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
-        Supervisor
-      </span>
-    )
-  }
+/** Roles que se gestionan desde /users (staff). Excluye 'client' y 'family'. */
+const STAFF_ROLES: { value: UserRole; label: string; chip: string }[] = [
+  { value: 'admin',                  label: 'Admin',                chip: 'bg-fm-primary/10 text-fm-primary' },
+  { value: 'directora',              label: 'Directora',            chip: 'bg-rose-100 text-rose-700' },
+  { value: 'supervisor',             label: 'Supervisor',           chip: 'bg-purple-100 text-purple-700' },
+  { value: 'coordinadora_familias',  label: 'Coord. Familias',      chip: 'bg-amber-100 text-amber-800' },
+  { value: 'coordinadora_terapias',  label: 'Coord. Terapias',      chip: 'bg-amber-100 text-amber-800' },
+  { value: 'terapista',              label: 'Terapista',            chip: 'bg-sky-100 text-sky-700' },
+  { value: 'maestra',                label: 'Maestra',              chip: 'bg-emerald-100 text-emerald-700' },
+  { value: 'recepcion',              label: 'Recepción',            chip: 'bg-zinc-100 text-zinc-700' },
+  { value: 'contable',               label: 'Contable',             chip: 'bg-zinc-100 text-zinc-700' },
+  { value: 'operator',               label: 'Operador (legacy)',    chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant' },
+]
+
+function roleMeta(role: UserRole): { label: string; chip: string } {
   return (
-    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-fm-on-surface-variant/10 text-fm-on-surface-variant">
-      Operador
+    STAFF_ROLES.find((r) => r.value === role) ?? {
+      label: role,
+      chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant',
+    }
+  )
+}
+
+function RoleBadge({ role }: { role: UserRole }) {
+  const m = roleMeta(role)
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.chip}`}>
+      {m.label}
     </span>
   )
 }
@@ -186,9 +196,11 @@ function UserRow({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="admin">Admin</SelectItem>
-            <SelectItem value="supervisor">Supervisor</SelectItem>
-            <SelectItem value="operator">Operador</SelectItem>
+            {STAFF_ROLES.map((r) => (
+              <SelectItem key={r.value} value={r.value}>
+                {r.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         {error && <p className="mt-1 text-xs text-fm-error truncate">{error}</p>}
@@ -471,7 +483,7 @@ function CreateUserModal({ onClose, onCreated }: {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
-  const [role, setRole] = useState<UserRole>('operator')
+  const [role, setRole] = useState<UserRole>('terapista')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -546,21 +558,21 @@ function CreateUserModal({ onClose, onCreated }: {
           </div>
           <div>
             <label className="text-xs font-bold text-fm-on-surface-variant uppercase tracking-wide">Rol</label>
-            <div className="flex gap-3 mt-1.5">
-              {(['operator', 'supervisor', 'admin'] as UserRole[]).map(r => (
-                <button
-                  key={r}
-                  onClick={() => setRole(r)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-all ${
-                    role === r
-                      ? 'bg-fm-primary text-white border-fm-primary'
-                      : 'border-fm-surface-container-high text-fm-on-surface-variant hover:border-fm-primary/40'
-                  }`}
-                >
-                  {r === 'operator' ? 'Operador' : r === 'supervisor' ? 'Supervisor' : 'Admin'}
-                </button>
-              ))}
-            </div>
+            <Select value={role} onValueChange={(v) => v && setRole(v as UserRole)}>
+              <SelectTrigger className="mt-1.5 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STAFF_ROLES.map((r) => (
+                  <SelectItem key={r.value} value={r.value}>
+                    {r.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="mt-1.5 text-[11px] text-fm-on-surface-variant">
+              Para cuentas de familias usá <b>Usuarios portal</b>, no este formulario.
+            </p>
           </div>
         </div>
 
