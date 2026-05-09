@@ -73,6 +73,179 @@ export async function listFamilyUsers(familyId: string): Promise<FamilyPortalUse
   })
 }
 
+/** Lista global de todos los usuarios family con todas las familias a las que tienen acceso. */
+export interface FamilyPortalUserGlobal {
+  user_id: string
+  email: string
+  full_name: string
+  families: {
+    id: string
+    primary_contact_name: string
+    role: 'owner' | 'viewer'
+    can_billing: boolean
+    can_work: boolean
+  }[]
+}
+
+export async function listAllFamilyUsers(): Promise<FamilyPortalUserGlobal[]> {
+  const auth = await requireAdminOrDirectora()
+  if (auth.error) throw new Error(auth.error)
+  const admin = createAdminClient()
+
+  // 1) usuarios con role='family'
+  const { data: users, error: usersErr } = await admin
+    .from('users')
+    .select('id, full_name, email')
+    .eq('role', 'family')
+    .order('email')
+  if (usersErr) throw new Error(usersErr.message)
+  if (!users?.length) return []
+
+  const userIds = users.map((u) => u.id)
+
+  // 2) family_users + nombre del primary_contact
+  const { data: links, error: linksErr } = await admin
+    .from('family_users')
+    .select(
+      'user_id, role, can_billing, can_work, families:families!inner(id, primary_contact_name)',
+    )
+    .in('user_id', userIds)
+  if (linksErr) throw new Error(linksErr.message)
+
+  type LinkRow = {
+    user_id: string
+    role: 'owner' | 'viewer'
+    can_billing: boolean
+    can_work: boolean
+    families:
+      | { id: string; primary_contact_name: string }
+      | { id: string; primary_contact_name: string }[]
+  }
+
+  const byUser: Record<string, FamilyPortalUserGlobal['families']> = {}
+  for (const link of (links ?? []) as LinkRow[]) {
+    if (!byUser[link.user_id]) byUser[link.user_id] = []
+    const fam = Array.isArray(link.families) ? link.families[0] : link.families
+    if (fam) {
+      byUser[link.user_id].push({
+        id: fam.id,
+        primary_contact_name: fam.primary_contact_name,
+        role: link.role,
+        can_billing: link.can_billing,
+        can_work: link.can_work,
+      })
+    }
+  }
+
+  return users.map((u) => ({
+    user_id: u.id,
+    email: u.email ?? '',
+    full_name: u.full_name ?? '',
+    families: (byUser[u.id] ?? []).sort((a, b) =>
+      a.primary_contact_name.localeCompare(b.primary_contact_name),
+    ),
+  }))
+}
+
+/**
+ * Sincroniza las familias asignadas a un usuario family: agrega las nuevas y
+ * remueve las que dejaron de estar en `familyIds`. Si queda con cero, NO borra
+ * la cuenta — para eso `revokeFamilyUserCompletely`.
+ */
+export async function setFamilyUserAssignments(input: {
+  userId: string
+  familyIds: string[]
+  role?: 'owner' | 'viewer'
+  canBilling: boolean
+  canWork: boolean
+}): Promise<FamilyUserActionResult> {
+  try {
+    const { userId, familyIds, role = 'owner', canBilling, canWork } = input
+    if (familyIds.length > 0 && !canBilling && !canWork) {
+      return { ok: false, error: 'Seleccioná al menos un permiso (Agenda o Facturación).' }
+    }
+    const auth = await requireAdminOrDirectora()
+    if (auth.error) return { ok: false, error: auth.error }
+    const admin = createAdminClient()
+
+    const { data: target } = await admin.from('users').select('role').eq('id', userId).maybeSingle()
+    if (!target) return { ok: false, error: 'Usuario no encontrado.' }
+    if (target.role !== 'family' && target.role !== 'client') {
+      return { ok: false, error: 'Solo se pueden ajustar accesos de tipo familia.' }
+    }
+
+    if (familyIds.length > 0) {
+      const rows = familyIds.map((fid) => ({
+        user_id: userId,
+        family_id: fid,
+        role,
+        can_billing: canBilling,
+        can_work: canWork,
+      }))
+      const { error: upErr } = await admin
+        .from('family_users')
+        .upsert(rows, { onConflict: 'user_id,family_id' })
+      if (upErr) return { ok: false, error: `No se pudieron vincular las familias: ${upErr.message}` }
+    }
+
+    const { data: existing } = await admin
+      .from('family_users')
+      .select('family_id')
+      .eq('user_id', userId)
+    const toRemove = (existing ?? [])
+      .map((r) => r.family_id as string)
+      .filter((fid) => !familyIds.includes(fid))
+    if (toRemove.length > 0) {
+      const { error: delErr } = await admin
+        .from('family_users')
+        .delete()
+        .eq('user_id', userId)
+        .in('family_id', toRemove)
+      if (delErr) return { ok: false, error: `No se pudieron remover familias: ${delErr.message}` }
+    }
+
+    revalidatePath('/usuarios-portal')
+    for (const fid of familyIds) revalidatePath(`/familias/${fid}`)
+    for (const fid of toRemove) revalidatePath(`/familias/${fid}`)
+    return { ok: true, userId }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error inesperado.' }
+  }
+}
+
+/**
+ * Revoca todo el acceso de un usuario family: borra todos los vínculos en
+ * family_users y elimina su cuenta (auth + public).
+ */
+export async function revokeFamilyUserCompletely(
+  userId: string,
+): Promise<FamilyUserActionResult> {
+  try {
+    const auth = await requireAdminOrDirectora()
+    if (auth.error) return { ok: false, error: auth.error }
+    const admin = createAdminClient()
+
+    const { data: target } = await admin.from('users').select('role').eq('id', userId).maybeSingle()
+    if (!target) return { ok: false, error: 'Usuario no encontrado.' }
+    if (target.role !== 'family' && target.role !== 'client') {
+      return { ok: false, error: 'Solo se pueden revocar usuarios family.' }
+    }
+
+    await admin.from('family_users').delete().eq('user_id', userId)
+
+    const { error: delPubErr } = await admin.from('users').delete().eq('id', userId)
+    if (delPubErr) return { ok: false, error: `No se pudo eliminar registro público: ${delPubErr.message}` }
+
+    const { error: delAuthErr } = await admin.auth.admin.deleteUser(userId)
+    if (delAuthErr) return { ok: false, error: `No se pudo eliminar cuenta auth: ${delAuthErr.message}` }
+
+    revalidatePath('/usuarios-portal')
+    return { ok: true, userId }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error inesperado.' }
+  }
+}
+
 export interface CreateFamilyUserInput {
   familyId: string
   email: string
@@ -200,6 +373,120 @@ export async function createFamilyUser(input: CreateFamilyUserInput): Promise<Fa
   } catch (e) {
     console.error('[createFamilyUser]', e)
     return { ok: false, error: e instanceof Error ? e.message : 'Error inesperado al crear el acceso.' }
+  }
+}
+
+/**
+ * Crea un usuario family con acceso a una o varias familias en una sola operación.
+ * Usado por el panel central /usuarios-portal.
+ */
+export async function createFamilyUserMulti(input: {
+  email: string
+  password: string
+  fullName?: string
+  familyIds: string[]
+  role?: 'owner' | 'viewer'
+  canBilling?: boolean
+  canWork?: boolean
+}): Promise<FamilyUserActionResult> {
+  try {
+    const {
+      email,
+      password,
+      fullName,
+      familyIds,
+      role = 'owner',
+      canBilling = true,
+      canWork = true,
+    } = input
+
+    if (!familyIds.length) return { ok: false, error: 'Seleccioná al menos una familia.' }
+    if (!canBilling && !canWork) {
+      return { ok: false, error: 'Seleccioná al menos un permiso (Agenda o Facturación).' }
+    }
+
+    const clean = email.trim().toLowerCase()
+    if (!clean || !clean.includes('@')) return { ok: false, error: 'Email inválido.' }
+    if (!password || password.length < 8) {
+      return { ok: false, error: 'La contraseña debe tener al menos 8 caracteres.' }
+    }
+
+    const auth = await requireAdminOrDirectora()
+    if (auth.error) return { ok: false, error: auth.error }
+    const admin = createAdminClient()
+
+    const { data: existing } = await admin
+      .from('users')
+      .select('id, role')
+      .eq('email', clean)
+      .maybeSingle()
+
+    let userId: string
+
+    if (existing) {
+      if (existing.role !== 'family' && existing.role !== 'client') {
+        return {
+          ok: false,
+          error: `${clean} ya tiene cuenta como ${existing.role}. No se puede reutilizar para una familia.`,
+        }
+      }
+      userId = existing.id
+      const { error: updErr } = await admin.auth.admin.updateUserById(userId, { password })
+      if (updErr) return { ok: false, error: `No se pudo actualizar la contraseña: ${updErr.message}` }
+      const patch: Record<string, unknown> = { role: 'family' }
+      if (fullName) patch.full_name = fullName
+      await admin.from('users').update(patch).eq('id', userId)
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: orphanId } = await (admin as any).rpc('get_auth_user_id_by_email', {
+        p_email: clean,
+      }) as { data: string | null }
+      if (orphanId) {
+        await admin.auth.admin.deleteUser(orphanId).catch((err) =>
+          console.error(`[createFamilyUserMulti] huérfano ${orphanId}:`, err),
+        )
+      }
+
+      const { data, error } = await admin.auth.admin.createUser({
+        email: clean,
+        password,
+        email_confirm: true,
+        user_metadata: { role: 'family', full_name: fullName ?? null },
+      })
+      if (error || !data.user) {
+        return { ok: false, error: `No se pudo crear el usuario: ${error?.message ?? 'desconocido'}` }
+      }
+      userId = data.user.id
+
+      const { error: upsertErr } = await admin.from('users').upsert({
+        id: userId,
+        email: clean,
+        full_name: fullName ?? '',
+        role: 'family',
+      })
+      if (upsertErr) {
+        await admin.auth.admin.deleteUser(userId).catch(() => undefined)
+        return { ok: false, error: `No se pudo registrar el usuario: ${upsertErr.message}` }
+      }
+    }
+
+    const rows = familyIds.map((fid) => ({
+      user_id: userId,
+      family_id: fid,
+      role,
+      can_billing: canBilling,
+      can_work: canWork,
+    }))
+    const { error: linkErr } = await admin
+      .from('family_users')
+      .upsert(rows, { onConflict: 'user_id,family_id' })
+    if (linkErr) return { ok: false, error: `No se pudieron vincular las familias: ${linkErr.message}` }
+
+    revalidatePath('/usuarios-portal')
+    for (const fid of familyIds) revalidatePath(`/familias/${fid}`)
+    return { ok: true, userId }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error inesperado.' }
   }
 }
 
