@@ -1,6 +1,6 @@
 # Kinetic — Estado técnico del proyecto + tareas pendientes
 
-> Documento de handoff actualizado al **2026-05-08**, último commit `7b8f66e`.
+> Documento de handoff actualizado al **2026-05-08** (post Fase 3-C2 + TD-1).
 > Diseñado para que un dev (humano o agente) pueda continuar sin contexto previo.
 > Va en orden: **(1) qué existe hoy**, **(2) cómo ejecutar las próximas fases**.
 
@@ -68,10 +68,11 @@ Aplicar **en este orden** sobre el proyecto Supabase de Kinetic. Las que tienen 
 | ⚠ 0095 | `0095_kinetic_session_reports_impersonation.sql` | Fix: `submit_session_report` acepta `is_admin()` además de `auth.uid() = therapist_id` (para que admin impersonando funcione). |
 | ⚠ 0096 | `0096_kinetic_journal_impersonation.sql` | Fix: RLS INSERT de `child_journal_entries` acepta `is_admin()` además de `author_user_id = auth.uid()`. |
 | 0097 | `0097_kinetic_progress_reports.sql` | Tabla `progress_reports` (informes de avances cuatrimestrales). RPCs `submit_progress_report`, `approve_progress_report`, `reject_progress_report`. UNIQUE(child, service_type, period_starts). |
+| 0098 | `0098_kinetic_report_templates.sql` | Tabla `report_templates` (Fase 3-C2). Helper `validate_progress_report_against_template`. Re-emite `submit_progress_report` con validación template-aware. Agrega `progress_reports.template_id` y backfill al seed "Genérica". |
 
 ### Próximas migraciones (numeración reservada, **NO aplicadas aún**)
 
-`0098+` queda libre para C2/C3/C4 (ver §11–§13).
+`0099+` queda libre para C3/C4 (ver §12–§13).
 
 ---
 
@@ -286,6 +287,8 @@ export async function someAction(...): Promise<
 
 ### Fase 3-C1 — Informes de avances cuatrimestrales *(✅, ver §8)*
 
+### Fase 3-C2 — Plantillas DB-driven *(✅, ver §11)*
+
 ### Gestión de accesos portal family *(✅, agregado fuera del plan)*
 
 - Página central `/usuarios-portal` (admin/directora only)
@@ -448,7 +451,7 @@ docs/
 
 | # | Item | Cómo fixear |
 |---|---|---|
-| TD-1 | `next.config.ts` tiene `typescript.ignoreBuildErrors: true` | Agregar las tablas Kinetic (`families`, `children`, `appointments`, `therapy_sessions`, `child_journal_entries`, `session_reports`, `progress_reports`, `family_users`, `institutional_calendar`, etc.) al type `Database` en `src/types/db.ts` con sus `Row`/`Insert`/`Update`. Después quitar la flag. ~2-3 horas. |
+| ~~TD-1~~ | ✅ Pagada (2026-05-08). Ver §11 (último bloque). | — |
 | TD-2 | Hardcoded role checks duplicados | Hay arrays `STAFF_ROLES_SCHEDULE`, `ALLOWED_ROLES` en varias páginas. Centralizar en `src/lib/auth/roles.ts`. |
 | TD-3 | `appointments.ts` no usa `getEffectiveUser()` | Si admin impersona, no puede crear/editar citas en nombre de la coordinadora. Replicar el patrón `getActor()` de las acciones de Kinetic. |
 | TD-4 | Items FM viejos en portal sidebar/topnav | Cuando definamos qué páginas del portal sirven para Kinetic, limpiar los items con `kineticFamily: false` que ya no aplican. |
@@ -458,118 +461,72 @@ docs/
 
 ---
 
-## 11. Fase 3-C2 — Plantillas multi-template DB-driven (PENDIENTE)
+## 11. Fase 3-C2 — Plantillas multi-template DB-driven *(✅ implementada 2026-05-08)*
 
-> Sigue después de C1. Permite que la directora cree distintas plantillas de informe (Lenguaje, Sensorial, Conductual, etc.) sin tocar código.
+> Spec cerrado: [docs/superpowers/specs/2026-05-08-c2-plantillas-design.md](superpowers/specs/2026-05-08-c2-plantillas-design.md).
 
-### Por qué
+### Decisiones que quedaron en el código
 
-Hoy `progress-report-template.ts` tiene UNA plantilla común para todas las terapias. El plan v0.7 (líneas 290-350 del plan estratégico en `~/.claude/plans/kinetic-es-un-cenor-enchanted-lark.md`) indica que cada terapista usa un estilo distinto y que las recomendaciones a veces son lista plana, a veces subdivididas en áreas. Necesitamos plantillas configurables.
+- **Seed**: solo "Informe de avances — Genérica" (los 7 bloques v0.7). La directora crea las específicas desde el CRUD.
+- **Versionado**: in-place (`version` queda en schema pero no se bumpea). Editar plantilla afecta a todos los reportes.
+- **Block kinds soportados en el editor**: `rich_text` y `numbered_list`. `recommendations_by_area` y `categorized_text` están en el schema/types pero el editor todavía los rechaza con un mensaje (ver `validateBlocks` en `report-templates.ts`).
+- **Restricción por servicio**: opcional. Selector en `NewProgressReportButton` filtra por servicio elegido + universales (NULL).
+- **CRUD**: `/admin/plantillas` para admin/directora.
+- **Validación submit**: PL/pgSQL `validate_progress_report_against_template` lee `blocks_json` y exige cada `required=true`. Fallback a la validación legacy (`seguimiento`+`logros_obtenidos`) si `template_id IS NULL`.
 
-### Spec
-
-#### Migración `0098_kinetic_report_templates.sql`
-
-```sql
-create table public.report_templates (
-  id            uuid primary key default gen_random_uuid(),
-  name          text not null,
-  kind          text not null check (kind in ('progress','session','evaluation','morning_program_quarterly')),
-  service_type  text,                   -- null = aplica a cualquier terapia
-  blocks_json   jsonb not null,         -- ver schema más abajo
-  default_signers_role text,            -- p.ej. 'terapista_principal'
-  active        boolean not null default true,
-  version       int not null default 1,
-  created_by    uuid references public.users(id),
-  created_at    timestamptz not null default now(),
-  updated_at    timestamptz not null default now()
-);
-
-create index report_templates_kind_service on public.report_templates(kind, service_type) where active;
-
--- progress_reports.template_id (nullable; null = usar plantilla hardcoded legacy)
-alter table public.progress_reports
-  add column template_id uuid references public.report_templates(id) on delete restrict;
-```
-
-**Schema de `blocks_json`** (TypeScript en `src/types/db.ts`):
-
-```ts
-export interface ReportTemplateBlock {
-  key: string                     // único dentro de la plantilla, p.ej. 'seguimiento'
-  label: string                   // título visible
-  description?: string            // ayuda para terapista
-  required: boolean
-  kind: 'rich_text' | 'numbered_list' | 'categorized_text' | 'recommendations_by_area'
-  placeholder?: string
-  // Si kind === 'recommendations_by_area':
-  areas?: { key: string; label: string }[]   // p.ej. [{key:'casa',label:'Para casa'}, {key:'colegio',label:'Para colegio'}]
-}
-
-export interface ReportTemplate {
-  id: string
-  name: string
-  kind: 'progress' | 'session' | 'evaluation' | 'morning_program_quarterly'
-  service_type: string | null
-  blocks_json: ReportTemplateBlock[]
-  default_signers_role: string | null
-  active: boolean
-  version: number
-  created_by: string | null
-  created_at: string
-  updated_at: string
-}
-```
-
-#### RLS
-
-```sql
-alter table public.report_templates enable row level security;
-
-create policy "rt select all staff" on public.report_templates for select
-  using (public.is_agency_user());
-
-create policy "rt mutate directora admin" on public.report_templates for all
-  using (public.is_directora_or_admin())
-  with check (public.is_directora_or_admin());
-```
-
-#### Server actions — `src/app/actions/report-templates.ts`
+### Archivos clave
 
 ```
-listReportTemplates(kind, serviceType?)  → ReportTemplate[]
-getReportTemplate(id)                    → ReportTemplate
-createReportTemplate(input)              → { ok, template }
-updateReportTemplate(id, input)          → { ok, template }   // bumpea version, marca old inactive si breaking
-toggleTemplateActive(id, active)         → { ok }
+supabase/migrations-kinetic/0098_kinetic_report_templates.sql
+
+src/types/db.ts                                         ← ReportTemplate, ReportTemplateBlock(Kind),
+                                                          ProgressReportDataFlexible/Value, AsRow utility
+src/app/actions/report-templates.ts                     ← list/get/create/update/toggleActive
+src/app/actions/progress-reports.ts                     ← createProgressReport ahora exige template_id
+                                                          (fallback a Genérica si no se manda)
+
+src/app/(app)/admin/plantillas/
+  page.tsx           ← lista
+  nueva/page.tsx     ← crear
+  [id]/page.tsx      ← editar
+src/components/admin/plantillas/
+  TemplateList.tsx
+  TemplateEditor.tsx ← repeater de bloques con add/remove/reorder
+
+src/components/agenda/ProgressReportEditor.tsx          ← render dinámico por block.kind
+src/components/agenda/NewProgressReportButton.tsx       ← selector de plantilla
+src/components/aprobaciones/ProgressReportApprovalCard.tsx
+src/components/aprobaciones/ProgressReportApprovalList.tsx ← recibe templateMap
+src/components/portal/ProgressReportsList.tsx           ← recibe templateMap
+src/app/(app)/aprobaciones/page.tsx                     ← carga templateMap
+src/app/(portal)/portal/agenda-digital/page.tsx         ← carga templateMap
+src/app/(app)/familias/[id]/children/[childId]/informe-avances/[reportId]/page.tsx
+                                                        ← carga template + fallback Genérica
 ```
 
-#### Cambios en C1 ya implementado
+### Borrado
 
-1. `progress_reports`: agregar `template_id` y migrar la plantilla hardcoded a un seed inicial.
-2. `ProgressReportEditor` ahora carga `blocks_json` del template asignado y renderiza dinámicamente según `kind` del bloque.
-3. `NewProgressReportButton` agrega selector de plantilla (filtrado por `service_type`).
-4. `data_json` en `progress_reports` queda con keys = block keys del template (sigue siendo flexible).
+- `src/lib/domain/progress-report-template.ts` (la plantilla hardcoded de C1) — eliminado.
 
-#### UI nueva — `/aprobaciones/plantillas` o `/admin/plantillas`
+### Para deployar
 
-Página solo para admin/directora con CRUD básico:
-- Lista plantillas activas/inactivas
-- Form con repeater de bloques (key, label, kind, required, areas si aplica)
-- Vista previa: render del editor con esa plantilla
+1. Aplicar `0098_kinetic_report_templates.sql` en Supabase Dashboard → SQL Editor.
+2. Verificar que `select count(*) from public.report_templates where active = true` devuelve ≥ 1.
+3. Verificar que todos los `progress_reports` viejos quedaron con `template_id` apuntando al seed: `select count(*) from public.progress_reports where template_id is null` debe dar 0.
 
-#### Pasos para ejecutar
+### TD-1 (deuda paga junto con C2)
 
-1. **Brainstorming previo:** confirmar con el equipo clínico de Kinetic cuántas plantillas quieren al inicio (probablemente 2-3 + la "genérica") y qué bloques tendría cada una. Sin esto, hacés la infra pero el seed queda especulativo.
-2. Migración 0098 + seed inicial con la plantilla hardcoded de C1.
-3. Tipos TS + actions.
-4. Página de admin de plantillas (CRUD).
-5. Refactor de `ProgressReportEditor` para cargar template dinámicamente. Renderiza por `block.kind`.
-6. Idem `NewProgressReportButton` (selector de plantilla).
-7. Idem `ProgressReportApprovalCard` y `ProgressReportsList` del portal — leen `template.blocks_json` para etiquetar campos.
-8. Migrar reportes existentes: bulk update `template_id = '<plantilla-genérica-seed>'`.
+- `next.config.ts` ya NO tiene `ignoreBuildErrors`.
+- Tablas Kinetic agregadas al type `Database` en `src/types/db.ts` usando un utility `AsRow<T>` (interfaces TS no son asignables directamente a `Record<string, unknown>` por declaration merging — el mapped type lo arregla).
+- `Database.Functions` cambió de `Record<string, never>` a un catch-all `Record<string, { Args; Returns }>` para que los `.rpc('name', args)` no fallen.
+- `Database.__InternalSupabase = { PostgrestVersion: '12' }` agregado para Supabase v2.103.
+- Algunos consumers que usaban Supabase relational selects (`users:users!inner(...)`) reciben `as unknown as` casts porque las `Relationships` de las tablas siguen vacías (`[]`); migrar esos a Relationships completas queda como nano-deuda futura.
 
-**Estimado:** 5-7 días.
+### Fuera de scope (sigue pendiente)
+
+- Block kinds `recommendations_by_area` y `categorized_text` en el editor.
+- Templates de `kind` distinto a `progress` (session/evaluation/morning_program_quarterly).
+- Versionado real con historia.
 
 ---
 

@@ -27,7 +27,7 @@ export default async function FamiliasPage() {
     .order('primary_contact_name')
 
   type FamilyWithChildCount = Family & { children: { count: number }[] }
-  const enriched = ((families ?? []) as FamilyWithChildCount[]).map((f) => ({
+  const enriched = ((families ?? []) as unknown as FamilyWithChildCount[]).map((f) => ({
     ...f,
     children_count: f.children?.[0]?.count ?? 0,
   }))

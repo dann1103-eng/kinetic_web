@@ -78,7 +78,7 @@ export function JournalEntryList({ entries, isFamily, authorNames = {} }: Journa
                   </div>
                   <p className="text-sm text-fm-on-surface whitespace-pre-wrap">{entry.body}</p>
                   {!isFamily && (
-                    <form action={toggleJournalEntryVisibility.bind(null, entry.id)}>
+                    <form action={async () => { await toggleJournalEntryVisibility(entry.id) }}>
                       <button
                         type="submit"
                         className="text-xs text-fm-primary hover:underline"

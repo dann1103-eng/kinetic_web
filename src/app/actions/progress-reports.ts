@@ -18,6 +18,23 @@ export interface CreateProgressReportInput {
   serviceType: string
   periodStarts: string // YYYY-MM-DD
   periodEnds: string   // YYYY-MM-DD
+  /** Si se omite, se busca la plantilla "Genérica" como fallback. */
+  templateId?: string
+}
+
+/** Lookup del seed Genérica para fallback cuando el caller no manda templateId. */
+async function getGenericProgressTemplateId(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('report_templates')
+    .select('id')
+    .eq('kind', 'progress')
+    .is('service_type', null)
+    .eq('name', 'Informe de avances — Genérica')
+    .eq('active', true)
+    .maybeSingle()
+  return data?.id ?? null
 }
 
 /**
@@ -52,6 +69,14 @@ export async function createProgressReport(input: CreateProgressReportInput): Pr
     return { ok: true, report: existing as ProgressReport }
   }
 
+  const templateId = input.templateId ?? (await getGenericProgressTemplateId(supabase))
+  if (!templateId) {
+    return {
+      ok: false,
+      error: 'No hay plantilla disponible para crear el informe. Contactá a la directora.',
+    }
+  }
+
   const { data: created, error: insertErr } = await supabase
     .from('progress_reports')
     .insert({
@@ -61,6 +86,7 @@ export async function createProgressReport(input: CreateProgressReportInput): Pr
       period_ends: input.periodEnds,
       authored_by_user_id: user.id,
       data_json: {},
+      template_id: templateId,
     })
     .select('*')
     .single()
@@ -87,7 +113,7 @@ export async function updateProgressReportDraft(
 ): Promise<{ ok: true; report: ProgressReport } | { ok: false; error: string }> {
   const { supabase } = await getActor()
 
-  const patch: Record<string, unknown> = {
+  const patch: Partial<Omit<ProgressReport, 'id' | 'created_at'>> = {
     data_json: input.data,
     visible_to_family: input.visibleToFamily,
     sessions_attended_count: Math.max(0, Math.floor(input.sessionsAttendedCount || 0)),
@@ -132,6 +158,23 @@ export async function submitProgressReport(reportId: string): Promise<
     }
     if (msg.includes('logros_required')) {
       return { ok: false, error: 'Llená la sección de logros obtenidos antes de enviar.' }
+    }
+    if (msg.includes('required_block_empty')) {
+      // Mensaje del RPC: "required_block_empty: <key>"
+      const match = msg.match(/required_block_empty:\s*([^\s]+)/)
+      const key = match?.[1]
+      return {
+        ok: false,
+        error: key
+          ? `Falta llenar la sección obligatoria: ${key}.`
+          : 'Faltan campos obligatorios en el informe.',
+      }
+    }
+    if (msg.includes('required_block_invalid')) {
+      return { ok: false, error: 'Una sección obligatoria tiene formato inválido.' }
+    }
+    if (msg.includes('template_not_found')) {
+      return { ok: false, error: 'La plantilla del informe ya no existe. Contactá a la directora.' }
     }
     return { ok: false, error: 'Error al enviar el informe.' }
   }

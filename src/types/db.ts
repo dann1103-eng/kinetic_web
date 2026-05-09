@@ -284,7 +284,17 @@ export type BillingPeriod = 'monthly' | 'biweekly'
 export type WeekKey = 'S1' | 'S2' | 'S3' | 'S4'
 export type WeeklyDistribution = Partial<Record<WeekKey, Partial<Record<ContentType, number>>>>
 
+/**
+ * Mapped type que "des-interfaza" un type para que sea asignable a Record<string, unknown>.
+ * TypeScript no acepta `interface X { ... }` directamente como Row de Supabase
+ * (porque interfaces son "open" via declaration merging). Esta utilidad lo arregla.
+ */
+type AsRow<T> = { [K in keyof T]: T[K] }
+
 export interface Database {
+  __InternalSupabase: {
+    PostgrestVersion: '12'
+  }
   public: {
     Tables: {
       users: {
@@ -1809,9 +1819,235 @@ export interface Database {
         }
         Relationships: []
       }
+      // ── Kinetic tables (mig 0091+) ─────────────────────────────────────────
+      families: {
+        Row: AsRow<Family>
+        Insert: {
+          id?: string
+          code?: string | null
+          primary_contact_name: string
+          primary_contact_email?: string | null
+          primary_contact_phone?: string | null
+          secondary_contact_name?: string | null
+          secondary_contact_phone?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          emergency_contact_relation?: string | null
+          fiscal_legal_name?: string | null
+          fiscal_nit?: string | null
+          fiscal_dui?: string | null
+          fiscal_address?: string | null
+          status?: FamilyStatus
+          notes?: string | null
+          created_by_user_id?: string | null
+        }
+        Update: Partial<Omit<Family, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      family_users: {
+        Row: AsRow<FamilyUser>
+        Insert: {
+          id?: string
+          family_id: string
+          user_id: string
+          role?: FamilyUserRole
+          can_billing?: boolean
+          can_work?: boolean
+        }
+        Update: Partial<Omit<FamilyUser, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      referral_sources: {
+        Row: AsRow<ReferralSource>
+        Insert: {
+          id?: string
+          type: ReferralSourceType
+          name: string
+          contact_name?: string | null
+          contact_phone?: string | null
+          contact_email?: string | null
+          specialty?: string | null
+          address?: string | null
+          notes?: string | null
+          can_receive_reports?: boolean
+          partnership_active?: boolean
+        }
+        Update: Partial<Omit<ReferralSource, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      children: {
+        Row: AsRow<Child>
+        Insert: {
+          id?: string
+          family_id: string
+          code?: string | null
+          full_name: string
+          preferred_name?: string | null
+          birth_date?: string | null
+          gender?: 'M' | 'F' | 'other' | null
+          blood_type?: string | null
+          allergies_text?: string | null
+          medications_text?: string | null
+          preferred_hospital?: string | null
+          school_name?: string | null
+          school_grade?: string | null
+          diagnoses_json?: DiagnosisCode[]
+          diagnoses_display_text?: string | null
+          referral_source_type?: ReferralSourceType | null
+          referral_source_id?: string | null
+          referral_notes?: string | null
+          intake_phase?: IntakePhase
+          treatment_status?: TreatmentStatus
+          treatment_status_notes?: string | null
+          enrolled_program?: MorningProgram | null
+          enrollment_started_at?: string | null
+          enrollment_ended_at?: string | null
+          notes?: string | null
+          created_by_user_id?: string | null
+        }
+        Update: Partial<Omit<Child, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      appointments: {
+        Row: AsRow<Appointment>
+        Insert: {
+          id?: string
+          child_id: string
+          therapist_id?: string | null
+          event_type: EventType
+          service_type?: ServiceType | null
+          modality?: Modality
+          starts_at: string
+          ends_at: string
+          status?: AppointmentStatus
+          parent_appointment_id?: string | null
+          recurrence_rule?: string | null
+          google_calendar_event_id?: string | null
+          meet_link?: string | null
+          notification_sent_24h?: boolean
+          notification_sent_1h?: boolean
+          notes?: string | null
+          created_by_user_id?: string | null
+        }
+        Update: Partial<Omit<Appointment, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      institutional_calendar: {
+        Row: AsRow<InstitutionalClosure>
+        Insert: {
+          id?: string
+          date: string
+          type: InstitutionalClosureType
+          name: string
+          description?: string | null
+          all_day?: boolean
+          year_recurring?: boolean
+        }
+        Update: Partial<Omit<InstitutionalClosure, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      virtual_meetings: {
+        Row: AsRow<VirtualMeeting>
+        Insert: {
+          id?: string
+          appointment_id?: string | null
+          context: VirtualMeeting['context']
+          provider?: 'google_meet'
+          external_event_id?: string | null
+          join_url?: string | null
+          scheduled_for: string
+          ends_at?: string | null
+          status?: VirtualMeeting['status']
+          created_by_user_id?: string | null
+        }
+        Update: Partial<Omit<VirtualMeeting, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      therapy_sessions: {
+        Row: AsRow<TherapySession>
+        Insert: {
+          id?: string
+          appointment_id: string
+          therapist_id: string
+          child_id: string
+          started_at?: string
+          ended_at?: string | null
+          status?: 'active' | 'completed'
+        }
+        Update: Partial<Omit<TherapySession, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      child_journal_entries: {
+        Row: AsRow<ChildJournalEntry>
+        Insert: {
+          id?: string
+          child_id: string
+          author_user_id?: string | null
+          category: JournalCategory
+          body: string
+          attachments_json?: unknown[]
+          visible_to_family?: boolean
+          linked_appointment_id?: string | null
+        }
+        Update: Partial<Omit<ChildJournalEntry, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      session_reports: {
+        Row: AsRow<SessionReport>
+        Insert: {
+          id?: string
+          session_id: string
+          appointment_id: string
+          child_id: string
+          therapist_id?: string | null
+          actividades?: string
+          respuesta_del_nino?: string
+          tarea_para_casa?: string
+          observaciones_internas?: string
+          visible_to_family?: boolean
+          status?: SessionReportStatus
+        }
+        Update: Partial<Omit<SessionReport, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      progress_reports: {
+        Row: AsRow<ProgressReport>
+        Insert: {
+          id?: string
+          child_id: string
+          service_type: string
+          period_starts: string
+          period_ends: string
+          authored_by_user_id?: string | null
+          sessions_attended_count?: number
+          data_json?: ProgressReportData
+          status?: ProgressReportStatus
+          visible_to_family?: boolean
+          template_id?: string | null
+        }
+        Update: Partial<Omit<ProgressReport, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      report_templates: {
+        Row: AsRow<ReportTemplate>
+        Insert: {
+          id?: string
+          name: string
+          kind: ReportTemplateKind
+          service_type?: string | null
+          blocks_json: ReportTemplateBlock[]
+          default_signers_role?: string | null
+          active?: boolean
+          version?: number
+          created_by?: string | null
+        }
+        Update: Partial<Omit<ReportTemplate, 'id' | 'created_at'>>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
-    Functions: Record<string, never>
+    /** Catch-all: aceptar cualquier RPC sin tipar Args/Returns. */
+    Functions: Record<string, { Args: Record<string, unknown>; Returns: unknown }>
     Enums: Record<string, never>
   }
 }
@@ -2468,8 +2704,20 @@ export type ProgressReportStatus =
   | 'rejected'
   | 'sent_to_family'
 
-/** Estructura del template hardcoded v0.7 (Fase 3-C1).
- *  Persistido como JSONB en progress_reports.data_json. */
+/** Valor de un bloque dentro de progress_reports.data_json (post-C2).
+ *  Forma depende del `block.kind` del template:
+ *    - rich_text                  → string
+ *    - numbered_list              → string[]
+ *    - categorized_text           → Record<categoryKey, string>
+ *    - recommendations_by_area    → Record<areaKey, string>
+ *  Stage 5 de C2 hará que el editor/aprobaciones/portal usen este tipo. */
+export type ProgressReportDataValue = string | string[] | Record<string, string>
+
+/** Forma flexible para informes creados desde un template DB-driven (post-Stage-5). */
+export type ProgressReportDataFlexible = Record<string, ProgressReportDataValue>
+
+/** Forma legacy v0.7 (Fase 3-C1) — keys conocidos, todo string. Mantenido para
+ *  compat hasta que Stage 5 migre los consumidores. */
 export interface ProgressReportData {
   seguimiento?: string
   dificultades_ingreso?: string
@@ -2498,6 +2746,56 @@ export interface ProgressReport {
   rejected_at: string | null
   rejection_reason: string | null
   sent_to_family_at: string | null
+  /** FK al template usado. Null = reporte legacy pre-C2 (mig 0098). */
+  template_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+// =============================================================================
+// Kinetic — Fase 3-C2: Plantillas de informes (report_templates, mig 0098)
+// =============================================================================
+
+export type ReportTemplateKind =
+  | 'progress'
+  | 'session'
+  | 'evaluation'
+  | 'morning_program_quarterly'
+
+export type ReportTemplateBlockKind =
+  | 'rich_text'
+  | 'numbered_list'
+  | 'categorized_text'
+  | 'recommendations_by_area'
+
+export interface ReportTemplateBlockArea {
+  key: string
+  label: string
+}
+
+export interface ReportTemplateBlock {
+  /** Único dentro de blocks_json — sirve como key de data_json en el reporte. */
+  key: string
+  label: string
+  description?: string
+  required: boolean
+  kind: ReportTemplateBlockKind
+  placeholder?: string
+  /** Solo aplica si kind === 'recommendations_by_area' o 'categorized_text'. */
+  areas?: ReportTemplateBlockArea[]
+}
+
+export interface ReportTemplate {
+  id: string
+  name: string
+  kind: ReportTemplateKind
+  /** Null = aplica a cualquier terapia. */
+  service_type: string | null
+  blocks_json: ReportTemplateBlock[]
+  default_signers_role: string | null
+  active: boolean
+  version: number
+  created_by: string | null
   created_at: string
   updated_at: string
 }

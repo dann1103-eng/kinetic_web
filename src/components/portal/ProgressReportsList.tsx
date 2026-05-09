@@ -1,10 +1,16 @@
-import { PROGRESS_REPORT_SECTIONS } from '@/lib/domain/progress-report-template'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
-import type { ProgressReport, ServiceType, ProgressReportData } from '@/types/db'
+import type {
+  ProgressReport,
+  ProgressReportDataFlexible,
+  ReportTemplate,
+  ReportTemplateBlock,
+  ServiceType,
+} from '@/types/db'
 
 interface ProgressReportsListProps {
   reports: ProgressReport[]
   childNamesById: Record<string, string>
+  templateMap: Record<string, ReportTemplate>
 }
 
 function formatDate(d: string): string {
@@ -15,12 +21,39 @@ function formatDate(d: string): string {
   })
 }
 
+function renderBlockValue(
+  data: ProgressReportDataFlexible,
+  block: ReportTemplateBlock,
+): React.ReactNode {
+  const v = data[block.key]
+  if (block.kind === 'rich_text') {
+    if (typeof v !== 'string' || !v.trim()) return null
+    return <p className="text-sm text-fm-on-surface whitespace-pre-wrap">{v}</p>
+  }
+  if (block.kind === 'numbered_list') {
+    if (!Array.isArray(v)) return null
+    const items = v.filter((x) => typeof x === 'string' && x.trim())
+    if (items.length === 0) return null
+    return (
+      <ol className="list-decimal pl-5 space-y-0.5 text-sm text-fm-on-surface">
+        {items.map((item, i) => (
+          <li key={i}>{item}</li>
+        ))}
+      </ol>
+    )
+  }
+  return null
+}
+
 /**
  * Family-facing: lista los informes de avances aprobados y enviados a la familia.
- * Las secciones que la familia NO debe ver son ninguna en C1 — todo el contenido
- * de progress_reports.data_json es info para la familia. RLS también filtra.
+ * Renderiza dinámicamente desde el template asignado al reporte.
  */
-export function ProgressReportsList({ reports, childNamesById }: ProgressReportsListProps) {
+export function ProgressReportsList({
+  reports,
+  childNamesById,
+  templateMap,
+}: ProgressReportsListProps) {
   if (reports.length === 0) return null
 
   return (
@@ -29,7 +62,9 @@ export function ProgressReportsList({ reports, childNamesById }: ProgressReports
         const childName = childNamesById[report.child_id] ?? 'Mi niño/a'
         const serviceLabel =
           SERVICE_TYPE_LABELS[report.service_type as ServiceType] ?? report.service_type
-        const data = (report.data_json ?? {}) as ProgressReportData
+        const data = (report.data_json ?? {}) as ProgressReportDataFlexible
+        const template = report.template_id ? templateMap[report.template_id] : null
+        const blocks = template?.blocks_json ?? []
 
         return (
           <details
@@ -54,15 +89,20 @@ export function ProgressReportsList({ reports, childNamesById }: ProgressReports
             </summary>
 
             <div className="mt-4 pt-3 border-t border-fm-outline-variant/15 space-y-3">
-              {PROGRESS_REPORT_SECTIONS.map((section) => {
-                const value = data[section.key]
-                if (!value || !value.trim()) return null
+              {blocks.length === 0 && (
+                <p className="text-xs italic text-fm-on-surface-variant">
+                  El informe está disponible pero no podemos mostrar el detalle ahora. Contactá a la clínica.
+                </p>
+              )}
+              {blocks.map((block) => {
+                const rendered = renderBlockValue(data, block)
+                if (!rendered) return null
                 return (
-                  <div key={section.key}>
+                  <div key={block.key}>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant mb-0.5">
-                      {section.label}
+                      {block.label}
                     </p>
-                    <p className="text-sm text-fm-on-surface whitespace-pre-wrap">{value}</p>
+                    {rendered}
                   </div>
                 )
               })}

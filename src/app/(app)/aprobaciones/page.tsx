@@ -4,7 +4,7 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { SessionReportApprovalList } from '@/components/aprobaciones/SessionReportApprovalList'
 import { ProgressReportApprovalList } from '@/components/aprobaciones/ProgressReportApprovalList'
-import type { SessionReport, ProgressReport } from '@/types/db'
+import type { SessionReport, ProgressReport, ReportTemplate } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -78,6 +78,17 @@ export default async function AprobacionesPage() {
     ]),
   )
 
+  // Templates referenciados por los progress reports en bandeja
+  const templateIds = Array.from(
+    new Set(progressReports.map((r) => r.template_id).filter(Boolean) as string[]),
+  )
+  const { data: templatesRaw } = templateIds.length
+    ? await supabase.from('report_templates').select('*').in('id', templateIds)
+    : { data: [] as ReportTemplate[] }
+  const templateMap = Object.fromEntries(
+    ((templatesRaw ?? []) as ReportTemplate[]).map((t) => [t.id, t]),
+  )
+
   const totalPending = sessionReports.length + progressReports.length
 
   return (
@@ -99,6 +110,7 @@ export default async function AprobacionesPage() {
                   reports={progressReports}
                   childMap={childMap}
                   authorMap={userMap}
+                  templateMap={templateMap}
                 />
               </section>
             )}

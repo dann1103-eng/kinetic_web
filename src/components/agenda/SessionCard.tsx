@@ -65,7 +65,7 @@ export function SessionCard({ appointment, session, report, onNoteClick, onRepor
     if (!session) return
     startTransition(async () => {
       const result = await finishTherapySession(session.id)
-      if (!result.ok && !result.alreadyFinished) alert(result.error)
+      if (!result.ok) alert(result.error)
     })
   }
 

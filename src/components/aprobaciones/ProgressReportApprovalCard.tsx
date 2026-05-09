@@ -5,9 +5,14 @@ import {
   approveProgressReport,
   rejectProgressReport,
 } from '@/app/actions/progress-reports'
-import { PROGRESS_REPORT_SECTIONS } from '@/lib/domain/progress-report-template'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
-import type { ProgressReport, ServiceType, ProgressReportData } from '@/types/db'
+import type {
+  ProgressReport,
+  ProgressReportDataFlexible,
+  ReportTemplate,
+  ReportTemplateBlock,
+  ServiceType,
+} from '@/types/db'
 
 interface ChildInfo {
   id: string
@@ -19,7 +24,34 @@ interface ProgressReportApprovalCardProps {
   report: ProgressReport
   child: ChildInfo | undefined
   authorName: string
+  template: ReportTemplate | null
   onResolved: () => void
+}
+
+function renderBlockValue(
+  data: ProgressReportDataFlexible,
+  block: ReportTemplateBlock,
+): React.ReactNode {
+  const v = data[block.key]
+  if (block.kind === 'rich_text') {
+    if (typeof v !== 'string' || !v.trim()) {
+      return <span className="text-fm-on-surface-variant italic">(vacío)</span>
+    }
+    return v
+  }
+  if (block.kind === 'numbered_list') {
+    if (!Array.isArray(v) || v.every((x) => !x?.trim())) {
+      return <span className="text-fm-on-surface-variant italic">(vacío)</span>
+    }
+    return (
+      <ol className="list-decimal pl-5 space-y-0.5">
+        {v.filter((x) => x?.trim()).map((item, i) => (
+          <li key={i}>{item}</li>
+        ))}
+      </ol>
+    )
+  }
+  return <span className="text-fm-on-surface-variant italic">(formato no soportado)</span>
 }
 
 function formatDate(d: string): string {
@@ -34,6 +66,7 @@ export function ProgressReportApprovalCard({
   report,
   child,
   authorName,
+  template,
   onResolved,
 }: ProgressReportApprovalCardProps) {
   const [isPending, startTransition] = useTransition()
@@ -74,7 +107,8 @@ export function ProgressReportApprovalCard({
     })
   }
 
-  const data = (report.data_json ?? {}) as ProgressReportData
+  const data = (report.data_json ?? {}) as ProgressReportDataFlexible
+  const blocks = template?.blocks_json ?? []
 
   return (
     <div className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-4 space-y-3">
@@ -114,21 +148,21 @@ export function ProgressReportApprovalCard({
 
       {expanded && (
         <div className="space-y-3 border-t border-fm-outline-variant/15 pt-3">
-          {PROGRESS_REPORT_SECTIONS.map((section) => {
-            const value = data[section.key] ?? ''
-            return (
-              <div key={section.key}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant mb-0.5">
-                  {section.label}
-                </p>
-                <p className="text-sm text-fm-on-surface whitespace-pre-wrap">
-                  {value || (
-                    <span className="text-fm-on-surface-variant italic">(vacío)</span>
-                  )}
-                </p>
+          {blocks.length === 0 && (
+            <p className="text-xs italic text-fm-on-surface-variant">
+              No hay plantilla disponible para mostrar el contenido.
+            </p>
+          )}
+          {blocks.map((block) => (
+            <div key={block.key}>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant mb-0.5">
+                {block.label}
+              </p>
+              <div className="text-sm text-fm-on-surface whitespace-pre-wrap">
+                {renderBlockValue(data, block)}
               </div>
-            )
-          })}
+            </div>
+          ))}
         </div>
       )}
 

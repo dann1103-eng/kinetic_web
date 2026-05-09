@@ -10,6 +10,14 @@ const ROLE_LABEL: Record<UserRole, string> = {
   supervisor: 'Supervisor',
   operator: 'Operador',
   client: 'Cliente',
+  directora: 'Directora',
+  coordinadora_familias: 'Coord. Familias',
+  coordinadora_terapias: 'Coord. Terapias',
+  terapista: 'Terapista',
+  maestra: 'Maestra',
+  recepcion: 'Recepción',
+  contable: 'Contable',
+  family: 'Familia',
 }
 
 /**

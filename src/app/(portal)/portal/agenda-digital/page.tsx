@@ -5,7 +5,12 @@ import { TopNav } from '@/components/layout/TopNav'
 import { PortalJournalClient } from './PortalJournalClient'
 import { SessionReportsList } from '@/components/portal/SessionReportsList'
 import { ProgressReportsList } from '@/components/portal/ProgressReportsList'
-import type { ChildJournalEntry, SessionReport, ProgressReport } from '@/types/db'
+import type {
+  ChildJournalEntry,
+  SessionReport,
+  ProgressReport,
+  ReportTemplate,
+} from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,6 +99,17 @@ export default async function PortalAgendaDigitalPage() {
     children.map((c) => [c.id, c.preferred_name ?? c.full_name]),
   )
 
+  // Cargar plantillas referenciadas por los progress reports visibles.
+  const templateIds = Array.from(
+    new Set(progressReports.map((r) => r.template_id).filter(Boolean) as string[]),
+  )
+  const { data: templatesRaw } = templateIds.length
+    ? await supabase.from('report_templates').select('*').in('id', templateIds)
+    : { data: [] as ReportTemplate[] }
+  const templateMap: Record<string, ReportTemplate> = Object.fromEntries(
+    ((templatesRaw ?? []) as ReportTemplate[]).map((t) => [t.id, t]),
+  )
+
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
       <TopNav title="Agenda digital" />
@@ -103,7 +119,11 @@ export default async function PortalAgendaDigitalPage() {
             <h2 className="text-sm font-semibold text-fm-on-surface uppercase tracking-wider">
               Informes de avances
             </h2>
-            <ProgressReportsList reports={progressReports} childNamesById={childNamesById} />
+            <ProgressReportsList
+              reports={progressReports}
+              childNamesById={childNamesById}
+              templateMap={templateMap}
+            />
           </section>
         )}
 

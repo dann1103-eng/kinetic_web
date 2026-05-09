@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { ProgressReportApprovalCard } from './ProgressReportApprovalCard'
-import type { ProgressReport } from '@/types/db'
+import type { ProgressReport, ReportTemplate } from '@/types/db'
 
 interface ChildInfo {
   id: string
@@ -14,12 +14,14 @@ interface ProgressReportApprovalListProps {
   reports: ProgressReport[]
   childMap: Record<string, ChildInfo>
   authorMap: Record<string, string>
+  templateMap: Record<string, ReportTemplate>
 }
 
 export function ProgressReportApprovalList({
   reports: initialReports,
   childMap,
   authorMap,
+  templateMap,
 }: ProgressReportApprovalListProps) {
   const [reports, setReports] = useState(initialReports)
 
@@ -39,6 +41,7 @@ export function ProgressReportApprovalList({
           authorName={
             report.authored_by_user_id ? authorMap[report.authored_by_user_id] ?? '—' : '—'
           }
+          template={report.template_id ? templateMap[report.template_id] ?? null : null}
           onResolved={() => handleResolved(report.id)}
         />
       ))}

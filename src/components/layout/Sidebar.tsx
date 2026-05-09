@@ -101,6 +101,14 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    href: '/admin/plantillas',
+    label: 'Plantillas',
+    allowedRoles: ['admin', 'directora'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>description</span>
+    ),
+  },
+  {
     href: '/usuarios-portal',
     label: 'Usuarios portal',
     allowedRoles: ['admin', 'directora'],

@@ -6,8 +6,14 @@ import {
   updateProgressReportDraft,
   submitProgressReport,
 } from '@/app/actions/progress-reports'
-import { PROGRESS_REPORT_SECTIONS } from '@/lib/domain/progress-report-template'
-import type { ProgressReport, ProgressReportData } from '@/types/db'
+import type {
+  ProgressReport,
+  ProgressReportData,
+  ProgressReportDataFlexible,
+  ProgressReportDataValue,
+  ReportTemplate,
+  ReportTemplateBlock,
+} from '@/types/db'
 
 interface ChildHeaderInfo {
   full_name: string
@@ -24,6 +30,7 @@ interface ProgressReportEditorProps {
   child: ChildHeaderInfo
   authorName: string
   serviceLabel: string
+  template: ReportTemplate
 }
 
 const STATUS_LABEL: Record<ProgressReport['status'], string> = {
@@ -49,14 +56,51 @@ function calcAge(birthDate: string | null): number | null {
   )
 }
 
+/** Convierte data_json (legacy o nueva) a la forma flexible. */
+function toFlexible(data: ProgressReportData | ProgressReportDataFlexible | null): ProgressReportDataFlexible {
+  if (!data) return {}
+  return data as ProgressReportDataFlexible
+}
+
+/** Lectura segura: devuelve string para rich_text, string[] para numbered_list. */
+function readBlockValue(
+  data: ProgressReportDataFlexible,
+  block: ReportTemplateBlock,
+): ProgressReportDataValue {
+  const v = data[block.key]
+  if (block.kind === 'rich_text') {
+    return typeof v === 'string' ? v : ''
+  }
+  if (block.kind === 'numbered_list') {
+    if (Array.isArray(v)) return v
+    if (typeof v === 'string' && v) return [v]
+    return ['']
+  }
+  // Otros kinds (recommendations_by_area, categorized_text) — placeholder
+  return v ?? ''
+}
+
+/** Valida que un bloque required tenga contenido no vacío. */
+function isBlockEmpty(value: ProgressReportDataValue, kind: ReportTemplateBlock['kind']): boolean {
+  if (kind === 'rich_text') {
+    return typeof value !== 'string' || value.trim() === ''
+  }
+  if (kind === 'numbered_list') {
+    if (!Array.isArray(value)) return true
+    return value.every((item) => typeof item !== 'string' || item.trim() === '')
+  }
+  return false
+}
+
 export function ProgressReportEditor({
   report,
   child,
   authorName,
   serviceLabel,
+  template,
 }: ProgressReportEditorProps) {
   const router = useRouter()
-  const [data, setData] = useState<ProgressReportData>(report.data_json ?? {})
+  const [data, setData] = useState<ProgressReportDataFlexible>(toFlexible(report.data_json))
   const [periodStarts, setPeriodStarts] = useState(report.period_starts)
   const [periodEnds, setPeriodEnds] = useState(report.period_ends)
   const [sessionsAttendedCount, setSessionsAttendedCount] = useState(
@@ -71,7 +115,7 @@ export function ProgressReportEditor({
 
   const isEditable = currentStatus === 'draft' || currentStatus === 'rejected'
 
-  const setField = (key: keyof ProgressReportData, value: string) => {
+  const setField = (key: string, value: ProgressReportDataValue) => {
     setData((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -79,7 +123,7 @@ export function ProgressReportEditor({
     setError(null)
     startTransition(async () => {
       const res = await updateProgressReportDraft(report.id, {
-        data,
+        data: data as unknown as ProgressReportData,
         visibleToFamily,
         sessionsAttendedCount,
         periodStarts,
@@ -95,17 +139,21 @@ export function ProgressReportEditor({
 
   const handleSubmit = () => {
     setError(null)
-    if (!data.seguimiento?.trim()) {
-      setError('Llená la sección de Seguimiento antes de enviar.')
-      return
+    // Validación cliente: bloques required del template.
+    const blocks = template.blocks_json ?? []
+    for (const block of blocks) {
+      if (block.required) {
+        const value = readBlockValue(data, block)
+        if (isBlockEmpty(value, block.kind)) {
+          setError(`Llená la sección obligatoria: ${block.label}.`)
+          return
+        }
+      }
     }
-    if (!data.logros_obtenidos?.trim()) {
-      setError('Llená la sección de Logros obtenidos antes de enviar.')
-      return
-    }
+
     startTransition(async () => {
       const upd = await updateProgressReportDraft(report.id, {
-        data,
+        data: data as unknown as ProgressReportData,
         visibleToFamily,
         sessionsAttendedCount,
         periodStarts,
@@ -128,15 +176,18 @@ export function ProgressReportEditor({
 
   const age = calcAge(child.birth_date)
   const childDisplayName = child.preferred_name ?? child.full_name
+  const blocks = template.blocks_json ?? []
 
   return (
     <div className="space-y-6">
-      {/* Encabezado auto-rellenado */}
       <header className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-5 space-y-3">
         <div className="flex items-start justify-between gap-3 flex-wrap">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-fm-on-surface-variant">
               Informe de avances · {serviceLabel}
+            </p>
+            <p className="text-[10px] text-fm-on-surface-variant mt-0.5">
+              Plantilla: {template.name}
             </p>
             <h1 className="text-xl font-bold text-fm-on-surface mt-0.5">
               {child.full_name}
@@ -168,7 +219,6 @@ export function ProgressReportEditor({
         </p>
       </header>
 
-      {/* Banner de rechazo */}
       {currentStatus === 'rejected' && currentRejectionReason && (
         <div className="rounded-xl border border-fm-error/40 bg-fm-error/10 p-4 text-sm text-fm-error">
           <p className="font-semibold">La directora rechazó este informe:</p>
@@ -177,7 +227,6 @@ export function ProgressReportEditor({
         </div>
       )}
 
-      {/* Período + asistencia */}
       <section className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-5 space-y-3">
         <h2 className="text-sm font-semibold text-fm-on-surface">Datos del período</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -212,34 +261,17 @@ export function ProgressReportEditor({
         </div>
       </section>
 
-      {/* Secciones del template */}
-      {PROGRESS_REPORT_SECTIONS.map((section) => (
-        <section
-          key={section.key}
-          className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-5 space-y-2"
-        >
-          <div className="flex items-baseline justify-between gap-2 flex-wrap">
-            <h2 className="text-sm font-semibold text-fm-on-surface">
-              {section.label}
-              {section.required && <span className="text-fm-error"> *</span>}
-            </h2>
-            {!section.required && (
-              <span className="text-[10px] text-fm-on-surface-variant">Opcional</span>
-            )}
-          </div>
-          <p className="text-xs text-fm-on-surface-variant">{section.description}</p>
-          <textarea
-            value={data[section.key] ?? ''}
-            onChange={(e) => setField(section.key, e.target.value)}
-            disabled={!isEditable || isPending}
-            rows={5}
-            placeholder={section.placeholder}
-            className="w-full rounded-xl border border-fm-outline-variant/30 bg-fm-surface-container-low px-3 py-2 text-sm text-fm-on-surface placeholder:text-fm-on-surface-variant/50 resize-y focus:outline-none focus:ring-2 focus:ring-fm-primary/30 disabled:opacity-60"
-          />
-        </section>
+      {/* Bloques del template (rich_text + numbered_list) */}
+      {blocks.map((block) => (
+        <BlockSection
+          key={block.key}
+          block={block}
+          value={readBlockValue(data, block)}
+          disabled={!isEditable || isPending}
+          onChange={(v) => setField(block.key, v)}
+        />
       ))}
 
-      {/* Visibilidad */}
       <section className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-5">
         <label className="flex items-center gap-2 text-sm text-fm-on-surface select-none cursor-pointer">
           <input
@@ -253,7 +285,6 @@ export function ProgressReportEditor({
         </label>
       </section>
 
-      {/* Mensajes */}
       {error && (
         <div className="rounded-lg bg-fm-error/10 px-4 py-3 text-sm text-fm-error">{error}</div>
       )}
@@ -264,7 +295,6 @@ export function ProgressReportEditor({
         </div>
       )}
 
-      {/* Botones */}
       {isEditable && (
         <div className="sticky bottom-0 -mx-4 md:mx-0 px-4 md:px-0 py-3 bg-fm-background/95 backdrop-blur border-t border-fm-outline-variant/15 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
           <button
@@ -296,6 +326,115 @@ function FormField({ label, children }: { label: string; children: React.ReactNo
         {label}
       </label>
       {children}
+    </div>
+  )
+}
+
+interface BlockSectionProps {
+  block: ReportTemplateBlock
+  value: ProgressReportDataValue
+  disabled: boolean
+  onChange: (v: ProgressReportDataValue) => void
+}
+
+function BlockSection({ block, value, disabled, onChange }: BlockSectionProps) {
+  return (
+    <section className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-5 space-y-2">
+      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+        <h2 className="text-sm font-semibold text-fm-on-surface">
+          {block.label}
+          {block.required && <span className="text-fm-error"> *</span>}
+        </h2>
+        {!block.required && (
+          <span className="text-[10px] text-fm-on-surface-variant">Opcional</span>
+        )}
+      </div>
+      {block.description && (
+        <p className="text-xs text-fm-on-surface-variant">{block.description}</p>
+      )}
+
+      {block.kind === 'rich_text' && (
+        <textarea
+          value={typeof value === 'string' ? value : ''}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          rows={5}
+          placeholder={block.placeholder}
+          className="w-full rounded-xl border border-fm-outline-variant/30 bg-fm-surface-container-low px-3 py-2 text-sm text-fm-on-surface placeholder:text-fm-on-surface-variant/50 resize-y focus:outline-none focus:ring-2 focus:ring-fm-primary/30 disabled:opacity-60"
+        />
+      )}
+
+      {block.kind === 'numbered_list' && (
+        <NumberedListEditor
+          items={Array.isArray(value) ? value : ['']}
+          disabled={disabled}
+          placeholder={block.placeholder}
+          onChange={onChange}
+        />
+      )}
+
+      {block.kind !== 'rich_text' && block.kind !== 'numbered_list' && (
+        <p className="text-xs italic text-fm-on-surface-variant">
+          Tipo de bloque &ldquo;{block.kind}&rdquo; aún no soportado en el editor.
+        </p>
+      )}
+    </section>
+  )
+}
+
+function NumberedListEditor({
+  items,
+  disabled,
+  placeholder,
+  onChange,
+}: {
+  items: string[]
+  disabled: boolean
+  placeholder?: string
+  onChange: (v: string[]) => void
+}) {
+  function update(idx: number, value: string) {
+    onChange(items.map((it, i) => (i === idx ? value : it)))
+  }
+  function add() {
+    onChange([...items, ''])
+  }
+  function remove(idx: number) {
+    onChange(items.length === 1 ? [''] : items.filter((_, i) => i !== idx))
+  }
+
+  return (
+    <div className="space-y-2">
+      {items.map((item, idx) => (
+        <div key={idx} className="flex items-start gap-2">
+          <span className="text-xs text-fm-on-surface-variant pt-2 w-5 text-right">{idx + 1}.</span>
+          <textarea
+            value={item}
+            onChange={(e) => update(idx, e.target.value)}
+            disabled={disabled}
+            rows={1}
+            placeholder={idx === 0 ? placeholder : undefined}
+            className="flex-1 rounded-lg border border-fm-outline-variant/30 bg-fm-surface-container-low px-3 py-1.5 text-sm text-fm-on-surface resize-y focus:outline-none focus:ring-2 focus:ring-fm-primary/30 disabled:opacity-60"
+          />
+          <button
+            type="button"
+            onClick={() => remove(idx)}
+            disabled={disabled || items.length === 1}
+            className="text-xs text-fm-on-surface-variant hover:text-red-600 disabled:opacity-30 px-1 pt-1.5"
+            title="Eliminar"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={add}
+        disabled={disabled}
+        className="text-xs text-fm-primary hover:underline disabled:opacity-50"
+      >
+        + Agregar item
+      </button>
     </div>
   )
 }

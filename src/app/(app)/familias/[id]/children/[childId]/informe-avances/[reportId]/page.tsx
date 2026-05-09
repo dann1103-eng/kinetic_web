@@ -3,8 +3,9 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { ProgressReportEditor } from '@/components/agenda/ProgressReportEditor'
+import { getReportTemplate } from '@/app/actions/report-templates'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
-import type { Child, ProgressReport, ServiceType } from '@/types/db'
+import type { Child, ProgressReport, ReportTemplate, ServiceType } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +43,24 @@ export default async function ProgressReportEditPage({ params }: PageProps) {
   const serviceLabel =
     SERVICE_TYPE_LABELS[report.service_type as ServiceType] ?? report.service_type
 
+  // Cargar plantilla. Si el reporte legacy no tiene template_id, fallback a Genérica.
+  let template: ReportTemplate | null = null
+  if (report.template_id) {
+    template = await getReportTemplate(report.template_id)
+  }
+  if (!template) {
+    const { data: fallback } = await supabase
+      .from('report_templates')
+      .select('*')
+      .eq('kind', 'progress')
+      .is('service_type', null)
+      .eq('name', 'Informe de avances — Genérica')
+      .eq('active', true)
+      .maybeSingle()
+    template = fallback as ReportTemplate | null
+  }
+  if (!template) notFound()
+
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
       <TopNav
@@ -62,6 +81,7 @@ export default async function ProgressReportEditPage({ params }: PageProps) {
           }}
           authorName={authorName}
           serviceLabel={serviceLabel}
+          template={template}
         />
       </div>
     </div>

@@ -50,7 +50,7 @@ export async function listFamilyUsers(familyId: string): Promise<FamilyPortalUse
 
   if (error) throw new Error(error.message)
 
-  return ((data ?? []) as Array<{
+  return ((data ?? []) as unknown as Array<{
     id: string
     user_id: string
     role: 'owner' | 'viewer'
@@ -123,7 +123,7 @@ export async function listAllFamilyUsers(): Promise<FamilyPortalUserGlobal[]> {
   }
 
   const byUser: Record<string, FamilyPortalUserGlobal['families']> = {}
-  for (const link of (links ?? []) as LinkRow[]) {
+  for (const link of (links ?? []) as unknown as LinkRow[]) {
     if (!byUser[link.user_id]) byUser[link.user_id] = []
     const fam = Array.isArray(link.families) ? link.families[0] : link.families
     if (fam) {
@@ -313,7 +313,7 @@ export async function createFamilyUser(input: CreateFamilyUserInput): Promise<Fa
       }
 
       // Aseguramos role='family' y nombre si lo dio
-      const patch: Record<string, unknown> = { role: 'family' }
+      const patch: { role: 'family'; full_name?: string } = { role: 'family' }
       if (fullName) patch.full_name = fullName
       await admin.from('users').update(patch).eq('id', userId)
     } else {
@@ -433,7 +433,7 @@ export async function createFamilyUserMulti(input: {
       userId = existing.id
       const { error: updErr } = await admin.auth.admin.updateUserById(userId, { password })
       if (updErr) return { ok: false, error: `No se pudo actualizar la contraseña: ${updErr.message}` }
-      const patch: Record<string, unknown> = { role: 'family' }
+      const patch: { role: 'family'; full_name?: string } = { role: 'family' }
       if (fullName) patch.full_name = fullName
       await admin.from('users').update(patch).eq('id', userId)
     } else {
