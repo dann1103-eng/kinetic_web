@@ -5,10 +5,37 @@ import { getOperatorClientIds } from '@/lib/auth/operator-scope'
 import { TopNav } from '@/components/layout/TopNav'
 import { ClientCard } from '@/components/clients/ClientCard'
 import { DashboardFilters } from '@/components/clients/DashboardFilters'
+import { MgmtDashboard } from '@/components/dashboard/MgmtDashboard'
+import { CoordTerapiasDashboard } from '@/components/dashboard/CoordTerapiasDashboard'
+import { RecepcionDashboard } from '@/components/dashboard/RecepcionDashboard'
+import { TerapistaDashboard } from '@/components/dashboard/TerapistaDashboard'
+import { CoordFamiliasDashboard } from '@/components/dashboard/CoordFamiliasDashboard'
+import {
+  getMgmtDashboardData,
+  getCoordTerapiasDashboardData,
+  getRecepcionDashboardData,
+  todayBoundsSV,
+  weekAheadISO,
+} from '@/lib/domain/global-dashboard'
 import type { ClientWithPlan, BillingCycle, Requirement } from '@/types/db'
 import { daysUntilEnd } from '@/lib/domain/cycles'
 import { computeTotals } from '@/lib/domain/requirement'
 import { effectiveLimits, limitsToRecord, applyContentLimitsWithOverride } from '@/lib/domain/plans'
+
+const KINETIC_MGMT = ['admin', 'directora']
+const KINETIC_COORD_TERAPIAS = ['coordinadora_terapias']
+const KINETIC_RECEPCION = ['recepcion']
+const KINETIC_CONTABLE = ['contable']
+const KINETIC_TERAPISTA = ['terapista', 'maestra']
+const KINETIC_COORD_FAMILIAS = ['coordinadora_familias']
+const FM_LEGACY_ROLES = ['operator', 'supervisor']
+
+function greetingFor(name: string): string {
+  const hour = new Date().getHours()
+  const period = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'
+  const firstName = name.split(' ')[0] ?? 'Hola'
+  return `${period}, ${firstName}`
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +59,125 @@ export default async function DashboardPage({
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
   const role = ctx.appUser.role
+  const fullName = ctx.appUser.full_name ?? ctx.appUser.email
+  const greeting = greetingFor(fullName)
+
+  // ─── Routing por rol Kinetic ──────────────────────────────────────────────
+  if (KINETIC_MGMT.includes(role)) {
+    const data = await getMgmtDashboardData(supabase)
+    return (
+      <div className="flex flex-col min-h-full">
+        <TopNav title="Dashboard" />
+        <MgmtDashboard data={data} greeting={greeting} />
+      </div>
+    )
+  }
+
+  if (KINETIC_COORD_TERAPIAS.includes(role)) {
+    const data = await getCoordTerapiasDashboardData(supabase)
+    return (
+      <div className="flex flex-col min-h-full">
+        <TopNav title="Dashboard" />
+        <CoordTerapiasDashboard data={data} greeting={greeting} />
+      </div>
+    )
+  }
+
+  if (KINETIC_RECEPCION.includes(role) || KINETIC_CONTABLE.includes(role)) {
+    const data = await getRecepcionDashboardData(supabase)
+    return (
+      <div className="flex flex-col min-h-full">
+        <TopNav title="Dashboard" />
+        <RecepcionDashboard
+          data={data}
+          greeting={greeting}
+          contableMode={KINETIC_CONTABLE.includes(role)}
+        />
+      </div>
+    )
+  }
+
+  if (KINETIC_TERAPISTA.includes(role)) {
+    // Stats cortos para terapista — directos sin helper aparte
+    const userId = ctx.appUser.id
+    const t = todayBoundsSV()
+    const weekISO = weekAheadISO()
+    const [
+      { count: todayCount },
+      { count: weekCount },
+      { count: pendingProgressReports },
+      { count: pendingSessionReports },
+    ] = await Promise.all([
+      supabase
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('therapist_id', userId)
+        .gte('starts_at', t.startISO)
+        .lt('starts_at', t.endISO)
+        .in('status', ['scheduled', 'in_progress']),
+      supabase
+        .from('appointments')
+        .select('id', { count: 'exact', head: true })
+        .eq('therapist_id', userId)
+        .gte('starts_at', new Date().toISOString())
+        .lt('starts_at', weekISO)
+        .in('status', ['scheduled', 'in_progress', 'replacement']),
+      supabase
+        .from('progress_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('authored_by_user_id', userId)
+        .in('status', ['draft', 'rejected']),
+      supabase
+        .from('session_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('therapist_id', userId)
+        .in('status', ['draft', 'rejected']),
+    ])
+    return (
+      <div className="flex flex-col min-h-full">
+        <TopNav title="Dashboard" />
+        <TerapistaDashboard
+          greeting={greeting}
+          todayCount={todayCount ?? 0}
+          weekCount={weekCount ?? 0}
+          pendingProgressReports={pendingProgressReports ?? 0}
+          pendingSessionReports={pendingSessionReports ?? 0}
+        />
+      </div>
+    )
+  }
+
+  if (KINETIC_COORD_FAMILIAS.includes(role)) {
+    const { data: phaseRaw } = await supabase
+      .from('children')
+      .select('intake_phase')
+      .eq('treatment_status', 'active')
+    const phaseMap = new Map<string, number>()
+    for (const r of phaseRaw ?? []) {
+      phaseMap.set(r.intake_phase, (phaseMap.get(r.intake_phase) ?? 0) + 1)
+    }
+    const childrenByIntakePhase = Array.from(phaseMap.entries())
+      .map(([phase, count]) => ({ phase, count }))
+      .sort((a, b) => b.count - a.count)
+    const totalActive = (phaseRaw ?? []).length
+    return (
+      <div className="flex flex-col min-h-full">
+        <TopNav title="Dashboard" />
+        <CoordFamiliasDashboard
+          greeting={greeting}
+          childrenByIntakePhase={childrenByIntakePhase}
+          totalActive={totalActive}
+        />
+      </div>
+    )
+  }
+
+  // ─── FM legacy: operator/supervisor (resto del código original sin tocar)─
+  if (!FM_LEGACY_ROLES.includes(role)) {
+    // Rol no reconocido: redirigir a algo sensato
+    redirect('/familias')
+  }
+
   const isOperator = role === 'operator'
 
   // Fetch clients (filtered by operator assignments if applicable)
