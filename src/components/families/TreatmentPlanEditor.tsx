@@ -67,6 +67,41 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
     [therapies],
   )
 
+  /**
+   * Quota vs patrón: para cada terapia activa, comparamos su `sessions_per_month`
+   * con el conteo aproximado de slots × 4 semanas por servicio. Devuelve un
+   * warning textual o null. Es solo informativo (no bloquea el guardado).
+   */
+  const quotaWarnings = useMemo(() => {
+    const slotsByService = new Map<string, number>()
+    for (const s of slots) {
+      slotsByService.set(s.service, (slotsByService.get(s.service) ?? 0) + 1)
+    }
+    const warnings: string[] = []
+    for (const t of therapies) {
+      if (!t.active) continue
+      const slotsCount = slotsByService.get(t.service) ?? 0
+      const estimatedPerMonth = slotsCount * 4 // aprox. 4 semanas
+      if (estimatedPerMonth === 0 && t.sessions_per_month > 0) {
+        warnings.push(
+          `${t.service}: cuota ${t.sessions_per_month}/mes pero no hay slots en el horario semanal.`,
+        )
+      } else if (estimatedPerMonth > 0 && t.sessions_per_month === 0) {
+        warnings.push(
+          `${t.service}: hay ${slotsCount} slot(s)/sem pero la cuota mensual es 0.`,
+        )
+      } else if (
+        estimatedPerMonth > 0 &&
+        Math.abs(estimatedPerMonth - t.sessions_per_month) > 1
+      ) {
+        warnings.push(
+          `${t.service}: cuota ${t.sessions_per_month}/mes vs ~${estimatedPerMonth} estimado del patrón (${slotsCount} slot/sem × 4).`,
+        )
+      }
+    }
+    return warnings
+  }, [therapies, slots])
+
   function patchTherapy(idx: number, patch: Partial<TreatmentPlanTherapyEntry>) {
     setTherapies((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)))
   }
@@ -334,6 +369,22 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
               className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
             />
           </section>
+
+          {quotaWarnings.length > 0 && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 space-y-0.5">
+              <p className="font-semibold">Cuota vs horario — atención:</p>
+              <ul className="list-disc pl-4">
+                {quotaWarnings.map((w, i) => (
+                  <li key={i}>{w}</li>
+                ))}
+              </ul>
+              <p className="text-[11px] mt-1 italic">
+                Esto no bloquea el guardado. Si lo dejás así, la generación del
+                ciclo mensual creará tantas citas como haya slots en el patrón
+                (no la cuota).
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">

@@ -6,14 +6,22 @@ import { ChildSessionReportsHistory } from '@/components/agenda/ChildSessionRepo
 import { ChildProgressReportsHistory } from '@/components/agenda/ChildProgressReportsHistory'
 import { NewProgressReportButton } from '@/components/agenda/NewProgressReportButton'
 import { TreatmentPlanSection } from '@/components/families/TreatmentPlanSection'
+import { MonthlyCyclesSection } from '@/components/families/MonthlyCyclesSection'
 import {
   INTAKE_PHASE_LABELS,
   TREATMENT_STATUS_LABELS,
   MORNING_PROGRAM_LABELS,
 } from '@/types/db'
-import type { Child, TreatmentPlan } from '@/types/db'
+import type { Child, MonthlySessionCycle, TreatmentPlan } from '@/types/db'
 
 const MGMT_ROLES_PLAN = ['admin', 'directora', 'coordinadora_terapias']
+const MGMT_ROLES_CYCLES = [
+  'admin',
+  'directora',
+  'coordinadora_terapias',
+  'recepcion',
+  'contable',
+]
 
 export const dynamic = 'force-dynamic'
 
@@ -37,18 +45,25 @@ export default async function ChildProfilePage({ params }: PageProps) {
   if (error || !child) notFound()
   const c = child as Child
 
-  // Cargar plan de tratamiento + lista de terapistas en paralelo
-  const [{ data: planRaw }, { data: therapistsRaw }] = await Promise.all([
+  // Cargar plan de tratamiento + lista de terapistas + ciclos mensuales en paralelo
+  const [{ data: planRaw }, { data: therapistsRaw }, { data: cyclesRaw }] = await Promise.all([
     supabase.from('treatment_plans').select('*').eq('child_id', childId).maybeSingle(),
     supabase
       .from('users')
       .select('id, full_name, role')
       .in('role', ['terapista', 'maestra'])
       .order('full_name'),
+    supabase
+      .from('monthly_session_cycles')
+      .select('*')
+      .eq('child_id', childId)
+      .order('period_month', { ascending: false }),
   ])
   const plan = (planRaw as TreatmentPlan | null) ?? null
   const therapists = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
+  const cycles = (cyclesRaw ?? []) as MonthlySessionCycle[]
   const canEditPlan = MGMT_ROLES_PLAN.includes(ctx.appUser.role)
+  const canManageCycles = MGMT_ROLES_CYCLES.includes(ctx.appUser.role)
 
   const ageYears = c.birth_date
     ? Math.floor((new Date().getTime() - new Date(c.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
@@ -146,6 +161,14 @@ export default async function ChildProfilePage({ params }: PageProps) {
           plan={plan}
           therapists={therapists}
           canEdit={canEditPlan}
+        />
+
+        {/* Ciclos mensuales (Ronda 2) */}
+        <MonthlyCyclesSection
+          childId={childId}
+          plan={plan}
+          cycles={cycles}
+          canManage={canManageCycles}
         />
 
         {/* Notas internas */}

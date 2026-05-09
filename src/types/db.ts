@@ -2096,6 +2096,30 @@ export interface Database {
         Update: Partial<Omit<AppointmentAbsence, 'id' | 'created_at'>>
         Relationships: []
       }
+      monthly_session_cycles: {
+        Row: AsRow<MonthlySessionCycle>
+        Insert: {
+          id?: string
+          child_id: string
+          period_month: string                         // YYYY-MM-01
+          treatment_plan_snapshot: Record<string, unknown>
+          paid_at?: string
+          paid_by_user_id?: string | null
+          payment_method?: string | null
+          payment_reference?: string | null
+          payment_amount_usd: number
+          invoice_id?: string | null
+          appointments_generated_at?: string | null
+          appointments_generated_count?: number
+          status?: MonthlySessionCycleStatus
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by_user_id?: string | null
+          notes?: string | null
+        }
+        Update: Partial<Omit<MonthlySessionCycle, 'id' | 'created_at'>>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     /** Catch-all: aceptar cualquier RPC sin tipar Args/Returns. */
@@ -2951,4 +2975,73 @@ export interface AppointmentAbsence {
   replacement_appointment_id: string | null
   waive_reason: string | null
   created_at: string
+}
+
+// =============================================================================
+// Kinetic — Ronda 2: Monthly session cycles + billing (mig 0101)
+// =============================================================================
+
+export type MonthlySessionCycleStatus =
+  | 'paid_pending_generation'
+  | 'generated'
+  | 'cancelled'
+
+export const MONTHLY_CYCLE_STATUS_LABELS: Record<MonthlySessionCycleStatus, string> = {
+  paid_pending_generation: 'Pago registrado',
+  generated: 'Generado',
+  cancelled: 'Anulado',
+}
+
+export interface MonthlySessionCycle {
+  id: string
+  child_id: string
+  /** Primer día del mes en SV (date 'YYYY-MM-01'). */
+  period_month: string
+  treatment_plan_snapshot: TreatmentPlan | Record<string, unknown>
+  paid_at: string
+  paid_by_user_id: string | null
+  payment_method: string | null
+  payment_reference: string | null
+  payment_amount_usd: number
+  invoice_id: string | null
+  appointments_generated_at: string | null
+  appointments_generated_count: number
+  status: MonthlySessionCycleStatus
+  cancel_reason: string | null
+  cancelled_at: string | null
+  cancelled_by_user_id: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Output del RPC `compute_monthly_appointment_candidates`. */
+export interface MonthlyCandidateAppointment {
+  service: ServiceType | string
+  starts_at: string
+  ends_at: string
+  duration_minutes: number
+}
+
+export interface MonthlyConflict {
+  candidate: MonthlyCandidateAppointment
+  conflicting_appointment_id: string
+  conflict_starts_at: string
+  conflict_child_id: string
+}
+
+export interface MonthlyCandidatesResult {
+  candidates: MonthlyCandidateAppointment[]
+  skipped_holidays: MonthlyCandidateAppointment[]
+  conflicts: MonthlyConflict[]
+  summary: {
+    candidate_count: number
+    conflict_count: number
+    skipped_holiday_count: number
+  }
+  plan: {
+    id: string
+    primary_therapist_id: string | null
+    monthly_total_usd: number | null
+  }
 }
