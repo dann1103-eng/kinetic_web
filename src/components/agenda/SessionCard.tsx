@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { startTherapySession, finishTherapySession } from '@/app/actions/therapy-sessions'
+import { markAbsence } from '@/app/actions/absences'
 import type { Appointment, TherapySession, SessionReport } from '@/types/db'
 
 type AppointmentWithChild = Appointment & {
@@ -33,8 +35,27 @@ function formatDuration(started: string, ended: string): string {
 }
 
 export function SessionCard({ appointment, session, report, onNoteClick, onReportClick }: SessionCardProps) {
+  const router = useRouter()
   const [, setTick] = useState(0)
   const [isPending, startTransition] = useTransition()
+  const [showAbsenceModal, setShowAbsenceModal] = useState(false)
+  const [absenceReason, setAbsenceReason] = useState('')
+  const [absenceError, setAbsenceError] = useState<string | null>(null)
+  const [absencePending, startAbsenceTransition] = useTransition()
+
+  function handleConfirmAbsence() {
+    setAbsenceError(null)
+    startAbsenceTransition(async () => {
+      const res = await markAbsence(appointment.id, absenceReason.trim() || undefined)
+      if (!res.ok) {
+        setAbsenceError(res.error)
+        return
+      }
+      setShowAbsenceModal(false)
+      setAbsenceReason('')
+      router.refresh()
+    })
+  }
 
   // Re-render every second only when a session is actively running
   useEffect(() => {
@@ -85,21 +106,38 @@ export function SessionCard({ appointment, session, report, onNoteClick, onRepor
         </div>
 
         {(appointment.status === 'no_show' || appointment.status === 'late_cancel') && (
-          <span className="text-xs font-medium bg-fm-error/10 text-fm-error px-2 py-1 rounded-full">
-            {appointment.status === 'no_show' ? 'No se presentó' : 'Cancelación tardía'}
-          </span>
+          <div className="flex flex-col items-end gap-1">
+            <span className="text-xs font-medium bg-fm-error/10 text-fm-error px-2 py-1 rounded-full">
+              {appointment.status === 'no_show' ? 'No se presentó' : 'Cancelación tardía'}
+            </span>
+            {appointment.status === 'no_show' && (
+              <span className="text-[10px] text-fm-on-surface-variant italic">
+                Esperando reagendamiento por la directora
+              </span>
+            )}
+          </div>
         )}
       </div>
 
       <div className="flex items-center gap-3">
         {appointment.status === 'scheduled' && (
-          <button
-            onClick={handleStart}
-            disabled={isPending}
-            className="flex-1 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-green-700 transition-colors"
-          >
-            {isPending ? 'Iniciando…' : 'Iniciar sesión'}
-          </button>
+          <>
+            <button
+              onClick={handleStart}
+              disabled={isPending || absencePending}
+              className="flex-1 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-green-700 transition-colors"
+            >
+              {isPending ? 'Iniciando…' : 'Iniciar sesión'}
+            </button>
+            <button
+              onClick={() => setShowAbsenceModal(true)}
+              disabled={isPending || absencePending}
+              className="px-3 py-2 rounded-xl bg-amber-100 text-amber-900 text-xs font-semibold disabled:opacity-50 hover:bg-amber-200 transition-colors"
+              title="El niño no se presentó"
+            >
+              Inasistencia
+            </button>
+          </>
         )}
 
         {appointment.status === 'in_progress' && session && (
@@ -109,10 +147,18 @@ export function SessionCard({ appointment, session, report, onNoteClick, onRepor
             </div>
             <button
               onClick={handleFinish}
-              disabled={isPending}
+              disabled={isPending || absencePending}
               className="flex-1 py-2 rounded-xl bg-fm-error text-white text-sm font-semibold disabled:opacity-50 hover:bg-fm-error/90 transition-colors"
             >
               {isPending ? 'Finalizando…' : 'Finalizar'}
+            </button>
+            <button
+              onClick={() => setShowAbsenceModal(true)}
+              disabled={isPending || absencePending}
+              className="px-3 py-2 rounded-xl bg-amber-100 text-amber-900 text-xs font-semibold disabled:opacity-50 hover:bg-amber-200 transition-colors"
+              title="El niño no se presentó"
+            >
+              Inasistencia
             </button>
           </>
         )}
@@ -139,6 +185,53 @@ export function SessionCard({ appointment, session, report, onNoteClick, onRepor
           </>
         )}
       </div>
+
+      {showAbsenceModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+            <div>
+              <h3 className="text-base font-semibold text-fm-on-surface">
+                Marcar inasistencia
+              </h3>
+              <p className="text-xs text-fm-on-surface-variant mt-1">
+                El niño/a será marcado como no presentado y la directora recibirá una solicitud para reagendar la sesión.
+              </p>
+            </div>
+            <textarea
+              value={absenceReason}
+              onChange={(e) => setAbsenceReason(e.target.value)}
+              rows={3}
+              placeholder="Motivo (opcional): ej. enfermo, padre avisó tarde…"
+              className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+            />
+            {absenceError && (
+              <p className="text-xs text-red-700">{absenceError}</p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAbsenceModal(false)
+                  setAbsenceReason('')
+                  setAbsenceError(null)
+                }}
+                disabled={absencePending}
+                className="px-3 py-1.5 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAbsence}
+                disabled={absencePending}
+                className="px-3 py-1.5 text-sm rounded-lg bg-amber-600 text-white font-medium hover:bg-amber-700 disabled:opacity-60"
+              >
+                {absencePending ? 'Guardando…' : 'Confirmar inasistencia'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

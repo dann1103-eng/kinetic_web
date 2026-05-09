@@ -5,12 +5,15 @@ import { TopNav } from '@/components/layout/TopNav'
 import { ChildSessionReportsHistory } from '@/components/agenda/ChildSessionReportsHistory'
 import { ChildProgressReportsHistory } from '@/components/agenda/ChildProgressReportsHistory'
 import { NewProgressReportButton } from '@/components/agenda/NewProgressReportButton'
+import { TreatmentPlanSection } from '@/components/families/TreatmentPlanSection'
 import {
   INTAKE_PHASE_LABELS,
   TREATMENT_STATUS_LABELS,
   MORNING_PROGRAM_LABELS,
 } from '@/types/db'
-import type { Child } from '@/types/db'
+import type { Child, TreatmentPlan } from '@/types/db'
+
+const MGMT_ROLES_PLAN = ['admin', 'directora', 'coordinadora_terapias']
 
 export const dynamic = 'force-dynamic'
 
@@ -33,6 +36,19 @@ export default async function ChildProfilePage({ params }: PageProps) {
 
   if (error || !child) notFound()
   const c = child as Child
+
+  // Cargar plan de tratamiento + lista de terapistas en paralelo
+  const [{ data: planRaw }, { data: therapistsRaw }] = await Promise.all([
+    supabase.from('treatment_plans').select('*').eq('child_id', childId).maybeSingle(),
+    supabase
+      .from('users')
+      .select('id, full_name, role')
+      .in('role', ['terapista', 'maestra'])
+      .order('full_name'),
+  ])
+  const plan = (planRaw as TreatmentPlan | null) ?? null
+  const therapists = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
+  const canEditPlan = MGMT_ROLES_PLAN.includes(ctx.appUser.role)
 
   const ageYears = c.birth_date
     ? Math.floor((new Date().getTime() - new Date(c.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
@@ -123,6 +139,14 @@ export default async function ChildProfilePage({ params }: PageProps) {
             <FieldLong label="Notas de referencia" value={c.referral_notes} />
           </Section>
         </div>
+
+        {/* Plan de tratamiento (ficha de acuerdo) */}
+        <TreatmentPlanSection
+          childId={childId}
+          plan={plan}
+          therapists={therapists}
+          canEdit={canEditPlan}
+        />
 
         {/* Notas internas */}
         {c.notes && (

@@ -5,7 +5,9 @@ import { TopNav } from '@/components/layout/TopNav'
 import { SessionReportApprovalList } from '@/components/aprobaciones/SessionReportApprovalList'
 import { ProgressReportApprovalList } from '@/components/aprobaciones/ProgressReportApprovalList'
 import { PendingByTherapistSummary } from '@/components/aprobaciones/PendingByTherapistSummary'
+import { AbsenceRescheduleList } from '@/components/aprobaciones/AbsenceRescheduleList'
 import { detectPendingProgressReportsAllTherapists } from '@/lib/domain/progress-reports-pending'
+import { listPendingAbsences } from '@/app/actions/absences'
 import type { SessionReport, ProgressReport, ReportTemplate } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -107,7 +109,18 @@ export default async function AprobacionesPage() {
     )
   }
 
-  const totalPending = sessionReports.length + progressReports.length
+  // Bandeja de inasistencias pendientes de reagendar (Ronda 1 — mig 0100).
+  const pendingAbsences = await listPendingAbsences()
+
+  // Lista de terapistas/maestras para el selector de reagendamiento.
+  const { data: therapistsRaw } = await supabase
+    .from('users')
+    .select('id, full_name, role')
+    .in('role', ['terapista', 'maestra'])
+    .order('full_name')
+  const therapistsForReschedule = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
+
+  const totalPending = sessionReports.length + progressReports.length + pendingAbsences.length
 
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
@@ -117,6 +130,18 @@ export default async function AprobacionesPage() {
           groups={pendingProgressByTherapist}
           familyIdByChild={pendingFamilyIdByChild}
         />
+
+        {pendingAbsences.length > 0 && (
+          <section className="space-y-3">
+            <h2 className="text-base font-semibold text-fm-on-surface">
+              Inasistencias pendientes de reagendar · {pendingAbsences.length}
+            </h2>
+            <AbsenceRescheduleList
+              rows={pendingAbsences}
+              therapists={therapistsForReschedule}
+            />
+          </section>
+        )}
         {totalPending === 0 ? (
           <div className="py-20 text-center text-sm text-fm-on-surface-variant">
             Bandeja al día. No hay reportes ni informes esperando aprobación.

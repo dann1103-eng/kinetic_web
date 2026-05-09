@@ -2044,6 +2044,58 @@ export interface Database {
         Update: Partial<Omit<ReportTemplate, 'id' | 'created_at'>>
         Relationships: []
       }
+      treatment_plans: {
+        Row: AsRow<TreatmentPlan>
+        Insert: {
+          id?: string
+          child_id: string
+          primary_therapist_id?: string | null
+          diagnosis_text?: string | null
+          starts_at?: string | null
+          age_at_start_text?: string | null
+          therapies_json?: TreatmentPlanTherapyEntry[]
+          schedule_pattern_json?: TreatmentPlanScheduleSlot[]
+          observations?: string | null
+          monthly_total_usd?: number | null
+          signed_at?: string | null
+          signed_by_user_id?: string | null
+          active?: boolean
+          created_by_user_id?: string | null
+          updated_by_user_id?: string | null
+        }
+        Update: Partial<Omit<TreatmentPlan, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      treatment_plan_changes: {
+        Row: AsRow<TreatmentPlanChange>
+        Insert: {
+          id?: string
+          treatment_plan_id: string
+          changed_by_user_id?: string | null
+          before_json: Partial<TreatmentPlan>
+          after_json: Partial<TreatmentPlan>
+          kind: TreatmentPlanChangeKind
+          notes?: string | null
+        }
+        Update: never
+        Relationships: []
+      }
+      appointment_absences: {
+        Row: AsRow<AppointmentAbsence>
+        Insert: {
+          id?: string
+          appointment_id: string
+          child_id: string
+          therapist_id?: string | null
+          reported_by_user_id?: string | null
+          reason?: string | null
+          status?: AppointmentAbsenceStatus
+          replacement_appointment_id?: string | null
+          waive_reason?: string | null
+        }
+        Update: Partial<Omit<AppointmentAbsence, 'id' | 'created_at'>>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     /** Catch-all: aceptar cualquier RPC sin tipar Args/Returns. */
@@ -2512,6 +2564,9 @@ export type ServiceType =
   | 'lectoescritura'
   | 'funciones_ejecutivas'
   | 'conductual'
+  | 'blue_kids'
+  | 'alim_deglu'
+  | 'destreza_manual_pre_escritura'
   | 'otra'
 
 export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
@@ -2525,6 +2580,9 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   lectoescritura: 'Lectoescritura',
   funciones_ejecutivas: 'Funciones ejecutivas',
   conductual: 'Conductual',
+  blue_kids: 'BlueKids',
+  alim_deglu: 'Alimentación y deglución',
+  destreza_manual_pre_escritura: 'Destreza manual y pre-escritura',
   otra: 'Otra',
 }
 
@@ -2798,4 +2856,99 @@ export interface ReportTemplate {
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+// =============================================================================
+// Kinetic — Ronda 1: Treatment plans + appointment absences (mig 0100)
+// =============================================================================
+
+export type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+
+export const DAY_OF_WEEK_LABELS: Record<DayOfWeek, string> = {
+  mon: 'Lunes',
+  tue: 'Martes',
+  wed: 'Miércoles',
+  thu: 'Jueves',
+  fri: 'Viernes',
+  sat: 'Sábado',
+  sun: 'Domingo',
+}
+
+/** Una terapia activa en el plan del niño. */
+export interface TreatmentPlanTherapyEntry {
+  service: ServiceType
+  active: boolean
+  /** Cantidad de sesiones por mes contratadas (cuadro "Cantidad de Terapias al mes" del Excel). */
+  sessions_per_month: number
+  /** Costo por sesión en USD. */
+  unit_cost_usd: number
+}
+
+/** Slot recurrente del horario semanal. */
+export interface TreatmentPlanScheduleSlot {
+  day_of_week: DayOfWeek
+  /** 'HH:MM' (24h) en zona América/El_Salvador. */
+  time_local: string
+  /** Duración en minutos (típicamente 30 o 60). */
+  duration_minutes: number
+  service: ServiceType
+}
+
+export interface TreatmentPlan {
+  id: string
+  child_id: string
+  primary_therapist_id: string | null
+  diagnosis_text: string | null
+  /** Fecha (YYYY-MM-DD) de inicio del plan. */
+  starts_at: string | null
+  /** Edad capturada como string (ej. "2a, 9m"). */
+  age_at_start_text: string | null
+  therapies_json: TreatmentPlanTherapyEntry[]
+  schedule_pattern_json: TreatmentPlanScheduleSlot[]
+  observations: string | null
+  monthly_total_usd: number | null
+  signed_at: string | null
+  signed_by_user_id: string | null
+  active: boolean
+  created_at: string
+  created_by_user_id: string | null
+  updated_at: string
+  updated_by_user_id: string | null
+}
+
+export type TreatmentPlanChangeKind = 'create' | 'update' | 'deactivate'
+
+export interface TreatmentPlanChange {
+  id: string
+  treatment_plan_id: string
+  changed_at: string
+  changed_by_user_id: string | null
+  before_json: Partial<TreatmentPlan>
+  after_json: Partial<TreatmentPlan>
+  kind: TreatmentPlanChangeKind
+  notes: string | null
+}
+
+export type AppointmentAbsenceStatus = 'pending' | 'replaced' | 'waived'
+
+export const ABSENCE_STATUS_LABELS: Record<AppointmentAbsenceStatus, string> = {
+  pending: 'Pendiente de reagendar',
+  replaced: 'Reagendada',
+  waived: 'No se repone',
+}
+
+export interface AppointmentAbsence {
+  id: string
+  appointment_id: string
+  child_id: string
+  therapist_id: string | null
+  reported_by_user_id: string | null
+  reported_at: string
+  reason: string | null
+  status: AppointmentAbsenceStatus
+  resolved_at: string | null
+  resolved_by_user_id: string | null
+  replacement_appointment_id: string | null
+  waive_reason: string | null
+  created_at: string
 }

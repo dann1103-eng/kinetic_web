@@ -1,0 +1,261 @@
+'use client'
+
+import { useState } from 'react'
+import { TreatmentPlanEditor } from './TreatmentPlanEditor'
+import { TreatmentPlanHistory } from './TreatmentPlanHistory'
+import {
+  SERVICE_TYPE_LABELS,
+  DAY_OF_WEEK_LABELS,
+} from '@/types/db'
+import type {
+  ServiceType,
+  TreatmentPlan,
+  DayOfWeek,
+  TreatmentPlanScheduleSlot,
+} from '@/types/db'
+
+interface TherapistOption {
+  id: string
+  full_name: string
+  role: string
+}
+
+interface Props {
+  childId: string
+  plan: TreatmentPlan | null
+  therapists: TherapistOption[]
+  canEdit: boolean
+}
+
+const DAY_ORDER: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+
+function fmtMoney(n: number | null | undefined): string {
+  if (n === null || n === undefined) return '—'
+  return `$${n.toFixed(2)}`
+}
+
+export function TreatmentPlanSection({ childId, plan, therapists, canEdit }: Props) {
+  const [showEditor, setShowEditor] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
+
+  return (
+    <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5 space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-fm-on-surface flex items-center gap-2">
+          <span className="material-symbols-outlined text-lg text-fm-primary">description</span>
+          Plan de tratamiento (ficha de acuerdo)
+        </h2>
+        <div className="flex items-center gap-2">
+          {plan && (
+            <button
+              type="button"
+              onClick={() => setShowHistory(true)}
+              className="text-xs text-fm-on-surface-variant hover:text-fm-primary hover:underline"
+            >
+              Ver historial
+            </button>
+          )}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setShowEditor(true)}
+              className="text-xs px-3 py-1.5 rounded-lg bg-fm-primary text-white font-medium hover:opacity-90"
+            >
+              {plan ? 'Editar plan' : 'Crear plan'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {!plan ? (
+        <p className="text-sm text-fm-on-surface-variant">
+          No hay plan de tratamiento registrado para este niño/a.
+          {canEdit && ' Hacé click en "Crear plan" para capturarlo.'}
+        </p>
+      ) : (
+        <PlanReadOnly plan={plan} therapists={therapists} />
+      )}
+
+      {showEditor && (
+        <TreatmentPlanEditor
+          childId={childId}
+          existing={plan}
+          therapists={therapists}
+          onClose={() => setShowEditor(false)}
+        />
+      )}
+
+      {showHistory && plan && (
+        <TreatmentPlanHistory planId={plan.id} onClose={() => setShowHistory(false)} />
+      )}
+    </div>
+  )
+}
+
+function PlanReadOnly({
+  plan,
+  therapists,
+}: {
+  plan: TreatmentPlan
+  therapists: TherapistOption[]
+}) {
+  const therapistName = plan.primary_therapist_id
+    ? therapists.find((t) => t.id === plan.primary_therapist_id)?.full_name ?? '—'
+    : '—'
+
+  // Construir grilla día × hora desde schedule_pattern_json
+  const slotsByDay = new Map<DayOfWeek, TreatmentPlanScheduleSlot[]>()
+  for (const slot of plan.schedule_pattern_json ?? []) {
+    if (!slotsByDay.has(slot.day_of_week)) slotsByDay.set(slot.day_of_week, [])
+    slotsByDay.get(slot.day_of_week)!.push(slot)
+  }
+  for (const [, list] of slotsByDay) {
+    list.sort((a, b) => a.time_local.localeCompare(b.time_local))
+  }
+  const usedDays = DAY_ORDER.filter((d) => slotsByDay.has(d))
+
+  const therapies = plan.therapies_json ?? []
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+        <KV label="Terapista principal" value={therapistName} />
+        <KV
+          label="Fecha de inicio"
+          value={plan.starts_at ? new Date(plan.starts_at).toLocaleDateString('es-SV') : '—'}
+        />
+        <KV label="Edad al inicio" value={plan.age_at_start_text ?? '—'} />
+        <KV label="Total mensual" value={fmtMoney(plan.monthly_total_usd)} highlight />
+      </div>
+      {plan.diagnosis_text && (
+        <div className="text-sm">
+          <div className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
+            Diagnóstico
+          </div>
+          <p className="mt-0.5 text-fm-on-surface italic">{plan.diagnosis_text}</p>
+        </div>
+      )}
+
+      {/* Terapias */}
+      <div>
+        <div className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant mb-1">
+          Terapias y/o programas
+        </div>
+        {therapies.length === 0 ? (
+          <p className="text-sm text-fm-on-surface-variant">No hay terapias capturadas.</p>
+        ) : (
+          <div className="rounded-xl border border-fm-outline-variant/20 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead className="bg-fm-surface-container-low text-[10px] uppercase tracking-wide text-fm-on-surface-variant">
+                <tr>
+                  <th className="text-left px-3 py-1.5 font-semibold">Servicio</th>
+                  <th className="text-right px-3 py-1.5 font-semibold">Sesiones/mes</th>
+                  <th className="text-right px-3 py-1.5 font-semibold">Costo unitario</th>
+                  <th className="text-right px-3 py-1.5 font-semibold">Subtotal</th>
+                </tr>
+              </thead>
+              <tbody>
+                {therapies.map((t, i) => (
+                  <tr
+                    key={`${t.service}-${i}`}
+                    className={`border-t border-fm-outline-variant/15 ${
+                      t.active ? '' : 'opacity-50 line-through'
+                    }`}
+                  >
+                    <td className="px-3 py-1.5">
+                      {SERVICE_TYPE_LABELS[t.service] ?? t.service}
+                    </td>
+                    <td className="text-right px-3 py-1.5 tabular-nums">{t.sessions_per_month}</td>
+                    <td className="text-right px-3 py-1.5 tabular-nums">
+                      {fmtMoney(t.unit_cost_usd)}
+                    </td>
+                    <td className="text-right px-3 py-1.5 tabular-nums font-medium">
+                      {fmtMoney(t.sessions_per_month * t.unit_cost_usd)}
+                    </td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-fm-outline-variant/30 bg-fm-surface-container-low/40 font-semibold">
+                  <td colSpan={3} className="px-3 py-1.5 text-right">
+                    Total mensual
+                  </td>
+                  <td className="px-3 py-1.5 text-right tabular-nums">
+                    {fmtMoney(plan.monthly_total_usd)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Programación semanal */}
+      <div>
+        <div className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant mb-1">
+          Programación semanal
+        </div>
+        {usedDays.length === 0 ? (
+          <p className="text-sm text-fm-on-surface-variant">No hay horario capturado.</p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {usedDays.map((d) => (
+              <div
+                key={d}
+                className="rounded-xl border border-fm-outline-variant/20 bg-fm-surface-container-low/40 p-3"
+              >
+                <div className="text-xs font-semibold text-fm-on-surface mb-1.5">
+                  {DAY_OF_WEEK_LABELS[d]}
+                </div>
+                <ul className="space-y-1">
+                  {(slotsByDay.get(d) ?? []).map((s, i) => (
+                    <li
+                      key={`${d}-${i}`}
+                      className="text-xs text-fm-on-surface flex items-center gap-2"
+                    >
+                      <span className="font-mono tabular-nums text-fm-primary">{s.time_local}</span>
+                      <span className="text-fm-on-surface-variant">·</span>
+                      <span>{SERVICE_TYPE_LABELS[s.service] ?? s.service}</span>
+                      <span className="text-fm-on-surface-variant">({s.duration_minutes}m)</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {plan.observations && (
+        <div>
+          <div className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
+            Observaciones
+          </div>
+          <p className="text-sm text-fm-on-surface mt-0.5 whitespace-pre-wrap">
+            {plan.observations}
+          </p>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function KV({
+  label,
+  value,
+  highlight,
+}: {
+  label: string
+  value: string
+  highlight?: boolean
+}) {
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
+        {label}
+      </div>
+      <div className={`text-sm mt-0.5 ${highlight ? 'font-semibold text-fm-primary' : 'text-fm-on-surface'}`}>
+        {value}
+      </div>
+    </div>
+  )
+}
