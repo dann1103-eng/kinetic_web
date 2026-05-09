@@ -7,11 +7,13 @@ import {
 } from '@/app/actions/monthly-cycles'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type {
+  MonthlyCandidateAppointment,
   MonthlyCandidatesResult,
   MonthlySessionCycle,
   ServiceType,
   TreatmentPlan,
 } from '@/types/db'
+import { DraggableCycleCalendar } from './DraggableCycleCalendar'
 
 interface Props {
   childId: string
@@ -68,6 +70,11 @@ export function NewMonthlyCycleModal({
   const [dryError, setDryError] = useState<string | null>(null)
   const [isLoadingDry, startLoadDry] = useTransition()
 
+  /** Citas que se van a crear. Inicialmente = dryRun.candidates; el usuario
+   *  puede arrastrarlas a otros días en la grilla. */
+  const [editedCandidates, setEditedCandidates] = useState<MonthlyCandidateAppointment[]>([])
+  const [hasEdits, setHasEdits] = useState(false)
+
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [isConfirming, startConfirm] = useTransition()
 
@@ -85,11 +92,30 @@ export function NewMonthlyCycleModal({
       if (!res.ok) {
         setDryError(res.error)
         setDryRun(null)
+        setEditedCandidates([])
+        setHasEdits(false)
         return
       }
       setDryRun(res.result)
+      setEditedCandidates(res.result.candidates)
+      setHasEdits(false)
     })
   }, [childId, periodMonth, periodAlreadyUsed])
+
+  function handleMoveCandidate(idx: number, newStartsAt: string, newEndsAt: string) {
+    setEditedCandidates((prev) =>
+      prev.map((c, i) =>
+        i === idx ? { ...c, starts_at: newStartsAt, ends_at: newEndsAt } : c,
+      ),
+    )
+    setHasEdits(true)
+  }
+
+  function handleResetEdits() {
+    if (!dryRun) return
+    setEditedCandidates(dryRun.candidates)
+    setHasEdits(false)
+  }
 
   function handleConfirm() {
     setConfirmError(null)
@@ -113,6 +139,8 @@ export function NewMonthlyCycleModal({
         paymentMethod,
         paymentReference: paymentReference.trim() || null,
         notes: notes.trim() || null,
+        // Si el usuario movió fechas, mandar el override; si no, dejar que el RPC re-compute.
+        appointmentsOverride: hasEdits ? editedCandidates : undefined,
       })
       if (!res.ok) {
         setConfirmError(res.error)
@@ -264,9 +292,35 @@ export function NewMonthlyCycleModal({
                   <ConflictList conflicts={dryRun.conflicts} />
                 )}
 
-                {dryRun.candidates.length > 0 &&
+                {editedCandidates.length > 0 &&
                   dryRun.summary.conflict_count === 0 && (
-                    <CandidateList candidates={dryRun.candidates} />
+                    <div className="rounded-lg border border-fm-outline-variant/20 p-3 bg-fm-surface-container-low/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <p className="text-xs font-semibold text-fm-on-surface">
+                          Calendario de las {editedCandidates.length} citas a crear
+                        </p>
+                        {hasEdits && (
+                          <button
+                            type="button"
+                            onClick={handleResetEdits}
+                            className="text-[11px] text-fm-primary hover:underline"
+                          >
+                            Restaurar a defaults
+                          </button>
+                        )}
+                      </div>
+                      <DraggableCycleCalendar
+                        periodMonth={`${periodMonth}-01`}
+                        candidates={editedCandidates}
+                        onMove={handleMoveCandidate}
+                      />
+                      {hasEdits && (
+                        <p className="mt-2 text-[11px] text-amber-700">
+                          Tenés cambios. Al confirmar se crearán las citas en
+                          las fechas que marcaste, no las del patrón original.
+                        </p>
+                      )}
+                    </div>
                   )}
 
                 {dryRun.skipped_holidays.length > 0 && (
@@ -402,25 +456,3 @@ function ConflictList({
   )
 }
 
-function CandidateList({
-  candidates,
-}: {
-  candidates: MonthlyCandidatesResult['candidates']
-}) {
-  return (
-    <details className="text-xs">
-      <summary className="cursor-pointer text-fm-primary hover:underline font-medium">
-        Ver las {candidates.length} citas que se van a crear
-      </summary>
-      <ul className="mt-1 ml-4 space-y-0.5">
-        {candidates.map((c, i) => (
-          <li key={i} className="text-fm-on-surface">
-            • {formatDateTime(c.starts_at)} —{' '}
-            {SERVICE_TYPE_LABELS[c.service as ServiceType] ?? c.service}{' '}
-            <span className="text-fm-on-surface-variant">({c.duration_minutes}m)</span>
-          </li>
-        ))}
-      </ul>
-    </details>
-  )
-}

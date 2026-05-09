@@ -3,7 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import type { MonthlyCandidatesResult, MonthlySessionCycle } from '@/types/db'
+import type {
+  MonthlyCandidateAppointment,
+  MonthlyCandidatesResult,
+  MonthlySessionCycle,
+} from '@/types/db'
 
 const MGMT_ROLES = [
   'admin',
@@ -90,6 +94,9 @@ export interface ConfirmMonthlyPaymentInput {
   paymentReference?: string | null
   paidAt?: string                                           // ISO; default = ahora
   notes?: string | null
+  /** Si se manda, se usan EXACTAMENTE estas citas (override del auto-compute).
+   *  Útil cuando el usuario movió fechas en el preview drag-and-drop. */
+  appointmentsOverride?: MonthlyCandidateAppointment[]
 }
 
 export async function confirmMonthlyPaymentAndGenerate(
@@ -118,6 +125,7 @@ export async function confirmMonthlyPaymentAndGenerate(
     p_payment_reference: input.paymentReference ?? null,
     p_paid_at: input.paidAt ?? new Date().toISOString(),
     p_notes: input.notes ?? null,
+    p_appointments_override: input.appointmentsOverride ?? null,
   })
 
   if (error) {
@@ -133,6 +141,12 @@ export async function confirmMonthlyPaymentAndGenerate(
       return {
         ok: false,
         error: 'Ya existe un ciclo activo para este niño y mes. Anulá el anterior si querés rehacerlo.',
+      }
+    }
+    if (msg.includes('override_date_out_of_period')) {
+      return {
+        ok: false,
+        error: 'Una cita fue movida fuera del mes seleccionado. Restaurala o moverla dentro del mes.',
       }
     }
     if (msg.includes('has_conflicts')) {
