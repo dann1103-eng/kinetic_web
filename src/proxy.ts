@@ -86,8 +86,9 @@ export async function proxy(request: NextRequest) {
           .select('role')
           .eq('id', user.id)
           .maybeSingle()
-        const dest =
-          appUser?.role === 'client' ? '/portal/dashboard' : '/dashboard'
+        let dest = '/dashboard'
+        if (appUser?.role === 'family') dest = '/portal/agenda-digital'
+        else if (appUser?.role === 'client') dest = '/portal/dashboard'
         return NextResponse.redirect(new URL(dest, request.url))
       }
       return supabaseResponse
@@ -124,13 +125,23 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    // Rule 2: clientes (reales o suplantados) en rutas staff → portal
+    // Rule 2a: clientes FM en rutas staff → portal FM
     if (effectiveRole === 'client' && startsWithAny(pathname, STAFF_PREFIXES)) {
       return NextResponse.redirect(new URL('/portal/dashboard', request.url))
     }
 
-    // Rule 3: staff (real, no suplantando cliente) en /portal/* → /dashboard
-    if (effectiveRole && effectiveRole !== 'client' && pathname.startsWith(PORTAL_PREFIX)) {
+    // Rule 2b: familias Kinetic en rutas staff → portal Kinetic family
+    if (effectiveRole === 'family' && startsWithAny(pathname, STAFF_PREFIXES)) {
+      return NextResponse.redirect(new URL('/portal/agenda-digital', request.url))
+    }
+
+    // Rule 3: staff (real, no suplantando cliente/familia) en /portal/* → /dashboard
+    if (
+      effectiveRole &&
+      effectiveRole !== 'client' &&
+      effectiveRole !== 'family' &&
+      pathname.startsWith(PORTAL_PREFIX)
+    ) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 

@@ -13,6 +13,10 @@ interface NavItem {
   icon: React.ReactNode
   /** Si está definido, solo se muestra cuando el flag correspondiente es true. */
   requires?: 'billing' | 'work'
+  /** Items específicos de Kinetic family. Si está definido, SOLO se muestran
+   *  en mode='kinetic-family'. Inversamente, items sin esta marca solo se
+   *  muestran en mode='fm'. */
+  kineticFamily?: boolean
 }
 
 const navItems: NavItem[] = [
@@ -60,6 +64,7 @@ const navItems: NavItem[] = [
     href: '/portal/agenda-digital',
     label: 'Agenda digital',
     requires: 'work',
+    kineticFamily: true,
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/>
@@ -91,6 +96,9 @@ interface PortalSidebarProps {
   activeClientId: string
   clientDisplayName: string
   permissions: { can_billing: boolean; can_work: boolean }
+  /** 'fm' (default) muestra los items FM (Pipeline, Calendario, Mi empresa, etc.).
+   *  'kinetic-family' muestra solo los items específicos de Kinetic family. */
+  mode?: 'fm' | 'kinetic-family'
 }
 
 export function PortalSidebar({
@@ -98,8 +106,16 @@ export function PortalSidebar({
   activeClientId,
   clientDisplayName,
   permissions,
+  mode = 'fm',
 }: PortalSidebarProps) {
   const visibleNavItems = navItems.filter((item) => {
+    if (mode === 'kinetic-family') {
+      // En modo Kinetic family, solo items marcados como tales.
+      if (!item.kineticFamily) return false
+    } else {
+      // En modo FM, ocultar items específicos de Kinetic family.
+      if (item.kineticFamily) return false
+    }
     if (item.requires === 'billing') return permissions.can_billing
     if (item.requires === 'work') return permissions.can_work
     return true

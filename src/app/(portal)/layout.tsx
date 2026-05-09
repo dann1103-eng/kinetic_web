@@ -16,6 +16,20 @@ export default async function PortalLayout({ children }: { children: React.React
 
   // Kinetic family users bypass the FM client-selector flow entirely.
   if (ctx.appUser.role === 'family') {
+    const hdrs = await headers()
+    const currentPath = hdrs.get('x-pathname') ?? ''
+
+    // Whitelist de rutas Kinetic family. Las rutas FM (/portal/dashboard,
+    // /portal/pipeline, /portal/calendario, /portal/empresa, /portal/facturacion,
+    // /portal/seleccionar-marca, etc.) se redirigen al home Kinetic family.
+    const FAMILY_ALLOWED_PREFIXES = ['/portal/agenda-digital']
+    const FAMILY_HOME = '/portal/agenda-digital'
+    const isAllowed =
+      FAMILY_ALLOWED_PREFIXES.some((p) => currentPath === p || currentPath.startsWith(p + '/'))
+    if (currentPath && !isAllowed) {
+      redirect(FAMILY_HOME)
+    }
+
     return (
       <UserProvider
         user={ctx.appUser}
@@ -28,9 +42,10 @@ export default async function PortalLayout({ children }: { children: React.React
             activeClientId=""
             clientDisplayName="Kinetic"
             permissions={{ can_billing: false, can_work: true }}
+            mode="kinetic-family"
           />
           <div className="flex flex-col flex-1 md:ml-64 overflow-hidden">
-            <PortalTopNav clientDisplayName="Kinetic" />
+            <PortalTopNav clientDisplayName="Kinetic" mode="kinetic-family" />
             <main className="flex-1 overflow-y-auto">{children}</main>
           </div>
         </div>
