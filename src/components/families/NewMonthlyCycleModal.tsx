@@ -237,7 +237,7 @@ export function NewMonthlyCycleModal({
 
             {dryRun && (
               <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
                   <Stat
                     label="A generar"
                     value={dryRun.summary.candidate_count}
@@ -252,6 +252,11 @@ export function NewMonthlyCycleModal({
                     label="Saltadas (asueto)"
                     value={dryRun.summary.skipped_holiday_count}
                     tone="info"
+                  />
+                  <Stat
+                    label="Saltadas (cuota)"
+                    value={dryRun.summary.skipped_overquota_count}
+                    tone={dryRun.summary.skipped_overquota_count > 0 ? 'info' : 'ok'}
                   />
                 </div>
 
@@ -277,6 +282,28 @@ export function NewMonthlyCycleModal({
                         </li>
                       ))}
                     </ul>
+                  </details>
+                )}
+
+                {dryRun.skipped_overquota.length > 0 && (
+                  <details className="text-xs" open>
+                    <summary className="cursor-pointer text-amber-800 hover:underline font-medium">
+                      Ver {dryRun.skipped_overquota.length} cita(s) saltada(s) por cuota
+                    </summary>
+                    <ul className="mt-1 ml-4 space-y-0.5">
+                      {dryRun.skipped_overquota.map((c, i) => (
+                        <li key={i} className="text-amber-900">
+                          • {formatDateTime(c.starts_at)} —{' '}
+                          {SERVICE_TYPE_LABELS[c.service as ServiceType] ?? c.service}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1 ml-4 text-[11px] text-amber-700/80 italic">
+                      El patrón semanal generaba más sesiones que la cuota
+                      mensual del plan. Se mantienen las primeras cronológicas.
+                      Si el caso real es esa cantidad mayor, subí la cuota en
+                      el plan.
+                    </p>
                   </details>
                 )}
               </div>

@@ -3033,11 +3033,14 @@ export interface MonthlyConflict {
 export interface MonthlyCandidatesResult {
   candidates: MonthlyCandidateAppointment[]
   skipped_holidays: MonthlyCandidateAppointment[]
+  /** Citas que el patrón generaba pero exceden la cuota mensual del servicio. */
+  skipped_overquota: MonthlyCandidateAppointment[]
   conflicts: MonthlyConflict[]
   summary: {
     candidate_count: number
     conflict_count: number
     skipped_holiday_count: number
+    skipped_overquota_count: number
   }
   plan: {
     id: string

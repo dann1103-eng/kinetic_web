@@ -379,9 +379,10 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
                 ))}
               </ul>
               <p className="text-[11px] mt-1 italic">
-                Esto no bloquea el guardado. Si lo dejás así, la generación del
-                ciclo mensual creará tantas citas como haya slots en el patrón
-                (no la cuota).
+                Esto no bloquea el guardado. Recordá: la <b>cuota mensual manda</b>.
+                Si el patrón genera más sesiones que la cuota, las extras se
+                descartan en el dry-run y solo se crean las primeras N
+                cronológicas.
               </p>
             </div>
           )}
