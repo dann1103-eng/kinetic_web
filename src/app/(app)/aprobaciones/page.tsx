@@ -4,6 +4,8 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { SessionReportApprovalList } from '@/components/aprobaciones/SessionReportApprovalList'
 import { ProgressReportApprovalList } from '@/components/aprobaciones/ProgressReportApprovalList'
+import { PendingByTherapistSummary } from '@/components/aprobaciones/PendingByTherapistSummary'
+import { detectPendingProgressReportsAllTherapists } from '@/lib/domain/progress-reports-pending'
 import type { SessionReport, ProgressReport, ReportTemplate } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -89,12 +91,32 @@ export default async function AprobacionesPage() {
     ((templatesRaw ?? []) as ReportTemplate[]).map((t) => [t.id, t]),
   )
 
+  // Pendientes de informes de avances por terapista (Fase 3-C4 opción B).
+  const pendingProgressByTherapist = await detectPendingProgressReportsAllTherapists(supabase)
+  const pendingChildIds = Array.from(
+    new Set(pendingProgressByTherapist.flatMap((g) => g.pending.map((p) => p.childId))),
+  )
+  let pendingFamilyIdByChild: Record<string, string> = {}
+  if (pendingChildIds.length > 0) {
+    const { data: pendingChildrenRaw } = await supabase
+      .from('children')
+      .select('id, family_id')
+      .in('id', pendingChildIds)
+    pendingFamilyIdByChild = Object.fromEntries(
+      (pendingChildrenRaw ?? []).map((c) => [c.id, c.family_id]),
+    )
+  }
+
   const totalPending = sessionReports.length + progressReports.length
 
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
       <TopNav title="Aprobaciones pendientes" />
       <div className="flex-1 p-4 md:p-6 max-w-3xl mx-auto w-full space-y-8">
+        <PendingByTherapistSummary
+          groups={pendingProgressByTherapist}
+          familyIdByChild={pendingFamilyIdByChild}
+        />
         {totalPending === 0 ? (
           <div className="py-20 text-center text-sm text-fm-on-surface-variant">
             Bandeja al día. No hay reportes ni informes esperando aprobación.

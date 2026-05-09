@@ -1,6 +1,6 @@
 # Kinetic — Estado técnico del proyecto + tareas pendientes
 
-> Documento de handoff actualizado al **2026-05-08** (post Fase 3-C2 + TD-1).
+> Documento de handoff actualizado al **2026-05-09** (post Fase 3-C2 + TD-1 + Fase 3-C4 opción B).
 > Diseñado para que un dev (humano o agente) pueda continuar sin contexto previo.
 > Va en orden: **(1) qué existe hoy**, **(2) cómo ejecutar las próximas fases**.
 
@@ -288,6 +288,8 @@ export async function someAction(...): Promise<
 ### Fase 3-C1 — Informes de avances cuatrimestrales *(✅, ver §8)*
 
 ### Fase 3-C2 — Plantillas DB-driven *(✅, ver §11)*
+
+### Fase 3-C4 — Recordatorios automáticos opción B *(✅, ver §13)*
 
 ### Gestión de accesos portal family *(✅, agregado fuera del plan)*
 
@@ -685,61 +687,45 @@ CRUD para que admin/directora suba firmas/sellos por terapista. Re-usa el patró
 
 ---
 
-## 13. Fase 3-C4 — Recordatorios automáticos (PENDIENTE)
+## 13. Fase 3-C4 — Recordatorios automáticos opción B *(✅ implementada 2026-05-09)*
 
-> Cada 4 meses (cuatrimestre) recordar a la terapista que tiene un informe pendiente por tipo de terapia activa de cada niño.
+> Banner reactivo (sin cron) que muestra a terapistas y a la directora qué informes de avances cuatrimestrales están pendientes en la ventana actual.
 
-### Spec
+### Detección — `src/lib/domain/progress-reports-pending.ts`
 
-#### Detección de "informe pendiente"
+Una "terapia activa" del par (child_id × service_type) está pendiente de informe si:
 
-Una terapia activa de un niño tiene "informe pendiente" si:
-- El niño tiene `treatment_status = 'active'` y un `appointment` con esa terapia en los últimos 4 meses.
-- Y NO hay `progress_reports` para `(child_id, service_type, periodo_actual_4m)` con `status IN ('submitted','approved','sent_to_family')`.
+1. Hubo ≥1 cita `event_type='terapia'` con ese terapista en la ventana actual `[hoy - 4 meses, hoy]` (rolling, en zona América/El_Salvador), Y
+2. El niño tiene `treatment_status = 'active'`, Y
+3. NO existe un `progress_report` para ese par con `status ∈ {submitted, approved, sent_to_family}` cuyo `period_ends >= hoy - 4 meses`.
 
-"Periodo actual" = `[hoy - 4 meses, hoy]` con boundaries calculadas en zona América/El_Salvador.
-
-#### Implementación: 2 opciones
-
-**A. Edge function (cron) — recomendado**
-
-Crear `supabase/functions/progress-reports-reminder/index.ts`:
+API:
 
 ```ts
-// Cron: '0 8 * * MON' (lunes 8am SV)
-// 1. Para cada terapista activa (role='terapista','maestra','psicologa', etc.):
-//    - Listar sus pacientes activos (children via appointments en últ. 4m)
-//    - Por cada (child, service_type), chequear si falta informe del periodo
-//    - Si faltan ≥3 informes O queda < 7 días para fin de cuatrimestre: notificar
-// 2. Insertar fila en `notifications` (tabla FM existente) con kind='progress_report_due'
-//    o enviar email vía Resend/Supabase email.
+detectPendingProgressReportsForTherapist(supabase, therapistId, now?) → PendingProgressReportItem[]
+detectPendingProgressReportsAllTherapists(supabase, now?)              → PendingByTherapist[]
+currentPeriodStart(now?)                                                → Date
 ```
 
-Configurar en `supabase/config.toml` el schedule.
+### UI
 
-**B. Cliente-side (banner en `/mi-dia`)**
+| Componente | Para qué | Render |
+|---|---|---|
+| `src/components/agenda/PendingProgressReportsBanner.tsx` | Terapista en `/mi-dia` | Banner ámbar arriba de las citas, con lista de pendientes y link directo a la ficha del niño |
+| `src/components/aprobaciones/PendingByTherapistSummary.tsx` | Directora en `/aprobaciones` | Vista resumen agrupada por terapista (collapsible), arriba de las bandejas de aprobación |
 
-Más simple, sin infra cron. En `mi-dia/page.tsx` (server component):
+### Integración
 
-```ts
-// Calcular en el server component: ¿hay informes pendientes?
-const pendingProgress = await detectPendingProgressReports(therapistId)
-// Si hay >0, renderizar banner arriba de la lista de citas:
-<PendingProgressReportsBanner count={pendingProgress.length} children={pendingProgress} />
-```
+- `src/app/(app)/mi-dia/page.tsx`: llama `detectPendingProgressReportsForTherapist(supabase, userId)` y resuelve `family_id` de los niños pendientes para el link.
+- `src/app/(app)/aprobaciones/page.tsx`: llama `detectPendingProgressReportsAllTherapists(supabase)` y resuelve `family_id`.
 
-Ventaja: instantáneo, sin cron. Desventaja: solo lo ve cuando entra a `/mi-dia` (no proactivo).
+### Lo que NO hace (queda para opción A si se confirma)
 
-**Recomendación:** empezar con B (banner) para validar que la detección funciona; agregar A (cron + email) cuando confirmemos.
+- No hay cron / edge function — la detección es server-side al cargar la página.
+- No envía email ni notificación push.
+- No persiste un "snapshot" de pendientes — siempre se calcula en vivo.
 
-#### Pasos para ejecutar (opción B)
-
-1. Crear `src/lib/domain/progress-reports-pending.ts` con `detectPendingProgressReports(therapistId)` puro.
-2. Component `PendingProgressReportsBanner.tsx` en `src/components/agenda/`.
-3. Integrar en `/mi-dia/page.tsx` (server) — query + render condicional.
-4. Idem en `/aprobaciones` para que la directora vea quién tiene pendiente (vista resumen).
-
-**Estimado:** 2-3 días (B). +3-4 días extra para A (cron + email).
+Para promover a opción A: crear `supabase/functions/progress-reports-reminder/index.ts` con cron `0 8 * * MON`, reusar el helper de `lib/domain/progress-reports-pending.ts`, e insertar en `notifications` o enviar email vía Resend.
 
 ---
 

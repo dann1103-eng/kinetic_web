@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { MiDiaClient } from './MiDiaClient'
+import { PendingProgressReportsBanner } from '@/components/agenda/PendingProgressReportsBanner'
+import { detectPendingProgressReportsForTherapist } from '@/lib/domain/progress-reports-pending'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import type { Appointment, TherapySession, ChildJournalEntry, SessionReport } from '@/types/db'
 
@@ -117,10 +119,29 @@ export default async function MiDiaPage() {
     }
   }
 
+  // Pendientes de informes de avances cuatrimestrales (Fase 3-C4 opción B).
+  const pendingProgress = await detectPendingProgressReportsForTherapist(supabase, userId)
+  // Resolver family_id por niño para linkear directo a la ficha (solo los pendientes).
+  const pendingChildIds = pendingProgress.map((p) => p.childId)
+  let familyIdByChild: Record<string, string> = {}
+  if (pendingChildIds.length > 0) {
+    const { data: pendingChildrenRaw } = await supabase
+      .from('children')
+      .select('id, family_id')
+      .in('id', pendingChildIds)
+    familyIdByChild = Object.fromEntries(
+      (pendingChildrenRaw ?? []).map((c) => [c.id, c.family_id]),
+    )
+  }
+
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
       <TopNav title="Mi día" />
       <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto w-full">
+        <PendingProgressReportsBanner
+          pending={pendingProgress}
+          familyIdByChild={familyIdByChild}
+        />
         <MiDiaClient
           appointments={appointments as (Appointment & { child_full_name?: string; child_preferred_name?: string })[]}
           sessions={sessions}
