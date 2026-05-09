@@ -6,10 +6,12 @@ import { upsertTreatmentPlan } from '@/app/actions/treatment-plans'
 import {
   SERVICE_TYPE_LABELS,
   DAY_OF_WEEK_LABELS,
+  SLOT_FREQUENCY_LABELS,
 } from '@/types/db'
 import type {
   DayOfWeek,
   ServiceType,
+  SlotFrequency,
   TreatmentPlan,
   TreatmentPlanScheduleSlot,
   TreatmentPlanTherapyEntry,
@@ -30,13 +32,20 @@ interface Props {
 
 const SERVICE_OPTIONS = Object.entries(SERVICE_TYPE_LABELS) as [ServiceType, string][]
 const DAY_OPTIONS = Object.entries(DAY_OF_WEEK_LABELS) as [DayOfWeek, string][]
+const FREQUENCY_OPTIONS = Object.entries(SLOT_FREQUENCY_LABELS) as [SlotFrequency, string][]
 
 function emptyTherapy(): TreatmentPlanTherapyEntry {
   return { service: 'lenguaje', active: true, sessions_per_month: 4, unit_cost_usd: 20 }
 }
 
 function emptySlot(): TreatmentPlanScheduleSlot {
-  return { day_of_week: 'mon', time_local: '14:00', duration_minutes: 30, service: 'lenguaje' }
+  return {
+    day_of_week: 'mon',
+    time_local: '14:00',
+    duration_minutes: 30,
+    service: 'lenguaje',
+    frequency: 'weekly',
+  }
 }
 
 export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: Props) {
@@ -73,29 +82,35 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
    * warning textual o null. Es solo informativo (no bloquea el guardado).
    */
   const quotaWarnings = useMemo(() => {
-    const slotsByService = new Map<string, number>()
+    // Estima cuántas sesiones/mes produce un slot según su frecuencia.
+    const perMonthBy: Record<SlotFrequency, number> = {
+      weekly: 4,
+      biweekly: 2,
+      monthly: 1,
+    }
+    const estimatedByService = new Map<string, number>()
     for (const s of slots) {
-      slotsByService.set(s.service, (slotsByService.get(s.service) ?? 0) + 1)
+      const f: SlotFrequency = s.frequency ?? 'weekly'
+      estimatedByService.set(
+        s.service,
+        (estimatedByService.get(s.service) ?? 0) + perMonthBy[f],
+      )
     }
     const warnings: string[] = []
     for (const t of therapies) {
       if (!t.active) continue
-      const slotsCount = slotsByService.get(t.service) ?? 0
-      const estimatedPerMonth = slotsCount * 4 // aprox. 4 semanas
-      if (estimatedPerMonth === 0 && t.sessions_per_month > 0) {
+      const estimated = estimatedByService.get(t.service) ?? 0
+      if (estimated === 0 && t.sessions_per_month > 0) {
         warnings.push(
-          `${t.service}: cuota ${t.sessions_per_month}/mes pero no hay slots en el horario semanal.`,
+          `${t.service}: cuota ${t.sessions_per_month}/mes pero no hay slots en el horario.`,
         )
-      } else if (estimatedPerMonth > 0 && t.sessions_per_month === 0) {
+      } else if (estimated > 0 && t.sessions_per_month === 0) {
         warnings.push(
-          `${t.service}: hay ${slotsCount} slot(s)/sem pero la cuota mensual es 0.`,
+          `${t.service}: hay slots en el horario pero la cuota mensual es 0.`,
         )
-      } else if (
-        estimatedPerMonth > 0 &&
-        Math.abs(estimatedPerMonth - t.sessions_per_month) > 1
-      ) {
+      } else if (estimated > 0 && Math.abs(estimated - t.sessions_per_month) > 1) {
         warnings.push(
-          `${t.service}: cuota ${t.sessions_per_month}/mes vs ~${estimatedPerMonth} estimado del patrón (${slotsCount} slot/sem × 4).`,
+          `${t.service}: cuota ${t.sessions_per_month}/mes vs ~${estimated} estimado del patrón.`,
         )
       }
     }
@@ -303,7 +318,7 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
               {slots.map((s, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-[100px_90px_70px_1fr_30px] gap-2 items-center bg-fm-surface-container-low/40 rounded-lg p-2"
+                  className="grid grid-cols-[100px_90px_70px_1fr_100px_30px] gap-2 items-center bg-fm-surface-container-low/40 rounded-lg p-2"
                 >
                   <select
                     value={s.day_of_week}
@@ -346,6 +361,20 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
                       </option>
                     ))}
                   </select>
+                  <select
+                    value={s.frequency ?? 'weekly'}
+                    onChange={(e) =>
+                      patchSlot(idx, { frequency: e.target.value as SlotFrequency })
+                    }
+                    title="Frecuencia: cada cuándo se repite este slot en el mes"
+                    className="rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
+                  >
+                    {FREQUENCY_OPTIONS.map(([v, lbl]) => (
+                      <option key={v} value={v}>
+                        {lbl}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     type="button"
                     onClick={() => setSlots((prev) => prev.filter((_, i) => i !== idx))}
@@ -356,6 +385,13 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
                   </button>
                 </div>
               ))}
+              {slots.length > 0 && (
+                <p className="text-[11px] text-fm-on-surface-variant pl-2">
+                  Frecuencia: <b>Semanal</b> = todos los días que coincidan ·{' '}
+                  <b>Quincenal</b> = cada 14 días desde el primero del mes ·{' '}
+                  <b>Mensual</b> = solo el primero del mes.
+                </p>
+              )}
             </div>
           </section>
 

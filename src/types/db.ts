@@ -2908,6 +2908,19 @@ export interface TreatmentPlanTherapyEntry {
   unit_cost_usd: number
 }
 
+/** Frecuencia de un slot dentro del mes.
+ *    weekly   — todos los matches del mes (default)
+ *    biweekly — cada 14 días desde el primer match del mes
+ *    monthly  — solo el primer match del mes
+ */
+export type SlotFrequency = 'weekly' | 'biweekly' | 'monthly'
+
+export const SLOT_FREQUENCY_LABELS: Record<SlotFrequency, string> = {
+  weekly: 'Semanal',
+  biweekly: 'Quincenal',
+  monthly: 'Mensual',
+}
+
 /** Slot recurrente del horario semanal. */
 export interface TreatmentPlanScheduleSlot {
   day_of_week: DayOfWeek
@@ -2916,6 +2929,8 @@ export interface TreatmentPlanScheduleSlot {
   /** Duración en minutos (típicamente 30 o 60). */
   duration_minutes: number
   service: ServiceType
+  /** Default 'weekly' si no está. */
+  frequency?: SlotFrequency
 }
 
 export interface TreatmentPlan {

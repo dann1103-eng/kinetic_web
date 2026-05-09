@@ -6,6 +6,7 @@ import { TreatmentPlanHistory } from './TreatmentPlanHistory'
 import {
   SERVICE_TYPE_LABELS,
   DAY_OF_WEEK_LABELS,
+  SLOT_FREQUENCY_LABELS,
 } from '@/types/db'
 import type {
   ServiceType,
@@ -207,17 +208,25 @@ function PlanReadOnly({
                   {DAY_OF_WEEK_LABELS[d]}
                 </div>
                 <ul className="space-y-1">
-                  {(slotsByDay.get(d) ?? []).map((s, i) => (
-                    <li
-                      key={`${d}-${i}`}
-                      className="text-xs text-fm-on-surface flex items-center gap-2"
-                    >
-                      <span className="font-mono tabular-nums text-fm-primary">{s.time_local}</span>
-                      <span className="text-fm-on-surface-variant">·</span>
-                      <span>{SERVICE_TYPE_LABELS[s.service] ?? s.service}</span>
-                      <span className="text-fm-on-surface-variant">({s.duration_minutes}m)</span>
-                    </li>
-                  ))}
+                  {(slotsByDay.get(d) ?? []).map((s, i) => {
+                    const freq = s.frequency ?? 'weekly'
+                    return (
+                      <li
+                        key={`${d}-${i}`}
+                        className="text-xs text-fm-on-surface flex items-center gap-2 flex-wrap"
+                      >
+                        <span className="font-mono tabular-nums text-fm-primary">{s.time_local}</span>
+                        <span className="text-fm-on-surface-variant">·</span>
+                        <span>{SERVICE_TYPE_LABELS[s.service] ?? s.service}</span>
+                        <span className="text-fm-on-surface-variant">({s.duration_minutes}m)</span>
+                        {freq !== 'weekly' && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-fm-primary/10 text-fm-primary">
+                            {SLOT_FREQUENCY_LABELS[freq]}
+                          </span>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             ))}
