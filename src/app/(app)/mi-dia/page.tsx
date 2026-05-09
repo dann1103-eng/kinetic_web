@@ -4,7 +4,7 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { MiDiaClient } from './MiDiaClient'
 import { PendingProgressReportsBanner } from '@/components/agenda/PendingProgressReportsBanner'
-import { detectPendingProgressReportsForTherapist } from '@/lib/domain/progress-reports-pending'
+import { summarizeActiveTherapiesForTherapist } from '@/lib/domain/progress-reports-pending'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import type { Appointment, TherapySession, ChildJournalEntry, SessionReport } from '@/types/db'
 
@@ -119,18 +119,20 @@ export default async function MiDiaPage() {
     }
   }
 
-  // Pendientes de informes de avances cuatrimestrales (Fase 3-C4 opción B).
-  const pendingProgress = await detectPendingProgressReportsForTherapist(supabase, userId)
-  // Resolver family_id por niño para linkear directo a la ficha (solo los pendientes).
-  const pendingChildIds = pendingProgress.map((p) => p.childId)
+  // Resumen de terapias activas del cuatrimestre (Fase 3-C4 opción B).
+  // Incluye TODAS las terapias activas con su estado de informe — el banner
+  // expone el detalle expandible para que el terapista vea de dónde sale el
+  // conteo (Q1+Q2 = activas, Q3 = ya con informe).
+  const activeTherapiesSummary = await summarizeActiveTherapiesForTherapist(supabase, userId)
+  const summaryChildIds = Array.from(new Set(activeTherapiesSummary.map((p) => p.childId)))
   let familyIdByChild: Record<string, string> = {}
-  if (pendingChildIds.length > 0) {
-    const { data: pendingChildrenRaw } = await supabase
+  if (summaryChildIds.length > 0) {
+    const { data: summaryChildrenRaw } = await supabase
       .from('children')
       .select('id, family_id')
-      .in('id', pendingChildIds)
+      .in('id', summaryChildIds)
     familyIdByChild = Object.fromEntries(
-      (pendingChildrenRaw ?? []).map((c) => [c.id, c.family_id]),
+      (summaryChildrenRaw ?? []).map((c) => [c.id, c.family_id]),
     )
   }
 
@@ -139,7 +141,7 @@ export default async function MiDiaPage() {
       <TopNav title="Mi día" />
       <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto w-full">
         <PendingProgressReportsBanner
-          pending={pendingProgress}
+          summary={activeTherapiesSummary}
           familyIdByChild={familyIdByChild}
         />
         <MiDiaClient

@@ -27,6 +27,24 @@ export interface PendingProgressReportItem {
   lastAppointmentAt: string
 }
 
+/** Estado del informe de avances de un par (child × service) en la ventana actual. */
+export type ActiveTherapyReportStatus =
+  | 'none'           // no hay informe → PENDIENTE
+  | 'draft'          // terapista dejó borrador → PENDIENTE (todavía no envió)
+  | 'rejected'       // directora rechazó → PENDIENTE (debe corregir)
+  | 'submitted'      // esperando aprobación → ya no pendiente, está en revisión
+  | 'approved'       // aprobado, no visible a familia
+  | 'sent_to_family' // aprobado y enviado a la familia
+
+export interface ActiveTherapySummary {
+  childId: string
+  childName: string
+  serviceType: string
+  lastAppointmentAt: string
+  reportStatus: ActiveTherapyReportStatus
+  reportId: string | null
+}
+
 /** Inicio de la ventana actual: hoy menos PERIOD_MONTHS, en la TZ local. */
 export function currentPeriodStart(now: Date = new Date()): Date {
   const localNow = toZonedTime(now, TZ)
@@ -41,16 +59,21 @@ export function currentPeriodStart(now: Date = new Date()): Date {
   return fromZonedTime(start, TZ)
 }
 
-export async function detectPendingProgressReportsForTherapist(
+/**
+ * Devuelve TODAS las terapias activas (par child × service) que dio el
+ * terapista en la ventana actual, con el estado del informe de cada una.
+ * Esta es la función "completa": las queries Q1/Q2/Q3 se reflejan acá.
+ */
+export async function summarizeActiveTherapiesForTherapist(
   supabase: SupabaseClient<Database>,
   therapistId: string,
   now: Date = new Date(),
-): Promise<PendingProgressReportItem[]> {
+): Promise<ActiveTherapySummary[]> {
   const periodStart = currentPeriodStart(now)
   const periodStartIso = periodStart.toISOString()
   const periodStartDate = periodStart.toISOString().slice(0, 10)
 
-  // 1. Citas de terapia del terapista en la ventana, con service_type definido.
+  // Q1. Citas de terapia del terapista en la ventana, con service_type definido.
   const { data: appointments } = await supabase
     .from('appointments')
     .select('child_id, service_type, starts_at')
@@ -79,7 +102,7 @@ export async function detectPendingProgressReportsForTherapist(
 
   const childIds = Array.from(new Set(Array.from(pairs.values()).map((p) => p.childId)))
 
-  // 2. Solo niños con treatment_status='active'.
+  // Q2. Solo niños con treatment_status='active'.
   const { data: childrenRaw } = await supabase
     .from('children')
     .select('id, full_name, preferred_name, treatment_status')
@@ -93,43 +116,77 @@ export async function detectPendingProgressReportsForTherapist(
   }
   if (activeChildById.size === 0) return []
 
-  // 3. Progress reports existentes en la ventana, en estados que cuentan como hecho.
+  // Q3. Progress reports existentes en la ventana (cualquier estado, para mostrar
+  // estado real). El "más reciente por par" se queda con el de mayor period_ends.
   const serviceTypes = Array.from(new Set(Array.from(pairs.values()).map((p) => p.serviceType)))
   const { data: existingReports } = await supabase
     .from('progress_reports')
-    .select('child_id, service_type, period_ends, status')
+    .select('id, child_id, service_type, status, period_ends')
     .in('child_id', Array.from(activeChildById.keys()))
     .in('service_type', serviceTypes)
-    .in('status', ['submitted', 'approved', 'sent_to_family'])
     .gte('period_ends', periodStartDate)
+    .order('period_ends', { ascending: false })
 
-  const reportedPairs = new Set<string>()
+  const latestReportByPair = new Map<
+    string,
+    { id: string; status: ActiveTherapyReportStatus }
+  >()
   for (const r of existingReports ?? []) {
-    reportedPairs.add(`${r.child_id}|${r.service_type}`)
+    const key = `${r.child_id}|${r.service_type}`
+    if (latestReportByPair.has(key)) continue // ya tomamos el más reciente
+    latestReportByPair.set(key, {
+      id: r.id,
+      status: r.status as ActiveTherapyReportStatus,
+    })
   }
 
-  // 4. Pendientes = pares activos sin reporte en la ventana.
-  const pending: PendingProgressReportItem[] = []
+  // 4. Combinar: para cada par activo, devolver su estado.
+  const summary: ActiveTherapySummary[] = []
   for (const [key, p] of pairs) {
     const child = activeChildById.get(p.childId)
     if (!child) continue
-    if (reportedPairs.has(key)) continue
-    pending.push({
+    const report = latestReportByPair.get(key)
+    summary.push({
       childId: p.childId,
       childName: child.preferred_name ?? child.full_name,
       serviceType: p.serviceType,
       lastAppointmentAt: p.lastAt,
+      reportStatus: report?.status ?? 'none',
+      reportId: report?.id ?? null,
     })
   }
 
-  // Orden por nombre del niño + servicio para UI estable.
-  pending.sort((a, b) => {
+  summary.sort((a, b) => {
     const n = a.childName.localeCompare(b.childName, 'es')
     if (n !== 0) return n
     return a.serviceType.localeCompare(b.serviceType, 'es')
   })
 
-  return pending
+  return summary
+}
+
+/** Estados que CUENTAN como informe pendiente (no hay informe enviado/aprobado). */
+const PENDING_STATUSES: ActiveTherapyReportStatus[] = ['none', 'draft', 'rejected']
+
+export function isPendingStatus(s: ActiveTherapyReportStatus): boolean {
+  return PENDING_STATUSES.includes(s)
+}
+
+/** Wrapper retro-compatible: solo los pares pendientes. */
+export async function detectPendingProgressReportsForTherapist(
+  supabase: SupabaseClient<Database>,
+  therapistId: string,
+  now: Date = new Date(),
+): Promise<PendingProgressReportItem[]> {
+  const summary = await summarizeActiveTherapiesForTherapist(supabase, therapistId, now)
+  return summary
+    .filter((s) => isPendingStatus(s.reportStatus))
+    .map((s) => ({
+      childId: s.childId,
+      childName: s.childName,
+      serviceType: s.serviceType,
+      lastAppointmentAt: s.lastAppointmentAt,
+    }))
 }
 
 export interface PendingByTherapist {
