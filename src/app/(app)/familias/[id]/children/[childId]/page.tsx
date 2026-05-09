@@ -7,12 +7,15 @@ import { ChildProgressReportsHistory } from '@/components/agenda/ChildProgressRe
 import { NewProgressReportButton } from '@/components/agenda/NewProgressReportButton'
 import { TreatmentPlanSection } from '@/components/families/TreatmentPlanSection'
 import { MonthlyCyclesSection } from '@/components/families/MonthlyCyclesSection'
+import { ChildDashboardPanel } from '@/components/dashboard/ChildDashboardPanel'
+import { getChildDashboardData } from '@/lib/domain/child-dashboard'
 import {
   INTAKE_PHASE_LABELS,
   TREATMENT_STATUS_LABELS,
   MORNING_PROGRAM_LABELS,
 } from '@/types/db'
 import type { Child, MonthlySessionCycle, TreatmentPlan } from '@/types/db'
+import Link from 'next/link'
 
 const MGMT_ROLES_PLAN = ['admin', 'directora', 'coordinadora_terapias']
 const MGMT_ROLES_CYCLES = [
@@ -27,10 +30,13 @@ export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ id: string; childId: string }>
+  searchParams: Promise<{ tab?: string }>
 }
 
-export default async function ChildProfilePage({ params }: PageProps) {
+export default async function ChildProfilePage({ params, searchParams }: PageProps) {
   const { id: familyId, childId } = await params
+  const { tab: tabParam } = await searchParams
+  const tab: 'resumen' | 'dashboard' = tabParam === 'dashboard' ? 'dashboard' : 'resumen'
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
 
@@ -45,25 +51,36 @@ export default async function ChildProfilePage({ params }: PageProps) {
   if (error || !child) notFound()
   const c = child as Child
 
-  // Cargar plan de tratamiento + lista de terapistas + ciclos mensuales en paralelo
-  const [{ data: planRaw }, { data: therapistsRaw }, { data: cyclesRaw }] = await Promise.all([
-    supabase.from('treatment_plans').select('*').eq('child_id', childId).maybeSingle(),
-    supabase
-      .from('users')
-      .select('id, full_name, role')
-      .in('role', ['terapista', 'maestra'])
-      .order('full_name'),
-    supabase
-      .from('monthly_session_cycles')
-      .select('*')
-      .eq('child_id', childId)
-      .order('period_month', { ascending: false }),
-  ])
-  const plan = (planRaw as TreatmentPlan | null) ?? null
-  const therapists = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
-  const cycles = (cyclesRaw ?? []) as MonthlySessionCycle[]
+  // Datos comunes a ambos tabs
   const canEditPlan = MGMT_ROLES_PLAN.includes(ctx.appUser.role)
   const canManageCycles = MGMT_ROLES_CYCLES.includes(ctx.appUser.role)
+
+  // Lazy: solo fetch lo que el tab activo necesita.
+  let plan: TreatmentPlan | null = null
+  let therapists: { id: string; full_name: string; role: string }[] = []
+  let cycles: MonthlySessionCycle[] = []
+  let dashboardData: Awaited<ReturnType<typeof getChildDashboardData>> | null = null
+
+  if (tab === 'resumen') {
+    const [{ data: planRaw }, { data: therapistsRaw }, { data: cyclesRaw }] = await Promise.all([
+      supabase.from('treatment_plans').select('*').eq('child_id', childId).maybeSingle(),
+      supabase
+        .from('users')
+        .select('id, full_name, role')
+        .in('role', ['terapista', 'maestra'])
+        .order('full_name'),
+      supabase
+        .from('monthly_session_cycles')
+        .select('*')
+        .eq('child_id', childId)
+        .order('period_month', { ascending: false }),
+    ])
+    plan = (planRaw as TreatmentPlan | null) ?? null
+    therapists = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
+    cycles = (cyclesRaw ?? []) as MonthlySessionCycle[]
+  } else {
+    dashboardData = await getChildDashboardData(supabase, childId)
+  }
 
   const ageYears = c.birth_date
     ? Math.floor((new Date().getTime() - new Date(c.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
@@ -113,6 +130,32 @@ export default async function ChildProfilePage({ params }: PageProps) {
           </div>
         </div>
 
+        {/* Tab navigation */}
+        <div className="flex border-b border-fm-outline-variant/20 -mb-2">
+          <TabLink
+            href={`/familias/${familyId}/children/${childId}`}
+            active={tab === 'resumen'}
+            label="Resumen"
+            icon="article"
+          />
+          <TabLink
+            href={`/familias/${familyId}/children/${childId}?tab=dashboard`}
+            active={tab === 'dashboard'}
+            label="Dashboard"
+            icon="dashboard"
+          />
+        </div>
+
+        {tab === 'dashboard' && dashboardData && (
+          <ChildDashboardPanel
+            data={dashboardData}
+            familyId={familyId}
+            childId={childId}
+          />
+        )}
+
+        {tab === 'resumen' && (
+        <>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Datos clínicos — único section header con icono porque es info de emergencia */}
           <Section title="Datos clínicos" icon="emergency" tone="urgent">
@@ -193,8 +236,36 @@ export default async function ChildProfilePage({ params }: PageProps) {
           <h2 className="text-base font-semibold text-fm-on-surface">Reportes de sesión</h2>
           <ChildSessionReportsHistory childId={childId} />
         </div>
+        </>
+        )}
       </div>
     </div>
+  )
+}
+
+function TabLink({
+  href,
+  active,
+  label,
+  icon,
+}: {
+  href: string
+  active: boolean
+  label: string
+  icon: string
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+        active
+          ? 'border-fm-primary text-fm-primary'
+          : 'border-transparent text-fm-on-surface-variant hover:text-fm-on-surface hover:border-fm-outline-variant/40'
+      }`}
+    >
+      <span className="material-symbols-outlined text-base">{icon}</span>
+      {label}
+    </Link>
   )
 }
 
