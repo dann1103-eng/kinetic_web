@@ -2132,6 +2132,28 @@ export interface Database {
         Update: Partial<Omit<MonthlySessionCycle, 'id' | 'created_at'>>
         Relationships: []
       }
+      service_catalog: {
+        Row: AsRow<ServiceCatalogItem>
+        Insert: {
+          id?: string
+          code: string
+          category: ServiceCategory
+          name: string
+          description?: string | null
+          unit_price_usd: number
+          duration_minutes?: number | null
+          morning_program?: MorningProgram | null
+          days_per_week?: number | null
+          proration_group?: string | null
+          applies_from_month?: number | null
+          applies_to_month?: number | null
+          active?: boolean
+          sort_order?: number
+          notes?: string | null
+        }
+        Update: Partial<Omit<ServiceCatalogItem, 'id' | 'created_at'>>
+        Relationships: []
+      }
     }
     Views: Record<string, never>
     /** Catch-all: aceptar cualquier RPC sin tipar Args/Returns. */
