@@ -35,7 +35,12 @@ create table if not exists public.service_catalog (
   duration_minutes integer,
 
   -- Mensualidades:
-  morning_program public.morning_program,
+  -- (morning_program se modela como text+check porque la DB usa text en
+  -- children.enrolled_program; no existe enum public.morning_program)
+  morning_program text check (
+    morning_program is null
+    or morning_program in ('blue_kids', 'learning_kids', 'aula_educativa')
+  ),
   days_per_week integer check (days_per_week between 1 and 7),
 
   -- Items prorrateados por mes:
