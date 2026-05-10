@@ -90,32 +90,42 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
     <div className="flex flex-col min-h-full">
       <TopNav title={c.full_name} backHref={`/familias/${familyId}`} />
 
-      <div className="flex-1 p-6 space-y-6">
-        {/* Header del niño */}
-        <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold text-fm-on-surface">{c.full_name}</h1>
-                {c.code && (
-                  <span className="text-xs font-mono text-fm-on-surface-variant bg-fm-surface-container px-2 py-0.5 rounded">
-                    {c.code}
-                  </span>
-                )}
-              </div>
-              {c.preferred_name && <p className="text-sm text-fm-on-surface-variant italic">&ldquo;{c.preferred_name}&rdquo;</p>}
-              <p className="text-sm text-fm-on-surface-variant mt-1">
-                {ageYears !== null && <span>{ageYears} años</span>}
-                {c.gender && <span> · {c.gender === 'M' ? 'Masculino' : c.gender === 'F' ? 'Femenino' : 'Otro'}</span>}
-                {c.birth_date && <span> · Nacido el {new Date(c.birth_date).toLocaleDateString('es-SV', { day: 'numeric', month: 'long', year: 'numeric' })}</span>}
-              </p>
-              {c.diagnoses_display_text && (
-                <p className="text-sm text-fm-primary italic mt-2">{c.diagnoses_display_text}</p>
-              )}
-            </div>
+      <div className="flex-1 px-6 pt-6 pb-12 max-w-6xl mx-auto w-full">
+        {/* Header — integrado con la página, sin card chrome */}
+        <header className="space-y-3">
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <h1 className="text-3xl font-semibold tracking-tight text-fm-on-surface">
+              {c.full_name}
+            </h1>
+            {c.code && (
+              <span className="text-xs font-mono text-fm-on-surface-variant bg-fm-surface-container px-2 py-0.5 rounded">
+                {c.code}
+              </span>
+            )}
+            {c.preferred_name && (
+              <span className="text-sm text-fm-on-surface-variant italic">
+                &ldquo;{c.preferred_name}&rdquo;
+              </span>
+            )}
           </div>
-
-          <div className="flex flex-wrap items-center gap-2 mt-4">
+          <p className="text-sm text-fm-on-surface-variant">
+            {ageYears !== null && <span>{ageYears} años</span>}
+            {c.gender && <span> · {c.gender === 'M' ? 'Masculino' : c.gender === 'F' ? 'Femenino' : 'Otro'}</span>}
+            {c.birth_date && (
+              <span>
+                {' '}· Nacido el{' '}
+                {new Date(c.birth_date).toLocaleDateString('es-SV', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </span>
+            )}
+          </p>
+          {c.diagnoses_display_text && (
+            <p className="text-sm text-fm-primary italic max-w-prose">{c.diagnoses_display_text}</p>
+          )}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             {c.enrolled_program && (
               <span className="text-xs px-3 py-1 rounded-full bg-fm-secondary/15 text-fm-secondary font-medium">
                 Programa: {MORNING_PROGRAM_LABELS[c.enrolled_program]}
@@ -128,10 +138,13 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
               {TREATMENT_STATUS_LABELS[c.treatment_status]}
             </span>
           </div>
-        </div>
+        </header>
 
         {/* Tab navigation */}
-        <div className="flex border-b border-fm-outline-variant/20 -mb-2">
+        <nav
+          aria-label="Secciones del perfil"
+          className="flex border-b border-fm-outline-variant/20 mt-8 mb-6"
+        >
           <TabLink
             href={`/familias/${familyId}/children/${childId}`}
             active={tab === 'resumen'}
@@ -144,7 +157,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
             label="Dashboard"
             icon="dashboard"
           />
-        </div>
+        </nav>
 
         {tab === 'dashboard' && dashboardData && (
           <ChildDashboardPanel
@@ -155,88 +168,108 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
         )}
 
         {tab === 'resumen' && (
-        <>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Datos clínicos — único section header con icono porque es info de emergencia */}
-          <Section title="Datos clínicos" icon="emergency" tone="urgent">
-            <Field label="Tipo de sangre" value={c.blood_type} />
-            <Field label="Hospital preferido" value={c.preferred_hospital} />
-            <FieldLong label="Alergias / reacciones a medicamentos" value={c.allergies_text} highlight />
-            <FieldLong label="Medicamentos actuales" value={c.medications_text} />
-          </Section>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-8 gap-y-8">
+            {/* LEFT RAIL — info de referencia que el usuario quiere ver siempre */}
+            <aside className="lg:col-span-4 lg:sticky lg:top-6 lg:self-start space-y-6 min-w-0">
+              {/* Datos clínicos: la única card con chrome en el rail (urgent tone) */}
+              <Section title="Datos clínicos" icon="emergency" tone="urgent" compact>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+                    <Field label="Sangre" value={c.blood_type} />
+                    <Field label="Hospital" value={c.preferred_hospital} />
+                  </div>
+                  <div className="pt-3 border-t border-fm-outline-variant/15 space-y-3">
+                    <FieldLong
+                      label="Alergias / reacciones"
+                      value={c.allergies_text}
+                      highlight
+                    />
+                    <FieldLong label="Medicamentos" value={c.medications_text} />
+                  </div>
+                </div>
+              </Section>
 
-          {/* Escolaridad */}
-          <Section title="Escolaridad">
-            <Field label="Colegio actual" value={c.school_name} />
-            <Field label="Grado que cursa" value={c.school_grade} />
-          </Section>
+              {/* Escolaridad y Origen agrupados en un mismo bloque minimal */}
+              <Section title="Escolaridad" minimal>
+                <Field label="Colegio actual" value={c.school_name} />
+                <Field label="Grado que cursa" value={c.school_grade} />
+              </Section>
 
-          {/* Diagnósticos */}
-          <Section title="Diagnósticos">
-            {c.diagnoses_json && c.diagnoses_json.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {c.diagnoses_json.map((d) => (
-                  <span key={d} className="text-xs px-3 py-1 rounded-full bg-fm-surface-container border border-fm-outline-variant/30 text-fm-on-surface-variant">
-                    {d}
+              <Section title="Origen del paciente" minimal>
+                <Field label="Tipo" value={c.referral_source_type} />
+                <FieldLong label="Notas" value={c.referral_notes} />
+              </Section>
+
+              {c.notes && (
+                <Section title="Notas internas" minimal>
+                  <p className="text-sm text-fm-on-surface whitespace-pre-wrap">
+                    {c.notes}
+                  </p>
+                </Section>
+              )}
+            </aside>
+
+            {/* MAIN — área de trabajo */}
+            <main className="lg:col-span-8 space-y-8 min-w-0">
+              {/* Strip de diagnósticos: badges ICD-10 al inicio del área de trabajo */}
+              <Section title="Diagnósticos" minimal>
+                {c.diagnoses_json && c.diagnoses_json.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {c.diagnoses_json.map((d) => (
+                      <span
+                        key={d}
+                        className="text-xs px-2.5 py-0.5 rounded-full bg-fm-surface-container border border-fm-outline-variant/30 text-fm-on-surface-variant"
+                      >
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-sm text-fm-on-surface-variant">
+                    Sin diagnósticos registrados
                   </span>
-                ))}
+                )}
+              </Section>
+
+              {/* Bloque estructural: plan + ciclos */}
+              <TreatmentPlanSection
+                childId={childId}
+                plan={plan}
+                therapists={therapists}
+                canEdit={canEditPlan}
+              />
+              <MonthlyCyclesSection
+                childId={childId}
+                plan={plan}
+                cycles={cycles}
+                canManage={canManageCycles}
+              />
+
+              {/* Histórico de actividad */}
+              <div className="space-y-6 pt-2">
+                <header>
+                  <p className="text-[10px] font-medium tracking-[0.18em] uppercase text-fm-on-surface-variant/70">
+                    Histórico de actividad
+                  </p>
+                </header>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-base font-medium tracking-tight text-fm-on-surface">
+                      Informes de avances
+                    </h2>
+                    <NewProgressReportButton familyId={familyId} childId={childId} />
+                  </div>
+                  <ChildProgressReportsHistory familyId={familyId} childId={childId} />
+                </div>
+                <div className="space-y-3 pt-2">
+                  <h2 className="text-base font-medium tracking-tight text-fm-on-surface">
+                    Reportes de sesión
+                  </h2>
+                  <ChildSessionReportsHistory childId={childId} />
+                </div>
               </div>
-            ) : (
-              <span className="text-sm text-fm-on-surface-variant">Sin diagnósticos registrados</span>
-            )}
-            {c.diagnoses_display_text && (
-              <p className="text-xs text-fm-on-surface-variant mt-3 italic max-w-prose">
-                Texto editorial para informes: <span className="not-italic font-medium">{c.diagnoses_display_text}</span>
-              </p>
-            )}
-          </Section>
-
-          {/* Origen / referencia */}
-          <Section title="Origen del paciente">
-            <Field label="Tipo" value={c.referral_source_type} />
-            <FieldLong label="Notas de referencia" value={c.referral_notes} />
-          </Section>
-        </div>
-
-        {/* Plan de tratamiento (ficha de acuerdo) */}
-        <TreatmentPlanSection
-          childId={childId}
-          plan={plan}
-          therapists={therapists}
-          canEdit={canEditPlan}
-        />
-
-        {/* Ciclos mensuales (Ronda 2) */}
-        <MonthlyCyclesSection
-          childId={childId}
-          plan={plan}
-          cycles={cycles}
-          canManage={canManageCycles}
-        />
-
-        {/* Notas internas */}
-        {c.notes && (
-          <div className="bg-fm-surface-container-low rounded-2xl border border-fm-outline-variant/20 p-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant mb-2">Notas internas</h3>
-            <p className="text-sm text-fm-on-surface whitespace-pre-wrap max-w-prose">{c.notes}</p>
+            </main>
           </div>
-        )}
-
-        {/* Informes de avances cuatrimestrales */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold text-fm-on-surface">Informes de avances</h2>
-            <NewProgressReportButton familyId={familyId} childId={childId} />
-          </div>
-          <ChildProgressReportsHistory familyId={familyId} childId={childId} />
-        </div>
-
-        {/* Histórico de reportes de sesión */}
-        <div className="space-y-3">
-          <h2 className="text-base font-semibold text-fm-on-surface">Reportes de sesión</h2>
-          <ChildSessionReportsHistory childId={childId} />
-        </div>
-        </>
         )}
       </div>
     </div>
@@ -273,19 +306,41 @@ function Section({
   title,
   icon,
   tone,
+  minimal,
+  compact,
   children,
 }: {
   title: string
   icon?: string
   tone?: 'urgent' | 'default'
+  /** Variante sin chrome (sin border, sin bg) — para secciones secundarias. */
+  minimal?: boolean
+  /** Variante con chrome pero padding reducido — pensada para sidebars/rails. */
+  compact?: boolean
   children: React.ReactNode
 }) {
+  if (minimal) {
+    return (
+      <div className="space-y-3">
+        <h2 className="text-[10px] font-medium uppercase tracking-[0.14em] text-fm-on-surface-variant">
+          {title}
+        </h2>
+        <div className="space-y-3">{children}</div>
+      </div>
+    )
+  }
   return (
-    <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
-      <div className="flex items-center gap-2 mb-3">
+    <section
+      className={`bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 ${
+        compact ? 'p-4' : 'p-5 md:p-6'
+      }`}
+    >
+      <div className={`flex items-center gap-2 ${compact ? 'mb-3' : 'mb-4'}`}>
         {icon && (
           <span
-            className={`material-symbols-outlined text-lg ${tone === 'urgent' ? 'text-fm-error' : 'text-fm-primary'}`}
+            className={`material-symbols-outlined text-lg ${
+              tone === 'urgent' ? 'text-fm-error' : 'text-fm-primary'
+            }`}
             aria-hidden="true"
           >
             {icon}
@@ -293,8 +348,8 @@ function Section({
         )}
         <h2 className="text-sm font-semibold text-fm-on-surface">{title}</h2>
       </div>
-      <div className="space-y-3">{children}</div>
-    </div>
+      <div>{children}</div>
+    </section>
   )
 }
 

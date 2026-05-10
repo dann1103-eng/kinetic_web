@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { AttendanceGrid } from './AttendanceGrid'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type { ServiceType } from '@/types/db'
 import type { ChildDashboardData, UpcomingAppointment } from '@/lib/domain/child-dashboard'
+import { ChildDashboardCalendar } from './ChildDashboardCalendar'
 
 interface Props {
   data: ChildDashboardData
@@ -42,90 +42,95 @@ export function ChildDashboardPanel({ data, familyId, childId }: Props) {
   const next = upcoming[0] ?? null
 
   return (
-    <div className="space-y-5">
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Programadas del mes" value={kpis.scheduled} tone="info" />
-        <KpiCard label="Asistidas" value={kpis.completed} tone="ok" />
-        <KpiCard
+    <div className="space-y-8">
+      {/* Stats — KPIs como overview superior */}
+      <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Kpi label="Programadas" value={kpis.scheduled} />
+        <Kpi label="Asistidas" value={kpis.completed} tone="ok" />
+        <Kpi
           label="Pendientes de reponer"
           value={kpis.noShowPendingReplace}
           tone={hasPendingReplace ? 'error' : 'neutral'}
+          href={hasPendingReplace ? '/aprobaciones' : undefined}
+          hint={hasPendingReplace ? 'Reagendar' : undefined}
         />
-        <KpiCard label="Reposiciones del mes" value={kpis.replacement} tone="info" />
-      </div>
+        <Kpi label="Reposiciones" value={kpis.replacement} tone="ok-soft" />
+      </dl>
 
-      {hasPendingReplace && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900 flex items-start gap-2">
-          <span className="material-symbols-outlined text-red-700 text-lg">warning</span>
-          <div>
-            <p className="font-semibold">
-              {kpis.noShowPendingReplace === 1
-                ? 'Hay 1 sesión pendiente de reponer este mes.'
-                : `Hay ${kpis.noShowPendingReplace} sesiones pendientes de reponer este mes.`}
-            </p>
-            <p className="text-xs mt-0.5">
-              La directora puede reagendarlas desde{' '}
-              <Link href="/aprobaciones" className="underline font-medium">
-                /aprobaciones
-              </Link>
-              .
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Próxima + última */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <NextSessionCard next={next} />
-        <LastSessionCard last={last_completed} />
-      </div>
-
-      {/* Grilla calendario del mes */}
-      <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-4">
-        <AttendanceGrid periodMonth={period_month} cells={attendance} />
-      </section>
-
-      {/* Próximas 14 días */}
-      {upcoming.length > 0 && (
-        <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-fm-on-surface">
-              Próximas sesiones (14 días)
-            </h3>
-            <Link
-              href={`/agenda?child=${childId}`}
-              className="text-xs text-fm-primary hover:underline"
-            >
-              Ver agenda completa
-            </Link>
-          </div>
-          <ul className="divide-y divide-fm-outline-variant/15">
-            {upcoming.map((a) => (
-              <li key={a.id} className="py-2 flex items-center justify-between gap-3 text-sm">
-                <div>
-                  <div className="font-medium text-fm-on-surface">
-                    {serviceLabel(a.service_type)}
-                    {a.is_replacement && (
-                      <span className="ml-2 text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
-                        Reposición
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-fm-on-surface-variant">
-                    {formatDateTime(a.starts_at)} · {relativeFromNow(a.starts_at)}
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+      {/* Layout principal: calendario hero (8 cols) + right rail operativo (4 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <section className="lg:col-span-8 bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
+          <ChildDashboardCalendar
+            attendance={attendance}
+            upcoming={upcoming}
+            periodMonth={period_month}
+          />
         </section>
-      )}
 
-      {/* Footer info */}
-      <p className="text-[11px] text-fm-on-surface-variant text-center">
-        Total de sesiones registradas en {monthLabel(period_month)}: <b>{kpis.total}</b> · familia{' '}
-        <Link href={`/familias/${familyId}`} className="underline">ver familia</Link>
+        <aside className="lg:col-span-4 space-y-4 min-w-0">
+          <NextSessionCard next={next} />
+
+          {upcoming.length > 0 && (
+            <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-4">
+              <header className="flex items-center justify-between mb-3 gap-2">
+                <p className="text-[10px] font-medium tracking-[0.16em] uppercase text-fm-on-surface-variant/70">
+                  Próximas 14 días
+                </p>
+                <Link
+                  href={`/agenda?child=${childId}`}
+                  className="text-[11px] font-medium text-fm-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fm-primary focus-visible:ring-offset-2 rounded"
+                >
+                  Ver agenda →
+                </Link>
+              </header>
+              <ul className="divide-y divide-fm-outline-variant/15 -my-1.5">
+                {upcoming.slice(0, 5).map((a) => (
+                  <li
+                    key={a.id}
+                    className="py-2 flex items-baseline justify-between gap-2 text-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-fm-on-surface text-[13px] flex items-center gap-1.5 flex-wrap leading-tight">
+                        <span className="truncate">{serviceLabel(a.service_type)}</span>
+                        {a.is_replacement && (
+                          <span className="text-[9px] px-1.5 py-px bg-fm-tertiary/15 text-fm-tertiary rounded-full font-medium shrink-0">
+                            Repo
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-fm-on-surface-variant/85 mt-0.5">
+                        {formatDateTime(a.starts_at)}
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-medium text-fm-on-surface-variant/85 tabular-nums shrink-0">
+                      {relativeFromNow(a.starts_at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {upcoming.length > 5 && (
+                <p className="text-[11px] text-fm-on-surface-variant/70 mt-2 pt-2 border-t border-fm-outline-variant/15">
+                  +{upcoming.length - 5} más en agenda
+                </p>
+              )}
+            </section>
+          )}
+
+          <LastSessionCard last={last_completed} />
+        </aside>
+      </div>
+
+      {/* Footer info — info contextual mínima, alineada a la derecha */}
+      <p className="text-[11px] text-fm-on-surface-variant/70 text-right">
+        <span className="tabular-nums">{kpis.total}</span>{' '}
+        {kpis.total === 1 ? 'sesión registrada' : 'sesiones registradas'} en{' '}
+        <span className="capitalize">{monthLabel(period_month)}</span> ·{' '}
+        <Link
+          href={`/familias/${familyId}`}
+          className="underline decoration-fm-outline-variant/40 underline-offset-2 hover:text-fm-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fm-primary rounded"
+        >
+          ficha de familia
+        </Link>
       </p>
     </div>
   )
@@ -138,73 +143,143 @@ function monthLabel(periodMonth: string): string {
   })
 }
 
-function KpiCard({
+type KpiTone = 'ok' | 'ok-soft' | 'error' | 'neutral'
+
+const KPI_TONE: Record<KpiTone, { surface: string; value: string; label: string }> = {
+  ok: {
+    surface: 'bg-fm-tertiary/10 ring-fm-tertiary/25',
+    value: 'text-fm-tertiary',
+    label: 'text-fm-tertiary/80',
+  },
+  'ok-soft': {
+    surface: 'bg-fm-primary/8 ring-fm-primary/20',
+    value: 'text-fm-primary',
+    label: 'text-fm-primary/80',
+  },
+  error: {
+    surface: 'bg-fm-error/10 ring-fm-error/30',
+    value: 'text-fm-error',
+    label: 'text-fm-error/85',
+  },
+  neutral: {
+    surface: 'bg-fm-surface-container-lowest ring-fm-outline-variant/25',
+    value: 'text-fm-on-surface',
+    label: 'text-fm-on-surface-variant',
+  },
+}
+
+function Kpi({
   label,
   value,
-  tone,
+  tone = 'neutral',
+  href,
+  hint,
 }: {
   label: string
   value: number
-  tone: 'ok' | 'info' | 'error' | 'neutral'
+  tone?: KpiTone
+  href?: string
+  hint?: string
 }) {
-  const colors = {
-    ok: 'bg-emerald-50 border-emerald-200 text-emerald-900',
-    info: 'bg-blue-50 border-blue-200 text-blue-900',
-    error: 'bg-red-50 border-red-200 text-red-900',
-    neutral: 'bg-fm-surface-container-low border-fm-outline-variant/20 text-fm-on-surface',
-  }[tone]
+  const colors = KPI_TONE[tone]
+  const isInteractive = !!href
+  const inner = (
+    <>
+      <dd
+        className={`text-[26px] leading-none font-semibold tabular-nums ${colors.value}`}
+      >
+        {value}
+      </dd>
+      <dt
+        className={`text-[10px] font-semibold uppercase tracking-[0.14em] mt-2 ${colors.label}`}
+      >
+        {label}
+      </dt>
+      {hint && (
+        <span
+          className={`mt-2 inline-flex items-center gap-1 text-[10px] font-medium ${colors.value} group-hover:gap-1.5 transition-all`}
+        >
+          {hint}
+          <span className="material-symbols-outlined text-[14px]" aria-hidden="true">
+            arrow_forward
+          </span>
+        </span>
+      )}
+    </>
+  )
+
+  const baseClass = `group rounded-xl ring-1 ring-inset px-4 py-3.5 flex flex-col items-start ${colors.surface}`
+
+  if (isInteractive && href) {
+    return (
+      <Link
+        href={href}
+        className={`${baseClass} hover:ring-2 hover:-translate-y-[1px] hover:shadow-sm transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fm-primary focus-visible:ring-offset-2`}
+        aria-label={`${label}: ${value}. ${hint ?? ''}`}
+      >
+        {inner}
+      </Link>
+    )
+  }
+
   return (
-    <div className={`rounded-xl border p-3 ${colors}`}>
-      <div className="text-2xl font-bold tabular-nums">{value}</div>
-      <div className="text-[11px] uppercase tracking-wider mt-0.5">{label}</div>
+    <div className={baseClass}>
+      {inner}
     </div>
   )
 }
 
 function NextSessionCard({ next }: { next: UpcomingAppointment | null }) {
   return (
-    <div className="rounded-xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-4">
-      <div className="text-[10px] uppercase tracking-wider text-fm-on-surface-variant mb-1">
+    <article className="rounded-2xl bg-fm-primary/8 ring-1 ring-inset ring-fm-primary/20 p-5">
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-fm-primary/85 mb-1">
+        <span className="material-symbols-outlined text-[14px]" aria-hidden="true">
+          schedule
+        </span>
         Próxima sesión
       </div>
       {!next ? (
-        <p className="text-sm text-fm-on-surface-variant">Sin próximas sesiones.</p>
+        <p className="text-sm text-fm-on-surface-variant mt-2">Sin próximas sesiones agendadas.</p>
       ) : (
         <>
-          <div className="text-base font-semibold text-fm-on-surface">
+          <h3 className="text-lg font-semibold tracking-tight text-fm-on-surface mt-1">
             {serviceLabel(next.service_type)}
-          </div>
-          <div className="text-sm text-fm-on-surface-variant">
+          </h3>
+          <p className="text-sm text-fm-on-surface-variant mt-0.5">
             {formatDateTime(next.starts_at)}
-          </div>
-          <div className="text-xs text-fm-primary mt-0.5">{relativeFromNow(next.starts_at)}</div>
+          </p>
+          <p className="text-xs font-medium text-fm-primary mt-2 tabular-nums">
+            {relativeFromNow(next.starts_at)}
+          </p>
         </>
       )}
-    </div>
+    </article>
   )
 }
 
 function LastSessionCard({ last }: { last: UpcomingAppointment | null }) {
   return (
-    <div className="rounded-xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-4">
-      <div className="text-[10px] uppercase tracking-wider text-fm-on-surface-variant mb-1">
+    <article className="rounded-2xl bg-fm-surface-container-lowest ring-1 ring-inset ring-fm-outline-variant/20 p-5">
+      <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-fm-on-surface-variant/70 mb-1">
         Última sesión completada
       </div>
       {!last ? (
-        <p className="text-sm text-fm-on-surface-variant">Sin sesiones completadas todavía.</p>
+        <p className="text-sm text-fm-on-surface-variant mt-2">
+          Sin sesiones completadas todavía.
+        </p>
       ) : (
         <>
-          <div className="text-base font-semibold text-fm-on-surface">
+          <h3 className="text-base font-medium tracking-tight text-fm-on-surface mt-1">
             {serviceLabel(last.service_type)}
-          </div>
-          <div className="text-sm text-fm-on-surface-variant">
+          </h3>
+          <p className="text-sm text-fm-on-surface-variant mt-0.5">
             {formatDateTime(last.starts_at)}
-          </div>
-          <div className="text-xs text-fm-on-surface-variant mt-0.5">
+          </p>
+          <p className="text-xs text-fm-on-surface-variant/75 mt-2 tabular-nums">
             {relativeFromNow(last.starts_at)}
-          </div>
+          </p>
         </>
       )}
-    </div>
+    </article>
   )
 }

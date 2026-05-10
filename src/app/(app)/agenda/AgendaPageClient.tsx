@@ -1,10 +1,6 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { Calendar, dateFnsLocalizer, Views } from 'react-big-calendar'
-import { format, parse, startOfWeek, getDay } from 'date-fns'
-import { es } from 'date-fns/locale'
-import 'react-big-calendar/lib/css/react-big-calendar.css'
 import {
   EVENT_TYPE_LABELS,
   type Appointment,
@@ -12,21 +8,9 @@ import {
   type EventType,
   type InstitutionalClosure,
 } from '@/types/db'
-import { EVENT_TYPE_COLORS, findClosureAffecting } from '@/lib/domain/appointment'
+import { findClosureAffecting } from '@/lib/domain/appointment'
 import { AppointmentForm } from '@/components/agenda/AppointmentForm'
-
-const locales = { es }
-const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek: (d: Date) => startOfWeek(d, { weekStartsOn: 1 }),
-  getDay,
-  locales,
-})
-
-// Working hours grid (7am – 7pm)
-const workDayMin = new Date(1970, 0, 1, 7, 0, 0)
-const workDayMax = new Date(1970, 0, 1, 19, 0, 0)
+import { KineticCalendar, type KineticEventDatum } from '@/components/calendar/KineticCalendar'
 
 type ChildLite = Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'treatment_status'>
 type TherapistLite = { id: string; full_name: string; role: string; avatar_url: string | null }
@@ -40,11 +24,7 @@ interface AgendaPageClientProps {
   closures: InstitutionalClosure[]
 }
 
-interface CalendarBlock {
-  id: string
-  title: string
-  start: Date
-  end: Date
+interface CalendarBlock extends KineticEventDatum {
   appointment: Appointment
 }
 
@@ -98,15 +78,17 @@ export function AgendaPageClient({
       const therapist = therapists.find((t) => t.id === a.therapist_id)
       const childLabel = child?.full_name ?? 'Niño/a'
       const therapistLabel = therapist?.full_name ?? '—'
-      const title =
-        a.event_type === 'terapia'
-          ? `${childLabel} · ${therapistLabel}`
-          : `${EVENT_TYPE_LABELS[a.event_type]} · ${childLabel}`
+      const isTherapy = a.event_type === 'terapia'
+      const title = isTherapy ? childLabel : EVENT_TYPE_LABELS[a.event_type]
+      const subtitle = isTherapy ? therapistLabel : childLabel
+      const colorKey = isTherapy ? a.service_type ?? a.event_type : a.event_type
       return {
         id: a.id,
         title,
+        subtitle,
         start: new Date(a.starts_at),
         end: new Date(a.ends_at),
+        colorKey,
         appointment: a,
       }
     })
@@ -136,20 +118,6 @@ export function AgendaPageClient({
     },
     [],
   )
-
-  const eventStyleGetter = useCallback((block: CalendarBlock) => {
-    const colors = EVENT_TYPE_COLORS[block.appointment.event_type]
-    // RBC consume colores hex; usamos custom CSS via style + classNames
-    return {
-      className: `kinetic-event ${colors.bg} ${colors.text} ${colors.border}`,
-      style: {
-        border: '1px solid transparent',
-        borderRadius: '6px',
-        fontSize: '11px',
-        padding: '2px 4px',
-      },
-    }
-  }, [])
 
   const dayPropGetter = useCallback(
     (date: Date) => {
@@ -260,38 +228,18 @@ export function AgendaPageClient({
       </aside>
 
       {/* Calendario */}
-      <div className="flex-1 calendar-wrapper p-3 overflow-auto">
-        <Calendar
-          localizer={localizer}
+      <div className="flex-1 p-4 overflow-auto min-h-0">
+        <KineticCalendar<CalendarBlock>
           events={events}
-          startAccessor="start"
-          endAccessor="end"
-          views={[Views.MONTH, Views.WEEK, Views.DAY]}
-          defaultView={Views.WEEK}
+          defaultView="week"
           step={15}
           timeslots={2}
-          min={workDayMin}
-          max={workDayMax}
+          minHour={7}
+          maxHour={19}
           selectable={canSchedule}
           onSelectSlot={handleSelectSlot}
           onSelectEvent={handleSelectEvent}
-          eventPropGetter={eventStyleGetter}
           dayPropGetter={dayPropGetter}
-          culture="es"
-          messages={{
-            today: 'Hoy',
-            previous: 'Anterior',
-            next: 'Siguiente',
-            month: 'Mes',
-            week: 'Semana',
-            day: 'Día',
-            agenda: 'Lista',
-            date: 'Fecha',
-            time: 'Hora',
-            event: 'Evento',
-            noEventsInRange: 'Sin citas en este rango.',
-            showMore: (n) => `+${n} más`,
-          }}
         />
       </div>
 

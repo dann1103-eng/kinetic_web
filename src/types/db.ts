@@ -2610,6 +2610,46 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   otra: 'Otra',
 }
 
+/** Etiquetas cortas (máx 4 chars) para celdas estrechas (ej. calendario mensual). */
+export const SERVICE_TYPE_SHORT_LABELS: Record<ServiceType, string> = {
+  lenguaje: 'Leng',
+  motricidad_gruesa: 'MotG',
+  motricidad_fina: 'MotF',
+  sensorial: 'Sens',
+  psicologica: 'Psic',
+  ocupacional: 'Ocup',
+  fisica: 'Fís',
+  lectoescritura: 'Lect',
+  funciones_ejecutivas: 'FE',
+  conductual: 'Cond',
+  blue_kids: 'BK',
+  alim_deglu: 'Alim',
+  destreza_manual_pre_escritura: 'Dest',
+  otra: 'Otra',
+}
+
+/**
+ * Color por servicio para chips/pills en UI.
+ * Devuelve clases Tailwind de fondo, texto y borde sobre cualquier estado.
+ * Se usa en el calendario mini del dashboard del niño.
+ */
+export const SERVICE_TYPE_CHIP_CLASSES: Record<ServiceType, string> = {
+  lenguaje: 'bg-sky-100 text-sky-800 border-sky-200',
+  motricidad_gruesa: 'bg-orange-100 text-orange-800 border-orange-200',
+  motricidad_fina: 'bg-amber-100 text-amber-800 border-amber-200',
+  sensorial: 'bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200',
+  psicologica: 'bg-violet-100 text-violet-800 border-violet-200',
+  ocupacional: 'bg-teal-100 text-teal-800 border-teal-200',
+  fisica: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  lectoescritura: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  funciones_ejecutivas: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+  conductual: 'bg-rose-100 text-rose-800 border-rose-200',
+  blue_kids: 'bg-blue-100 text-blue-800 border-blue-200',
+  alim_deglu: 'bg-lime-100 text-lime-800 border-lime-200',
+  destreza_manual_pre_escritura: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  otra: 'bg-zinc-100 text-zinc-700 border-zinc-200',
+}
+
 export type Modality = 'presencial' | 'virtual'
 
 export type AppointmentStatus =

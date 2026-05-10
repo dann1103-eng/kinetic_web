@@ -3,7 +3,13 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import type { Appointment, AppointmentAbsence } from '@/types/db'
+import { isAbsenceExpired, REPLACEMENT_WINDOW_DAYS } from '@/lib/domain/absence'
+import {
+  suggestReplacementSlots,
+  type SuggestedSlot,
+} from '@/lib/domain/replacement-suggestions'
+import { defaultDurationMinutes } from '@/lib/domain/appointment'
+import type { Appointment, AppointmentAbsence, InstitutionalClosure } from '@/types/db'
 
 const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias'] as const
 
@@ -134,6 +140,23 @@ export async function resolveAbsenceWithReplacement(
     return { ok: false, error: 'La hora de fin debe ser posterior al inicio.' }
   }
 
+  // Validar que la ausencia no esté vencida (>30 días desde el reporte).
+  const { data: absenceRow } = await supabase
+    .from('appointment_absences')
+    .select('reported_at, status')
+    .eq('id', input.absenceId)
+    .single()
+  if (!absenceRow) return { ok: false, error: 'Solicitud no encontrada.' }
+  if (absenceRow.status !== 'pending') {
+    return { ok: false, error: 'Esta solicitud ya fue resuelta.' }
+  }
+  if (isAbsenceExpired(absenceRow.reported_at)) {
+    return {
+      ok: false,
+      error: `La ventana de ${REPLACEMENT_WINDOW_DAYS} días para reponer ya venció. Marcala como "no reponer".`,
+    }
+  }
+
   const { data, error } = await supabase.rpc('resolve_absence_with_replacement', {
     p_absence_id: input.absenceId,
     p_starts_at: input.startsAt,
@@ -197,4 +220,83 @@ export async function waiveAbsence(
 
   revalidatePath('/aprobaciones')
   return { ok: true, absence: data as AppointmentAbsence }
+}
+
+// ── Sugerencias de slots para reposición ───────────────────────────────────
+
+const SUGGESTION_WINDOW_DAYS = 14
+
+export interface ReplacementSuggestion extends SuggestedSlot {
+  /** Duración en minutos del slot, igual a la cita original. */
+  durationMinutes: number
+}
+
+export async function getReplacementSuggestions(
+  absenceId: string,
+): Promise<
+  | { ok: true; suggestions: ReplacementSuggestion[]; therapistId: string | null }
+  | { ok: false; error: string }
+> {
+  const { supabase } = await getActor()
+
+  const { data: absence } = await supabase
+    .from('appointment_absences')
+    .select('therapist_id, appointment_id')
+    .eq('id', absenceId)
+    .single()
+
+  if (!absence) return { ok: false, error: 'Solicitud no encontrada.' }
+  if (!absence.therapist_id) {
+    return { ok: false, error: 'La inasistencia no tiene terapista asociado.' }
+  }
+
+  const { data: original } = await supabase
+    .from('appointments')
+    .select('event_type, starts_at, ends_at')
+    .eq('id', absence.appointment_id)
+    .single()
+
+  const durationMinutes = original
+    ? Math.max(
+        15,
+        Math.round(
+          (new Date(original.ends_at).getTime() - new Date(original.starts_at).getTime()) / 60000,
+        ),
+      )
+    : defaultDurationMinutes('terapia')
+
+  const now = new Date()
+  const windowStart = now.toISOString()
+  const windowEnd = new Date(
+    now.getTime() + SUGGESTION_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+  ).toISOString()
+
+  const { data: existingRaw } = await supabase
+    .from('appointments')
+    .select('starts_at, ends_at')
+    .eq('therapist_id', absence.therapist_id)
+    .neq('status', 'rescheduled')
+    .neq('status', 'no_show')
+    .neq('status', 'late_cancel')
+    .gte('starts_at', windowStart)
+    .lte('starts_at', windowEnd)
+
+  const { data: closuresRaw } = await supabase
+    .from('institutional_calendar')
+    .select('*')
+
+  const suggestions = suggestReplacementSlots({
+    existingAppointments: existingRaw ?? [],
+    closures: (closuresRaw ?? []) as InstitutionalClosure[],
+    durationMinutes,
+    windowStart,
+    windowEnd,
+    limit: 8,
+  })
+
+  return {
+    ok: true,
+    therapistId: absence.therapist_id,
+    suggestions: suggestions.map((s) => ({ ...s, durationMinutes })),
+  }
 }

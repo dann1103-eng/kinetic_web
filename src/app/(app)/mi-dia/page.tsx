@@ -4,7 +4,9 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { MiDiaClient } from './MiDiaClient'
 import { PendingProgressReportsBanner } from '@/components/agenda/PendingProgressReportsBanner'
+import { PendingAbsencesBanner } from '@/components/agenda/PendingAbsencesBanner'
 import { summarizeActiveTherapiesForTherapist } from '@/lib/domain/progress-reports-pending'
+import { detectPendingAbsencesForTherapist } from '@/lib/domain/absences-pending'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import type { Appointment, TherapySession, ChildJournalEntry, SessionReport } from '@/types/db'
 
@@ -206,8 +208,19 @@ export default async function MiDiaPage() {
 
   const monthLabel = formatMonthShort(todayStart)
 
-  const activeTherapiesSummary = await summarizeActiveTherapiesForTherapist(supabase, userId)
-  const summaryChildIds = Array.from(new Set(activeTherapiesSummary.map((p) => p.childId)))
+  // Resumen de terapias activas + inasistencias pendientes en paralelo.
+  // El banner de progress reports usa activeTherapiesSummary; el banner de
+  // inasistencias usa pendingAbsences. Ambos comparten familyIdByChild.
+  const [activeTherapiesSummary, pendingAbsences] = await Promise.all([
+    summarizeActiveTherapiesForTherapist(supabase, userId),
+    detectPendingAbsencesForTherapist(supabase, userId),
+  ])
+  const summaryChildIds = Array.from(
+    new Set([
+      ...activeTherapiesSummary.map((p) => p.childId),
+      ...pendingAbsences.map((p) => p.childId),
+    ]),
+  )
   let familyIdByChild: Record<string, string> = {}
   if (summaryChildIds.length > 0) {
     const { data: summaryChildrenRaw } = await supabase
@@ -225,6 +238,10 @@ export default async function MiDiaPage() {
       <div className="flex-1 px-4 py-6 md:px-10 md:py-10 max-w-[1280px] mx-auto w-full">
         <PendingProgressReportsBanner
           summary={activeTherapiesSummary}
+          familyIdByChild={familyIdByChild}
+        />
+        <PendingAbsencesBanner
+          items={pendingAbsences}
           familyIdByChild={familyIdByChild}
         />
         <MiDiaClient
