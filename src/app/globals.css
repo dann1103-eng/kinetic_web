@@ -318,90 +318,169 @@
     padding-right: env(safe-area-inset-right);
   }
 
-  /* ── react-big-calendar overrides ── */
+  /* =====================================================================
+     react-big-calendar — Kinetic skin (calendar.me-inspired)
+     Aplica a todos los wrappers .calendar-wrapper. Las 4 vistas que existen
+     hoy (/agenda, /calendario, /portal, child dashboard) heredan este skin
+     con cero cambios en su código.
+     ===================================================================== */
+
   .calendar-wrapper .rbc-calendar {
     font-family: inherit;
     color: var(--color-fm-on-surface);
     background: transparent;
   }
+
+  /* Toolbar default oculto — usamos KineticToolbar custom en cada consumidor. */
   .calendar-wrapper .rbc-toolbar {
-    display: none; /* usamos nuestro propio toolbar */
+    display: none;
   }
-  .calendar-wrapper .rbc-header {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--color-fm-on-surface-variant);
-    border-color: var(--color-fm-surface-container-high);
-    padding: 6px 0;
-    background: var(--color-fm-surface-container-lowest);
-  }
-  /* Month view: scrollable so zoomed-in screens can see all weeks */
-  .calendar-wrapper .rbc-month-view {
-    border-color: var(--color-fm-surface-container-high);
-    border-radius: 12px;
-    overflow-y: auto;
-    background: var(--color-fm-surface-container-lowest);
-  }
-  /* Week/day time view: clipped — internal .rbc-time-content handles its own scroll */
+
+  /* ── Contenedores de vista ── */
+  .calendar-wrapper .rbc-month-view,
   .calendar-wrapper .rbc-time-view {
-    border-color: var(--color-fm-surface-container-high);
-    border-radius: 12px;
+    border: 1px solid var(--color-fm-outline-variant);
+    border-radius: 16px;
     overflow: hidden;
     background: var(--color-fm-surface-container-lowest);
   }
-  /* Sticky weekday-name header so it stays visible while scrolling month rows */
+  .calendar-wrapper .rbc-month-view {
+    overflow-y: auto;
+  }
+
+  /* ── Headers de día (week + month) ── */
+  .calendar-wrapper .rbc-header {
+    border-color: var(--color-fm-outline-variant);
+    background: transparent;
+    padding: 10px 6px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--color-fm-on-surface-variant);
+    text-transform: lowercase;
+    letter-spacing: 0;
+  }
   .calendar-wrapper .rbc-month-view .rbc-row.rbc-month-header {
     position: sticky;
     top: 0;
     z-index: 4;
     background: var(--color-fm-surface-container-lowest);
+    border-bottom: 1px solid var(--color-fm-outline-variant);
   }
-  .calendar-wrapper .rbc-day-bg,
+  .calendar-wrapper .rbc-time-header {
+    border-bottom: 1px solid var(--color-fm-outline-variant);
+  }
+  .calendar-wrapper .rbc-time-header-content {
+    border-color: var(--color-fm-outline-variant);
+  }
+  .calendar-wrapper .rbc-time-header.rbc-overflowing {
+    border-right: 0;
+  }
+
+  /* ── Time gutter (horas a la izquierda) ── */
+  .calendar-wrapper .rbc-time-gutter,
+  .calendar-wrapper .rbc-time-gutter .rbc-timeslot-group,
+  .calendar-wrapper .rbc-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--color-fm-on-surface-variant);
+    font-variant-numeric: tabular-nums;
+  }
+  .calendar-wrapper .rbc-time-gutter .rbc-timeslot-group {
+    border-color: var(--color-fm-outline-variant);
+  }
+
+  /* ── Slots de tiempo (líneas internas más finas) ── */
+  .calendar-wrapper .rbc-day-bg + .rbc-day-bg,
+  .calendar-wrapper .rbc-day-slot {
+    border-color: var(--color-fm-outline-variant);
+  }
   .calendar-wrapper .rbc-time-slot {
-    border-color: var(--color-fm-surface-container-high) !important;
+    border-color: color-mix(in srgb, var(--color-fm-outline-variant) 50%, transparent) !important;
   }
-  .calendar-wrapper .rbc-off-range-bg {
-    background: var(--color-fm-surface-container-low) !important;
+  .calendar-wrapper .rbc-day-slot .rbc-time-slot {
+    border-top-style: dotted;
   }
+
+  /* ── Hoy ── */
   .calendar-wrapper .rbc-today {
-    background: color-mix(in srgb, var(--color-fm-primary) 10%, transparent) !important;
+    background: color-mix(in srgb, var(--color-fm-primary) 6%, transparent) !important;
   }
+
+  /* ── Date cell del month view ── */
   .calendar-wrapper .rbc-date-cell {
     font-size: 0.75rem;
+    font-weight: 500;
     color: var(--color-fm-on-surface);
-    padding: 4px 6px;
+    padding: 6px 8px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
   }
+  .calendar-wrapper .rbc-date-cell.rbc-now button,
   .calendar-wrapper .rbc-date-cell.rbc-now a {
     color: var(--color-fm-primary);
     font-weight: 700;
   }
-  .calendar-wrapper .rbc-show-more {
-    font-size: 0.7rem;
-    color: var(--color-fm-primary);
-    background: transparent;
-    padding: 2px 6px;
+  .calendar-wrapper .rbc-off-range-bg {
+    background: color-mix(in srgb, var(--color-fm-surface-container) 50%, transparent) !important;
   }
+  .calendar-wrapper .rbc-off-range {
+    color: var(--color-fm-outline-variant);
+  }
+
+  /* ── Eventos: contenedor pelado, KineticEvent maneja su propio bg/ring ── */
   .calendar-wrapper .rbc-event {
-    padding: 0 !important;
-    border-radius: 8px;
+    border: 0 !important;
+    background: transparent !important;
+    padding: 1px 2px !important;
+    border-radius: 12px;
+    box-shadow: none;
+    overflow: visible;
   }
   .calendar-wrapper .rbc-event:focus {
-    outline: 2px solid var(--color-fm-primary);
+    outline: 0;
   }
-  .calendar-wrapper .rbc-time-content {
-    border-color: var(--color-fm-surface-container-high);
+  .calendar-wrapper .rbc-event.rbc-selected {
+    background: transparent !important;
   }
+  .calendar-wrapper .rbc-event-content {
+    height: 100%;
+  }
+
+  /* ── Show more pill ── */
+  .calendar-wrapper .rbc-show-more {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--color-fm-primary);
+    background: color-mix(in srgb, var(--color-fm-primary) 8%, transparent);
+    padding: 2px 8px;
+    border-radius: 9999px;
+    margin: 2px 4px;
+  }
+
+  /* ── Línea "ahora" en week/day view ── */
   .calendar-wrapper .rbc-current-time-indicator {
     background-color: var(--color-fm-error);
     height: 2px;
   }
-  .calendar-wrapper .rbc-time-gutter .rbc-timeslot-group,
-  .calendar-wrapper .rbc-label {
-    font-size: 0.7rem;
-    color: var(--color-fm-on-surface-variant);
+  .calendar-wrapper .rbc-current-time-indicator::before {
+    content: '';
+    position: absolute;
+    left: -5px;
+    top: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 9999px;
+    background: var(--color-fm-error);
   }
 
-  /* Limit all-day row height — prevent deadline events from collapsing the time grid */
+  /* ── Time content ── */
+  .calendar-wrapper .rbc-time-content {
+    border-top: 1px solid var(--color-fm-outline-variant);
+  }
+  .calendar-wrapper .rbc-time-content > * + * > * {
+    border-color: var(--color-fm-outline-variant);
+  }
+
   .calendar-wrapper .rbc-allday-cell {
     max-height: 80px !important;
     overflow-y: auto;
@@ -411,57 +490,66 @@
     overflow: hidden;
   }
 
-  /* Month view: give rows room to show the card content */
+  /* ── Month view: alturas y eventos ── */
   .calendar-wrapper .rbc-month-row {
     overflow: hidden;
-    min-height: 140px !important;
+    min-height: 120px !important;
+    border-color: var(--color-fm-outline-variant);
+  }
+  .calendar-wrapper .rbc-day-bg + .rbc-day-bg,
+  .calendar-wrapper .rbc-month-row + .rbc-month-row {
+    border-top-color: var(--color-fm-outline-variant);
   }
   .calendar-wrapper .rbc-row-segment {
-    padding: 1px 2px;
+    padding: 2px 4px;
   }
   .calendar-wrapper .rbc-month-view .rbc-event {
-    padding: 0 !important;
     font-size: 11px;
     min-height: 22px !important;
   }
 
-  /* Week/day view: make 30-min slots tall enough for the full rich card.
-     !important needed to beat unlayered RBC CSS (our styles live in @layer utilities). */
+  /* ── Week/day view: slot height generoso para que el card respire ── */
   .calendar-wrapper .rbc-time-view .rbc-timeslot-group {
-    min-height: 140px !important;
+    min-height: 96px !important;
+    border-color: var(--color-fm-outline-variant);
   }
   .calendar-wrapper .rbc-time-view .rbc-timeslot {
-    min-height: 70px !important;
+    min-height: 48px !important;
   }
 
-  /* Prevent native HTML5 image-drag from hijacking RBC's mouse-based DnD on events */
   .calendar-wrapper .rbc-event img {
     -webkit-user-drag: none;
     user-select: none;
     pointer-events: none;
   }
 
-  /* Dark mode calendar overrides — !important needed to beat unlayered RBC CSS */
+  /* ── Dark mode ── */
+  .dark .calendar-wrapper .rbc-month-view,
+  .dark .calendar-wrapper .rbc-time-view {
+    background: var(--color-fm-surface-container-lowest);
+    border-color: color-mix(in srgb, var(--color-fm-outline-variant) 60%, transparent);
+  }
+  .dark .calendar-wrapper .rbc-month-view .rbc-row.rbc-month-header,
+  .dark .calendar-wrapper .rbc-header,
+  .dark .calendar-wrapper .rbc-time-header,
+  .dark .calendar-wrapper .rbc-time-header-content,
+  .dark .calendar-wrapper .rbc-time-content,
+  .dark .calendar-wrapper .rbc-day-slot,
+  .dark .calendar-wrapper .rbc-time-slot,
+  .dark .calendar-wrapper .rbc-time-gutter .rbc-timeslot-group,
+  .dark .calendar-wrapper .rbc-day-bg + .rbc-day-bg,
+  .dark .calendar-wrapper .rbc-month-row,
+  .dark .calendar-wrapper .rbc-time-view .rbc-timeslot-group {
+    border-color: color-mix(in srgb, var(--color-fm-outline-variant) 50%, transparent) !important;
+  }
   .dark .calendar-wrapper .rbc-today {
-    background: rgba(72, 229, 208, 0.05) !important;
+    background: color-mix(in srgb, var(--color-fm-primary) 10%, transparent) !important;
   }
   .dark .calendar-wrapper .rbc-off-range-bg {
     background: var(--color-fm-surface-dim) !important;
   }
-  .dark .calendar-wrapper .rbc-header {
-    background: var(--color-fm-surface-container-low) !important;
-    color: var(--color-fm-on-surface) !important;
-  }
-  .dark .calendar-wrapper .rbc-month-view,
-  .dark .calendar-wrapper .rbc-time-view {
-    background: var(--color-fm-surface-container-lowest) !important;
-  }
-  .dark .calendar-wrapper .rbc-month-view .rbc-row.rbc-month-header {
-    background: var(--color-fm-surface-container-lowest) !important;
-  }
-
-  /* Text colors in dark mode — overcome RBC's hardcoded inline colors */
   .dark .calendar-wrapper .rbc-date-cell,
+  .dark .calendar-wrapper .rbc-date-cell button,
   .dark .calendar-wrapper .rbc-date-cell a,
   .dark .calendar-wrapper .rbc-button-link {
     color: var(--color-fm-on-surface) !important;
@@ -473,22 +561,14 @@
   .dark .calendar-wrapper .rbc-time-gutter,
   .dark .calendar-wrapper .rbc-time-gutter .rbc-timeslot-group,
   .dark .calendar-wrapper .rbc-label,
-  .dark .calendar-wrapper .rbc-time-header-content {
-    color: var(--color-fm-on-surface-variant) !important;
-  }
-  .dark .calendar-wrapper .rbc-agenda-view,
-  .dark .calendar-wrapper .rbc-agenda-view table,
-  .dark .calendar-wrapper .rbc-agenda-view td,
-  .dark .calendar-wrapper .rbc-agenda-view th {
-    color: var(--color-fm-on-surface) !important;
-    border-color: var(--color-fm-surface-container-high) !important;
-  }
-  .dark .calendar-wrapper .rbc-agenda-empty {
+  .dark .calendar-wrapper .rbc-header {
     color: var(--color-fm-on-surface-variant) !important;
   }
   .dark .calendar-wrapper .rbc-show-more {
     color: var(--color-fm-primary) !important;
+    background: color-mix(in srgb, var(--color-fm-primary) 14%, transparent) !important;
   }
+  .dark .calendar-wrapper .rbc-date-cell.rbc-now button,
   .dark .calendar-wrapper .rbc-date-cell.rbc-now a {
     color: var(--color-fm-primary) !important;
   }

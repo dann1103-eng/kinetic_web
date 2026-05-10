@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { AttendanceGrid } from './AttendanceGrid'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type { ServiceType } from '@/types/db'
 import type { ChildDashboardData, UpcomingAppointment } from '@/lib/domain/child-dashboard'
+import { ChildDashboardCalendar } from './ChildDashboardCalendar'
 
 interface Props {
   data: ChildDashboardData
@@ -65,7 +65,11 @@ export function ChildDashboardPanel({ data, familyId, childId }: Props) {
 
       {/* Calendario */}
       <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
-        <AttendanceGrid periodMonth={period_month} cells={attendance} />
+        <ChildDashboardCalendar
+          attendance={attendance}
+          upcoming={upcoming}
+          periodMonth={period_month}
+        />
       </section>
 
       {/* Próximos 14 días */}
