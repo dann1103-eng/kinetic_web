@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { startTherapySession, finishTherapySession } from '@/app/actions/therapy-sessions'
 import { markAbsence } from '@/app/actions/absences'
+import { formatElapsed, formatDuration } from '@/lib/domain/sessions'
 import type { Appointment, TherapySession, SessionReport } from '@/types/db'
 
 type AppointmentWithChild = Appointment & {
@@ -19,19 +20,6 @@ interface SessionCardProps {
   onNoteClick?: (appointmentId: string) => void
   /** Click on "Llenar reporte" / "Corregir" / "Ver reporte" — opens session report modal. */
   onReportClick?: (sessionId: string) => void
-}
-
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60).toString().padStart(2, '0')
-  const s = (seconds % 60).toString().padStart(2, '0')
-  return `${m}:${s}`
-}
-
-function formatDuration(started: string, ended: string): string {
-  const mins = Math.round(
-    (new Date(ended).getTime() - new Date(started).getTime()) / 60000
-  )
-  return `${mins} min`
 }
 
 export function SessionCard({ appointment, session, report, onNoteClick, onReportClick }: SessionCardProps) {
@@ -242,7 +230,7 @@ interface ReportButtonProps {
   onClick: (sessionId: string) => void
 }
 
-function ReportButton({ report, sessionId, onClick }: ReportButtonProps) {
+export function ReportButton({ report, sessionId, onClick }: ReportButtonProps) {
   const status = report?.status
 
   if (!report || status === 'draft') {

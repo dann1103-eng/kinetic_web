@@ -1,8 +1,12 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { SessionCard } from '@/components/agenda/SessionCard'
-import { ChildJournal } from '@/components/agenda/ChildJournal'
+import { DateAnchor } from '@/components/mi-dia/DateAnchor'
+import { TodaySessionsSection } from '@/components/mi-dia/TodaySessionsSection'
+import {
+  UpcomingTimelineSection,
+  type UpcomingDay,
+} from '@/components/mi-dia/UpcomingTimelineSection'
 import { SessionReportModal } from '@/components/agenda/SessionReportModal'
 import { createOrGetSessionReport } from '@/app/actions/session-reports'
 import type {
@@ -17,6 +21,13 @@ type AppointmentWithChild = Appointment & {
   child_preferred_name?: string
 }
 
+interface TodayLabels {
+  weekday: string
+  day: string
+  month: string
+  initialTime: string
+}
+
 interface MiDiaClientProps {
   appointments: AppointmentWithChild[]
   sessions: TherapySession[]
@@ -24,6 +35,9 @@ interface MiDiaClientProps {
   entriesByChild: Record<string, ChildJournalEntry[]>
   authorNames: Record<string, string>
   currentUserId: string
+  todayLabels: TodayLabels
+  upcomingByDay: UpcomingDay[]
+  monthLabel: string
 }
 
 export function MiDiaClient({
@@ -32,19 +46,31 @@ export function MiDiaClient({
   reportsBySession: initialReportsBySession,
   entriesByChild,
   authorNames,
+  todayLabels,
+  upcomingByDay,
+  monthLabel,
 }: MiDiaClientProps) {
   const [openJournalForAppt, setOpenJournalForAppt] = useState<string | null>(null)
-  const [reports, setReports] = useState<Record<string, SessionReport>>(initialReportsBySession)
-  const [openReport, setOpenReport] = useState<{ sessionId: string; childName: string } | null>(null)
+  const [reports, setReports] = useState<Record<string, SessionReport>>(
+    initialReportsBySession,
+  )
+  const [openReport, setOpenReport] = useState<{
+    sessionId: string
+    childName: string
+  } | null>(null)
   const [isOpening, startOpenTransition] = useTransition()
 
-  const sessionByAppt = Object.fromEntries(
-    sessions.map((s) => [s.appointment_id, s]),
+  const sessionByAppt: Record<string, TherapySession | undefined> = Object.fromEntries(
+    sessions.map((s) => [s.appointment_id, s] as const),
   )
 
+  const handleNoteClick = (apptId: string) => {
+    setOpenJournalForAppt((prev) => (prev === apptId ? null : apptId))
+  }
+
   const handleReportClick = (sessionId: string, childName: string) => {
+    if (isOpening) return
     startOpenTransition(async () => {
-      // Si el reporte ya existe en state, abrir directo; si no, crearlo y cargar.
       if (!reports[sessionId]) {
         const res = await createOrGetSessionReport(sessionId)
         if (!res.ok) {
@@ -59,49 +85,30 @@ export function MiDiaClient({
 
   const activeReport = openReport ? reports[openReport.sessionId] : null
 
-  if (appointments.length === 0) {
-    return (
-      <div className="py-20 text-center text-sm text-fm-on-surface-variant">
-        No tienes citas programadas para hoy.
-      </div>
-    )
-  }
-
   return (
-    <div className="space-y-4">
-      {appointments.map((appt) => {
-        const session = sessionByAppt[appt.id] ?? null
-        const showJournal = openJournalForAppt === appt.id
-        const childEntries = appt.child_id ? (entriesByChild[appt.child_id] ?? []) : []
-        const childName = appt.child_preferred_name ?? appt.child_full_name ?? 'Paciente'
-        const report = session ? reports[session.id] ?? null : null
+    <div className="grid grid-cols-12 gap-8 lg:gap-12 items-start mt-2">
+      <DateAnchor
+        weekday={todayLabels.weekday}
+        day={todayLabels.day}
+        month={todayLabels.month}
+        initialTimeLabel={todayLabels.initialTime}
+        className="col-span-12 lg:col-span-4 lg:sticky lg:top-6"
+      />
 
-        return (
-          <div key={appt.id}>
-            <SessionCard
-              appointment={appt}
-              session={session}
-              report={report}
-              onNoteClick={(id) =>
-                setOpenJournalForAppt((prev) => (prev === id ? null : id))
-              }
-              onReportClick={() => session && !isOpening && handleReportClick(session.id, childName)}
-            />
-            {showJournal && appt.child_id && (
-              <div className="mt-2 ml-4 pl-4 border-l-2 border-fm-primary/20">
-                <ChildJournal
-                  entries={childEntries}
-                  childId={appt.child_id}
-                  isFamily={false}
-                  canWrite={true}
-                  linkedAppointmentId={appt.id}
-                  authorNames={authorNames}
-                />
-              </div>
-            )}
-          </div>
-        )
-      })}
+      <div className="col-span-12 lg:col-span-8 space-y-12">
+        <TodaySessionsSection
+          appointments={appointments}
+          sessionByAppt={sessionByAppt}
+          reports={reports}
+          entriesByChild={entriesByChild}
+          authorNames={authorNames}
+          openJournalForAppt={openJournalForAppt}
+          onNoteClick={handleNoteClick}
+          onReportClick={handleReportClick}
+        />
+
+        <UpcomingTimelineSection days={upcomingByDay} monthLabel={monthLabel} />
+      </div>
 
       {openReport && activeReport && (
         <SessionReportModal
