@@ -152,6 +152,8 @@ export async function createInvoice(
     unit_price: it.unit_price,
     line_total: it.line_total,
     sort_order: it.sort_order,
+    service_catalog_id: it.service_catalog_id ?? null,
+    service_code: it.service_code ?? null,
   }))
 
   const { error: itemsErr } = await admin.from('invoice_items').insert(itemsPayload)

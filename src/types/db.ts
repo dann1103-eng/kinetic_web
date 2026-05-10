@@ -1495,6 +1495,8 @@ export interface Database {
           unit_price: number
           line_total: number
           sort_order: number
+          service_catalog_id: string | null
+          service_code: string | null
         }
         Insert: {
           id?: string
@@ -1504,6 +1506,8 @@ export interface Database {
           unit_price: number
           line_total: number
           sort_order?: number
+          service_catalog_id?: string | null
+          service_code?: string | null
         }
         Update: {
           description?: string
@@ -1511,6 +1515,8 @@ export interface Database {
           unit_price?: number
           line_total?: number
           sort_order?: number
+          service_catalog_id?: string | null
+          service_code?: string | null
         }
         Relationships: []
       }
@@ -1593,6 +1599,8 @@ export interface Database {
           unit_price: number
           line_total: number
           sort_order: number
+          service_catalog_id: string | null
+          service_code: string | null
         }
         Insert: {
           id?: string
@@ -1602,6 +1610,8 @@ export interface Database {
           unit_price: number
           line_total: number
           sort_order?: number
+          service_catalog_id?: string | null
+          service_code?: string | null
         }
         Update: {
           description?: string
@@ -1609,6 +1619,8 @@ export interface Database {
           unit_price?: number
           line_total?: number
           sort_order?: number
+          service_catalog_id?: string | null
+          service_code?: string | null
         }
         Relationships: []
       }
@@ -3102,4 +3114,64 @@ export interface MonthlyCandidatesResult {
     primary_therapist_id: string | null
     monthly_total_usd: number | null
   }
+}
+
+// =============================================================================
+// Kinetic — Catálogo de servicios y tarifas (mig 0107)
+// =============================================================================
+
+export type ServiceCategory =
+  | 'matricula'
+  | 'mensualidad'
+  | 'material_didactico'
+  | 'uniforme'
+  | 'entrevista'
+  | 'asesoria'
+  | 'evaluacion'
+  | 'evaluacion_dx_tea'
+  | 'evaluacion_psicologica'
+
+export const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
+  matricula: 'Matrícula',
+  mensualidad: 'Mensualidad',
+  material_didactico: 'Material didáctico',
+  uniforme: 'Uniformes',
+  entrevista: 'Entrevistas',
+  asesoria: 'Asesoría',
+  evaluacion: 'Evaluaciones',
+  evaluacion_dx_tea: 'Evaluaciones DX TEA',
+  evaluacion_psicologica: 'Evaluaciones psicológicas',
+}
+
+/** Orden estable para mostrar las categorías en UI. */
+export const SERVICE_CATEGORY_ORDER: ServiceCategory[] = [
+  'matricula',
+  'mensualidad',
+  'material_didactico',
+  'uniforme',
+  'entrevista',
+  'asesoria',
+  'evaluacion',
+  'evaluacion_dx_tea',
+  'evaluacion_psicologica',
+]
+
+export interface ServiceCatalogItem {
+  id: string
+  code: string
+  category: ServiceCategory
+  name: string
+  description: string | null
+  unit_price_usd: number
+  duration_minutes: number | null
+  morning_program: MorningProgram | null
+  days_per_week: number | null
+  proration_group: string | null
+  applies_from_month: number | null
+  applies_to_month: number | null
+  active: boolean
+  sort_order: number
+  notes: string | null
+  created_at: string
+  updated_at: string
 }

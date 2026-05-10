@@ -15,7 +15,7 @@ import { EXTRA_CONTENT_PRICES, CONTENT_TYPE_LABELS, formatPlanDescription } from
 import { createInvoice, ensureScheduledCycle } from '@/app/actions/invoices'
 import { createQuote } from '@/app/actions/quotes'
 import { LineItemsEditor } from './LineItemsEditor'
-import type { Client, Plan, BillingCycle, CambiosPackage, ContentType, ExtraContentItem, InvoiceExtrasMetadata, Invoice, PaymentProvider, TermAndCondition } from '@/types/db'
+import type { Client, Plan, BillingCycle, CambiosPackage, ContentType, ExtraContentItem, InvoiceExtrasMetadata, Invoice, PaymentProvider, TermAndCondition, ServiceCatalogItem } from '@/types/db'
 
 interface CatalogItem {
   label: string
@@ -32,9 +32,15 @@ interface BillingFormProps {
   mode: Mode
   initialClientId?: string
   initialCycleId?: string
+  serviceCatalog?: ServiceCatalogItem[]
 }
 
-export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFormProps) {
+export function InvoiceForm({
+  mode,
+  initialClientId,
+  initialCycleId,
+  serviceCatalog = [],
+}: BillingFormProps) {
   const router = useRouter()
 
   const [clients, setClients] = useState<Client[]>([])
@@ -716,7 +722,12 @@ export function InvoiceForm({ mode, initialClientId, initialCycleId }: BillingFo
             </div>
           )}
 
-          <LineItemsEditor items={items} onChange={setItems} disabled={saving} />
+          <LineItemsEditor
+            items={items}
+            onChange={setItems}
+            disabled={saving}
+            catalog={serviceCatalog}
+          />
         </div>
 
         <div className="space-y-1.5">

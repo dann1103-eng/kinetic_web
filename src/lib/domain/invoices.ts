@@ -10,6 +10,10 @@ export interface LineItemInput {
   description: string
   quantity: number
   unit_price: number
+  /** FK opcional al item del catálogo de servicios. */
+  service_catalog_id?: string | null
+  /** Snapshot del code del catálogo (denormalizado para audit). */
+  service_code?: string | null
 }
 
 export interface LineItemComputed extends LineItemInput {

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { TopNav } from '@/components/layout/TopNav'
 import { InvoiceForm } from '@/components/billing/InvoiceForm'
+import { listServiceCatalog } from '@/app/actions/service-catalog'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,11 +19,19 @@ export default async function NewInvoicePage({
   const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
   if (appUser?.role !== 'admin') redirect('/billing')
 
+  const catalogResult = await listServiceCatalog()
+  const serviceCatalog = catalogResult.ok ? catalogResult.data : []
+
   return (
     <div className="flex flex-col min-h-full">
       <TopNav title="Nueva factura" />
       <div className="flex-1 p-6">
-        <InvoiceForm mode="invoice" initialClientId={params.client_id} initialCycleId={params.cycle_id} />
+        <InvoiceForm
+          mode="invoice"
+          initialClientId={params.client_id}
+          initialCycleId={params.cycle_id}
+          serviceCatalog={serviceCatalog}
+        />
       </div>
     </div>
   )
