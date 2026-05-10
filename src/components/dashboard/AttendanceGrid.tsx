@@ -35,21 +35,22 @@ const PRIORITY: AttendanceCellStatus[] = [
 ]
 
 /**
- * Surface por estado dominante de la celda. Usamos `ring-inset` (línea más
- * fina, no expande el box) en vez de `border`, y bg suaves para que las
- * pills coloreadas sean las que cargan la lectura.
+ * Surface por estado dominante de la celda. Usa tokens fm-* para mantenerse
+ * alineado con DESIGN.md (un solo color primario, tertiary=positivo, error=
+ * destructivo, secondary=warning sin emergencia). `ring-inset` reemplaza
+ * `border` para dejar respirar a las pills coloreadas de servicio.
  */
 const STATUS_SURFACE: Record<AttendanceCellStatus, string> = {
-  completed: 'bg-emerald-50/70 ring-emerald-200/80',
-  in_progress: 'bg-blue-100/80 ring-blue-300',
-  scheduled_future: 'bg-white ring-zinc-200',
-  scheduled_today: 'bg-blue-50 ring-blue-300',
-  replacement_future: 'bg-emerald-50/60 ring-emerald-200/70',
-  replacement_done: 'bg-emerald-100/70 ring-emerald-300',
-  no_show_pending: 'bg-rose-50 ring-rose-300',
-  no_show_waived: 'bg-amber-50 ring-amber-300',
-  late_cancel: 'bg-orange-50 ring-orange-300',
-  rescheduled: 'bg-zinc-50 ring-zinc-200 opacity-60',
+  completed: 'bg-fm-tertiary/10 ring-fm-tertiary/30',
+  in_progress: 'bg-fm-primary/15 ring-fm-primary/40',
+  scheduled_future: 'bg-fm-surface-container-lowest ring-fm-outline-variant/30',
+  scheduled_today: 'bg-fm-primary/10 ring-fm-primary/30',
+  replacement_future: 'bg-fm-tertiary/8 ring-fm-tertiary/25',
+  replacement_done: 'bg-fm-tertiary/15 ring-fm-tertiary/40',
+  no_show_pending: 'bg-fm-error/10 ring-fm-error/30',
+  no_show_waived: 'bg-fm-secondary/15 ring-fm-secondary/40',
+  late_cancel: 'bg-fm-secondary/20 ring-fm-secondary/50',
+  rescheduled: 'bg-fm-surface-container ring-fm-outline-variant/20 opacity-60',
   empty: '',
 }
 
@@ -203,11 +204,11 @@ export function AttendanceGrid({ periodMonth, cells, compact = false }: Props) {
 
 function Legend() {
   const items: { className: string; label: string }[] = [
-    { className: 'bg-emerald-50/70 ring-1 ring-inset ring-emerald-200/80', label: 'Asistida' },
-    { className: 'bg-rose-50 ring-1 ring-inset ring-rose-300', label: 'Falta reponer' },
-    { className: 'bg-amber-50 ring-1 ring-inset ring-amber-300', label: 'Sin reposición' },
-    { className: 'bg-emerald-100/70 ring-1 ring-inset ring-emerald-300', label: 'Reposición' },
-    { className: 'bg-white ring-1 ring-inset ring-zinc-200', label: 'Programada' },
+    { className: 'bg-fm-tertiary/10 ring-1 ring-inset ring-fm-tertiary/30', label: 'Asistida' },
+    { className: 'bg-fm-error/10 ring-1 ring-inset ring-fm-error/30', label: 'Falta reponer' },
+    { className: 'bg-fm-secondary/15 ring-1 ring-inset ring-fm-secondary/40', label: 'Sin reposición' },
+    { className: 'bg-fm-tertiary/15 ring-1 ring-inset ring-fm-tertiary/40', label: 'Reposición' },
+    { className: 'bg-fm-surface-container-lowest ring-1 ring-inset ring-fm-outline-variant/30', label: 'Programada' },
   ]
   return (
     <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap text-[10px] text-fm-on-surface-variant pt-1">
