@@ -4,10 +4,18 @@ import { useState, useTransition } from 'react'
 import {
   resolveAbsenceWithReplacement,
   waiveAbsence,
+  getReplacementSuggestions,
   type AbsenceRow,
+  type ReplacementSuggestion,
 } from '@/app/actions/absences'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type { ServiceType } from '@/types/db'
+import {
+  daysSinceReported,
+  isAbsenceExpired,
+  isAbsenceNearExpiry,
+  REPLACEMENT_WINDOW_DAYS,
+} from '@/lib/domain/absence'
 
 interface TherapistOption {
   id: string
@@ -37,8 +45,21 @@ function localInputToISO(local: string): string {
   return new Date(local).toISOString()
 }
 
+/** ISO UTC → 'YYYY-MM-DDTHH:MM' en TZ local del browser. */
+function isoToLocalInput(iso: string): string {
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
-  const [mode, setMode] = useState<'idle' | 'reschedule' | 'waive'>('idle')
+  const expired = isAbsenceExpired(row.absence.reported_at)
+  const nearExpiry = !expired && isAbsenceNearExpiry(row.absence.reported_at)
+  const daysOld = daysSinceReported(row.absence.reported_at)
+
+  const [mode, setMode] = useState<'idle' | 'reschedule' | 'waive'>(
+    expired ? 'waive' : 'idle',
+  )
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -51,6 +72,10 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
   )
   const [notes, setNotes] = useState('')
 
+  // Suggestions state
+  const [suggestions, setSuggestions] = useState<ReplacementSuggestion[] | null>(null)
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false)
+
   // Waive state
   const [waiveReason, setWaiveReason] = useState('')
 
@@ -60,6 +85,28 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
   const serviceLabel = serviceType
     ? SERVICE_TYPE_LABELS[serviceType as ServiceType] ?? serviceType
     : '—'
+
+  function handleLoadSuggestions() {
+    setError(null)
+    setLoadingSuggestions(true)
+    startTransition(async () => {
+      const res = await getReplacementSuggestions(row.absence.id)
+      setLoadingSuggestions(false)
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      setSuggestions(res.suggestions)
+      if (res.therapistId && !therapistId) {
+        setTherapistId(res.therapistId)
+      }
+    })
+  }
+
+  function applySuggestion(s: ReplacementSuggestion) {
+    setStartsLocal(isoToLocalInput(s.starts_at))
+    setDurationMin(s.durationMinutes)
+  }
 
   function handleConfirmReschedule() {
     setError(null)
@@ -129,10 +176,30 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
             </p>
           )}
         </div>
+        {expired && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-rose-200 px-2 py-0.5 text-[11px] font-semibold text-rose-900">
+            <span className="material-symbols-outlined text-sm">timer_off</span>
+            Vencida ({daysOld} días)
+          </span>
+        )}
+        {nearExpiry && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+            <span className="material-symbols-outlined text-sm">timer</span>
+            Vence pronto ({REPLACEMENT_WINDOW_DAYS - daysOld}d)
+          </span>
+        )}
       </div>
 
+      {/* Aviso de vencida */}
+      {expired && mode === 'waive' && (
+        <p className="text-xs text-rose-900 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+          La ventana de {REPLACEMENT_WINDOW_DAYS} días para reponer ya venció.
+          Solo podés cerrar esta solicitud como &ldquo;no reponer&rdquo;.
+        </p>
+      )}
+
       {/* Actions */}
-      {mode === 'idle' && (
+      {mode === 'idle' && !expired && (
         <div className="flex items-center gap-2 pt-1">
           <button
             type="button"
@@ -153,6 +220,49 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
 
       {mode === 'reschedule' && (
         <div className="space-y-3 pt-2 border-t border-amber-200">
+          {/* Sugerencias */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
+                Sugerencias del terapista (próximos 14 días)
+              </span>
+              <button
+                type="button"
+                onClick={handleLoadSuggestions}
+                disabled={loadingSuggestions || isPending}
+                className="text-xs font-medium text-fm-primary hover:underline disabled:opacity-60"
+              >
+                {loadingSuggestions ? 'Buscando…' : suggestions ? 'Refrescar' : 'Sugerir horarios'}
+              </button>
+            </div>
+            {suggestions && suggestions.length === 0 && (
+              <p className="text-xs text-amber-900 bg-amber-100/60 rounded-md px-2 py-1.5">
+                No se encontraron slots libres en los próximos 14 días.
+              </p>
+            )}
+            {suggestions && suggestions.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {suggestions.map((s) => {
+                  const selected = startsLocal === isoToLocalInput(s.starts_at)
+                  return (
+                    <button
+                      key={s.starts_at}
+                      type="button"
+                      onClick={() => applySuggestion(s)}
+                      className={`rounded-md border px-2 py-1 text-xs transition ${
+                        selected
+                          ? 'border-fm-primary bg-fm-primary text-white'
+                          : 'border-fm-outline-variant/40 bg-white hover:bg-fm-primary/10'
+                      }`}
+                    >
+                      {formatDateTime(s.starts_at)}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Field label="Nueva fecha y hora">
               <input
@@ -237,14 +347,16 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
           />
           {error && <p className="text-xs text-red-700">{error}</p>}
           <div className="flex justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setMode('idle')}
-              disabled={isPending}
-              className="px-3 py-1.5 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
-            >
-              Cancelar
-            </button>
+            {!expired && (
+              <button
+                type="button"
+                onClick={() => setMode('idle')}
+                disabled={isPending}
+                className="px-3 py-1.5 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
+              >
+                Cancelar
+              </button>
+            )}
             <button
               type="button"
               onClick={handleConfirmWaive}
