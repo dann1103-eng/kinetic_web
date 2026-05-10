@@ -168,28 +168,50 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
         )}
 
         {tab === 'resumen' && (
-          <div className="space-y-10">
-            {/* Bloque clínico: información de emergencia, hero del resumen */}
-            <Section title="Datos clínicos" icon="emergency" tone="urgent">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                <Field label="Tipo de sangre" value={c.blood_type} />
-                <Field label="Hospital preferido" value={c.preferred_hospital} />
-                <FieldLong
-                  label="Alergias / reacciones a medicamentos"
-                  value={c.allergies_text}
-                  highlight
-                />
-                <FieldLong label="Medicamentos actuales" value={c.medications_text} />
-              </div>
-            </Section>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-8 gap-y-8">
+            {/* LEFT RAIL — info de referencia que el usuario quiere ver siempre */}
+            <aside className="lg:col-span-4 lg:sticky lg:top-6 lg:self-start space-y-6 min-w-0">
+              {/* Datos clínicos: la única card con chrome en el rail (urgent tone) */}
+              <Section title="Datos clínicos" icon="emergency" tone="urgent" compact>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+                    <Field label="Sangre" value={c.blood_type} />
+                    <Field label="Hospital" value={c.preferred_hospital} />
+                  </div>
+                  <div className="pt-3 border-t border-fm-outline-variant/15 space-y-3">
+                    <FieldLong
+                      label="Alergias / reacciones"
+                      value={c.allergies_text}
+                      highlight
+                    />
+                    <FieldLong label="Medicamentos" value={c.medications_text} />
+                  </div>
+                </div>
+              </Section>
 
-            {/* Bloque contextual: 3 secciones de menor peso, en columna */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* Escolaridad y Origen agrupados en un mismo bloque minimal */}
               <Section title="Escolaridad" minimal>
                 <Field label="Colegio actual" value={c.school_name} />
                 <Field label="Grado que cursa" value={c.school_grade} />
               </Section>
 
+              <Section title="Origen del paciente" minimal>
+                <Field label="Tipo" value={c.referral_source_type} />
+                <FieldLong label="Notas" value={c.referral_notes} />
+              </Section>
+
+              {c.notes && (
+                <Section title="Notas internas" minimal>
+                  <p className="text-sm text-fm-on-surface whitespace-pre-wrap">
+                    {c.notes}
+                  </p>
+                </Section>
+              )}
+            </aside>
+
+            {/* MAIN — área de trabajo */}
+            <main className="lg:col-span-8 space-y-8 min-w-0">
+              {/* Strip de diagnósticos: badges ICD-10 al inicio del área de trabajo */}
               <Section title="Diagnósticos" minimal>
                 {c.diagnoses_json && c.diagnoses_json.length > 0 ? (
                   <div className="flex flex-wrap gap-1.5">
@@ -209,14 +231,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 )}
               </Section>
 
-              <Section title="Origen del paciente" minimal>
-                <Field label="Tipo" value={c.referral_source_type} />
-                <FieldLong label="Notas" value={c.referral_notes} />
-              </Section>
-            </div>
-
-            {/* Bloque estructural: plan + ciclos */}
-            <div className="space-y-6">
+              {/* Bloque estructural: plan + ciclos */}
               <TreatmentPlanSection
                 childId={childId}
                 plan={plan}
@@ -229,40 +244,31 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 cycles={cycles}
                 canManage={canManageCycles}
               />
-            </div>
 
-            {/* Notas internas — cuando existen, espaciadas como pieza propia */}
-            {c.notes && (
-              <Section title="Notas internas" minimal>
-                <p className="text-sm text-fm-on-surface whitespace-pre-wrap max-w-prose">
-                  {c.notes}
-                </p>
-              </Section>
-            )}
-
-            {/* Histórico de actividad — agrupa los dos history widgets bajo un kicker */}
-            <div className="space-y-6">
-              <header>
-                <p className="text-[10px] font-medium tracking-[0.18em] uppercase text-fm-on-surface-variant/70">
-                  Histórico de actividad
-                </p>
-              </header>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-base font-medium tracking-tight text-fm-on-surface">
-                    Informes de avances
-                  </h2>
-                  <NewProgressReportButton familyId={familyId} childId={childId} />
+              {/* Histórico de actividad */}
+              <div className="space-y-6 pt-2">
+                <header>
+                  <p className="text-[10px] font-medium tracking-[0.18em] uppercase text-fm-on-surface-variant/70">
+                    Histórico de actividad
+                  </p>
+                </header>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-base font-medium tracking-tight text-fm-on-surface">
+                      Informes de avances
+                    </h2>
+                    <NewProgressReportButton familyId={familyId} childId={childId} />
+                  </div>
+                  <ChildProgressReportsHistory familyId={familyId} childId={childId} />
                 </div>
-                <ChildProgressReportsHistory familyId={familyId} childId={childId} />
+                <div className="space-y-3 pt-2">
+                  <h2 className="text-base font-medium tracking-tight text-fm-on-surface">
+                    Reportes de sesión
+                  </h2>
+                  <ChildSessionReportsHistory childId={childId} />
+                </div>
               </div>
-              <div className="space-y-3 pt-2">
-                <h2 className="text-base font-medium tracking-tight text-fm-on-surface">
-                  Reportes de sesión
-                </h2>
-                <ChildSessionReportsHistory childId={childId} />
-              </div>
-            </div>
+            </main>
           </div>
         )}
       </div>
@@ -301,6 +307,7 @@ function Section({
   icon,
   tone,
   minimal,
+  compact,
   children,
 }: {
   title: string
@@ -308,6 +315,8 @@ function Section({
   tone?: 'urgent' | 'default'
   /** Variante sin chrome (sin border, sin bg) — para secciones secundarias. */
   minimal?: boolean
+  /** Variante con chrome pero padding reducido — pensada para sidebars/rails. */
+  compact?: boolean
   children: React.ReactNode
 }) {
   if (minimal) {
@@ -321,8 +330,12 @@ function Section({
     )
   }
   return (
-    <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5 md:p-6">
-      <div className="flex items-center gap-2 mb-4">
+    <section
+      className={`bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 ${
+        compact ? 'p-4' : 'p-5 md:p-6'
+      }`}
+    >
+      <div className={`flex items-center gap-2 ${compact ? 'mb-3' : 'mb-4'}`}>
         {icon && (
           <span
             className={`material-symbols-outlined text-lg ${
