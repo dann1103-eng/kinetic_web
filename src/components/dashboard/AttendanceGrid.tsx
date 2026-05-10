@@ -1,6 +1,10 @@
 'use client'
 
-import { SERVICE_TYPE_LABELS } from '@/types/db'
+import {
+  SERVICE_TYPE_LABELS,
+  SERVICE_TYPE_SHORT_LABELS,
+  SERVICE_TYPE_CHIP_CLASSES,
+} from '@/types/db'
 import type { ServiceType } from '@/types/db'
 import type {
   AttendanceCell,
@@ -131,21 +135,28 @@ export function AttendanceGrid({ periodMonth, cells, compact = false }: Props) {
             >
               <span className="text-[10px] font-semibold opacity-70">{dayNum}</span>
               {!compact && cellHasContent && (
-                <div className="flex-1 flex flex-col gap-0.5 mt-0.5 overflow-hidden">
-                  {cell.appointments.slice(0, 2).map((a) => (
-                    <div
-                      key={a.id}
-                      className="text-[9px] leading-tight truncate font-medium"
-                    >
-                      {a.service_type
-                        ? (SERVICE_TYPE_LABELS[a.service_type as ServiceType] ?? a.service_type).slice(0, 8)
-                        : '—'}
-                    </div>
-                  ))}
-                  {cell.appointments.length > 2 && (
-                    <div className="text-[9px] opacity-70">
-                      +{cell.appointments.length - 2}
-                    </div>
+                <div className="flex-1 flex flex-wrap gap-0.5 mt-1 content-start overflow-hidden">
+                  {cell.appointments.slice(0, 3).map((a) => {
+                    const svc = a.service_type as ServiceType | null
+                    const shortLabel = svc
+                      ? SERVICE_TYPE_SHORT_LABELS[svc] ?? svc.slice(0, 4)
+                      : '—'
+                    const chipClass = svc
+                      ? SERVICE_TYPE_CHIP_CLASSES[svc]
+                      : 'bg-zinc-100 text-zinc-700 border-zinc-200'
+                    return (
+                      <span
+                        key={a.id}
+                        className={`inline-flex items-center px-1 py-px text-[9px] font-semibold leading-none rounded border ${chipClass}`}
+                      >
+                        {shortLabel}
+                      </span>
+                    )
+                  })}
+                  {cell.appointments.length > 3 && (
+                    <span className="inline-flex items-center px-1 py-px text-[9px] font-medium leading-none rounded border bg-white/60 text-fm-on-surface-variant border-fm-outline-variant/30">
+                      +{cell.appointments.length - 3}
+                    </span>
                   )}
                 </div>
               )}
