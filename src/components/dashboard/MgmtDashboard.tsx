@@ -1,11 +1,20 @@
 import Link from 'next/link'
 import type { MgmtDashboardData } from '@/lib/domain/global-dashboard'
+import type { MgmtWidgetsData } from '@/lib/domain/dashboard-widgets'
 import { INTAKE_PHASE_LABELS } from '@/types/db'
 import type { IntakePhase } from '@/types/db'
+import { RevenueTrendSparkline } from './widgets/RevenueTrendSparkline'
+import { CalendarHeatmap } from './widgets/CalendarHeatmap'
+import { TopTherapists } from './widgets/TopTherapists'
+import { AtRiskChildren } from './widgets/AtRiskChildren'
+import { ChildReportsOverview } from './widgets/ChildReportsOverview'
 
 interface Props {
   data: MgmtDashboardData
+  widgets: MgmtWidgetsData
   greeting: string
+  /** 0=domingo … 6=sábado, día 1 del mes actual */
+  firstWeekdayOfMonth: number
 }
 
 function fmtMoney(n: number): string {
@@ -16,159 +25,171 @@ function intakeLabel(p: string): string {
   return INTAKE_PHASE_LABELS[p as IntakePhase] ?? p
 }
 
-export function MgmtDashboard({ data, greeting }: Props) {
+export function MgmtDashboard({
+  data,
+  widgets,
+  greeting,
+  firstWeekdayOfMonth,
+}: Props) {
   const totalPending =
     data.pendingCounts.progressReports +
     data.pendingCounts.sessionReports +
     data.pendingCounts.absences
 
   return (
-    <div className="p-6 max-w-6xl mx-auto w-full space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-fm-on-surface">{greeting}</h1>
-        <p className="text-sm text-fm-on-surface-variant capitalize">
-          Resumen de {data.periodLabel}
+    <div className="px-4 py-8 md:px-10 md:py-12 max-w-[1320px] mx-auto w-full">
+      {/* Header editorial */}
+      <header className="mb-12 md:mb-16">
+        <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-fm-on-surface-variant mb-3">
+          Dashboard · {data.periodLabel}
         </p>
+        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold tracking-tight text-fm-on-surface leading-none">
+          {greeting}
+        </h1>
+        <p className="text-base text-fm-on-surface-variant mt-4 max-w-prose">
+          Vista panorámica del centro este mes: actividad clínica, ingresos,
+          alertas y estado de los expedientes activos.
+        </p>
+      </header>
+
+      <div className="grid grid-cols-12 gap-8 lg:gap-12 items-start">
+        {/* ─── Rail izquierdo: KPIs + Alertas ───────────────────────────── */}
+        <aside className="col-span-12 lg:col-span-4 lg:sticky lg:top-6 space-y-6">
+          <div className="space-y-3">
+            <KpiBlock
+              label="Sesiones del mes"
+              value={data.monthlyAppointments.total}
+              subtitle={`${data.monthlyAppointments.completed} asistidas · ${data.monthlyAppointments.no_show} no-show`}
+            />
+            <KpiBlock
+              label="Niños activos"
+              value={data.activeChildren}
+            />
+            <KpiBlock
+              label="Pendientes de aprobación"
+              value={totalPending}
+              tone={totalPending > 0 ? 'warn' : 'neutral'}
+              href={totalPending > 0 ? '/aprobaciones' : undefined}
+              subtitle={
+                totalPending > 0
+                  ? `${data.pendingCounts.progressReports} informes · ${data.pendingCounts.sessionReports} reportes · ${data.pendingCounts.absences} inasistencias`
+                  : 'Todo al día'
+              }
+            />
+          </div>
+
+          <AtRiskChildren rows={widgets.childrenAtRisk} />
+        </aside>
+
+        {/* ─── Main: widgets variados ───────────────────────────────────── */}
+        <main className="col-span-12 lg:col-span-8 space-y-12">
+          <RevenueTrendSparkline
+            series={widgets.revenueByDay}
+            totalUsd={data.monthlyRevenueUsd}
+            periodLabel={data.periodLabel}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <CalendarHeatmap
+              series={widgets.appointmentsHeatmap}
+              periodLabel={data.periodLabel}
+              firstWeekday={firstWeekdayOfMonth}
+            />
+            <TopTherapists rows={widgets.topTherapists} />
+          </div>
+
+          <ChildReportsOverview rows={widgets.childrenReports} />
+
+          {data.childrenByIntakePhase.length > 0 && (
+            <section className="space-y-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-fm-on-surface-variant">
+                  Embudo
+                </p>
+                <h2 className="text-2xl font-semibold text-fm-on-surface mt-1">
+                  Niños activos por fase de intake
+                </h2>
+              </div>
+              <ul className="space-y-1.5 px-1">
+                {data.childrenByIntakePhase.map((p) => {
+                  const max =
+                    data.childrenByIntakePhase[0]?.count ?? 1
+                  const ratio = p.count / Math.max(1, max)
+                  return (
+                    <li key={p.phase} className="space-y-1">
+                      <div className="flex items-center justify-between gap-3 text-sm">
+                        <span className="text-fm-on-surface">
+                          {intakeLabel(p.phase)}
+                        </span>
+                        <span className="font-mono tabular-nums text-fm-on-surface-variant">
+                          {p.count}
+                        </span>
+                      </div>
+                      <div className="h-1 rounded-full bg-fm-surface-container-high overflow-hidden">
+                        <div
+                          className="h-full bg-fm-primary/60 rounded-full"
+                          style={{ width: `${ratio * 100}%` }}
+                        />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            </section>
+          )}
+
+          <QuickLinks
+            items={[
+              { href: '/familias', label: 'Familias y niños', icon: 'groups' },
+              { href: '/agenda', label: 'Agenda', icon: 'calendar_today' },
+              { href: '/aprobaciones', label: 'Aprobaciones', icon: 'check_circle' },
+              { href: '/admin/plantillas', label: 'Plantillas', icon: 'description' },
+              { href: '/admin/tarifas', label: 'Tarifas', icon: 'sell' },
+              { href: '/users', label: 'Staff', icon: 'badge' },
+              { href: '/usuarios-portal', label: 'Portal familias', icon: 'family_restroom' },
+            ]}
+          />
+        </main>
       </div>
-
-      {/* KPIs principales */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Kpi
-          label="Sesiones del mes"
-          value={data.monthlyAppointments.total}
-          subtitle={`${data.monthlyAppointments.completed} asistidas · ${data.monthlyAppointments.no_show} no-show`}
-          tone="info"
-        />
-        <Kpi
-          label="Niños activos"
-          value={data.activeChildren}
-          tone="ok"
-        />
-        <Kpi
-          label="Ingresos del mes"
-          value={fmtMoney(data.monthlyRevenueUsd)}
-          tone="ok"
-        />
-        <Kpi
-          label="Pendientes de aprobación"
-          value={totalPending}
-          tone={totalPending > 0 ? 'warn' : 'neutral'}
-          href={totalPending > 0 ? '/aprobaciones' : undefined}
-        />
-      </div>
-
-      {/* Pendings detalle */}
-      {totalPending > 0 && (
-        <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-fm-on-surface">Bandeja de aprobación</h2>
-            <Link
-              href="/aprobaciones"
-              className="text-xs text-fm-primary hover:underline"
-            >
-              Ir a /aprobaciones →
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <PendingMini
-              label="Informes de avances"
-              count={data.pendingCounts.progressReports}
-            />
-            <PendingMini
-              label="Reportes de sesión"
-              count={data.pendingCounts.sessionReports}
-            />
-            <PendingMini
-              label="Inasistencias por reagendar"
-              count={data.pendingCounts.absences}
-            />
-          </div>
-        </section>
-      )}
-
-      {/* Funnel de intake */}
-      {data.childrenByIntakePhase.length > 0 && (
-        <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-fm-on-surface">
-              Niños activos por fase de intake
-            </h2>
-            <Link href="/familias" className="text-xs text-fm-primary hover:underline">
-              Ver familias →
-            </Link>
-          </div>
-          <ul className="space-y-1.5">
-            {data.childrenByIntakePhase.map((p) => (
-              <li
-                key={p.phase}
-                className="flex items-center justify-between gap-3 text-sm"
-              >
-                <span className="text-fm-on-surface">{intakeLabel(p.phase)}</span>
-                <span className="font-mono tabular-nums text-fm-on-surface-variant">
-                  {p.count}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      <QuickLinks
-        items={[
-          { href: '/familias', label: 'Familias y niños', icon: 'groups' },
-          { href: '/agenda', label: 'Agenda', icon: 'calendar_today' },
-          { href: '/aprobaciones', label: 'Aprobaciones', icon: 'check_circle' },
-          { href: '/admin/plantillas', label: 'Plantillas de informes', icon: 'description' },
-          { href: '/users', label: 'Usuarios staff', icon: 'badge' },
-          { href: '/usuarios-portal', label: 'Usuarios portal', icon: 'family_restroom' },
-        ]}
-      />
     </div>
   )
 }
 
-function Kpi({
+function KpiBlock({
   label,
   value,
   subtitle,
-  tone,
+  tone = 'neutral',
   href,
 }: {
   label: string
   value: number | string
   subtitle?: string
-  tone: 'ok' | 'info' | 'warn' | 'neutral'
+  tone?: 'warn' | 'neutral'
   href?: string
 }) {
-  const colors = {
-    ok: 'bg-emerald-50 border-emerald-200 text-emerald-900',
-    info: 'bg-blue-50 border-blue-200 text-blue-900',
-    warn: 'bg-amber-50 border-amber-200 text-amber-900',
-    neutral: 'bg-fm-surface-container-low border-fm-outline-variant/20 text-fm-on-surface',
-  }[tone]
+  const toneClass =
+    tone === 'warn'
+      ? 'border-amber-200 bg-amber-50/50'
+      : 'border-fm-outline-variant/20 bg-fm-surface-container-lowest'
   const inner = (
-    <div className={`rounded-xl border p-4 transition-all ${colors} ${href ? 'hover:shadow-md cursor-pointer' : ''}`}>
-      <div className="text-2xl font-bold tabular-nums">{value}</div>
-      <div className="text-[11px] uppercase tracking-wider mt-0.5">{label}</div>
-      {subtitle && <div className="text-[11px] mt-1 opacity-75">{subtitle}</div>}
+    <div
+      className={`rounded-3xl border p-5 transition-all ${toneClass} ${
+        href ? 'hover:shadow-md cursor-pointer' : ''
+      }`}
+    >
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-fm-on-surface-variant">
+        {label}
+      </p>
+      <p className="text-3xl font-bold tabular-nums text-fm-on-surface mt-2 leading-none">
+        {value}
+      </p>
+      {subtitle && (
+        <p className="text-xs text-fm-on-surface-variant mt-2">{subtitle}</p>
+      )}
     </div>
   )
   return href ? <Link href={href}>{inner}</Link> : inner
-}
-
-function PendingMini({ label, count }: { label: string; count: number }) {
-  return (
-    <div
-      className={`rounded-lg p-3 border ${
-        count > 0
-          ? 'bg-amber-50 border-amber-200 text-amber-900'
-          : 'bg-fm-surface-container-low border-fm-outline-variant/20 text-fm-on-surface-variant'
-      }`}
-    >
-      <div className="text-xl font-bold tabular-nums">{count}</div>
-      <div className="text-[11px]">{label}</div>
-    </div>
-  )
 }
 
 export function QuickLinks({
@@ -177,19 +198,23 @@ export function QuickLinks({
   items: { href: string; label: string; icon: string }[]
 }) {
   return (
-    <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
-      <h2 className="text-sm font-semibold text-fm-on-surface mb-3">Atajos</h2>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+    <section className="space-y-4">
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-fm-on-surface-variant">
+        Atajos
+      </p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
         {items.map((it) => (
           <Link
             key={it.href}
             href={it.href}
-            className="flex flex-col items-center gap-1 p-3 rounded-lg border border-fm-outline-variant/20 hover:border-fm-primary/40 hover:bg-fm-primary/5 transition-colors"
+            className="flex items-center gap-3 p-3 rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest hover:border-fm-primary/40 hover:bg-fm-primary/5 transition-colors"
           >
-            <span className="material-symbols-outlined text-fm-primary text-2xl">
+            <span className="material-symbols-outlined text-fm-primary text-xl shrink-0">
               {it.icon}
             </span>
-            <span className="text-[11px] text-center text-fm-on-surface">{it.label}</span>
+            <span className="text-sm font-medium text-fm-on-surface truncate">
+              {it.label}
+            </span>
           </Link>
         ))}
       </div>
