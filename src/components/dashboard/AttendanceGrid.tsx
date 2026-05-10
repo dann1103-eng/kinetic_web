@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import {
   SERVICE_TYPE_LABELS,
   SERVICE_TYPE_SHORT_LABELS,
@@ -15,16 +16,10 @@ interface Props {
   /** 'YYYY-MM-01' del mes que se está mostrando. */
   periodMonth: string
   cells: AttendanceCell[]
-  /** Si true, muestra el detalle de las sesiones bajo cada celda. */
+  /** Si true, oculta el detalle de las sesiones bajo cada celda. */
   compact?: boolean
 }
 
-/**
- * Mapeo del status de cada appointment del día al chip color.
- * Si una celda tiene varios appointments, se prioriza el peor estado
- * (no_show_pending > late_cancel > no_show_waived > scheduled_today >
- * in_progress > scheduled_future > replacement_done > completed > rescheduled).
- */
 const PRIORITY: AttendanceCellStatus[] = [
   'no_show_pending',
   'late_cancel',
@@ -39,18 +34,23 @@ const PRIORITY: AttendanceCellStatus[] = [
   'empty',
 ]
 
-const STATUS_COLOR: Record<AttendanceCellStatus, string> = {
-  completed: 'bg-emerald-200 text-emerald-900 border-emerald-300',
-  in_progress: 'bg-blue-300 text-blue-900 border-blue-400',
-  scheduled_future: 'bg-zinc-100 text-zinc-700 border-zinc-200',
-  scheduled_today: 'bg-blue-100 text-blue-800 border-blue-300',
-  replacement_future: 'bg-emerald-100 text-emerald-700 border-emerald-300',
-  replacement_done: 'bg-emerald-200 text-emerald-900 border-emerald-400 ring-1 ring-emerald-500',
-  no_show_pending: 'bg-red-200 text-red-900 border-red-300',
-  no_show_waived: 'bg-amber-200 text-amber-900 border-amber-300',
-  late_cancel: 'bg-orange-200 text-orange-900 border-orange-300',
-  rescheduled: 'bg-zinc-200 text-zinc-500 border-zinc-300 line-through',
-  empty: 'bg-transparent text-fm-on-surface-variant border-fm-outline-variant/15',
+/**
+ * Surface por estado dominante de la celda. Usamos `ring-inset` (línea más
+ * fina, no expande el box) en vez de `border`, y bg suaves para que las
+ * pills coloreadas sean las que cargan la lectura.
+ */
+const STATUS_SURFACE: Record<AttendanceCellStatus, string> = {
+  completed: 'bg-emerald-50/70 ring-emerald-200/80',
+  in_progress: 'bg-blue-100/80 ring-blue-300',
+  scheduled_future: 'bg-white ring-zinc-200',
+  scheduled_today: 'bg-blue-50 ring-blue-300',
+  replacement_future: 'bg-emerald-50/60 ring-emerald-200/70',
+  replacement_done: 'bg-emerald-100/70 ring-emerald-300',
+  no_show_pending: 'bg-rose-50 ring-rose-300',
+  no_show_waived: 'bg-amber-50 ring-amber-300',
+  late_cancel: 'bg-orange-50 ring-orange-300',
+  rescheduled: 'bg-zinc-50 ring-zinc-200 opacity-60',
+  empty: '',
 }
 
 const STATUS_LABEL: Record<AttendanceCellStatus, string> = {
@@ -67,7 +67,7 @@ const STATUS_LABEL: Record<AttendanceCellStatus, string> = {
   empty: 'Sin sesión',
 }
 
-const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
+const DAY_LABELS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
 
 function dominantStatus(appointments: AttendanceCell['appointments']): AttendanceCellStatus {
   if (appointments.length === 0) return 'empty'
@@ -78,6 +78,14 @@ function dominantStatus(appointments: AttendanceCell['appointments']): Attendanc
 }
 
 export function AttendanceGrid({ periodMonth, cells, compact = false }: Props) {
+  // Today en TZ local del browser. useMemo evita violar react-hooks/purity.
+  const todayIso = useMemo(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate(),
+    ).padStart(2, '0')}`
+  }, [])
+
   // Para alinear con la grilla 7-col necesito saber qué día de la semana cae el 1ro.
   const firstOfMonth = new Date(`${periodMonth}T12:00:00`) // mediodía evita off-by-one TZ
   const offset = firstOfMonth.getDay() // 0=Dom..6=Sáb
@@ -86,27 +94,31 @@ export function AttendanceGrid({ periodMonth, cells, compact = false }: Props) {
     year: 'numeric',
   })
 
-  // Padding antes del día 1 + cells reales
   const padding = Array.from({ length: offset }, (_, i) => ({ key: `pad-${i}` }))
 
   return (
-    <div>
-      <div className="flex items-baseline justify-between mb-2">
-        <h3 className="text-sm font-semibold text-fm-on-surface capitalize">
+    <section aria-label={`Calendario de ${monthLabel}`} className="space-y-3">
+      <header>
+        <p className="text-[10px] font-medium tracking-[0.18em] uppercase text-fm-on-surface-variant/70">
+          Asistencia mensual
+        </p>
+        <h3 className="text-lg font-medium tracking-tight text-fm-on-surface mt-0.5 capitalize">
           {monthLabel}
         </h3>
-        <Legend />
-      </div>
+      </header>
 
-      <div className="grid grid-cols-7 gap-1 text-[10px] uppercase tracking-wider text-fm-on-surface-variant mb-1">
+      <div
+        className="grid grid-cols-7 gap-1.5 text-[11px] font-medium text-fm-on-surface-variant/70"
+        aria-hidden="true"
+      >
         {DAY_LABELS.map((d) => (
-          <div key={d} className="text-center font-medium">
+          <div key={d} className="text-center pb-1">
             {d}
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1.5">
         {padding.map((p) => (
           <div key={p.key} className="aspect-square" />
         ))}
@@ -114,26 +126,45 @@ export function AttendanceGrid({ periodMonth, cells, compact = false }: Props) {
           const dom = dominantStatus(cell.appointments)
           const dayNum = parseInt(cell.date.slice(8, 10), 10)
           const cellHasContent = cell.appointments.length > 0
+          const isToday = cell.date === todayIso
+          const isPast = cell.date < todayIso
+
+          const surface = cellHasContent
+            ? `ring-1 ring-inset hover:ring-2 hover:-translate-y-[1px] hover:shadow-sm cursor-help transition-all duration-150 ${STATUS_SURFACE[dom]}`
+            : isPast
+              ? '' // pasados sin sesión: sin chrome
+              : 'ring-1 ring-inset ring-fm-outline-variant/20'
+
+          const todayRing = isToday ? 'ring-2 ring-fm-primary/70' : ''
+
+          const dayNumClass = isToday
+            ? 'text-[11px] font-semibold tabular-nums text-fm-primary'
+            : cellHasContent
+              ? 'text-[11px] font-medium tabular-nums text-fm-on-surface/80'
+              : isPast
+                ? 'text-[11px] font-normal tabular-nums text-fm-on-surface-variant/35'
+                : 'text-[11px] font-normal tabular-nums text-fm-on-surface-variant/55'
+
           return (
             <div
               key={cell.date}
-              className={`aspect-square rounded-md border p-1 flex flex-col text-xs relative group ${
-                STATUS_COLOR[dom]
-              } ${cellHasContent ? 'cursor-help' : ''}`}
+              className={`aspect-square rounded-lg p-1.5 flex flex-col relative ${surface} ${todayRing}`}
               title={
                 cellHasContent
                   ? cell.appointments
                       .map(
                         (a) =>
-                          `${(a.service_type
-                            ? SERVICE_TYPE_LABELS[a.service_type as ServiceType] ?? a.service_type
-                            : 'sesión')} — ${STATUS_LABEL[a.cellStatus]}`,
+                          `${
+                            a.service_type
+                              ? SERVICE_TYPE_LABELS[a.service_type as ServiceType] ?? a.service_type
+                              : 'sesión'
+                          } — ${STATUS_LABEL[a.cellStatus]}`,
                       )
                       .join('\n')
                   : `Día ${dayNum}: sin sesión`
               }
             >
-              <span className="text-[10px] font-semibold opacity-70">{dayNum}</span>
+              <span className={dayNumClass}>{dayNum}</span>
               {!compact && cellHasContent && (
                 <div className="flex-1 flex flex-wrap gap-0.5 mt-1 content-start overflow-hidden">
                   {cell.appointments.slice(0, 3).map((a) => {
@@ -164,24 +195,26 @@ export function AttendanceGrid({ periodMonth, cells, compact = false }: Props) {
           )
         })}
       </div>
-    </div>
+
+      <Legend />
+    </section>
   )
 }
 
 function Legend() {
-  const items: { status: AttendanceCellStatus; label: string }[] = [
-    { status: 'completed', label: 'Asistida' },
-    { status: 'no_show_pending', label: 'Falta reponer' },
-    { status: 'no_show_waived', label: 'Sin reposición' },
-    { status: 'replacement_done', label: 'Reposición' },
-    { status: 'scheduled_future', label: 'Programada' },
+  const items: { className: string; label: string }[] = [
+    { className: 'bg-emerald-50/70 ring-1 ring-inset ring-emerald-200/80', label: 'Asistida' },
+    { className: 'bg-rose-50 ring-1 ring-inset ring-rose-300', label: 'Falta reponer' },
+    { className: 'bg-amber-50 ring-1 ring-inset ring-amber-300', label: 'Sin reposición' },
+    { className: 'bg-emerald-100/70 ring-1 ring-inset ring-emerald-300', label: 'Reposición' },
+    { className: 'bg-white ring-1 ring-inset ring-zinc-200', label: 'Programada' },
   ]
   return (
-    <div className="hidden md:flex items-center gap-2 text-[10px]">
+    <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap text-[10px] text-fm-on-surface-variant pt-1">
       {items.map((it) => (
-        <div key={it.status} className="flex items-center gap-1">
-          <span className={`w-3 h-3 rounded border ${STATUS_COLOR[it.status]}`} />
-          <span className="text-fm-on-surface-variant">{it.label}</span>
+        <div key={it.label} className="flex items-center gap-1.5">
+          <span className={`w-2.5 h-2.5 rounded ${it.className}`} aria-hidden="true" />
+          <span>{it.label}</span>
         </div>
       ))}
     </div>
