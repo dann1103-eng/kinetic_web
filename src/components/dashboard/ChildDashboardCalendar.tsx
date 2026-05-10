@@ -1,24 +1,36 @@
 'use client'
 
 /**
- * Calendario del child dashboard. Reemplaza al AttendanceGrid mensual con
- * KineticCalendar (estilo calendar.me) y permite alternar entre vista
- * mensual y semanal desde el toolbar interno.
+ * Calendario del child dashboard.
+ *
+ *  - VISTA MENSUAL → KineticMonthGrid (custom): muestra TODO el mes con
+ *    pills coloreadas por servicio en cada día. No usa RBC porque queremos
+ *    el desglose completo (no la lista colapsada con +N more).
+ *  - VISTA SEMANAL/DIARIA → KineticCalendar (RBC con skin calendar.me).
+ *
+ * State lifted aquí: vista + fecha visible. La toolbar es compartida
+ * (KineticToolbar) para que cambiar de vista preserve la fecha.
  *
  * Datos: combina `attendance` (mes en curso) + `upcoming` (próximos 14
- * días) en un único array de eventos. Las celdas pasadas mantienen su
- * color por estado (no_show_pending → rojo, etc.); el resto colorea por
- * tipo de servicio.
+ * días) en un único array de eventos.
  */
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { SERVICE_TYPE_LABELS, type ServiceType } from '@/types/db'
 import type {
   AttendanceCell,
   AttendanceCellStatus,
   UpcomingAppointment,
 } from '@/lib/domain/child-dashboard'
-import { KineticCalendar, type KineticEventDatum } from '@/components/calendar/KineticCalendar'
+import {
+  KineticCalendar,
+  KineticToolbar,
+  formatCalendarLabel,
+  navigateCalendarDate,
+  type KineticEventDatum,
+} from '@/components/calendar/KineticCalendar'
+import { KineticMonthGrid } from '@/components/calendar/KineticMonthGrid'
+import type { View } from 'react-big-calendar'
 
 interface Props {
   attendance: AttendanceCell[]
@@ -45,7 +57,6 @@ function colorKeyFor(
   serviceType: string | null | undefined,
   cellStatus: AttendanceCellStatus | undefined,
 ): string {
-  // Estados que pisan el color del servicio (alta señal visual)
   if (cellStatus === 'no_show_pending') return 'no_show'
   if (cellStatus === 'late_cancel') return 'late_cancel'
   if (cellStatus === 'no_show_waived') return 'late_cancel'
@@ -61,13 +72,16 @@ function serviceLabel(s: string | null | undefined): string {
   return SERVICE_TYPE_LABELS[s as ServiceType] ?? String(s)
 }
 
-export function ChildDashboardCalendar({ attendance, upcoming, periodMonth: _periodMonth }: Props) {
-  void _periodMonth
+const VIEWS: View[] = ['month', 'week', 'day']
+
+export function ChildDashboardCalendar({ attendance, upcoming, periodMonth }: Props) {
+  const [view, setView] = useState<View>('month')
+  const [date, setDate] = useState<Date>(() => new Date(`${periodMonth}T12:00:00`))
+
   const events = useMemo<ChildEvent[]>(() => {
     const seen = new Set<string>()
     const result: ChildEvent[] = []
 
-    // 1. Citas del mes (con su cellStatus para colorear estados especiales)
     for (const cell of attendance) {
       for (const a of cell.appointments) {
         if (seen.has(a.id)) continue
@@ -84,7 +98,6 @@ export function ChildDashboardCalendar({ attendance, upcoming, periodMonth: _per
       }
     }
 
-    // 2. Próximas (cubre semanas que crucen el límite del mes)
     for (const a of upcoming) {
       if (seen.has(a.id)) continue
       seen.add(a.id)
@@ -103,16 +116,36 @@ export function ChildDashboardCalendar({ attendance, upcoming, periodMonth: _per
     return result
   }, [attendance, upcoming])
 
+  const label = formatCalendarLabel(view, date)
+
   return (
-    <KineticCalendar<ChildEvent>
-      events={events}
-      defaultView="month"
-      views={['month', 'week', 'day']}
-      minHour={7}
-      maxHour={19}
-      step={30}
-      timeslots={2}
-      selectable={false}
-    />
+    <div className="space-y-3">
+      <KineticToolbar
+        label={label}
+        view={view}
+        views={VIEWS}
+        onView={setView}
+        onNavigate={(action) => setDate(navigateCalendarDate(view, date, action))}
+      />
+
+      {view === 'month' ? (
+        <KineticMonthGrid<ChildEvent> events={events} date={date} />
+      ) : (
+        <KineticCalendar<ChildEvent>
+          events={events}
+          views={VIEWS}
+          view={view}
+          date={date}
+          onViewChange={setView}
+          onDateChange={setDate}
+          minHour={7}
+          maxHour={19}
+          step={30}
+          timeslots={2}
+          selectable={false}
+          hideToolbar
+        />
+      )}
+    </div>
   )
 }

@@ -352,12 +352,13 @@
   .calendar-wrapper .rbc-header {
     border-color: var(--color-fm-outline-variant);
     background: transparent;
-    padding: 10px 6px;
+    padding: 0;
     font-size: 0.7rem;
     font-weight: 500;
     color: var(--color-fm-on-surface-variant);
     text-transform: lowercase;
     letter-spacing: 0;
+    border-bottom: 0;
   }
   .calendar-wrapper .rbc-month-view .rbc-row.rbc-month-header {
     position: sticky;
@@ -366,14 +367,35 @@
     background: var(--color-fm-surface-container-lowest);
     border-bottom: 1px solid var(--color-fm-outline-variant);
   }
+  .calendar-wrapper .rbc-month-view .rbc-month-header .rbc-header {
+    padding: 10px 8px;
+  }
+  /* Week/day: el time-header lleva el "deslizador" de cards grandes */
   .calendar-wrapper .rbc-time-header {
     border-bottom: 1px solid var(--color-fm-outline-variant);
+    background: var(--color-fm-surface-container/30, transparent);
+  }
+  .calendar-wrapper .rbc-time-view .rbc-header {
+    min-height: 64px;
+    display: flex;
+    align-items: stretch;
+    justify-content: stretch;
+    border-right: 0;
+  }
+  .calendar-wrapper .rbc-time-view .rbc-header > * {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .calendar-wrapper .rbc-time-header-content {
     border-color: var(--color-fm-outline-variant);
   }
   .calendar-wrapper .rbc-time-header.rbc-overflowing {
     border-right: 0;
+  }
+  .calendar-wrapper .rbc-time-header-cell {
+    min-height: 64px;
   }
 
   /* ── Time gutter (horas a la izquierda) ── */

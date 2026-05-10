@@ -76,6 +76,51 @@ export function paletteFor(key?: string | null) {
   return KINETIC_EVENT_PALETTES[key] ?? KINETIC_EVENT_PALETTES.default
 }
 
+/** Calcula la etiqueta del toolbar para una vista + fecha dadas. */
+export function formatCalendarLabel(view: View, date: Date): string {
+  if (view === 'month') {
+    return date.toLocaleDateString('es-SV', { month: 'long', year: 'numeric' })
+  }
+  if (view === 'day') {
+    return date.toLocaleDateString('es-SV', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
+  }
+  // week: "13 – 19 oct, 2026"
+  const ws = startOfWeek(date, { weekStartsOn: 1 })
+  const we = new Date(ws)
+  we.setDate(we.getDate() + 6)
+  const monthSame = ws.getMonth() === we.getMonth()
+  const startStr = ws.toLocaleDateString('es-SV', {
+    day: 'numeric',
+    month: monthSame ? undefined : 'short',
+  })
+  const endStr = we.toLocaleDateString('es-SV', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+  return `${startStr} – ${endStr}`
+}
+
+/** Helper para navegación: retorna la nueva fecha según la dirección. */
+export function navigateCalendarDate(
+  view: View,
+  current: Date,
+  action: 'PREV' | 'NEXT' | 'TODAY',
+): Date {
+  if (action === 'TODAY') return new Date()
+  const next = new Date(current)
+  const dir = action === 'PREV' ? -1 : 1
+  if (view === 'month') next.setMonth(next.getMonth() + dir)
+  else if (view === 'week') next.setDate(next.getDate() + 7 * dir)
+  else next.setDate(next.getDate() + dir)
+  return next
+}
+
 /** Forma esperada de cada evento. El consumer extiende libremente. */
 export interface KineticEventDatum extends RBCEvent {
   id: string
@@ -133,7 +178,7 @@ function KineticEventStrip({ event }: EventProps<KineticEventDatum>) {
   )
 }
 
-/** Day header del WEEK view — card con día abreviado + número grande. */
+/** Day header del WEEK view — card grande tipo "deslizador" arriba del time grid. */
 function KineticWeekDayHeader({ date, label: _label }: { date: Date; label: string }) {
   void _label
   const dayName = date
@@ -146,18 +191,28 @@ function KineticWeekDayHeader({ date, label: _label }: { date: Date; label: stri
     date.getFullYear() === today.getFullYear() &&
     date.getMonth() === today.getMonth() &&
     date.getDate() === today.getDate()
+  const isWeekend = date.getDay() === 0 || date.getDay() === 6
+
   return (
     <div
-      className={`flex items-center justify-center gap-2 py-2 ${
-        isToday ? 'text-fm-primary' : 'text-fm-on-surface-variant'
+      className={`mx-1 my-1.5 rounded-2xl px-3 py-2.5 transition-all duration-200 flex items-center justify-center gap-2.5 ${
+        isToday
+          ? 'bg-fm-surface-container-lowest shadow-sm ring-1 ring-fm-outline-variant/30'
+          : isWeekend
+            ? 'bg-fm-surface-container/50'
+            : 'bg-transparent'
       }`}
     >
-      <span className="text-[11px] font-medium lowercase">{dayName}</span>
       <span
-        className={`text-base font-semibold tabular-nums ${
-          isToday
-            ? 'inline-flex items-center justify-center w-7 h-7 rounded-full bg-fm-primary text-white'
-            : 'text-fm-on-surface'
+        className={`text-[11px] font-medium lowercase tracking-wide ${
+          isToday ? 'text-fm-on-surface' : 'text-fm-on-surface-variant/80'
+        }`}
+      >
+        {dayName}
+      </span>
+      <span
+        className={`text-[26px] font-semibold tabular-nums leading-none ${
+          isToday ? 'text-fm-primary' : 'text-fm-on-surface'
         }`}
       >
         {dayNum}
@@ -179,8 +234,8 @@ function KineticMonthHeader({ date }: { date: Date; label: string }) {
   )
 }
 
-/** Toolbar custom — month/year + nav + view switcher. */
-interface ToolbarProps {
+/** Toolbar custom — month/year + nav + view switcher. Reusable. */
+export interface KineticToolbarProps {
   label: string
   view: View
   views: View[]
@@ -189,7 +244,7 @@ interface ToolbarProps {
   rightSlot?: React.ReactNode
 }
 
-function KineticToolbar({ label, view, views, onNavigate, onView, rightSlot }: ToolbarProps) {
+export function KineticToolbar({ label, view, views, onNavigate, onView, rightSlot }: KineticToolbarProps) {
   const VIEW_LABEL: Record<string, string> = {
     month: 'Mes',
     week: 'Semana',
@@ -273,6 +328,12 @@ interface KineticCalendarProps<T extends KineticEventDatum> {
   events: T[]
   defaultView?: View
   views?: View[]
+  /** Modo controlado: vista actual. Si se provee, KineticCalendar no maneja vista internamente. */
+  view?: View
+  /** Modo controlado: fecha actual visible. */
+  date?: Date
+  onViewChange?: (view: View) => void
+  onDateChange?: (date: Date) => void
   /** Hora mínima del time grid (week/day view). Default 7am. */
   minHour?: number
   /** Hora máxima del time grid. Default 7pm. */
@@ -297,6 +358,10 @@ export function KineticCalendar<T extends KineticEventDatum>({
   events,
   defaultView = Views.WEEK,
   views = DEFAULT_VIEWS,
+  view: viewProp,
+  date: dateProp,
+  onViewChange,
+  onDateChange,
   minHour = 7,
   maxHour = 19,
   step = 30,
@@ -309,8 +374,24 @@ export function KineticCalendar<T extends KineticEventDatum>({
   hideToolbar = false,
   components: extraComponents,
 }: KineticCalendarProps<T>) {
-  const [view, setView] = useState<View>(defaultView)
-  const [date, setDate] = useState<Date>(() => new Date())
+  const [internalView, setInternalView] = useState<View>(defaultView)
+  const [internalDate, setInternalDate] = useState<Date>(() => new Date())
+  const view = viewProp ?? internalView
+  const date = dateProp ?? internalDate
+  const setView = useCallback(
+    (v: View) => {
+      if (onViewChange) onViewChange(v)
+      else setInternalView(v)
+    },
+    [onViewChange],
+  )
+  const setDate = useCallback(
+    (d: Date) => {
+      if (onDateChange) onDateChange(d)
+      else setInternalDate(d)
+    },
+    [onDateChange],
+  )
 
   const min = useMemo(() => {
     const d = new Date(1970, 0, 1, minHour, 0, 0)
@@ -323,41 +404,12 @@ export function KineticCalendar<T extends KineticEventDatum>({
 
   const handleNavigate = useCallback(
     (action: 'PREV' | 'NEXT' | 'TODAY') => {
-      if (action === 'TODAY') {
-        setDate(new Date())
-        return
-      }
-      const next = new Date(date)
-      const dir = action === 'PREV' ? -1 : 1
-      if (view === Views.MONTH) next.setMonth(next.getMonth() + dir)
-      else if (view === Views.WEEK) next.setDate(next.getDate() + 7 * dir)
-      else next.setDate(next.getDate() + dir)
-      setDate(next)
+      setDate(navigateCalendarDate(view, date, action))
     },
-    [date, view],
+    [date, view, setDate],
   )
 
-  const label = useMemo(() => {
-    if (view === Views.MONTH) {
-      return date.toLocaleDateString('es-SV', { month: 'long', year: 'numeric' })
-    }
-    if (view === Views.DAY) {
-      return date.toLocaleDateString('es-SV', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric',
-      })
-    }
-    // WEEK: "13–19 oct, 2026"
-    const ws = startOfWeek(date, { weekStartsOn: 1 })
-    const we = new Date(ws)
-    we.setDate(we.getDate() + 6)
-    const monthSame = ws.getMonth() === we.getMonth()
-    const startStr = ws.toLocaleDateString('es-SV', { day: 'numeric', month: monthSame ? undefined : 'short' })
-    const endStr = we.toLocaleDateString('es-SV', { day: 'numeric', month: 'short', year: 'numeric' })
-    return `${startStr} – ${endStr}`
-  }, [date, view])
+  const label = useMemo(() => formatCalendarLabel(view, date), [date, view])
 
   const calComponents = useMemo(
     () => ({
