@@ -42,8 +42,8 @@ export function ChildDashboardPanel({ data, familyId, childId }: Props) {
   const next = upcoming[0] ?? null
 
   return (
-    <div className="space-y-6">
-      {/* Stats */}
+    <div className="space-y-8">
+      {/* Stats — KPIs como overview superior */}
       <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Kpi label="Programadas" value={kpis.scheduled} />
         <Kpi label="Asistidas" value={kpis.completed} tone="ok" />
@@ -57,67 +57,71 @@ export function ChildDashboardPanel({ data, familyId, childId }: Props) {
         <Kpi label="Reposiciones" value={kpis.replacement} tone="ok-soft" />
       </dl>
 
-      {/* Próxima + última (jerarquía: una hacia adelante, otra hacia atrás) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <NextSessionCard next={next} />
-        <LastSessionCard last={last_completed} />
+      {/* Layout principal: calendario hero (8 cols) + right rail operativo (4 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <section className="lg:col-span-8 bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
+          <ChildDashboardCalendar
+            attendance={attendance}
+            upcoming={upcoming}
+            periodMonth={period_month}
+          />
+        </section>
+
+        <aside className="lg:col-span-4 space-y-4 min-w-0">
+          <NextSessionCard next={next} />
+
+          {upcoming.length > 0 && (
+            <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-4">
+              <header className="flex items-center justify-between mb-3 gap-2">
+                <p className="text-[10px] font-medium tracking-[0.16em] uppercase text-fm-on-surface-variant/70">
+                  Próximas 14 días
+                </p>
+                <Link
+                  href={`/agenda?child=${childId}`}
+                  className="text-[11px] font-medium text-fm-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fm-primary focus-visible:ring-offset-2 rounded"
+                >
+                  Ver agenda →
+                </Link>
+              </header>
+              <ul className="divide-y divide-fm-outline-variant/15 -my-1.5">
+                {upcoming.slice(0, 5).map((a) => (
+                  <li
+                    key={a.id}
+                    className="py-2 flex items-baseline justify-between gap-2 text-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium text-fm-on-surface text-[13px] flex items-center gap-1.5 flex-wrap leading-tight">
+                        <span className="truncate">{serviceLabel(a.service_type)}</span>
+                        {a.is_replacement && (
+                          <span className="text-[9px] px-1.5 py-px bg-fm-tertiary/15 text-fm-tertiary rounded-full font-medium shrink-0">
+                            Repo
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-fm-on-surface-variant/85 mt-0.5">
+                        {formatDateTime(a.starts_at)}
+                      </div>
+                    </div>
+                    <span className="text-[11px] font-medium text-fm-on-surface-variant/85 tabular-nums shrink-0">
+                      {relativeFromNow(a.starts_at)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {upcoming.length > 5 && (
+                <p className="text-[11px] text-fm-on-surface-variant/70 mt-2 pt-2 border-t border-fm-outline-variant/15">
+                  +{upcoming.length - 5} más en agenda
+                </p>
+              )}
+            </section>
+          )}
+
+          <LastSessionCard last={last_completed} />
+        </aside>
       </div>
 
-      {/* Calendario */}
-      <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
-        <ChildDashboardCalendar
-          attendance={attendance}
-          upcoming={upcoming}
-          periodMonth={period_month}
-        />
-      </section>
-
-      {/* Próximos 14 días */}
-      {upcoming.length > 0 && (
-        <section className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
-          <header className="flex items-center justify-between mb-3">
-            <div>
-              <p className="text-[10px] font-medium tracking-[0.18em] uppercase text-fm-on-surface-variant/70">
-                Próximas 14 días
-              </p>
-              <h3 className="text-base font-medium tracking-tight text-fm-on-surface mt-0.5">
-                {upcoming.length} {upcoming.length === 1 ? 'sesión' : 'sesiones'} agendadas
-              </h3>
-            </div>
-            <Link
-              href={`/agenda?child=${childId}`}
-              className="text-xs font-medium text-fm-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fm-primary focus-visible:ring-offset-2 rounded"
-            >
-              Ver agenda
-            </Link>
-          </header>
-          <ul className="divide-y divide-fm-outline-variant/15">
-            {upcoming.map((a) => (
-              <li key={a.id} className="py-2.5 flex items-center justify-between gap-3 text-sm">
-                <div className="min-w-0">
-                  <div className="font-medium text-fm-on-surface flex items-center gap-2 flex-wrap">
-                    <span>{serviceLabel(a.service_type)}</span>
-                    {a.is_replacement && (
-                      <span className="text-[10px] px-2 py-0.5 bg-fm-tertiary/15 text-fm-tertiary rounded-full font-medium">
-                        Reposición
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-xs text-fm-on-surface-variant mt-0.5">
-                    {formatDateTime(a.starts_at)}
-                  </div>
-                </div>
-                <span className="text-xs font-medium text-fm-on-surface-variant tabular-nums shrink-0">
-                  {relativeFromNow(a.starts_at)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* Footer info — info contextual mínima */}
-      <p className="text-[11px] text-fm-on-surface-variant/70 text-center">
+      {/* Footer info — info contextual mínima, alineada a la derecha */}
+      <p className="text-[11px] text-fm-on-surface-variant/70 text-right">
         <span className="tabular-nums">{kpis.total}</span>{' '}
         {kpis.total === 1 ? 'sesión registrada' : 'sesiones registradas'} en{' '}
         <span className="capitalize">{monthLabel(period_month)}</span> ·{' '}
