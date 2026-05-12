@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { BackgroundShader } from '@/components/ui/background-shaders'
+import { LoginBackground } from '@/components/ui/background-shaders'
 
 interface LoginFormProps {
   agencyLogoUrl: string | null
@@ -100,7 +100,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative">
-      <BackgroundShader />
+      <LoginBackground />
 
       <div className="relative w-full max-w-md px-4">
         {/* Logo card */}
@@ -125,8 +125,8 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
               <span className="text-white font-bold text-2xl">K</span>
             )}
           </div>
-          <h1 className="text-2xl font-bold text-white drop-shadow-md">Kinetic</h1>
-          <p className="text-white/90 text-sm mt-1 drop-shadow">Centro de Estimulación y Desarrollo Intelectual</p>
+          <h1 className="text-2xl font-bold text-fm-on-surface">Kinetic</h1>
+          <p className="text-fm-on-surface-variant text-sm mt-1">Centro de Estimulación y Desarrollo Intelectual</p>
         </div>
 
         {/* Form card */}
@@ -273,7 +273,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
           )}
         </div>
 
-        <p className="text-center text-xs text-white/90 drop-shadow mt-6">
+        <p className="text-center text-xs text-fm-on-surface-variant mt-6">
           ¿Problemas para ingresar? Contacta al administrador.
         </p>
       </div>
