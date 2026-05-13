@@ -10,9 +10,8 @@ import { UserAvatar } from '@/components/ui/UserAvatar'
 import { useUser } from '@/contexts/UserContext'
 import { createClient } from '@/lib/supabase/client'
 import { uploadUserAvatar } from '@/lib/supabase/upload-avatar'
-import { uploadAgencyLogo } from '@/lib/supabase/upload-agency-logo'
 import { updateMyProfile } from '@/app/actions/profile'
-import { updateAgencyLogoUrl } from '@/app/actions/agencySettings'
+import { uploadAgencyLogo } from '@/app/actions/agencySettings'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
@@ -77,12 +76,13 @@ export default function ProfilePage() {
     setAgencyLogoUploading(true)
     setAgencyLogoMsg(null)
     try {
-      const url = await uploadAgencyLogo(file)
-      const res = await updateAgencyLogoUrl(url)
-      if (res.error) {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await uploadAgencyLogo(formData)
+      if (!res.ok) {
         setAgencyLogoMsg({ type: 'error', text: res.error })
       } else {
-        setAgencyLogoUrl(url)
+        setAgencyLogoUrl(res.url)
         setAgencyLogoMsg({ type: 'success', text: 'Logo actualizado. Se verá en el menú lateral.' })
         router.refresh()
       }
