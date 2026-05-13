@@ -103,20 +103,19 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
       <LoginBackground />
 
       <div className="relative w-full max-w-md px-4">
-        {/* Logo card — mismo estilo que el sidebar: navy #0d1b3e con object-contain */}
+        {/* Logo card — sin background cuando hay imagen, gradient fallback solo si no hay logo */}
         <div className="flex flex-col items-center mb-8">
           <div
-            className={`w-20 h-20 rounded-2xl mb-4 shadow-lg overflow-hidden flex items-center justify-center ${
-              !showLogo ? 'signature-gradient' : ''
+            className={`w-20 h-20 rounded-2xl mb-4 overflow-hidden flex items-center justify-center ${
+              showLogo ? '' : 'shadow-lg signature-gradient'
             }`}
-            style={showLogo ? { background: '#0d1b3e' } : undefined}
           >
             {showLogo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={agencyLogoUrl!}
                 alt="Kinetic"
-                className="w-full h-full object-contain p-1.5"
+                className="w-full h-full object-contain"
                 onError={() => setLogoError(true)}
               />
             ) : (

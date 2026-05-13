@@ -150,14 +150,13 @@ export function SidebarContent({
           className={`w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 flex items-center justify-center ${
             agencyLogoUrl && !logoError ? '' : 'signature-gradient'
           }`}
-          style={agencyLogoUrl && !logoError ? { background: '#0d1b3e' } : undefined}
         >
           {agencyLogoUrl && !logoError ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={agencyLogoUrl}
               alt="Kinetic"
-              className="w-full h-full object-contain p-0.5"
+              className="w-full h-full object-contain"
               onError={() => setLogoError(true)}
             />
           ) : (
