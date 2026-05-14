@@ -104,17 +104,7 @@ export async function createInvoiceForCycle(
   if (!cycleRaw) return { ok: false, error: 'Ciclo no encontrado.' }
   const cycle = cycleRaw as MonthlySessionCycle
 
-  if (cycle.invoice_id) {
-    // Ya tiene factura → devolver la existente
-    const { data: existing } = await supabase
-      .from('invoices')
-      .select('*')
-      .eq('id', cycle.invoice_id)
-      .maybeSingle()
-    if (existing) return { ok: true, data: existing as Invoice }
-  }
-
-  // Cargar niño + familia
+  // Cargar niño + familia (siempre, tanto para crear como para parchar)
   const { data: childRaw } = await supabase
     .from('children')
     .select('id, full_name, family_id')
@@ -142,11 +132,6 @@ export async function createInvoiceForCycle(
     .maybeSingle()
   const settings = settingsRaw as CompanySettings | null
   if (!settings) return { ok: false, error: 'No hay configuración de empresa. Completá los datos en Ajustes.' }
-
-  // Número de factura (RPC compartido con FM)
-  const { data: numberRow, error: numberErr } = await admin.rpc('next_invoice_number')
-  if (numberErr || !numberRow) return { ok: false, error: 'Error al generar el correlativo de factura.' }
-  const invoiceNumber = numberRow as unknown as string
 
   // Ítems desde snapshot del plan
   const snapshot = cycle.treatment_plan_snapshot as TreatmentPlan | Record<string, unknown>
@@ -180,7 +165,57 @@ export async function createInvoiceForCycle(
     ? `Ciclo: ${period} — ${child.full_name}. Descuento: ${cycle.discount_reason}`
     : `Ciclo: ${period} — ${child.full_name}`
 
-  // Insertar factura
+  if (cycle.invoice_id) {
+    // La factura fue creada por el RPC antes de que pudiéramos enriquecerla.
+    // La parchamos: snapshot fiscal, descuentos correctos, ítems con labels legibles.
+    const existingId = cycle.invoice_id
+
+    await admin
+      .from('invoices')
+      .update({
+        child_id: cycle.child_id,
+        subtotal: totals.subtotal,
+        discount_amount: totals.discount_amount,
+        total: totals.total,
+        total_a_pagar: totals.total_a_pagar,
+        notes,
+        client_snapshot_json: buildFamilySnapshot(family),
+        emitter_snapshot_json: buildEmitterSnapshot(settings),
+        payment_method: (cycle.payment_method ?? 'cash') as import('@/types/db').InvoicePaymentMethod,
+      })
+      .eq('id', existingId)
+
+    // Re-crear ítems con descripciones en español y totales correctos
+    await admin.from('invoice_items').delete().eq('invoice_id', existingId)
+    await admin.from('invoice_items').insert(
+      items.map((item, idx) => ({
+        invoice_id: existingId,
+        description: item.description,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        line_total: item.quantity * item.unit_price,
+        sort_order: idx,
+      }))
+    )
+
+    const { data: patched } = await admin
+      .from('invoices')
+      .select('*')
+      .eq('id', existingId)
+      .single()
+
+    revalidatePath('/familias', 'layout')
+    revalidatePath('/billing/invoices')
+
+    return { ok: true, data: patched as Invoice }
+  }
+
+  // Número de factura (RPC compartido con FM)
+  const { data: numberRow, error: numberErr } = await admin.rpc('next_invoice_number')
+  if (numberErr || !numberRow) return { ok: false, error: 'Error al generar el correlativo de factura.' }
+  const invoiceNumber = numberRow as unknown as string
+
+  // Insertar factura nueva
   const { data: inserted, error: insertErr } = await admin
     .from('invoices')
     .insert({
@@ -218,16 +253,16 @@ export async function createInvoiceForCycle(
   const invoiceId = (inserted as { id: string }).id
 
   // Insertar ítems
-  const itemsToInsert = items.map((item, idx) => ({
-    invoice_id: invoiceId,
-    description: item.description,
-    quantity: item.quantity,
-    unit_price: item.unit_price,
-    line_total: item.quantity * item.unit_price,
-    sort_order: idx,
-  }))
-
-  await admin.from('invoice_items').insert(itemsToInsert)
+  await admin.from('invoice_items').insert(
+    items.map((item, idx) => ({
+      invoice_id: invoiceId,
+      description: item.description,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      line_total: item.quantity * item.unit_price,
+      sort_order: idx,
+    }))
+  )
 
   // Linkear ciclo → factura
   await admin
