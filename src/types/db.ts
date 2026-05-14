@@ -2018,6 +2018,11 @@ export interface Database {
           observaciones_internas?: string
           visible_to_family?: boolean
           status?: SessionReportStatus
+          upload_kind?: 'editor' | 'file'
+          file_url?: string | null
+          file_name?: string | null
+          file_size_bytes?: number | null
+          file_mime_type?: string | null
         }
         Update: Partial<Omit<SessionReport, 'id' | 'created_at'>>
         Relationships: []
@@ -2036,6 +2041,11 @@ export interface Database {
           status?: ProgressReportStatus
           visible_to_family?: boolean
           template_id?: string | null
+          upload_kind?: 'editor' | 'file'
+          file_url?: string | null
+          file_name?: string | null
+          file_size_bytes?: number | null
+          file_mime_type?: string | null
         }
         Update: Partial<Omit<ProgressReport, 'id' | 'created_at'>>
         Relationships: []
@@ -2074,6 +2084,9 @@ export interface Database {
           active?: boolean
           created_by_user_id?: string | null
           updated_by_user_id?: string | null
+          discount_kind?: DiscountKind
+          discount_value?: number
+          discount_reason?: string | null
         }
         Update: Partial<Omit<TreatmentPlan, 'id' | 'created_at'>>
         Relationships: []
@@ -2128,6 +2141,9 @@ export interface Database {
           cancelled_at?: string | null
           cancelled_by_user_id?: string | null
           notes?: string | null
+          discount_kind?: DiscountKind
+          discount_value?: number
+          discount_reason?: string | null
         }
         Update: Partial<Omit<MonthlySessionCycle, 'id' | 'created_at'>>
         Relationships: []
@@ -2849,6 +2865,13 @@ export interface SessionReport {
   rejected_at: string | null
   rejection_reason: string | null
   sent_to_family_at: string | null
+  /** Origen del reporte (mig 0108): 'editor' (campos de texto) o 'file' (archivo subido). */
+  upload_kind: 'editor' | 'file'
+  /** Path en bucket reports-files. Solo set si upload_kind='file'. */
+  file_url: string | null
+  file_name: string | null
+  file_size_bytes: number | null
+  file_mime_type: string | null
   created_at: string
   updated_at: string
 }
@@ -2904,6 +2927,13 @@ export interface ProgressReport {
   sent_to_family_at: string | null
   /** FK al template usado. Null = reporte legacy pre-C2 (mig 0098). */
   template_id: string | null
+  /** Origen del informe (mig 0108): 'editor' (data_json) o 'file' (archivo subido). */
+  upload_kind: 'editor' | 'file'
+  /** Path en bucket reports-files. Solo set si upload_kind='file'. */
+  file_url: string | null
+  file_name: string | null
+  file_size_bytes: number | null
+  file_mime_type: string | null
   created_at: string
   updated_at: string
 }
@@ -3007,6 +3037,14 @@ export interface TreatmentPlanScheduleSlot {
   frequency?: SlotFrequency
 }
 
+export type DiscountKind = 'none' | 'percent' | 'fixed'
+
+export const DISCOUNT_KIND_LABELS: Record<DiscountKind, string> = {
+  none: 'Sin descuento',
+  percent: 'Porcentaje',
+  fixed: 'Monto fijo',
+}
+
 export interface TreatmentPlan {
   id: string
   child_id: string
@@ -3023,6 +3061,11 @@ export interface TreatmentPlan {
   signed_at: string | null
   signed_by_user_id: string | null
   active: boolean
+  /** Descuento aplicado al subtotal mensual (mig 0109). */
+  discount_kind: DiscountKind
+  /** Si kind=percent: 0-100. Si kind=fixed: USD. */
+  discount_value: number
+  discount_reason: string | null
   created_at: string
   created_by_user_id: string | null
   updated_at: string
@@ -3100,6 +3143,10 @@ export interface MonthlySessionCycle {
   cancelled_at: string | null
   cancelled_by_user_id: string | null
   notes: string | null
+  /** Descuento aplicado al ciclo (mig 0109). Snapshot del plan al momento de pago, editable. */
+  discount_kind: DiscountKind
+  discount_value: number
+  discount_reason: string | null
   created_at: string
   updated_at: string
 }

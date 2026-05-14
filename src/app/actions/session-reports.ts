@@ -81,6 +81,7 @@ export async function createOrGetSessionReport(sessionId: string): Promise<
 /**
  * Actualiza el contenido del reporte. Solo permitido si está en draft o rejected.
  * RLS garantiza que solo la terapista autora puede.
+ * Al guardar en modo editor se limpian los campos del archivo (si existían).
  */
 export async function updateSessionReportDraft(
   reportId: string,
@@ -96,6 +97,11 @@ export async function updateSessionReportDraft(
       tarea_para_casa: fields.tarea_para_casa,
       observaciones_internas: fields.observaciones_internas,
       visible_to_family: fields.visible_to_family,
+      upload_kind: 'editor',
+      file_url: null,
+      file_name: null,
+      file_size_bytes: null,
+      file_mime_type: null,
     })
     .eq('id', reportId)
     .select('*')

@@ -83,7 +83,7 @@ export async function ChildProgressReportsHistory({
             className="block rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-4 hover:border-fm-primary/40 hover:shadow-sm transition-all"
           >
             <div className="flex items-start justify-between gap-3 flex-wrap">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-fm-on-surface-variant">
                   {formatDate(report.period_starts)} — {formatDate(report.period_ends)}
                 </p>
@@ -96,6 +96,17 @@ export async function ChildProgressReportsHistory({
                     ? `${report.sessions_attended_count} sesiones asistidas`
                     : 'Sesiones no contabilizadas'}
                 </p>
+                {report.upload_kind === 'file' && report.file_name && (
+                  <p className="text-xs text-fm-primary mt-1 flex items-center gap-1 truncate">
+                    <span
+                      className="material-symbols-outlined text-base"
+                      aria-hidden="true"
+                    >
+                      description
+                    </span>
+                    <span className="truncate">{report.file_name}</span>
+                  </p>
+                )}
               </div>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_BADGE[report.status]}`}

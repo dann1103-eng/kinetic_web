@@ -120,7 +120,25 @@ export function MonthlyCyclesSection({ childId, plan, cycles: initial, canManage
                     {c.appointments_generated_count}
                   </td>
                   <td className="text-right px-3 py-1.5 tabular-nums font-medium">
-                    {formatMoney(c.payment_amount_usd)}
+                    <div>{formatMoney(c.payment_amount_usd)}</div>
+                    {c.discount_kind && c.discount_kind !== 'none' && c.discount_value > 0 && (
+                      <div className="text-[10px] font-medium text-emerald-700 mt-0.5">
+                        {c.discount_kind === 'percent'
+                          ? `−${c.discount_value}%`
+                          : `−$${c.discount_value.toFixed(2)}`}
+                        {c.discount_reason && (
+                          <span
+                            className="text-fm-on-surface-variant"
+                            title={c.discount_reason}
+                          >
+                            {' · '}
+                            {c.discount_reason.length > 18
+                              ? `${c.discount_reason.slice(0, 18)}…`
+                              : c.discount_reason}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-3 py-1.5 text-right">
                     {c.status === 'generated' && canManage && (

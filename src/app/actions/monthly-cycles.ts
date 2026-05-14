@@ -7,7 +7,9 @@ import type {
   MonthlyCandidateAppointment,
   MonthlyCandidatesResult,
   MonthlySessionCycle,
+  DiscountKind,
 } from '@/types/db'
+import { validateDiscount } from '@/lib/domain/discounts'
 
 const MGMT_ROLES = [
   'admin',
@@ -97,6 +99,10 @@ export interface ConfirmMonthlyPaymentInput {
   /** Si se manda, se usan EXACTAMENTE estas citas (override del auto-compute).
    *  Útil cuando el usuario movió fechas en el preview drag-and-drop. */
   appointmentsOverride?: MonthlyCandidateAppointment[]
+  /** Descuento aplicado al ciclo. Si no se manda, queda 'none'. */
+  discountKind?: DiscountKind
+  discountValue?: number
+  discountReason?: string | null
 }
 
 export async function confirmMonthlyPaymentAndGenerate(
@@ -116,6 +122,11 @@ export async function confirmMonthlyPaymentAndGenerate(
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Período inválido.' }
   }
+
+  const discountKind: DiscountKind = input.discountKind ?? 'none'
+  const discountValue = Number(input.discountValue ?? 0)
+  const discountError = validateDiscount({ kind: discountKind, value: discountValue })
+  if (discountError) return { ok: false, error: discountError }
 
   const { data, error } = await supabase.rpc('confirm_monthly_payment_and_generate', {
     p_child_id: input.childId,
@@ -159,9 +170,28 @@ export async function confirmMonthlyPaymentAndGenerate(
     return { ok: false, error: error.message ?? 'Error al confirmar el ciclo.' }
   }
 
+  let cycle = data as MonthlySessionCycle
+
+  // Persistir el descuento como snapshot en el cycle row. El RPC no maneja
+  // descuentos (el payment_amount_usd ya viene con el descuento aplicado),
+  // pero guardamos kind/value/reason para que el row tenga la trazabilidad.
+  if (cycle?.id && discountKind !== 'none' && discountValue > 0) {
+    const { data: updated } = await supabase
+      .from('monthly_session_cycles')
+      .update({
+        discount_kind: discountKind,
+        discount_value: discountValue,
+        discount_reason: input.discountReason ?? null,
+      })
+      .eq('id', cycle.id)
+      .select('*')
+      .single()
+    if (updated) cycle = updated as MonthlySessionCycle
+  }
+
   revalidatePath('/familias')
   revalidatePath('/agenda')
-  return { ok: true, cycle: data as MonthlySessionCycle }
+  return { ok: true, cycle }
 }
 
 // ── Anular un ciclo (admin/directora) ──────────────────────────────────────

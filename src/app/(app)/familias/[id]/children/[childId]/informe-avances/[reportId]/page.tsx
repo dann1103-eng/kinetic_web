@@ -2,16 +2,17 @@ import { redirect, notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
-import { ProgressReportEditor } from '@/components/agenda/ProgressReportEditor'
-import { getReportTemplate } from '@/app/actions/report-templates'
+import { ProgressReportFileUploader } from '@/components/agenda/ProgressReportFileUploader'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
-import type { Child, ProgressReport, ReportTemplate, ServiceType } from '@/types/db'
+import type { Child, ProgressReport, ServiceType } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ id: string; childId: string; reportId: string }>
 }
+
+const APPROVER_ROLES = ['admin', 'directora']
 
 export default async function ProgressReportEditPage({ params }: PageProps) {
   const { id: familyId, childId, reportId } = await params
@@ -21,15 +22,24 @@ export default async function ProgressReportEditPage({ params }: PageProps) {
   const supabase = await createClient()
 
   const [{ data: childRaw }, { data: reportRaw }] = await Promise.all([
-    supabase.from('children').select('*').eq('id', childId).eq('family_id', familyId).maybeSingle(),
-    supabase.from('progress_reports').select('*').eq('id', reportId).eq('child_id', childId).maybeSingle(),
+    supabase
+      .from('children')
+      .select('*')
+      .eq('id', childId)
+      .eq('family_id', familyId)
+      .maybeSingle(),
+    supabase
+      .from('progress_reports')
+      .select('*')
+      .eq('id', reportId)
+      .eq('child_id', childId)
+      .maybeSingle(),
   ])
 
   if (!childRaw || !reportRaw) notFound()
   const child = childRaw as Child
   const report = reportRaw as ProgressReport
 
-  // Author name (terapista)
   let authorName = '—'
   if (report.authored_by_user_id) {
     const { data: author } = await supabase
@@ -43,45 +53,25 @@ export default async function ProgressReportEditPage({ params }: PageProps) {
   const serviceLabel =
     SERVICE_TYPE_LABELS[report.service_type as ServiceType] ?? report.service_type
 
-  // Cargar plantilla. Si el reporte legacy no tiene template_id, fallback a Genérica.
-  let template: ReportTemplate | null = null
-  if (report.template_id) {
-    template = await getReportTemplate(report.template_id)
-  }
-  if (!template) {
-    const { data: fallback } = await supabase
-      .from('report_templates')
-      .select('*')
-      .eq('kind', 'progress')
-      .is('service_type', null)
-      .eq('name', 'Informe de avances — Genérica')
-      .eq('active', true)
-      .maybeSingle()
-    template = fallback as ReportTemplate | null
-  }
-  if (!template) notFound()
+  const childName = child.preferred_name ?? child.full_name
+  const canApprove = APPROVER_ROLES.includes(ctx.appUser.role)
+  const isAuthor = report.authored_by_user_id === ctx.appUser.id
 
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
       <TopNav
-        title={`Informe ${serviceLabel} — ${child.preferred_name ?? child.full_name}`}
+        title={`Informe ${serviceLabel} — ${childName}`}
         backHref={`/familias/${familyId}/children/${childId}`}
       />
-      <div className="flex-1 p-4 md:p-6 max-w-3xl mx-auto w-full">
-        <ProgressReportEditor
+      <div className="flex-1 px-4 py-8 md:px-10 md:py-12 max-w-3xl mx-auto w-full">
+        <ProgressReportFileUploader
           report={report}
-          child={{
-            full_name: child.full_name,
-            preferred_name: child.preferred_name,
-            code: child.code,
-            birth_date: child.birth_date,
-            school_name: child.school_name,
-            school_grade: child.school_grade,
-            diagnoses_display_text: child.diagnoses_display_text,
-          }}
-          authorName={authorName}
+          childName={childName}
           serviceLabel={serviceLabel}
-          template={template}
+          authorName={authorName}
+          canApprove={canApprove}
+          isAuthor={isAuthor}
+          backHref={`/familias/${familyId}/children/${childId}`}
         />
       </div>
     </div>

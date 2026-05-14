@@ -1,111 +1,43 @@
-import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { redirect } from 'next/navigation'
 import { TopNav } from '@/components/layout/TopNav'
-import { ClockInPanel } from '@/components/tiempo/ClockInPanel'
-import { MyTimeHistory } from '@/components/tiempo/MyTimeHistory'
-import { AdminTimePanel } from '@/components/tiempo/AdminTimePanel'
 import { ShiftPanel } from '@/components/tiempo/ShiftPanel'
-import type { TimeEntry, AppUser } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Kinetic /tiempo: solo marca de jornada (turnos/breaks).
+ *
+ * El panel de tiempos internos por categoría (ClockInPanel) y la vista admin
+ * (TiempoTabs) son legacy del CRM FM (Comm Solutions). Esos componentes
+ * siguen en el filesystem pero no se renderizan acá hasta que Kinetic
+ * defina sus propias categorías de tiempo interno.
+ */
 export default async function TiempoPage() {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
 
-  // Cuando admin suplanta a operador/supervisor, el "appUser" es el suplantado.
-  // Usamos el admin client para leer datos del impersonado bypaseando RLS.
-  const effectiveId = ctx.appUser.id
-  const supabase = ctx.isImpersonating ? createAdminClient() : await createClient()
-  const appUser = ctx.appUser
-
-  const canViewTeam = appUser.role === 'admin' || appUser.role === 'supervisor'
-
-  // Active entry for the effective user
-  const { data: activeEntryRaw } = await supabase
-    .from('time_entries')
-    .select('*')
-    .eq('user_id', effectiveId)
-    .is('ended_at', null)
-    .maybeSingle()
-  const activeEntry = activeEntryRaw as TimeEntry | null
-
-  // This month's entries
-  const now = new Date()
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString()
-
-  const { data: entriesRaw } = await supabase
-    .from('time_entries')
-    .select('*, requirement:requirements!requirement_id(id, title, billing_cycles!inner(clients!inner(id, name)))')
-    .eq('user_id', effectiveId)
-    .not('ended_at', 'is', null)
-    .gte('started_at', monthStart)
-    .lt('started_at', monthEnd)
-    .lte('started_at', new Date().toISOString())
-    .order('started_at', { ascending: false })
-  const entries = (entriesRaw ?? []) as unknown as TimeEntry[]
-
-  // All users (admin + supervisor)
-  let allUsers: AppUser[] = []
-  if (canViewTeam) {
-    const { data: usersRaw } = await supabase
-      .from('users')
-      .select('*')
-      .neq('role', 'client')
-      .order('full_name')
-    allUsers = (usersRaw ?? []) as AppUser[]
-  }
-
   return (
-    <div className="flex flex-col min-h-full">
-      <TopNav title="Tiempo" />
+    <div className="flex flex-col min-h-full bg-fm-background">
+      <TopNav title="Jornada" />
 
-      <div className="flex-1 p-6 max-w-4xl mx-auto w-full space-y-6">
+      <div className="flex-1 px-4 py-8 md:px-10 md:py-12 max-w-3xl mx-auto w-full">
+        <header className="mb-10">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-fm-on-surface-variant mb-3">
+            Tiempo
+          </p>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-fm-on-surface leading-none">
+            Mi jornada
+          </h1>
+          <p className="text-base text-fm-on-surface-variant mt-4 max-w-prose">
+            Iniciá tu turno al llegar al centro y finalizalo al salir. Si te
+            tomás un descanso (almuerzo o salir del centro), marcalo desde el
+            mismo widget.
+          </p>
+        </header>
 
-        {canViewTeam ? (
-          <TiempoTabs
-            userId={effectiveId}
-            activeEntry={activeEntry}
-            entries={entries}
-            year={now.getFullYear()}
-            month={now.getMonth()}
-            allUsers={allUsers}
-          />
-        ) : (
-          <PersonalView
-            userId={effectiveId}
-            activeEntry={activeEntry}
-            entries={entries}
-            year={now.getFullYear()}
-            month={now.getMonth()}
-          />
-        )}
+        <ShiftPanel />
       </div>
     </div>
   )
 }
-
-// ── Personal view (non-admin) ──────────────────────────────────────────────
-
-function PersonalView({ userId, activeEntry, entries, year, month }: {
-  userId: string
-  activeEntry: TimeEntry | null
-  entries: TimeEntry[]
-  year: number
-  month: number
-}) {
-  return (
-    <div className="space-y-5">
-      <ShiftPanel />
-      <ClockInPanel initialActive={activeEntry} />
-      <MyTimeHistory userId={userId} initialEntries={entries} initialYear={year} initialMonth={month} />
-    </div>
-  )
-}
-
-// ── Tabbed view (admin) ────────────────────────────────────────────────────
-
-import { TiempoTabs } from '@/components/tiempo/TiempoTabs'

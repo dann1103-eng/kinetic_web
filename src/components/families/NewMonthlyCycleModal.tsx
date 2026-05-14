@@ -7,12 +7,15 @@ import {
 } from '@/app/actions/monthly-cycles'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type {
+  DiscountKind,
   MonthlyCandidateAppointment,
   MonthlyCandidatesResult,
   MonthlySessionCycle,
   ServiceType,
   TreatmentPlan,
 } from '@/types/db'
+import { applyDiscount } from '@/lib/domain/discounts'
+import { DiscountFields } from './DiscountFields'
 import { DraggableCycleCalendar } from './DraggableCycleCalendar'
 
 interface Props {
@@ -58,8 +61,38 @@ export function NewMonthlyCycleModal({
   onClose,
   onCreated,
 }: Props) {
+  // Subtotal del plan (antes de cualquier descuento) — sale de therapies_json.
+  const planSubtotal = (plan.therapies_json ?? [])
+    .filter((t) => t.active)
+    .reduce(
+      (s, t) =>
+        s + (t.sessions_per_month || 0) * (t.unit_cost_usd || 0),
+      0,
+    )
+
   const [periodMonth, setPeriodMonth] = useState<string>(defaultPeriodMonth())
-  const [paymentAmount, setPaymentAmount] = useState<number>(plan.monthly_total_usd ?? 0)
+  // Descuento del ciclo: default = mismo que el plan, editable.
+  const [discountKind, setDiscountKind] = useState<DiscountKind>(
+    plan.discount_kind ?? 'none',
+  )
+  const [discountValue, setDiscountValue] = useState<number>(
+    Number(plan.discount_value ?? 0),
+  )
+  const [discountReason, setDiscountReason] = useState<string>(
+    plan.discount_reason ?? '',
+  )
+  // El monto sugerido se recalcula del subtotal aplicando el descuento del ciclo.
+  const computedTotal = applyDiscount(planSubtotal, {
+    kind: discountKind,
+    value: discountValue,
+  })
+  const [paymentAmount, setPaymentAmount] = useState<number>(computedTotal)
+  // Auto-sync paymentAmount cuando cambia el descuento, salvo que el user ya lo haya editado manualmente.
+  const [paymentTouched, setPaymentTouched] = useState(false)
+  useEffect(() => {
+    if (!paymentTouched) setPaymentAmount(computedTotal)
+  }, [computedTotal, paymentTouched])
+
   const [paymentMethod, setPaymentMethod] = useState<
     'cash' | 'transfer' | 'card' | 'other'
   >('cash')
@@ -141,6 +174,9 @@ export function NewMonthlyCycleModal({
         notes: notes.trim() || null,
         // Si el usuario movió fechas, mandar el override; si no, dejar que el RPC re-compute.
         appointmentsOverride: hasEdits ? editedCandidates : undefined,
+        discountKind,
+        discountValue,
+        discountReason: discountReason.trim() || null,
       })
       if (!res.ok) {
         setConfirmError(res.error)
@@ -195,18 +231,20 @@ export function NewMonthlyCycleModal({
                 min={0}
                 step={0.01}
                 value={paymentAmount}
-                onChange={(e) => setPaymentAmount(Number(e.target.value))}
+                onChange={(e) => {
+                  setPaymentTouched(true)
+                  setPaymentAmount(Number(e.target.value))
+                }}
                 className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm tabular-nums"
               />
-              {plan.monthly_total_usd !== null &&
-                paymentAmount !== plan.monthly_total_usd && (
-                  <p className="mt-1 text-[11px] text-amber-700">
-                    Total del plan: ${plan.monthly_total_usd.toFixed(2)}.
-                    {paymentAmount < plan.monthly_total_usd
-                      ? ' Pago parcial.'
-                      : ' Pago superior al esperado.'}
-                  </p>
-                )}
+              {Math.abs(paymentAmount - computedTotal) > 0.01 && (
+                <p className="mt-1 text-[11px] text-amber-700">
+                  Total esperado con descuento: ${computedTotal.toFixed(2)}.
+                  {paymentAmount < computedTotal
+                    ? ' Pago parcial.'
+                    : ' Pago superior al esperado.'}
+                </p>
+              )}
             </Field>
             <Field label="Método de pago">
               <select
@@ -233,6 +271,23 @@ export function NewMonthlyCycleModal({
               />
             </Field>
           </div>
+
+          <DiscountFields
+            subtotal={planSubtotal}
+            kind={discountKind}
+            value={discountValue}
+            reason={discountReason}
+            onChangeKind={(k) => {
+              setDiscountKind(k)
+              setPaymentTouched(false)
+            }}
+            onChangeValue={(v) => {
+              setDiscountValue(v)
+              setPaymentTouched(false)
+            }}
+            onChangeReason={setDiscountReason}
+            disabled={isConfirming}
+          />
 
           <div>
             <label className="block text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant mb-1">

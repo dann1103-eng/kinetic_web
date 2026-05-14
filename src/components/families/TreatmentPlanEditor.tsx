@@ -10,12 +10,15 @@ import {
 } from '@/types/db'
 import type {
   DayOfWeek,
+  DiscountKind,
   ServiceType,
   SlotFrequency,
   TreatmentPlan,
   TreatmentPlanScheduleSlot,
   TreatmentPlanTherapyEntry,
 } from '@/types/db'
+import { applyDiscount } from '@/lib/domain/discounts'
+import { DiscountFields } from './DiscountFields'
 
 interface TherapistOption {
   id: string
@@ -65,15 +68,29 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
   const [slots, setSlots] = useState<TreatmentPlanScheduleSlot[]>(
     existing?.schedule_pattern_json ?? [],
   )
+  const [discountKind, setDiscountKind] = useState<DiscountKind>(
+    existing?.discount_kind ?? 'none',
+  )
+  const [discountValue, setDiscountValue] = useState<number>(
+    Number(existing?.discount_value ?? 0),
+  )
+  const [discountReason, setDiscountReason] = useState<string>(
+    existing?.discount_reason ?? '',
+  )
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
-  const monthlyTotal = useMemo(
+  const subtotal = useMemo(
     () =>
       therapies
         .filter((t) => t.active)
         .reduce((sum, t) => sum + (t.sessions_per_month || 0) * (t.unit_cost_usd || 0), 0),
     [therapies],
+  )
+  const monthlyTotal = useMemo(
+    () =>
+      applyDiscount(subtotal, { kind: discountKind, value: discountValue }),
+    [subtotal, discountKind, discountValue],
   )
 
   /**
@@ -136,6 +153,9 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
         therapies,
         schedulePattern: slots,
         observations: observations.trim() || null,
+        discountKind,
+        discountValue,
+        discountReason: discountReason.trim() || null,
       })
       if (!res.ok) {
         setError(res.error)
@@ -288,10 +308,22 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
               ))}
             </div>
 
-            <div className="text-right text-sm font-semibold text-fm-primary">
-              Total mensual: ${monthlyTotal.toFixed(2)}
-            </div>
           </section>
+
+          <DiscountFields
+            subtotal={subtotal}
+            kind={discountKind}
+            value={discountValue}
+            reason={discountReason}
+            onChangeKind={setDiscountKind}
+            onChangeValue={setDiscountValue}
+            onChangeReason={setDiscountReason}
+            disabled={isPending}
+          />
+
+          <div className="text-right text-base font-semibold text-fm-primary tabular-nums">
+            Total mensual: ${monthlyTotal.toFixed(2)}
+          </div>
 
           {/* Schedule */}
           <section className="space-y-2">

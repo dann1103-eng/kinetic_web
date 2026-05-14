@@ -10,8 +10,10 @@ import type {
   TreatmentPlanTherapyEntry,
   ServiceType,
   DayOfWeek,
+  DiscountKind,
 } from '@/types/db'
 import { SERVICE_TYPE_LABELS, DAY_OF_WEEK_LABELS } from '@/types/db'
+import { applyDiscount, validateDiscount } from '@/lib/domain/discounts'
 
 const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias'] as const
 
@@ -81,12 +83,20 @@ function validateSchedule(input: unknown): TreatmentPlanScheduleSlot[] | string 
   return result
 }
 
-function recalcMonthlyTotal(therapies: TreatmentPlanTherapyEntry[]): number {
+function recalcSubtotal(therapies: TreatmentPlanTherapyEntry[]): number {
   return Math.round(
     therapies
       .filter((t) => t.active)
       .reduce((sum, t) => sum + t.sessions_per_month * t.unit_cost_usd, 0) * 100,
   ) / 100
+}
+
+function recalcMonthlyTotal(
+  therapies: TreatmentPlanTherapyEntry[],
+  discount: { kind: DiscountKind; value: number } = { kind: 'none', value: 0 },
+): number {
+  const subtotal = recalcSubtotal(therapies)
+  return applyDiscount(subtotal, discount)
 }
 
 // ── Lookups ─────────────────────────────────────────────────────────────────
@@ -130,6 +140,9 @@ export interface UpsertTreatmentPlanInput {
   observations: string | null
   signedAt?: string | null
   notes?: string
+  discountKind?: DiscountKind
+  discountValue?: number
+  discountReason?: string | null
 }
 
 export async function upsertTreatmentPlan(
@@ -146,7 +159,15 @@ export async function upsertTreatmentPlan(
   const scheduleValidated = validateSchedule(input.schedulePattern)
   if (typeof scheduleValidated === 'string') return { ok: false, error: scheduleValidated }
 
-  const monthlyTotal = recalcMonthlyTotal(therapiesValidated)
+  const discountKind: DiscountKind = input.discountKind ?? 'none'
+  const discountValue = Number(input.discountValue ?? 0)
+  const discountError = validateDiscount({ kind: discountKind, value: discountValue })
+  if (discountError) return { ok: false, error: discountError }
+
+  const monthlyTotal = recalcMonthlyTotal(therapiesValidated, {
+    kind: discountKind,
+    value: discountValue,
+  })
 
   const { data: existing } = await supabase
     .from('treatment_plans')
@@ -169,6 +190,9 @@ export async function upsertTreatmentPlan(
     signed_at: input.signedAt ?? null,
     active: true,
     updated_by_user_id: user.id,
+    discount_kind: discountKind,
+    discount_value: discountValue,
+    discount_reason: input.discountReason ?? null,
   }
 
   let saved: TreatmentPlan | null = null

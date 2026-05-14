@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { SessionReport, SessionReportStatus } from '@/types/db'
+import { ReportFileDownloadButton } from './ReportFileDownloadButton'
 
 interface ChildSessionReportsHistoryProps {
   childId: string
@@ -137,15 +138,25 @@ export async function ChildSessionReportsHistory({ childId }: ChildSessionReport
                 </div>
               )}
 
-              <ReadField label="Actividades" value={report.actividades} />
-              <ReadField label="Respuesta del niño/a" value={report.respuesta_del_nino} />
-              <ReadField label="Tarea para casa" value={report.tarea_para_casa} />
-              {report.observaciones_internas && (
-                <ReadField
-                  label="Observaciones internas"
-                  badge="Solo staff"
-                  value={report.observaciones_internas}
+              {report.upload_kind === 'file' && report.file_url ? (
+                <FilePreviewRow
+                  fileName={report.file_name ?? 'Archivo subido'}
+                  filePath={report.file_url}
+                  fileSizeBytes={report.file_size_bytes}
                 />
+              ) : (
+                <>
+                  <ReadField label="Actividades" value={report.actividades} />
+                  <ReadField label="Respuesta del niño/a" value={report.respuesta_del_nino} />
+                  <ReadField label="Tarea para casa" value={report.tarea_para_casa} />
+                  {report.observaciones_internas && (
+                    <ReadField
+                      label="Observaciones internas"
+                      badge="Solo staff"
+                      value={report.observaciones_internas}
+                    />
+                  )}
+                </>
               )}
 
               <p className="text-[11px] text-fm-on-surface-variant pt-2">
@@ -187,6 +198,33 @@ function ReadField({
       <p className="text-sm text-fm-on-surface whitespace-pre-wrap">
         {value || <span className="text-fm-on-surface-variant italic">(vacío)</span>}
       </p>
+    </div>
+  )
+}
+
+function FilePreviewRow({
+  fileName,
+  filePath,
+  fileSizeBytes,
+}: {
+  fileName: string
+  filePath: string
+  fileSizeBytes: number | null
+}) {
+  return (
+    <div className="rounded-xl border border-fm-outline-variant/30 bg-fm-surface-container-low/40 p-4 flex items-center gap-3">
+      <span className="material-symbols-outlined text-fm-primary text-2xl" aria-hidden="true">
+        description
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-fm-on-surface truncate">{fileName}</p>
+        {fileSizeBytes !== null && (
+          <p className="text-xs text-fm-on-surface-variant">
+            {(fileSizeBytes / 1024 / 1024).toFixed(2)} MB · Archivo del reporte
+          </p>
+        )}
+      </div>
+      <ReportFileDownloadButton path={filePath} />
     </div>
   )
 }
