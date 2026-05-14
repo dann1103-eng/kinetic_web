@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { NewMonthlyCycleModal } from './NewMonthlyCycleModal'
 import { cancelMonthlyCycle } from '@/app/actions/monthly-cycles'
-import { createInvoiceForCycle } from '@/app/actions/kinetic-invoices'
 import {
   MONTHLY_CYCLE_STATUS_LABELS,
 } from '@/types/db'
@@ -42,23 +41,6 @@ export function MonthlyCyclesSection({ childId, plan, cycles: initial, canManage
   const [cancelReason, setCancelReason] = useState('')
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [isCancelling, startCancel] = useTransition()
-  const [repairingId, setRepairingId] = useState<string | null>(null)
-  const [repairError, setRepairError] = useState<string | null>(null)
-  const [, startRepair] = useTransition()
-
-  function handleRepair(cycleId: string) {
-    setRepairingId(cycleId)
-    setRepairError(null)
-    startRepair(async () => {
-      const res = await createInvoiceForCycle(cycleId)
-      setRepairingId(null)
-      if (!res.ok) {
-        setRepairError(res.error)
-        return
-      }
-      router.refresh()
-    })
-  }
 
   function handleCancel() {
     if (!cancellingId) return
@@ -169,21 +151,6 @@ export function MonthlyCyclesSection({ childId, plan, cycles: initial, canManage
                           Factura
                         </Link>
                       )}
-                      {c.invoice_id && canManage && (
-                        <button
-                          type="button"
-                          disabled={repairingId === c.id}
-                          onClick={() => handleRepair(c.id)}
-                          title="Re-emitir factura con datos fiscales y descuentos actualizados"
-                          className="text-[10px] text-fm-on-surface-variant hover:text-fm-primary disabled:opacity-50"
-                        >
-                          {repairingId === c.id ? '…' : (
-                            <span className="material-symbols-outlined text-sm leading-none align-middle">
-                              refresh
-                            </span>
-                          )}
-                        </button>
-                      )}
                       {c.status === 'generated' && canManage && (
                         <button
                           type="button"
@@ -214,20 +181,6 @@ export function MonthlyCyclesSection({ childId, plan, cycles: initial, canManage
             router.refresh()
           }}
         />
-      )}
-
-      {repairError && (
-        <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-          <span className="material-symbols-outlined text-sm shrink-0">error</span>
-          <span>{repairError}</span>
-          <button
-            type="button"
-            onClick={() => setRepairError(null)}
-            className="ml-auto shrink-0 text-red-400 hover:text-red-700"
-          >
-            <span className="material-symbols-outlined text-sm">close</span>
-          </button>
-        </div>
       )}
 
       {cancellingId && (
