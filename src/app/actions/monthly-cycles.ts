@@ -149,10 +149,15 @@ export async function confirmMonthlyPaymentAndGenerate(
     if (msg.includes('plan_has_no_primary_therapist')) {
       return { ok: false, error: 'El plan no tiene terapista principal asignada.' }
     }
-    if (msg.includes('cycle_already_exists_for_period')) {
+    if (
+      msg.includes('cycle_already_exists_for_period') ||
+      msg.includes('monthly_session_cycles_child_id_period_month_key') ||
+      msg.includes('monthly_session_cycles_active_unique') ||
+      msg.includes('duplicate key value') // fallback genérico para constraint violations
+    ) {
       return {
         ok: false,
-        error: 'Ya existe un ciclo activo para este niño y mes. Anulá el anterior si querés rehacerlo.',
+        error: 'Ya existe un ciclo activo para este niño y mes. Si el anterior fue anulado, recargá la página e intentá de nuevo.',
       }
     }
     if (msg.includes('override_date_out_of_period')) {
