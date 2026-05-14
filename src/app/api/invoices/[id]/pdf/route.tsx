@@ -25,11 +25,16 @@ export async function GET(
   const isStaff = appUser?.role === 'admin' || appUser?.role === 'supervisor'
 
   if (!isStaff) {
+    const inv = invoice as Invoice
+    if (!inv.client_id) {
+      // Factura Kinetic (child_id, sin client_id FM) — acceso restringido a staff
+      return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
+    }
     const { data: link } = await supabase
       .from('client_users')
       .select('client_id')
       .eq('user_id', user.id)
-      .eq('client_id', (invoice as Invoice).client_id)
+      .eq('client_id', inv.client_id)
       .maybeSingle()
     if (!link) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
   }
