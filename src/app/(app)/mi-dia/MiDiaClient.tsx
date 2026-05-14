@@ -121,6 +121,14 @@ export function MiDiaClient({
           onReportUpdated={(updated) =>
             setReports((prev) => ({ ...prev, [updated.session_id]: updated }))
           }
+          onDeleted={() => {
+            setReports((prev) => {
+              const next = { ...prev }
+              delete next[activeReport.session_id]
+              return next
+            })
+            setOpenReport(null)
+          }}
         />
       )}
     </div>

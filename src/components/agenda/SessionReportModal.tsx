@@ -11,6 +11,7 @@ import {
 import {
   updateSessionReportDraft,
   submitSessionReport,
+  deleteSessionReport,
 } from '@/app/actions/session-reports'
 import {
   uploadSessionReportFile,
@@ -26,6 +27,8 @@ interface SessionReportModalProps {
   childName: string
   /** Llamado cuando el reporte se actualiza (parent puede refrescar su state). */
   onReportUpdated?: (report: SessionReport) => void
+  /** Llamado cuando el reporte se elimina (draft). Parent debe quitar el reporte de su estado. */
+  onDeleted?: () => void
 }
 
 const STATUS_LABEL: Record<SessionReport['status'], string> = {
@@ -44,6 +47,7 @@ export function SessionReportModal({
   report,
   childName,
   onReportUpdated,
+  onDeleted,
 }: SessionReportModalProps) {
   const [mode, setMode] = useState<Mode>(report.upload_kind ?? 'editor')
   const [actividades, setActividades] = useState(report.actividades)
@@ -181,6 +185,20 @@ export function SessionReportModal({
     })
   }
 
+  const handleDelete = () => {
+    if (!confirm('¿Eliminar este reporte de borrador? Esta acción no se puede deshacer.')) return
+    setError(null)
+    startTransition(async () => {
+      const res = await deleteSessionReport(report.id)
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      onDeleted?.()
+      onOpenChange(false)
+    })
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -293,36 +311,49 @@ export function SessionReportModal({
           </div>
         )}
 
-        <div className="-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/30 p-4 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            className="px-4 py-2 rounded-xl text-sm font-medium text-fm-on-surface-variant hover:bg-fm-surface-container transition-colors"
-          >
-            Cerrar
-          </button>
-          {isEditable && (
-            <>
-              {mode === 'editor' && (
+        <div className="-mx-4 -mb-4 flex flex-wrap items-center gap-2 rounded-b-xl border-t bg-muted/30 p-4">
+          {/* Eliminar borrador — solo visible cuando el reporte es draft */}
+          {report.status === 'draft' && (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={isPending}
+              className="px-3 py-2 rounded-xl text-sm font-medium text-fm-error hover:bg-fm-error/10 disabled:opacity-50 transition-colors"
+            >
+              Eliminar
+            </button>
+          )}
+          <div className="ml-auto flex flex-col-reverse gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="px-4 py-2 rounded-xl text-sm font-medium text-fm-on-surface-variant hover:bg-fm-surface-container transition-colors"
+            >
+              Cerrar
+            </button>
+            {isEditable && (
+              <>
+                {mode === 'editor' && (
+                  <button
+                    type="button"
+                    onClick={handleSaveDraft}
+                    disabled={isPending}
+                    className="px-4 py-2 rounded-xl text-sm font-medium border border-fm-outline-variant/40 text-fm-on-surface hover:bg-fm-surface-container disabled:opacity-50 transition-colors"
+                  >
+                    {isPending ? 'Guardando…' : 'Guardar borrador'}
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={handleSaveDraft}
-                  disabled={isPending}
-                  className="px-4 py-2 rounded-xl text-sm font-medium border border-fm-outline-variant/40 text-fm-on-surface hover:bg-fm-surface-container disabled:opacity-50 transition-colors"
+                  onClick={handleSubmit}
+                  disabled={isPending || isUploading}
+                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-fm-primary text-white hover:bg-fm-primary/90 disabled:opacity-50 transition-colors"
                 >
-                  {isPending ? 'Guardando…' : 'Guardar borrador'}
+                  {isPending ? 'Enviando…' : 'Enviar a aprobación'}
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={isPending || isUploading}
-                className="px-4 py-2 rounded-xl text-sm font-semibold bg-fm-primary text-white hover:bg-fm-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {isPending ? 'Enviando…' : 'Enviar a aprobación'}
-              </button>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

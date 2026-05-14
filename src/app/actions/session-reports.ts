@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { SessionReport } from '@/types/db'
 
@@ -207,4 +208,53 @@ export async function rejectSessionReport(
   revalidatePath('/mi-dia')
   revalidatePath('/aprobaciones')
   return { ok: true, report: data as SessionReport }
+}
+
+/**
+ * Elimina un reporte de sesión en borrador (status='draft').
+ * Borra el archivo del bucket si existía.
+ * Solo puede hacerlo el terapista autor o un admin/directora.
+ */
+export async function deleteSessionReport(
+  reportId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { supabase, user } = await getActor()
+
+  const { data: report } = await supabase
+    .from('session_reports')
+    .select('id, therapist_id, status, file_url')
+    .eq('id', reportId)
+    .maybeSingle()
+
+  if (!report) return { ok: false, error: 'Reporte no encontrado.' }
+  if (report.status !== 'draft') {
+    return { ok: false, error: 'Solo se pueden eliminar reportes en borrador.' }
+  }
+
+  const isAuthor = (report as { therapist_id: string | null }).therapist_id === user.id
+  const isAdmin = ['admin', 'directora'].includes(user.role)
+  if (!isAuthor && !isAdmin) {
+    return { ok: false, error: 'Sin permisos para eliminar este reporte.' }
+  }
+
+  const admin = createAdminClient()
+
+  // Borrar archivo del bucket si existe
+  const fileUrl = (report as { file_url: string | null }).file_url
+  if (fileUrl) {
+    await admin.storage.from('reports-files').remove([fileUrl]).catch(() => {})
+  }
+
+  const { error: deleteError } = await admin
+    .from('session_reports')
+    .delete()
+    .eq('id', reportId)
+
+  if (deleteError) {
+    return { ok: false, error: `Error al eliminar: ${deleteError.message}` }
+  }
+
+  revalidatePath('/mi-dia')
+  revalidatePath('/aprobaciones')
+  return { ok: true }
 }

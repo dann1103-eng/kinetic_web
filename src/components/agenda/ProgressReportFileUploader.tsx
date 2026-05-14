@@ -12,6 +12,7 @@ import {
   submitProgressReport,
   approveProgressReport,
   rejectProgressReport,
+  deleteProgressReport,
 } from '@/app/actions/progress-reports'
 import type { ProgressReport, ProgressReportStatus } from '@/types/db'
 
@@ -164,6 +165,19 @@ export function ProgressReportFileUploader({
     })
   }
 
+  const handleDelete = () => {
+    if (!confirm('¿Eliminar este informe de borrador? Esta acción no se puede deshacer.')) return
+    setError(null)
+    startTransition(async () => {
+      const res = await deleteProgressReport(report.id)
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      router.push(backHref)
+    })
+  }
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -312,6 +326,17 @@ export function ProgressReportFileUploader({
         >
           ← Volver al expediente
         </Link>
+        {/* Eliminar — solo disponible en borrador */}
+        {isAuthor && report.status === 'draft' && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={isPending || isUploading}
+            className="text-sm font-semibold text-fm-error hover:underline underline-offset-2 disabled:opacity-50"
+          >
+            Eliminar informe
+          </button>
+        )}
         <div className="ml-auto flex flex-wrap gap-2">
           {isAuthor && report.status === 'draft' && filePath && (
             <button

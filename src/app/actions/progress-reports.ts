@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { ProgressReport, ProgressReportData } from '@/types/db'
 
@@ -250,4 +251,54 @@ export async function rejectProgressReport(
   revalidatePath(`/familias/${report.child_id}`)
   revalidatePath('/aprobaciones')
   return { ok: true, report }
+}
+
+/**
+ * Elimina un informe de avances en borrador (status='draft').
+ * Borra el archivo del bucket si existía.
+ * Solo puede hacerlo el autor (terapista) o un admin/directora.
+ */
+export async function deleteProgressReport(
+  reportId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { supabase, user } = await getActor()
+
+  const { data: report } = await supabase
+    .from('progress_reports')
+    .select('id, authored_by_user_id, child_id, status, file_url')
+    .eq('id', reportId)
+    .maybeSingle()
+
+  if (!report) return { ok: false, error: 'Informe no encontrado.' }
+  if (report.status !== 'draft') {
+    return { ok: false, error: 'Solo se pueden eliminar informes en borrador.' }
+  }
+
+  const isAuthor = (report as { authored_by_user_id: string | null }).authored_by_user_id === user.id
+  const isAdmin = ['admin', 'directora'].includes(user.role)
+  if (!isAuthor && !isAdmin) {
+    return { ok: false, error: 'Sin permisos para eliminar este informe.' }
+  }
+
+  const admin = createAdminClient()
+
+  // Borrar archivo del bucket si existe
+  const fileUrl = (report as { file_url: string | null }).file_url
+  if (fileUrl) {
+    await admin.storage.from('reports-files').remove([fileUrl]).catch(() => {})
+  }
+
+  const { error: deleteError } = await admin
+    .from('progress_reports')
+    .delete()
+    .eq('id', reportId)
+
+  if (deleteError) {
+    return { ok: false, error: `Error al eliminar: ${deleteError.message}` }
+  }
+
+  const childId = (report as { child_id: string }).child_id
+  revalidatePath(`/familias/${childId}`)
+  revalidatePath('/aprobaciones')
+  return { ok: true }
 }
