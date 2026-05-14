@@ -10,6 +10,7 @@ import type {
   DiscountKind,
 } from '@/types/db'
 import { validateDiscount } from '@/lib/domain/discounts'
+import { createInvoiceForCycle } from './kinetic-invoices'
 
 const MGMT_ROLES = [
   'admin',
@@ -187,6 +188,15 @@ export async function confirmMonthlyPaymentAndGenerate(
       .select('*')
       .single()
     if (updated) cycle = updated as MonthlySessionCycle
+  }
+
+  // Auto-generar factura para el ciclo recién creado.
+  // Es best-effort: si falla, el ciclo queda registrado igual y la factura
+  // se puede generar manualmente desde el historial de facturas.
+  if (cycle?.id) {
+    await createInvoiceForCycle(cycle.id).catch((err) => {
+      console.error('[monthly-cycles] auto-invoice failed:', err)
+    })
   }
 
   revalidatePath('/familias')

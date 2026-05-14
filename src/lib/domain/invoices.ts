@@ -3,6 +3,7 @@ import type {
   ClientFiscalSnapshot,
   CompanySettings,
   EmitterSnapshot,
+  Family,
   Plan,
 } from '@/types/db'
 
@@ -99,6 +100,27 @@ export function buildClientSnapshot(client: Client): ClientFiscalSnapshot {
     country_code: client.country_code,
     contact_email: client.contact_email,
     contact_phone: client.contact_phone,
+  }
+}
+
+/**
+ * Convierte los datos fiscales de una familia en un ClientFiscalSnapshot
+ * para usarlo al emitir facturas de ciclos mensuales de terapia.
+ */
+export function buildFamilySnapshot(family: Family): ClientFiscalSnapshot {
+  return {
+    id: family.id,
+    name: family.fiscal_legal_name ?? family.primary_contact_name,
+    legal_name: family.fiscal_legal_name ?? null,
+    person_type: null,
+    nit: family.fiscal_nit ?? null,
+    nrc: null,
+    dui: family.fiscal_dui ?? null,
+    fiscal_address: family.fiscal_address ?? null,
+    giro: null,
+    country_code: 'SV',
+    contact_email: family.primary_contact_email ?? null,
+    contact_phone: family.primary_contact_phone ?? null,
   }
 }
 

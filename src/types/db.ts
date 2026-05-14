@@ -1297,7 +1297,8 @@ export interface Database {
         Row: {
           id: string
           invoice_number: string
-          client_id: string
+          client_id: string | null
+          child_id: string | null
           billing_cycle_id: string | null
           quote_id: string | null
           issue_date: string
@@ -1345,7 +1346,8 @@ export interface Database {
         Insert: {
           id?: string
           invoice_number: string
-          client_id: string
+          client_id?: string | null
+          child_id?: string | null
           billing_cycle_id?: string | null
           quote_id?: string | null
           issue_date?: string
@@ -1390,6 +1392,8 @@ export interface Database {
         }
         Update: {
           invoice_number?: string
+          client_id?: string | null
+          child_id?: string | null
           billing_cycle_id?: string | null
           quote_id?: string | null
           issue_date?: string

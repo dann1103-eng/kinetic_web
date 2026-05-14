@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { NewMonthlyCycleModal } from './NewMonthlyCycleModal'
 import { cancelMonthlyCycle } from '@/app/actions/monthly-cycles'
 import {
@@ -141,15 +142,25 @@ export function MonthlyCyclesSection({ childId, plan, cycles: initial, canManage
                     )}
                   </td>
                   <td className="px-3 py-1.5 text-right">
-                    {c.status === 'generated' && canManage && (
-                      <button
-                        type="button"
-                        onClick={() => setCancellingId(c.id)}
-                        className="text-xs text-red-600 hover:underline"
-                      >
-                        Anular
-                      </button>
-                    )}
+                    <div className="flex items-center justify-end gap-3">
+                      {c.invoice_id && (
+                        <Link
+                          href={`/billing/invoices/${c.invoice_id}`}
+                          className="text-xs font-semibold text-fm-primary hover:underline underline-offset-2"
+                        >
+                          Factura
+                        </Link>
+                      )}
+                      {c.status === 'generated' && canManage && (
+                        <button
+                          type="button"
+                          onClick={() => setCancellingId(c.id)}
+                          className="text-xs text-red-600 hover:underline"
+                        >
+                          Anular
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

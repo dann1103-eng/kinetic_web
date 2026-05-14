@@ -6,6 +6,7 @@ import { TopNav } from '@/components/layout/TopNav'
 import { FamilyForm } from '@/components/families/FamilyForm'
 import { ChildForm } from '@/components/families/ChildForm'
 import { JournalTab } from './JournalTab'
+import { FamilyInvoicesSection } from '@/components/families/FamilyInvoicesSection'
 import {
   INTAKE_PHASE_LABELS,
   TREATMENT_STATUS_LABELS,
@@ -251,6 +252,11 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
                 </div>
               )}
             </section>
+
+            {/* Historial de facturas */}
+            {childrenList.length > 0 && (
+              <FamilyInvoicesSection familyId={id} />
+            )}
 
             {/* Agenda digital — sin card anidada, divider + heading */}
             {childrenList.length > 0 && (

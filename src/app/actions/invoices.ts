@@ -457,6 +457,9 @@ export async function regenerateN1coLink(
   if (inv.status === 'paid' || inv.status === 'void') {
     return { error: 'No se puede regenerar el link de una factura pagada o anulada' as const }
   }
+  if (!inv.client_id) {
+    return { error: 'Esta factura no está asociada a un cliente FM y no soporta links de pago' as const }
+  }
 
   const [{ data: clientRow }, emitter] = await Promise.all([
     admin.from('clients').select('id, name, current_plan_id').eq('id', inv.client_id).single(),
