@@ -223,7 +223,7 @@ export async function createInvoiceForCycle(
     description: item.description,
     quantity: item.quantity,
     unit_price: item.unit_price,
-    total: item.quantity * item.unit_price,
+    line_total: item.quantity * item.unit_price,
     sort_order: idx,
   }))
 
