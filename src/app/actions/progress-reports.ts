@@ -137,6 +137,28 @@ export async function updateProgressReportDraft(
   return { ok: true, report: data as ProgressReport }
 }
 
+/**
+ * Guarda las notas visibles para la familia en un informe cuatrimestral.
+ * Solo puede hacerlo el autor o un admin mientras el informe esté en borrador.
+ */
+export async function updateProgressReportNotes(
+  reportId: string,
+  notes: string | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { supabase } = await getActor()
+
+  const { error } = await supabase
+    .from('progress_reports')
+    .update({ family_notes: notes?.trim() || null })
+    .eq('id', reportId)
+    .in('status', ['draft', 'rejected'])
+
+  if (error) {
+    return { ok: false, error: error.message }
+  }
+  return { ok: true }
+}
+
 export async function submitProgressReport(reportId: string): Promise<
   | { ok: true; report: ProgressReport }
   | { ok: false; error: string }

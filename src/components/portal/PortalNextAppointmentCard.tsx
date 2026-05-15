@@ -85,11 +85,10 @@ export function PortalNextAppointmentCard({
               </div>
               {appointment.therapist_name && (
                 <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-fm-on-surface-variant text-[20px]">medical_services</span>
-                  <p className="text-[16px] text-fm-on-surface-variant">
-                    Especialista:{' '}
-                    <span className="font-semibold text-fm-on-surface">{appointment.therapist_name}</span>
-                  </p>
+                  <span className="material-symbols-outlined text-fm-on-surface-variant text-[20px]">person</span>
+                  <span className="inline-flex items-center gap-1 text-[13px] font-semibold bg-kp-primary-container/15 text-kp-primary px-3 py-1 rounded-full">
+                    con {appointment.therapist_name}
+                  </span>
                 </div>
               )}
             </div>
@@ -150,11 +149,10 @@ export function PortalNextAppointmentCard({
                 </div>
                 {appointment.therapist_name && (
                   <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">medical_services</span>
-                    <p className="text-[15px] text-fm-on-surface-variant">
-                      Especialista:{' '}
-                      <span className="font-semibold text-fm-on-surface">{appointment.therapist_name}</span>
-                    </p>
+                    <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">person</span>
+                    <span className="inline-flex items-center gap-1 text-[13px] font-semibold bg-kp-primary-container/15 text-kp-primary px-3 py-1 rounded-full">
+                      con {appointment.therapist_name}
+                    </span>
                   </div>
                 )}
               </div>

@@ -2051,6 +2051,7 @@ export interface Database {
           file_name?: string | null
           file_size_bytes?: number | null
           file_mime_type?: string | null
+          family_notes?: string | null
         }
         Update: Partial<Omit<ProgressReport, 'id' | 'created_at'>>
         Relationships: []
@@ -2940,6 +2941,8 @@ export interface ProgressReport {
   file_name: string | null
   file_size_bytes: number | null
   file_mime_type: string | null
+  /** Notas del terapeuta visibles para la familia (mig 0114). */
+  family_notes: string | null
   created_at: string
   updated_at: string
 }

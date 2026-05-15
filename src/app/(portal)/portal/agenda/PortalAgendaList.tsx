@@ -97,7 +97,7 @@ export function PortalAgendaList({ appointments, childrenList: childrenProp, the
                       className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-4 sm:p-5"
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div className="space-y-1">
+                        <div className="space-y-1.5">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-sm font-semibold text-fm-on-surface">
                               {child?.full_name ?? 'Niño/a'}
@@ -114,10 +114,15 @@ export function PortalAgendaList({ appointments, childrenList: childrenProp, the
                             }`}>
                               {appt.modality === 'virtual' ? 'virtual' : 'presencial'}
                             </span>
+                            {therapist && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-kp-primary-container/15 text-kp-primary px-2 py-0.5 rounded-full">
+                                <span className="material-symbols-outlined text-[12px]">person</span>
+                                con {therapist.full_name}
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm text-fm-on-surface-variant">
                             {formatDateTime(appt.starts_at)}
-                            {therapist && <span> · con {therapist.full_name}</span>}
                           </p>
                         </div>
                         {joinable && (

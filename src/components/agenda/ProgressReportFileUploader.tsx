@@ -13,6 +13,7 @@ import {
   approveProgressReport,
   rejectProgressReport,
   deleteProgressReport,
+  updateProgressReportNotes,
 } from '@/app/actions/progress-reports'
 import type { ProgressReport, ProgressReportStatus } from '@/types/db'
 
@@ -64,6 +65,9 @@ export function ProgressReportFileUploader({
   const [okMsg, setOkMsg] = useState<string | null>(null)
   const [showReject, setShowReject] = useState(false)
   const [rejectReason, setRejectReason] = useState('')
+  const [familyNotes, setFamilyNotes] = useState(initialReport.family_notes ?? '')
+  const [notesDirty, setNotesDirty] = useState(false)
+  const [isSavingNotes, startSaveNotes] = useTransition()
 
   const isEditable =
     isAuthor && (report.status === 'draft' || report.status === 'rejected')
@@ -175,6 +179,15 @@ export function ProgressReportFileUploader({
         return
       }
       router.push(backHref)
+    })
+  }
+
+  const handleNotesBlur = () => {
+    if (!notesDirty) return
+    startSaveNotes(async () => {
+      const res = await updateProgressReportNotes(report.id, familyNotes || null)
+      if (res.ok) setNotesDirty(false)
+      else setError(res.error)
     })
   }
 
@@ -305,6 +318,37 @@ export function ProgressReportFileUploader({
           </div>
         )}
       </section>
+
+      {/* Notas para la familia */}
+      {(isEditable || familyNotes) && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-bold uppercase tracking-wider text-fm-on-surface-variant">
+            Notas para la familia
+          </h2>
+          <p className="text-xs text-fm-on-surface-variant">
+            Texto complementario que verá la familia junto al archivo (opcional).
+          </p>
+          {isEditable ? (
+            <div className="space-y-1.5">
+              <textarea
+                value={familyNotes}
+                onChange={(e) => { setFamilyNotes(e.target.value); setNotesDirty(true) }}
+                onBlur={handleNotesBlur}
+                rows={4}
+                placeholder="Ej: El periodo cubre las sesiones del mes de enero a abril. Se adjunta el informe completo…"
+                className="w-full rounded-2xl border border-fm-outline-variant/30 bg-fm-surface-container-lowest px-4 py-3 text-sm text-fm-on-surface placeholder:text-fm-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-fm-primary/30 resize-none"
+              />
+              <p className="text-xs text-fm-on-surface-variant">
+                {isSavingNotes ? 'Guardando…' : notesDirty ? 'Sin guardar — click fuera para guardar' : 'Guardado'}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-low/40 px-4 py-3">
+              <p className="text-sm text-fm-on-surface whitespace-pre-wrap">{familyNotes}</p>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Mensajes */}
       {error && (

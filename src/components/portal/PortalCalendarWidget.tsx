@@ -261,9 +261,12 @@ export function PortalCalendarWidget({ appointments, childNamesById }: Props) {
                   </p>
                 </div>
                 {appt.therapist_name && (
-                  <p className="text-[11px] text-fm-on-surface-variant pl-4">
-                    con {appt.therapist_name}
-                  </p>
+                  <div className="pl-4">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-fm-surface-container text-fm-on-surface-variant px-2.5 py-0.5 rounded-full">
+                      <span className="material-symbols-outlined text-[12px]">person</span>
+                      con {appt.therapist_name}
+                    </span>
+                  </div>
                 )}
               </div>
             )
