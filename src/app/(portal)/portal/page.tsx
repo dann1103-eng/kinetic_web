@@ -33,6 +33,16 @@ function periodLabel(isoDate: string | null): string {
   })
 }
 
+function timeAgo(iso: string | null): string {
+  if (!iso) return ''
+  const diff = Date.now() - new Date(iso).getTime()
+  const days = Math.floor(diff / 86_400_000)
+  if (days === 0) return 'Hoy'
+  if (days === 1) return 'Ayer'
+  if (days < 7) return `Hace ${days} días`
+  return shortDate(iso)
+}
+
 // ─── local types ─────────────────────────────────────────────────────────────
 
 type NextAppt = {
@@ -58,6 +68,14 @@ type SessionReportRow = {
   session_id: string | null
 }
 
+type JournalRow = {
+  id: string
+  child_id: string
+  category: string
+  body: string
+  created_at: string
+}
+
 type InvRow = {
   id: string
   status: string
@@ -66,6 +84,15 @@ type InvRow = {
   issue_date: string | null
   payment_method: string | null
   invoice_number: string | null
+}
+
+// ─── category metadata ────────────────────────────────────────────────────────
+
+const JOURNAL_META: Record<string, { label: string; icon: string; color: string; bg: string }> = {
+  home_exercise: { label: 'Ejercicio en casa', icon: 'fitness_center',  color: 'text-kp-tertiary',  bg: 'bg-kp-tertiary-container/15' },
+  observation:   { label: 'Observación',       icon: 'visibility',      color: 'text-kp-primary',   bg: 'bg-kp-primary-container/15' },
+  question:      { label: 'Pregunta',           icon: 'help_outline',    color: 'text-kp-secondary', bg: 'bg-kp-secondary-container/15' },
+  response:      { label: 'Respuesta',          icon: 'forum',           color: 'text-kp-primary',   bg: 'bg-kp-primary-container/15' },
 }
 
 // ─── page ────────────────────────────────────────────────────────────────────
@@ -176,24 +203,29 @@ export default async function PortalHomePage() {
       for (const a of apptRows ?? []) {
         sessionApptMap[a.id] = { service_type: a.service_type, therapist_id: a.therapist_id }
       }
-
       const therapistIds = Array.from(
-        new Set(
-          Object.values(sessionApptMap)
-            .map((a) => a.therapist_id)
-            .filter(Boolean) as string[],
-        ),
+        new Set(Object.values(sessionApptMap).map((a) => a.therapist_id).filter(Boolean) as string[]),
       )
       if (therapistIds.length > 0) {
         const { data: therapists } = await supabase
-          .from('users')
-          .select('id, full_name')
-          .in('id', therapistIds)
-        for (const t of therapists ?? []) {
-          sessionTherapistMap[t.id] = t.full_name
-        }
+          .from('users').select('id, full_name').in('id', therapistIds)
+        for (const t of therapists ?? []) sessionTherapistMap[t.id] = t.full_name
       }
     }
+  }
+
+  // ── Agenda digital — entradas del diario visibles a la familia ────────────
+  let journalEntries: JournalRow[] = []
+
+  if (canWork && childIds.length > 0) {
+    const { data: jeRaw } = await supabase
+      .from('child_journal_entries')
+      .select('id, child_id, category, body, created_at')
+      .in('child_id', childIds)
+      .eq('visible_to_family', true)
+      .order('created_at', { ascending: false })
+      .limit(3)
+    journalEntries = (jeRaw ?? []) as JournalRow[]
   }
 
   // ── Facturación ───────────────────────────────────────────────────────────
@@ -212,21 +244,20 @@ export default async function PortalHomePage() {
       .limit(10)
 
     allInvoices = (invRaw ?? []) as InvRow[]
-
     for (const inv of allInvoices) {
       if (inv.status === 'issued') {
         pendingInvoices++
         pendingTotal += Number(inv.total_a_pagar ?? 0)
       }
     }
-    latestPaidInvoice = allInvoices.find((i) => i.status === 'paid') ?? null
+    latestPaidInvoice  = allInvoices.find((i) => i.status === 'paid') ?? null
     recentPaidInvoices = allInvoices.filter((i) => i.status === 'paid').slice(0, 2)
   }
 
   // ─── render ───────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Desktop greeting (hidden on mobile) ── */}
+      {/* ── Desktop greeting ── */}
       <div className="hidden md:flex items-start justify-between mb-2">
         <div>
           <h1 className="text-[32px] font-black text-fm-on-surface leading-tight">
@@ -236,12 +267,9 @@ export default async function PortalHomePage() {
             Bienvenido al portal de padres
           </p>
         </div>
-        <p className="text-[13px] text-fm-on-surface-variant mt-2">
+        <p className="text-[13px] text-fm-on-surface-variant mt-2 capitalize">
           {new Date().toLocaleDateString('es-SV', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
+            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
           })}
         </p>
       </div>
@@ -259,226 +287,276 @@ export default async function PortalHomePage() {
             </section>
           )}
 
-          {/* Reportes */}
-          {canWork && progressReports.length > 0 && (
+          {/* ── Reportes de avance ── */}
+          {canWork && (
             <section className="flex flex-col gap-3">
               <div className="flex justify-between items-center px-1">
                 <h3 className="text-[20px] font-bold text-fm-on-surface">Reportes</h3>
-                <Link
-                  href="/portal/agenda-digital"
-                  className="text-[14px] font-semibold text-kp-primary"
-                >
+                <Link href="/portal/agenda-digital" className="text-[14px] font-semibold text-kp-primary">
                   Ver todos
                 </Link>
               </div>
 
-              {/* Mobile: horizontal carousel */}
-              <div className="md:hidden flex gap-4 overflow-x-auto pb-2 snap-x scrollbar-hide -mx-4 px-4">
-                {progressReports.map((report, i) => {
-                  const isEven = i % 2 === 0
-                  return (
-                    <div
-                      key={report.id}
-                      className="min-w-[240px] bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[32px] p-5 snap-start flex-shrink-0"
-                    >
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${
-                          isEven ? 'bg-kp-tertiary-container/10' : 'bg-kp-primary-container/10'
-                        }`}
-                      >
-                        <span
-                          className={`material-symbols-outlined ${
-                            isEven ? 'text-kp-tertiary' : 'text-kp-primary'
-                          }`}
+              {progressReports.length === 0 ? (
+                /* Empty state */
+                <div className="bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[28px] p-6 flex flex-col items-center gap-2">
+                  <span className="material-symbols-outlined text-[36px] text-fm-outline-variant">description</span>
+                  <p className="text-[14px] font-semibold text-fm-on-surface-variant">
+                    Sin informes disponibles aún
+                  </p>
+                  <p className="text-[12px] text-fm-on-surface-variant text-center max-w-xs">
+                    Tus informes cuatrimestrales aparecerán aquí cuando el equipo los publique.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Mobile: horizontal carousel */}
+                  <div className="md:hidden flex gap-4 overflow-x-auto pb-2 snap-x scrollbar-hide -mx-4 px-4">
+                    {progressReports.map((report, i) => {
+                      const isEven = i % 2 === 0
+                      return (
+                        <div
+                          key={report.id}
+                          className="min-w-[240px] bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[32px] p-5 snap-start flex-shrink-0"
                         >
-                          {isEven ? 'description' : 'assessment'}
-                        </span>
-                      </div>
-                      <h4 className="text-[16px] font-bold text-fm-on-surface mb-1">
-                        Informe cuatrimestral
-                      </h4>
-                      <p className="text-[12px] font-semibold text-fm-on-surface-variant mb-4">
-                        {report.sent_to_family_at
-                          ? `Publicado: ${shortDate(report.sent_to_family_at)}`
-                          : childNamesById[report.child_id] ?? ''}
-                      </p>
-                      <Link
-                        href="/portal/agenda-digital"
-                        className="block w-full py-2 bg-fm-surface-container-low text-fm-on-surface-variant rounded-full text-[12px] font-semibold text-center"
-                      >
-                        Ver PDF
-                      </Link>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Desktop: bento 2-col grid */}
-              <div className="hidden md:grid grid-cols-2 gap-4">
-                {progressReports.slice(0, 2).map((report, i) => {
-                  const isGreen = i === 0
-                  return (
-                    <div
-                      key={report.id}
-                      className={`rounded-[28px] p-6 flex flex-col ${
-                        isGreen
-                          ? 'bg-kp-tertiary-container text-kp-on-tertiary'
-                          : 'bg-fm-surface-container-lowest border border-fm-outline-variant'
-                      }`}
-                      style={{ minHeight: '240px' }}
-                    >
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${
-                          isGreen ? 'bg-white/20' : 'bg-kp-primary-container/10'
-                        }`}
-                      >
-                        <span
-                          className={`material-symbols-outlined ${
-                            isGreen ? 'text-white' : 'text-kp-primary'
-                          }`}
-                        >
-                          {isGreen ? 'analytics' : 'psychology'}
-                        </span>
-                      </div>
-                      <div className="flex-1">
-                        <h4
-                          className={`text-[16px] font-bold mb-1 ${
-                            isGreen ? 'text-white' : 'text-fm-on-surface'
-                          }`}
-                        >
-                          Informe cuatrimestral
-                        </h4>
-                        <p
-                          className={`text-[13px] mb-1 ${
-                            isGreen ? 'text-white/80' : 'text-fm-on-surface-variant'
-                          }`}
-                        >
-                          {childNamesById[report.child_id] ?? '—'}
-                        </p>
-                        {report.sent_to_family_at && (
-                          <p
-                            className={`text-[12px] ${
-                              isGreen ? 'text-white/70' : 'text-fm-on-surface-variant'
-                            }`}
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${isEven ? 'bg-kp-tertiary-container/10' : 'bg-kp-primary-container/10'}`}>
+                            <span className={`material-symbols-outlined ${isEven ? 'text-kp-tertiary' : 'text-kp-primary'}`}>
+                              {isEven ? 'description' : 'assessment'}
+                            </span>
+                          </div>
+                          <h4 className="text-[16px] font-bold text-fm-on-surface mb-1">
+                            Informe cuatrimestral
+                          </h4>
+                          <p className="text-[12px] font-semibold text-fm-on-surface-variant mb-4">
+                            {report.sent_to_family_at
+                              ? `Publicado: ${shortDate(report.sent_to_family_at)}`
+                              : childNamesById[report.child_id] ?? ''}
+                          </p>
+                          <Link
+                            href="/portal/agenda-digital"
+                            className="block w-full py-2 bg-fm-surface-container-low text-fm-on-surface-variant rounded-full text-[12px] font-semibold text-center"
                           >
-                            Publicado: {shortDate(report.sent_to_family_at)}
-                          </p>
-                        )}
-                      </div>
-                      <Link
-                        href="/portal/agenda-digital"
-                        className={`mt-4 flex items-center gap-1.5 text-[13px] font-semibold ${
-                          isGreen ? 'text-white' : 'text-kp-primary'
-                        }`}
-                      >
-                        Descargar PDF
-                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
-                      </Link>
-                    </div>
-                  )
-                })}
-              </div>
+                            Ver PDF
+                          </Link>
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Desktop: bento 2-col grid */}
+                  <div className="hidden md:grid grid-cols-2 gap-4">
+                    {progressReports.slice(0, 2).map((report, i) => {
+                      const isGreen = i === 0
+                      return (
+                        <div
+                          key={report.id}
+                          className={`rounded-[28px] p-6 flex flex-col ${
+                            isGreen
+                              ? 'bg-kp-tertiary-container text-kp-on-tertiary'
+                              : 'bg-fm-surface-container-lowest border border-fm-outline-variant'
+                          }`}
+                          style={{ minHeight: '240px' }}
+                        >
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${isGreen ? 'bg-white/20' : 'bg-kp-primary-container/10'}`}>
+                            <span className={`material-symbols-outlined ${isGreen ? 'text-white' : 'text-kp-primary'}`}>
+                              {isGreen ? 'analytics' : 'psychology'}
+                            </span>
+                          </div>
+                          <div className="flex-1">
+                            <h4 className={`text-[16px] font-bold mb-1 ${isGreen ? 'text-white' : 'text-fm-on-surface'}`}>
+                              Informe cuatrimestral
+                            </h4>
+                            <p className={`text-[13px] mb-1 ${isGreen ? 'text-white/80' : 'text-fm-on-surface-variant'}`}>
+                              {childNamesById[report.child_id] ?? '—'}
+                            </p>
+                            {report.sent_to_family_at && (
+                              <p className={`text-[12px] ${isGreen ? 'text-white/70' : 'text-fm-on-surface-variant'}`}>
+                                Publicado: {shortDate(report.sent_to_family_at)}
+                              </p>
+                            )}
+                          </div>
+                          <Link
+                            href="/portal/agenda-digital"
+                            className={`mt-4 flex items-center gap-1.5 text-[13px] font-semibold ${isGreen ? 'text-white' : 'text-kp-primary'}`}
+                          >
+                            Descargar PDF
+                            <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                          </Link>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
             </section>
           )}
 
-          {/* Sesiones Recientes */}
-          {canWork && sessionReports.length > 0 && (
+          {/* ── Sesiones Recientes ── */}
+          {canWork && (
             <section className="flex flex-col gap-3">
-              <h3 className="text-[20px] font-bold text-fm-on-surface px-1">
-                Sesiones Recientes
-              </h3>
+              <h3 className="text-[20px] font-bold text-fm-on-surface px-1">Sesiones Recientes</h3>
 
-              {/* Mobile: flat cards */}
-              <div className="md:hidden flex flex-col gap-3">
-                {sessionReports.slice(0, 3).map((report) => {
-                  const apptData    = report.session_id ? sessionApptMap[report.session_id] : null
-                  const therapistId = apptData?.therapist_id ?? null
-                  const therapistName = therapistId ? (sessionTherapistMap[therapistId] ?? null) : null
-                  const serviceLabel  = capitalize(apptData?.service_type) || 'Reporte de sesión'
-                  const dateLabel     = shortDate(report.sent_to_family_at)
+              {sessionReports.length === 0 ? (
+                /* Empty state */
+                <div className="bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[28px] p-6 flex flex-col items-center gap-2">
+                  <span className="material-symbols-outlined text-[36px] text-fm-outline-variant">history_edu</span>
+                  <p className="text-[14px] font-semibold text-fm-on-surface-variant">
+                    Sin reportes de sesión aún
+                  </p>
+                  <p className="text-[12px] text-fm-on-surface-variant text-center max-w-xs">
+                    Los reportes de cada sesión aparecerán aquí una vez que el terapeuta los envíe.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {/* Mobile: flat cards */}
+                  <div className="md:hidden flex flex-col gap-3">
+                    {sessionReports.slice(0, 3).map((report) => {
+                      const apptData      = report.session_id ? sessionApptMap[report.session_id] : null
+                      const therapistId   = apptData?.therapist_id ?? null
+                      const therapistName = therapistId ? (sessionTherapistMap[therapistId] ?? null) : null
+                      const serviceLabel  = capitalize(apptData?.service_type) || 'Reporte de sesión'
+                      const dateLabel     = shortDate(report.sent_to_family_at)
+                      return (
+                        <div
+                          key={report.id}
+                          className="bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[24px] p-4 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-fm-surface-container-high rounded-full flex items-center justify-center flex-shrink-0">
+                              <span className="material-symbols-outlined text-fm-on-surface-variant text-[20px]">history</span>
+                            </div>
+                            <div>
+                              <p className="text-[16px] font-semibold text-fm-on-surface">{serviceLabel}</p>
+                              <p className="text-[12px] font-semibold text-fm-on-surface-variant">
+                                {dateLabel}{therapistName && ` • ${therapistName}`}
+                              </p>
+                            </div>
+                          </div>
+                          <Link
+                            href="/portal/agenda-digital"
+                            className="text-kp-primary text-[12px] font-semibold px-4 py-2 hover:bg-kp-primary/5 rounded-full transition-colors flex-shrink-0"
+                          >
+                            Leer reporte
+                          </Link>
+                        </div>
+                      )
+                    })}
+                  </div>
 
-                  return (
-                    <div
-                      key={report.id}
-                      className="bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[24px] p-4 flex items-center justify-between"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-fm-surface-container-high rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="material-symbols-outlined text-fm-on-surface-variant text-[20px]">
-                            history
-                          </span>
+                  {/* Desktop: table-style card */}
+                  <div className="hidden md:block bg-fm-surface-container-lowest border border-fm-outline-variant/20 rounded-[24px] overflow-hidden">
+                    {sessionReports.slice(0, 4).map((report, idx) => {
+                      const apptData      = report.session_id ? sessionApptMap[report.session_id] : null
+                      const therapistId   = apptData?.therapist_id ?? null
+                      const therapistName = therapistId ? (sessionTherapistMap[therapistId] ?? null) : null
+                      const serviceLabel  = capitalize(apptData?.service_type) || 'Reporte de sesión'
+                      const dateLabel     = shortDate(report.sent_to_family_at)
+                      return (
+                        <div
+                          key={report.id}
+                          className={`flex items-center justify-between px-6 py-4 ${idx > 0 ? 'border-t border-fm-outline-variant/15' : ''}`}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-fm-surface-container-high rounded-full flex items-center justify-center flex-shrink-0">
+                              <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">history_edu</span>
+                            </div>
+                            <div>
+                              <p className="text-[15px] font-semibold text-fm-on-surface">{serviceLabel}</p>
+                              <p className="text-[12px] text-fm-on-surface-variant">
+                                {dateLabel}{therapistName && ` · ${therapistName}`}
+                              </p>
+                            </div>
+                          </div>
+                          <Link
+                            href="/portal/agenda-digital"
+                            className="text-kp-primary text-[12px] font-semibold tracking-[0.05em] uppercase bg-kp-primary-container/15 px-4 py-1.5 rounded-full hover:bg-kp-primary-container/25 transition-colors flex-shrink-0"
+                          >
+                            Leer reporte
+                          </Link>
                         </div>
-                        <div>
-                          <p className="text-[16px] font-semibold text-fm-on-surface">
-                            {serviceLabel}
-                          </p>
-                          <p className="text-[12px] font-semibold text-fm-on-surface-variant">
-                            {dateLabel}
-                            {therapistName && ` • ${therapistName}`}
-                          </p>
-                        </div>
-                      </div>
-                      <Link
-                        href="/portal/agenda-digital"
-                        className="text-kp-primary text-[12px] font-semibold px-4 py-2 hover:bg-kp-primary/5 rounded-full transition-colors flex-shrink-0"
-                      >
-                        Leer reporte
-                      </Link>
-                    </div>
-                  )
-                })}
-              </div>
-
-              {/* Desktop: table-style card with divide-y rows */}
-              <div className="hidden md:block bg-fm-surface-container-lowest border border-fm-outline-variant/20 rounded-[24px] overflow-hidden">
-                {sessionReports.slice(0, 4).map((report, idx) => {
-                  const apptData    = report.session_id ? sessionApptMap[report.session_id] : null
-                  const therapistId = apptData?.therapist_id ?? null
-                  const therapistName = therapistId ? (sessionTherapistMap[therapistId] ?? null) : null
-                  const serviceLabel  = capitalize(apptData?.service_type) || 'Reporte de sesión'
-                  const dateLabel     = shortDate(report.sent_to_family_at)
-
-                  return (
-                    <div
-                      key={report.id}
-                      className={`flex items-center justify-between px-6 py-4 ${
-                        idx > 0 ? 'border-t border-fm-outline-variant/15' : ''
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-fm-surface-container-high rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">
-                            history_edu
-                          </span>
-                        </div>
-                        <div>
-                          <p className="text-[15px] font-semibold text-fm-on-surface">
-                            {serviceLabel}
-                          </p>
-                          <p className="text-[12px] text-fm-on-surface-variant">
-                            {dateLabel}
-                            {therapistName && ` · ${therapistName}`}
-                          </p>
-                        </div>
-                      </div>
-                      <Link
-                        href="/portal/agenda-digital"
-                        className="text-kp-primary text-[12px] font-semibold tracking-[0.05em] uppercase bg-kp-primary-container/15 px-4 py-1.5 rounded-full hover:bg-kp-primary-container/25 transition-colors flex-shrink-0"
-                      >
-                        Leer reporte
-                      </Link>
-                    </div>
-                  )
-                })}
-              </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
             </section>
           )}
 
-          {/* Facturación — mobile only (desktop is in right column) */}
+          {/* ── Agenda Digital — notas del terapeuta ── */}
+          {canWork && (
+            <section className="flex flex-col gap-3">
+              <div className="flex justify-between items-center px-1">
+                <h3 className="text-[20px] font-bold text-fm-on-surface">Agenda Digital</h3>
+                <Link href="/portal/agenda-digital" className="text-[14px] font-semibold text-kp-primary">
+                  Ver todo
+                </Link>
+              </div>
+
+              {journalEntries.length === 0 ? (
+                /* Empty state */
+                <div className="bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[28px] p-6 flex flex-col items-center gap-2">
+                  <span className="material-symbols-outlined text-[36px] text-fm-outline-variant">menu_book</span>
+                  <p className="text-[14px] font-semibold text-fm-on-surface-variant">
+                    Sin notas publicadas aún
+                  </p>
+                  <p className="text-[12px] text-fm-on-surface-variant text-center max-w-xs">
+                    Las notas y ejercicios del terapeuta aparecerán aquí.
+                  </p>
+                </div>
+              ) : (
+                <div className="bg-fm-surface-container-lowest border border-fm-outline-variant/20 rounded-[28px] overflow-hidden">
+                  {journalEntries.map((entry, idx) => {
+                    const meta = JOURNAL_META[entry.category] ?? JOURNAL_META.observation
+                    const preview = entry.body.length > 90
+                      ? entry.body.slice(0, 90).trimEnd() + '…'
+                      : entry.body
+                    return (
+                      <div
+                        key={entry.id}
+                        className={`flex items-start gap-4 px-5 py-4 ${idx > 0 ? 'border-t border-fm-outline-variant/15' : ''}`}
+                      >
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 ${meta.bg}`}>
+                          <span className={`material-symbols-outlined text-[18px] ${meta.color}`}>
+                            {meta.icon}
+                          </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[12px] font-semibold text-fm-on-surface-variant">
+                              {meta.label}
+                            </span>
+                            <span className="text-[11px] text-fm-outline-variant">·</span>
+                            <span className="text-[11px] text-fm-on-surface-variant">
+                              {childNamesById[entry.child_id] ?? '—'}
+                            </span>
+                            <span className="text-[11px] text-fm-outline-variant">·</span>
+                            <span className="text-[11px] text-fm-on-surface-variant">
+                              {timeAgo(entry.created_at)}
+                            </span>
+                          </div>
+                          <p className="text-[14px] text-fm-on-surface mt-0.5 leading-snug">{preview}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  <div className="border-t border-fm-outline-variant/15 px-5 py-3">
+                    <Link
+                      href="/portal/agenda-digital"
+                      className="text-[13px] font-semibold text-kp-primary hover:underline"
+                    >
+                      Ver agenda completa →
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
+          {/* ── Facturación — mobile only ── */}
           {canBilling && (
             <section className="md:hidden flex flex-col gap-3">
               <h3 className="text-[20px] font-bold text-fm-on-surface px-1">Facturación</h3>
-
               <div className="bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[32px] p-6">
 
                 {pendingInvoices > 0 && (
@@ -491,9 +569,7 @@ export default async function PortalHomePage() {
                         <p className="text-[12px] font-semibold text-fm-on-surface-variant">
                           {pendingInvoices === 1 ? 'Factura pendiente' : 'Facturas pendientes'}
                         </p>
-                        <p className="text-[18px] font-bold text-fm-on-surface">
-                          ${pendingTotal.toFixed(2)}
-                        </p>
+                        <p className="text-[18px] font-bold text-fm-on-surface">${pendingTotal.toFixed(2)}</p>
                       </div>
                     </div>
                     <span className="bg-amber-100 text-amber-700 text-[12px] font-semibold px-3 py-1 rounded-full">
@@ -509,9 +585,7 @@ export default async function PortalHomePage() {
                         <span className="material-symbols-outlined text-kp-secondary">receipt_long</span>
                       </div>
                       <div>
-                        <p className="text-[12px] font-semibold text-fm-on-surface-variant">
-                          Última factura
-                        </p>
+                        <p className="text-[12px] font-semibold text-fm-on-surface-variant">Última factura</p>
                         <p className="text-[18px] font-bold text-fm-on-surface">
                           ${Number(latestPaidInvoice.total_a_pagar ?? 0).toFixed(2)}
                         </p>
@@ -532,9 +606,7 @@ export default async function PortalHomePage() {
                 {latestPaidInvoice?.payment_method ? (
                   <div className="flex items-center justify-between p-4 bg-fm-surface-container-low rounded-2xl">
                     <div className="flex items-center gap-3">
-                      <span className="material-symbols-outlined text-fm-on-surface-variant">
-                        credit_card
-                      </span>
+                      <span className="material-symbols-outlined text-fm-on-surface-variant">credit_card</span>
                       <p className="text-[14px] font-semibold text-fm-on-surface capitalize">
                         {latestPaidInvoice.payment_method.replace(/_/g, ' ')}
                       </p>
@@ -550,9 +622,7 @@ export default async function PortalHomePage() {
                   >
                     <div className="flex items-center gap-3">
                       <span className="material-symbols-outlined text-fm-on-surface-variant">receipt</span>
-                      <p className="text-[14px] font-semibold text-fm-on-surface">
-                        Ver todas las facturas
-                      </p>
+                      <p className="text-[14px] font-semibold text-fm-on-surface">Ver todas las facturas</p>
                     </div>
                     <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">
                       chevron_right
@@ -573,10 +643,7 @@ export default async function PortalHomePage() {
               <div className="bg-fm-surface-container-lowest border border-fm-outline-variant/20 rounded-[28px] p-6">
                 <div className="flex justify-between items-center mb-5">
                   <h3 className="text-[18px] font-bold text-fm-on-surface">Facturación</h3>
-                  <Link
-                    href="/portal/facturas"
-                    className="text-[12px] font-semibold text-kp-primary hover:underline"
-                  >
+                  <Link href="/portal/facturas" className="text-[12px] font-semibold text-kp-primary hover:underline">
                     Ver todas →
                   </Link>
                 </div>
@@ -586,9 +653,7 @@ export default async function PortalHomePage() {
                     <p className="text-[13px] font-semibold text-amber-800">
                       {pendingInvoices === 1 ? '1 factura pendiente' : `${pendingInvoices} facturas pendientes`}
                     </p>
-                    <span className="text-[13px] font-bold text-amber-700">
-                      ${pendingTotal.toFixed(2)}
-                    </span>
+                    <span className="text-[13px] font-bold text-amber-700">${pendingTotal.toFixed(2)}</span>
                   </div>
                 )}
 
@@ -597,18 +662,14 @@ export default async function PortalHomePage() {
                     {recentPaidInvoices.map((inv, idx) => (
                       <div
                         key={inv.id}
-                        className={`flex items-center justify-between py-3 ${
-                          idx > 0 ? 'border-t border-fm-outline-variant/15' : ''
-                        }`}
+                        className={`flex items-center justify-between py-3 ${idx > 0 ? 'border-t border-fm-outline-variant/15' : ''}`}
                       >
                         <div className="min-w-0 mr-3">
                           <p className="text-[14px] font-semibold text-fm-on-surface capitalize truncate">
                             {periodLabel(inv.issue_date) || inv.invoice_number || '—'}
                           </p>
                           {inv.invoice_number && (
-                            <p className="text-[11px] text-fm-on-surface-variant">
-                              {inv.invoice_number}
-                            </p>
+                            <p className="text-[11px] text-fm-on-surface-variant">{inv.invoice_number}</p>
                           )}
                         </div>
                         <div className="text-right flex-shrink-0">
@@ -630,9 +691,7 @@ export default async function PortalHomePage() {
 
                 {latestPaidInvoice?.payment_method && (
                   <div className="mt-4 pt-4 border-t border-fm-outline-variant/15 flex items-center gap-2">
-                    <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">
-                      credit_card
-                    </span>
+                    <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">credit_card</span>
                     <p className="text-[13px] text-fm-on-surface capitalize">
                       {latestPaidInvoice.payment_method.replace(/_/g, ' ')}
                     </p>
@@ -640,13 +699,11 @@ export default async function PortalHomePage() {
                 )}
               </div>
 
-              {/* Quick contact card */}
+              {/* Quick contact */}
               <div className="bg-kp-primary-container/10 border border-kp-primary-container/30 rounded-[28px] p-6">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-10 h-10 bg-kp-primary rounded-xl flex items-center justify-center flex-shrink-0">
-                    <span className="material-symbols-outlined text-kp-on-primary text-[20px]">
-                      support_agent
-                    </span>
+                    <span className="material-symbols-outlined text-kp-on-primary text-[20px]">support_agent</span>
                   </div>
                   <div>
                     <p className="text-[15px] font-semibold text-fm-on-surface">¿Necesitás ayuda?</p>

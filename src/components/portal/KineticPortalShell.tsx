@@ -1,8 +1,10 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 
 interface Props {
@@ -28,8 +30,13 @@ export function KineticPortalShell({
   canBilling,
 }: Props) {
   const pathname = usePathname()
+  const { resolvedTheme, setTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   const firstName = userName.split(' ')[0]
   const initials = userName.slice(0, 2).toUpperCase()
+  const isDark = mounted && resolvedTheme === 'dark'
 
   const navItems = ALL_NAV_ITEMS.filter((item) => {
     if (item.requiresWork && !canWork) return false
@@ -37,7 +44,9 @@ export function KineticPortalShell({
     return true
   })
 
-  function Avatar({ size }: { size: 'sm' | 'md' }) {
+  // Plain JSX helper — called as renderAvatar('sm'), not <Avatar size="sm" />
+  // to avoid React treating it as a new component type on every render.
+  function renderAvatar(size: 'sm' | 'md') {
     const dim = size === 'sm' ? 36 : 40
     const cls = size === 'sm' ? 'w-9 h-9 text-xs' : 'w-10 h-10 text-sm'
     return (
@@ -53,10 +62,30 @@ export function KineticPortalShell({
     )
   }
 
+  // Compact dark/light mode toggle — icon only
+  function renderThemeToggle(className?: string) {
+    return (
+      <button
+        type="button"
+        onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        className={cn(
+          'w-10 h-10 flex items-center justify-center rounded-full hover:bg-kp-primary/5 transition-colors',
+          className,
+        )}
+        aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        suppressHydrationWarning
+      >
+        <span className="material-symbols-outlined text-fm-on-surface-variant">
+          {isDark ? 'light_mode' : 'dark_mode'}
+        </span>
+      </button>
+    )
+  }
+
   return (
     <div className="relative min-h-screen bg-fm-background">
 
-      {/* ── Background image (visible on desktop, subtle on mobile) ── */}
+      {/* ── Background image ── */}
       <div
         className="fixed inset-0 z-0 portal-bg-image opacity-[0.07] md:opacity-20 pointer-events-none"
         aria-hidden="true"
@@ -65,7 +94,7 @@ export function KineticPortalShell({
       {/* ── Mobile header (hidden md+) ── */}
       <header className="md:hidden fixed top-0 w-full bg-fm-surface/95 backdrop-blur-sm border-b border-fm-surface-container-highest flex items-center justify-between px-4 h-16 z-50">
         <div className="flex items-center gap-3">
-          <Avatar size="md" />
+          {renderAvatar('md')}
           <div>
             <p className="text-[18px] font-bold text-fm-on-surface leading-tight">
               ¡Hola {firstName}!
@@ -75,13 +104,8 @@ export function KineticPortalShell({
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-kp-primary/5 transition-colors"
-          aria-label="Notificaciones"
-        >
-          <span className="material-symbols-outlined text-kp-primary">notifications</span>
-        </button>
+        {/* Dark mode toggle (mobile) */}
+        {renderThemeToggle()}
       </header>
 
       {/* ── Desktop sidebar (hidden below md) ── */}
@@ -97,7 +121,7 @@ export function KineticPortalShell({
 
         {/* User card */}
         <div className="mx-4 mb-5 p-3 rounded-2xl bg-kp-primary-container/10 flex items-center gap-3">
-          <Avatar size="sm" />
+          {renderAvatar('sm')}
           <div className="min-w-0">
             <p className="text-[13px] font-semibold text-fm-on-surface truncate">{userName}</p>
             <p className="text-[11px] text-fm-on-surface-variant">Familia</p>
@@ -128,7 +152,7 @@ export function KineticPortalShell({
           })}
         </nav>
 
-        {/* Bottom links */}
+        {/* Bottom actions */}
         <div className="px-3 pb-8 flex flex-col gap-1">
           <button
             type="button"
@@ -155,27 +179,13 @@ export function KineticPortalShell({
           <span className="text-[14px] text-fm-on-surface-variant select-none">Buscar...</span>
         </div>
 
-        {/* Actions */}
+        {/* Actions: dark mode toggle + user chip */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-kp-primary/5 transition-colors"
-            aria-label="Notificaciones"
-          >
-            <span className="material-symbols-outlined text-fm-on-surface-variant">notifications</span>
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full pointer-events-none" />
-          </button>
-          <button
-            type="button"
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-kp-primary/5 transition-colors"
-            aria-label="Mensajes"
-          >
-            <span className="material-symbols-outlined text-fm-on-surface-variant">chat_bubble_outline</span>
-          </button>
+          {renderThemeToggle()}
 
           {/* User chip */}
           <div className="flex items-center gap-2 pl-3 border-l border-fm-outline-variant/30 ml-1">
-            <Avatar size="sm" />
+            {renderAvatar('sm')}
             <span className="text-[14px] font-semibold text-fm-on-surface">{firstName}</span>
           </div>
         </div>
