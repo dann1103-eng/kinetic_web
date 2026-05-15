@@ -21,6 +21,16 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   {
+    href: '/portal',
+    label: 'Inicio',
+    kineticFamily: true,
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+      </svg>
+    ),
+  },
+  {
     href: '/portal/dashboard',
     label: 'Dashboard',
     requires: 'work',
@@ -73,7 +83,7 @@ const navItems: NavItem[] = [
   },
   {
     href: '/portal/agenda-digital',
-    label: 'Agenda digital',
+    label: 'Reportes',
     requires: 'work',
     kineticFamily: true,
     icon: (
@@ -192,10 +202,11 @@ export function PortalSidebar({
         {/* Navegación */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {visibleNavItems.map((item) => {
-            const isActive =
-              item.href === '/portal/dashboard'
-                ? pathname === '/portal/dashboard'
-                : pathname.startsWith(item.href)
+            // Rutas de home (exact-only): /portal y /portal/dashboard
+            const isExactOnly = item.href === '/portal/dashboard' || item.href === '/portal'
+            const isActive = isExactOnly
+              ? pathname === item.href
+              : pathname.startsWith(item.href)
 
             return (
               <Link

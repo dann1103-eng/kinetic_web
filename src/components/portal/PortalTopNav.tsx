@@ -10,6 +10,16 @@ import { cn } from '@/lib/utils'
 // `kineticFamily: true` → solo se muestra en mode='kinetic-family'.
 const navItems = [
   {
+    href: '/portal',
+    label: 'Inicio',
+    kineticFamily: true,
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+      </svg>
+    ),
+  },
+  {
     href: '/portal/dashboard',
     label: 'Dashboard',
     kineticFamily: false,
@@ -47,12 +57,32 @@ const navItems = [
     ),
   },
   {
+    href: '/portal/agenda',
+    label: 'Citas',
+    kineticFamily: true,
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zM7 12h5v5H7z"/>
+      </svg>
+    ),
+  },
+  {
     href: '/portal/agenda-digital',
-    label: 'Agenda digital',
+    label: 'Reportes',
     kineticFamily: true,
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14l-5-5 1.41-1.41L12 14.17l7.59-7.59L21 8l-9 9z"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/portal/facturas',
+    label: 'Facturas',
+    kineticFamily: true,
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
       </svg>
     ),
   },
@@ -81,9 +111,12 @@ const PATH_TITLES: Record<string, string> = {
   '/portal/pipeline':         'Pipeline',
   '/portal/calendario':       'Calendario',
   '/portal/facturacion':      'Facturación',
-  '/portal/agenda-digital':   'Agenda digital',
+  '/portal/agenda-digital':   'Reportes',
+  '/portal/agenda':           'Citas',
+  '/portal/facturas':         'Facturas',
   '/portal/empresa':          'Mi empresa',
   '/portal/config':           'Configuración',
+  '/portal':                  'Inicio',
 }
 
 function DarkModeToggle() {
@@ -129,10 +162,9 @@ export function PortalTopNav({ clientDisplayName, mode = 'fm' }: Props) {
     return !item.kineticFamily
   })
 
+  const EXACT_PATHS = new Set(['/portal/dashboard', '/portal'])
   const currentTitle = Object.entries(PATH_TITLES).find(([path]) =>
-    path === '/portal/dashboard'
-      ? pathname === path
-      : pathname.startsWith(path)
+    EXACT_PATHS.has(path) ? pathname === path : pathname.startsWith(path)
   )?.[1] ?? 'Portal'
 
   return (
@@ -183,10 +215,10 @@ export function PortalTopNav({ clientDisplayName, mode = 'fm' }: Props) {
             {/* Nav links */}
             <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
               {visibleNavItems.map((item) => {
-                const isActive =
-                  item.href === '/portal/dashboard'
-                    ? pathname === item.href
-                    : pathname.startsWith(item.href)
+                const isExactOnly = item.href === '/portal/dashboard' || item.href === '/portal'
+                const isActive = isExactOnly
+                  ? pathname === item.href
+                  : pathname.startsWith(item.href)
 
                 return (
                   <Link

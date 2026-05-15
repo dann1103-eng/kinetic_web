@@ -45,6 +45,7 @@ export function TopNav({ title, backHref }: TopNavProps) {
   const user = useUser()
   const { setOpen } = useMobileSidebar()
   const displayName = user.full_name || user.email
+  const isFamily = user.role === 'family'
 
   return (
     <header className="sticky top-0 z-30 h-16 flex items-center justify-between gap-3 px-4 sm:px-6 bg-fm-surface-container-lowest border-b border-fm-outline-variant/30 flex-shrink-0">
@@ -70,20 +71,32 @@ export function TopNav({ title, backHref }: TopNavProps) {
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
-        <PresenceSelector />
-        <ShiftStatusWidget />
+        {/* Widgets solo para staff interno — ocultos para familias del portal */}
+        {!isFamily && <PresenceSelector />}
+        {!isFamily && <ShiftStatusWidget />}
         <ThemeToggle />
-        <NotificationsDropdown />
-        <Link
-          href="/profile"
-          className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-        >
-          <div className="text-right hidden sm:block">
-            <p className="text-sm font-medium text-fm-on-surface leading-tight">{displayName}</p>
-            <p className="text-xs text-fm-on-surface-variant capitalize">{user.role}</p>
+        {!isFamily && <NotificationsDropdown />}
+        {isFamily ? (
+          /* Familias: solo avatar (sin link a /profile que es ruta interna) */
+          <div className="flex items-center gap-2">
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-medium text-fm-on-surface leading-tight">{displayName}</p>
+              <p className="text-xs text-fm-on-surface-variant">Familia</p>
+            </div>
+            <UserAvatar name={displayName} avatarUrl={user.avatar_url} size="sm" />
           </div>
-          <UserAvatar name={displayName} avatarUrl={user.avatar_url} size="sm" />
-        </Link>
+        ) : (
+          <Link
+            href="/profile"
+            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+          >
+            <div className="text-right hidden sm:block">
+              <p className="text-sm font-medium text-fm-on-surface leading-tight">{displayName}</p>
+              <p className="text-xs text-fm-on-surface-variant capitalize">{user.role}</p>
+            </div>
+            <UserAvatar name={displayName} avatarUrl={user.avatar_url} size="sm" />
+          </Link>
+        )}
       </div>
     </header>
   )
