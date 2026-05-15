@@ -40,14 +40,10 @@ export default async function PortalAgendaPage() {
     : { data: [] }
 
   return (
-    <div className="flex flex-col min-h-full bg-fm-background">
-      <div className="flex-1 p-6">
-        <PortalAgendaList
-          appointments={appointments}
-          childrenList={children}
-          therapists={(therapists ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
-        />
-      </div>
-    </div>
+    <PortalAgendaList
+      appointments={appointments}
+      childrenList={children}
+      therapists={(therapists ?? []) as { id: string; full_name: string; avatar_url: string | null }[]}
+    />
   )
 }

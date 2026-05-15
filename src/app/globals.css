@@ -97,6 +97,22 @@
   --color-fm-inverse-surface:          var(--fm-inverse-surface);
   --color-fm-inverse-on-surface:       var(--fm-inverse-on-surface);
   --color-fm-inverse-primary:          var(--fm-inverse-primary);
+
+  /* ── Kinetic Portal palette (Stitch design system)
+   * Direct hex values — NO var() indirection — so opacity modifiers
+   * like bg-kp-primary-container/20 work correctly in Tailwind v4. */
+  --color-kp-primary:                  #00668a;
+  --color-kp-primary-container:        #1fa4da;
+  --color-kp-on-primary:               #ffffff;
+  --color-kp-on-primary-container:     #00364b;
+  --color-kp-on-primary-fixed-variant: #004c69;
+  --color-kp-primary-fixed:            #c4e7ff;
+  --color-kp-secondary:                #7e5700;
+  --color-kp-secondary-container:      #fdbf4a;
+  --color-kp-on-secondary-container:   #704e00;
+  --color-kp-tertiary:                 #2e6c00;
+  --color-kp-tertiary-container:       #62ab36;
+  --color-kp-on-tertiary:              #ffffff;
 }
 
 :root {
@@ -274,6 +290,20 @@
 
 /* ── Shared utility classes (used across components) ── */
 @layer utilities {
+  /* Hide scrollbar while keeping scroll functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Card shadow from Stitch portal design */
+  .portal-card-shadow {
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+  }
+
   .signature-gradient {
     background: linear-gradient(135deg, #1FA4DA 0%, #87daff 100%);
   }

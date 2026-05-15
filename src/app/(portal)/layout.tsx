@@ -6,6 +6,7 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { loadPortalPermissions } from '@/lib/auth/portal-permissions'
 import { PortalSidebar } from '@/components/portal/PortalSidebar'
 import { PortalTopNav } from '@/components/portal/PortalTopNav'
+import { KineticPortalShell } from '@/components/portal/KineticPortalShell'
 import { UserProvider } from '@/contexts/UserContext'
 import { SessionSentinel } from '@/components/auth/SessionSentinel'
 import { SpectatorBanner } from '@/components/layout/SpectatorBanner'
@@ -53,19 +54,14 @@ export default async function PortalLayout({ children }: { children: React.React
         isImpersonating={false}
         realAdminName={null}
       >
-        <div className="flex h-screen overflow-hidden bg-fm-background">
-          <PortalSidebar
-            clientOptions={[]}
-            activeClientId=""
-            clientDisplayName="Kinetic"
-            permissions={familyPerms}
-            mode="kinetic-family"
-          />
-          <div className="flex flex-col flex-1 md:ml-64 overflow-hidden">
-            <PortalTopNav clientDisplayName="Kinetic" mode="kinetic-family" />
-            <main className="flex-1 overflow-y-auto">{children}</main>
-          </div>
-        </div>
+        <KineticPortalShell
+          userName={ctx.appUser.full_name}
+          avatarUrl={ctx.appUser.avatar_url ?? null}
+          canWork={familyPerms.can_work}
+          canBilling={familyPerms.can_billing}
+        >
+          {children}
+        </KineticPortalShell>
         <SessionSentinel />
       </UserProvider>
     )

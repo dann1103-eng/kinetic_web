@@ -28,13 +28,11 @@ export default async function PortalAgendaDigitalPage() {
 
   if (!familyUser?.can_work) {
     return (
-      <div className="flex flex-col min-h-full bg-fm-background">
-        <div className="flex-1 flex items-center justify-center p-6">
-          <p className="text-sm text-fm-on-surface-variant text-center max-w-xs">
-            El acceso a la Agenda digital no está habilitado para esta cuenta.
-            Contactá a Kinetic si creés que esto es un error.
-          </p>
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <p className="text-sm text-fm-on-surface-variant text-center max-w-xs">
+          El acceso a la Agenda digital no está habilitado para esta cuenta.
+          Contactá a Kinetic si creés que esto es un error.
+        </p>
       </div>
     )
   }
@@ -109,40 +107,38 @@ export default async function PortalAgendaDigitalPage() {
   )
 
   return (
-    <div className="flex flex-col min-h-full bg-fm-background">
-      <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto w-full space-y-6">
-        {progressReports.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-fm-on-surface uppercase tracking-wider">
-              Informes de avances
-            </h2>
-            <ProgressReportsList
-              reports={progressReports}
-              childNamesById={childNamesById}
-              templateMap={templateMap}
-            />
-          </section>
-        )}
-
-        {sessionReports.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold text-fm-on-surface uppercase tracking-wider">
-              Reportes recientes
-            </h2>
-            <SessionReportsList reports={sessionReports} childNamesById={childNamesById} />
-          </section>
-        )}
-
+    <div className="space-y-6">
+      {progressReports.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold text-fm-on-surface uppercase tracking-wider">
-            Agenda digital
+            Informes de avances
           </h2>
-          <PortalJournalClient
-            childrenData={children}
-            entriesByChild={entriesByChild}
+          <ProgressReportsList
+            reports={progressReports}
+            childNamesById={childNamesById}
+            templateMap={templateMap}
           />
         </section>
-      </div>
+      )}
+
+      {sessionReports.length > 0 && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold text-fm-on-surface uppercase tracking-wider">
+            Reportes recientes
+          </h2>
+          <SessionReportsList reports={sessionReports} childNamesById={childNamesById} />
+        </section>
+      )}
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-fm-on-surface uppercase tracking-wider">
+          Agenda digital
+        </h2>
+        <PortalJournalClient
+          childrenData={children}
+          entriesByChild={entriesByChild}
+        />
+      </section>
     </div>
   )
 }

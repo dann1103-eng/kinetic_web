@@ -82,8 +82,7 @@ export default async function PortalFacturaDetailPage({
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-fm-background">
-      <div className="flex-1 p-4 md:p-6 max-w-3xl mx-auto w-full space-y-4">
+    <div className="max-w-3xl mx-auto w-full space-y-4">
 
         {/* Documento */}
         <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5 md:p-7 space-y-6">
@@ -254,7 +253,6 @@ export default async function PortalFacturaDetailPage({
           </Link>
         </div>
 
-      </div>
     </div>
   )
 }
