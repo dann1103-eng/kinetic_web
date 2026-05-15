@@ -3,7 +3,89 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
+
+// ── Foto del niño ─────────────────────────────────────────────────────────────
+
+const PHOTO_BUCKET = 'child-photos'
+const PHOTO_ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024 // 5 MB
+
+const PHOTO_STAFF_ROLES = [
+  'admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias',
+  'recepcion', 'terapista', 'maestra',
+]
+
+type PhotoResult = { ok: true; url: string } | { ok: false; error: string }
+
+export async function uploadChildPhoto(
+  formData: FormData,
+  childId: string,
+): Promise<PhotoResult> {
+  const ctx = await getEffectiveUser()
+  if (!ctx || !PHOTO_STAFF_ROLES.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permiso.' }
+  }
+
+  const file = formData.get('file') as File | null
+  if (!file) return { ok: false, error: 'No se recibió archivo.' }
+  if (!PHOTO_ALLOWED_TYPES.includes(file.type)) {
+    return { ok: false, error: 'Formato no permitido. Usá JPG, PNG o WebP.' }
+  }
+  if (file.size > PHOTO_MAX_BYTES) return { ok: false, error: 'El archivo supera 5 MB.' }
+
+  const ext = file.type.split('/')[1].replace('jpeg', 'jpg')
+  const path = `${childId}/photo.${ext}`
+
+  const admin = createAdminClient()
+
+  // Borrar versiones anteriores (best-effort)
+  await admin.storage.from(PHOTO_BUCKET).remove([
+    `${childId}/photo.jpg`,
+    `${childId}/photo.png`,
+    `${childId}/photo.webp`,
+  ])
+
+  const { error: uploadErr } = await admin.storage
+    .from(PHOTO_BUCKET)
+    .upload(path, file, { upsert: true, contentType: file.type })
+
+  if (uploadErr) return { ok: false, error: uploadErr.message }
+
+  const { data: { publicUrl } } = admin.storage.from(PHOTO_BUCKET).getPublicUrl(path)
+  // Timestamp para forzar re-descarga en el navegador tras reemplazar
+  const url = `${publicUrl}?t=${Date.now()}`
+
+  await admin.from('children').update({ photo_url: url }).eq('id', childId)
+
+  revalidatePath('/ninos')
+  revalidatePath('/familias', 'layout')
+
+  return { ok: true, url }
+}
+
+export async function removeChildPhoto(
+  childId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx || !PHOTO_STAFF_ROLES.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permiso.' }
+  }
+
+  const admin = createAdminClient()
+  await admin.storage.from(PHOTO_BUCKET).remove([
+    `${childId}/photo.jpg`,
+    `${childId}/photo.png`,
+    `${childId}/photo.webp`,
+  ])
+  await admin.from('children').update({ photo_url: null }).eq('id', childId)
+
+  revalidatePath('/ninos')
+  revalidatePath('/familias', 'layout')
+
+  return { ok: true }
+}
 import type {
   Child,
   DiagnosisCode,

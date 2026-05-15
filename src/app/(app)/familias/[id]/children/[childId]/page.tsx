@@ -8,6 +8,7 @@ import { NewProgressReportButton } from '@/components/agenda/NewProgressReportBu
 import { TreatmentPlanSection } from '@/components/families/TreatmentPlanSection'
 import { MonthlyCyclesSection } from '@/components/families/MonthlyCyclesSection'
 import { ChildDashboardPanel } from '@/components/dashboard/ChildDashboardPanel'
+import { ChildPhotoUploader } from '@/components/families/ChildPhotoUploader'
 import { getChildDashboardData } from '@/lib/domain/child-dashboard'
 import {
   INTAKE_PHASE_LABELS,
@@ -93,20 +94,28 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
       <div className="flex-1 px-6 pt-6 pb-12 max-w-6xl mx-auto w-full">
         {/* Header — integrado con la página, sin card chrome */}
         <header className="space-y-3">
-          <div className="flex items-baseline gap-3 flex-wrap">
-            <h1 className="text-3xl font-semibold tracking-tight text-fm-on-surface">
-              {c.full_name}
-            </h1>
-            {c.code && (
-              <span className="text-xs font-mono text-fm-on-surface-variant bg-fm-surface-container px-2 py-0.5 rounded">
-                {c.code}
-              </span>
-            )}
-            {c.preferred_name && (
-              <span className="text-sm text-fm-on-surface-variant italic">
-                &ldquo;{c.preferred_name}&rdquo;
-              </span>
-            )}
+          <div className="flex items-center gap-4">
+            <ChildPhotoUploader
+              childId={childId}
+              childName={c.full_name}
+              photoUrl={c.photo_url ?? null}
+              canEdit={canEditPlan || ctx.appUser.role === 'terapista' || ctx.appUser.role === 'maestra'}
+            />
+            <div className="flex items-baseline gap-3 flex-wrap">
+              <h1 className="text-3xl font-semibold tracking-tight text-fm-on-surface">
+                {c.full_name}
+              </h1>
+              {c.code && (
+                <span className="text-xs font-mono text-fm-on-surface-variant bg-fm-surface-container px-2 py-0.5 rounded">
+                  {c.code}
+                </span>
+              )}
+              {c.preferred_name && (
+                <span className="text-sm text-fm-on-surface-variant italic">
+                  &ldquo;{c.preferred_name}&rdquo;
+                </span>
+              )}
+            </div>
           </div>
           <p className="text-sm text-fm-on-surface-variant">
             {ageYears !== null && <span>{ageYears} años</span>}

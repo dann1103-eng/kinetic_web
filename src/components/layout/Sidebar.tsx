@@ -37,6 +37,13 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    href: '/ninos',
+    label: 'Niños',
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>child_care</span>
+    ),
+  },
+  {
     href: '/mi-dia',
     label: 'Mi día',
     allowedRoles: ['terapista', 'maestra'],

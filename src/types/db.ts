@@ -1919,6 +1919,7 @@ export interface Database {
           enrollment_started_at?: string | null
           enrollment_ended_at?: string | null
           notes?: string | null
+          photo_url?: string | null
           created_by_user_id?: string | null
         }
         Update: Partial<Omit<Child, 'id' | 'created_at'>>
@@ -2810,6 +2811,7 @@ export interface Child {
   enrollment_started_at: string | null
   enrollment_ended_at: string | null
   notes: string | null
+  photo_url: string | null
   created_at: string
   created_by_user_id: string | null
   updated_at: string
