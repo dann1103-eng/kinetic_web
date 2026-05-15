@@ -162,7 +162,7 @@ export function KineticPortalShell({
             Ayuda
           </button>
           <Link
-            href="/logout"
+            href="/auth/signout"
             className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[14px] font-semibold text-fm-on-surface-variant hover:bg-fm-surface-container-high transition-colors"
           >
             <span className="material-symbols-outlined text-[20px]">logout</span>
