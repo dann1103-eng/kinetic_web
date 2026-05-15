@@ -17,7 +17,17 @@ VALUES (
 ON CONFLICT (id) DO NOTHING;
 
 -- Policy SELECT para usuarios autenticados
-CREATE POLICY IF NOT EXISTS child_photos_select
-  ON storage.objects FOR SELECT
-  TO authenticated
-  USING (bucket_id = 'child-photos');
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = 'storage'
+      AND tablename  = 'objects'
+      AND policyname = 'child_photos_select'
+  ) THEN
+    CREATE POLICY child_photos_select
+      ON storage.objects FOR SELECT
+      TO authenticated
+      USING (bucket_id = 'child-photos');
+  END IF;
+END $$;
