@@ -80,6 +80,15 @@ type JournalRow = {
   created_at: string
 }
 
+type PendingAbsenceRow = {
+  id: string
+  child_id: string
+  reported_at: string
+  appointment_id: string
+  appt_starts_at?: string
+  appt_service_type?: string | null
+}
+
 type CalRawRow = {
   id: string
   starts_at: string
@@ -242,6 +251,39 @@ export default async function PortalHomePage() {
     journalEntries = (jeRaw ?? []) as JournalRow[]
   }
 
+  // ── Citas por reponer (inasistencias pendientes) ─────────────────────────
+  let pendingAbsences: PendingAbsenceRow[] = []
+
+  if (canWork && childIds.length > 0) {
+    const { data: absRaw } = await supabase
+      .from('appointment_absences')
+      .select('id, child_id, reported_at, appointment_id')
+      .in('child_id', childIds)
+      .eq('status', 'pending')
+      .order('reported_at', { ascending: true })
+
+    if (absRaw && absRaw.length > 0) {
+      const apptIds = absRaw.map((a) => a.appointment_id).filter(Boolean) as string[]
+      const { data: origAppts } = apptIds.length
+        ? await supabase
+            .from('appointments')
+            .select('id, starts_at, service_type')
+            .in('id', apptIds)
+        : { data: [] }
+      const apptMap = Object.fromEntries(
+        (origAppts ?? []).map((a) => [a.id, { starts_at: a.starts_at, service_type: a.service_type }]),
+      )
+      pendingAbsences = absRaw.map((a) => ({
+        id: a.id,
+        child_id: a.child_id,
+        reported_at: a.reported_at,
+        appointment_id: a.appointment_id,
+        appt_starts_at: apptMap[a.appointment_id]?.starts_at,
+        appt_service_type: apptMap[a.appointment_id]?.service_type ?? null,
+      }))
+    }
+  }
+
   // ── Facturación ───────────────────────────────────────────────────────────
   let allInvoices: InvRow[] = []
   let pendingInvoices = 0
@@ -338,6 +380,50 @@ export default async function PortalHomePage() {
           {canWork && (
             <section>
               <PortalNextAppointmentCard appointment={nextAppointment} />
+            </section>
+          )}
+
+          {/* ── Citas por reponer ── */}
+          {canWork && pendingAbsences.length > 0 && (
+            <section>
+              <div className="rounded-[24px] bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="material-symbols-outlined text-[18px] text-amber-600 dark:text-amber-400">event_busy</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[14px] font-bold text-amber-900 dark:text-amber-200">
+                      {pendingAbsences.length === 1
+                        ? '1 cita pendiente de reposición'
+                        : `${pendingAbsences.length} citas pendientes de reposición`}
+                    </p>
+                    <p className="text-[12px] text-amber-700 dark:text-amber-400 mt-0.5">
+                      El equipo de Kinetic está coordinando las siguientes reposiciones
+                    </p>
+                    <div className="mt-3 flex flex-col gap-1.5">
+                      {pendingAbsences.map((abs) => {
+                        const childName = childNamesById[abs.child_id] ?? '—'
+                        const dateLabel = abs.appt_starts_at
+                          ? new Date(abs.appt_starts_at).toLocaleDateString('es-SV', {
+                              weekday: 'short', day: 'numeric', month: 'short',
+                            })
+                          : '—'
+                        return (
+                          <div key={abs.id} className="flex items-center gap-2">
+                            <span className="material-symbols-outlined text-[14px] text-amber-500">circle</span>
+                            <span className="text-[13px] font-semibold text-amber-900 dark:text-amber-200">
+                              {childName}
+                            </span>
+                            <span className="text-[12px] text-amber-600 dark:text-amber-400 capitalize">
+                              — {dateLabel}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </section>
           )}
 

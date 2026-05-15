@@ -172,13 +172,7 @@ export function KineticPortalShell({
       </aside>
 
       {/* ── Desktop top app bar (hidden below md) ── */}
-      <header className="hidden md:flex fixed top-0 left-64 right-0 h-20 bg-fm-surface/80 backdrop-blur-sm border-b border-fm-outline-variant/20 items-center justify-between px-10 z-40">
-        {/* Search field */}
-        <div className="flex items-center gap-3 bg-fm-surface-container-low rounded-full px-4 py-2.5 w-80">
-          <span className="material-symbols-outlined text-fm-on-surface-variant text-[20px]">search</span>
-          <span className="text-[14px] text-fm-on-surface-variant select-none">Buscar...</span>
-        </div>
-
+      <header className="hidden md:flex fixed top-0 left-64 right-0 h-20 bg-fm-surface/80 backdrop-blur-sm border-b border-fm-outline-variant/20 items-center justify-end px-10 z-40">
         {/* Actions: dark mode toggle + user chip */}
         <div className="flex items-center gap-2">
           {renderThemeToggle()}

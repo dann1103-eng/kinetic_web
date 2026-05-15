@@ -62,6 +62,31 @@ export default async function PortalAgendaPage() {
     (therapists ?? []).map((t) => [t.id, t.full_name]),
   )
 
+  // Citas por reponer (inasistencias pendientes)
+  const childIds = children.map((c) => c.id)
+  let pendingAbsences: { id: string; child_id: string; reported_at: string; appointment_id: string; appt_starts_at?: string }[] = []
+
+  if (childIds.length > 0) {
+    const { data: absRaw } = await supabase
+      .from('appointment_absences')
+      .select('id, child_id, reported_at, appointment_id')
+      .in('child_id', childIds)
+      .eq('status', 'pending')
+      .order('reported_at', { ascending: true })
+
+    if (absRaw && absRaw.length > 0) {
+      const apptIds = absRaw.map((a) => a.appointment_id).filter(Boolean) as string[]
+      const { data: origAppts } = apptIds.length
+        ? await supabase.from('appointments').select('id, starts_at').in('id', apptIds)
+        : { data: [] }
+      const apptStartsMap = Object.fromEntries((origAppts ?? []).map((a) => [a.id, a.starts_at]))
+      pendingAbsences = absRaw.map((a) => ({
+        ...a,
+        appt_starts_at: apptStartsMap[a.appointment_id],
+      }))
+    }
+  }
+
   // Subset para el widget de calendario — incluye todos los campos para el panel de detalle
   const calendarAppts: CalendarAppt[] = allMonthAppts.map((a) => ({
     id: a.id,
@@ -74,24 +99,57 @@ export default async function PortalAgendaPage() {
   }))
 
   return (
-    <div className="space-y-6 md:space-y-0 md:flex md:gap-6 md:items-start">
-      {/* Widget de calendario — sticky a la izquierda en desktop */}
-      <div className="md:w-72 md:flex-shrink-0 md:sticky md:top-28">
-        <PortalCalendarWidget
-          appointments={calendarAppts}
-          childNamesById={childNamesById}
-        />
-      </div>
+    <div className="flex flex-col gap-4">
 
-      {/* Lista de próximas citas */}
-      <div className="md:flex-1 md:min-w-0">
-        <PortalAgendaList
-          appointments={upcomingAppts}
-          childrenList={children}
-          therapists={
-            (therapists ?? []) as { id: string; full_name: string; avatar_url: string | null }[]
-          }
-        />
+      {/* ─ Banner: citas por reponer ─ */}
+      {pendingAbsences.length > 0 && (
+        <div className="rounded-[20px] bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 px-4 py-3 flex items-start gap-3">
+          <span className="material-symbols-outlined text-[20px] text-amber-500 mt-0.5 flex-shrink-0">event_busy</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-bold text-amber-900 dark:text-amber-200">
+              {pendingAbsences.length === 1
+                ? '1 cita pendiente de reposición'
+                : `${pendingAbsences.length} citas pendientes de reposición`}
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-1">
+              {pendingAbsences.map((abs) => {
+                const childName = childNamesById[abs.child_id] ?? '—'
+                const dateLabel = abs.appt_starts_at
+                  ? new Date(abs.appt_starts_at).toLocaleDateString('es-SV', {
+                      weekday: 'short', day: 'numeric', month: 'short',
+                    })
+                  : '—'
+                return (
+                  <span key={abs.id} className="text-[12px] text-amber-700 dark:text-amber-400 capitalize">
+                    {childName} · {dateLabel}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─ Calendario + lista ─ */}
+      <div className="md:flex md:gap-6 md:items-start">
+        {/* Widget de calendario — sticky a la izquierda en desktop */}
+        <div className="mb-6 md:mb-0 md:w-72 md:flex-shrink-0 md:sticky md:top-28">
+          <PortalCalendarWidget
+            appointments={calendarAppts}
+            childNamesById={childNamesById}
+          />
+        </div>
+
+        {/* Lista de próximas citas */}
+        <div className="md:flex-1 md:min-w-0">
+          <PortalAgendaList
+            appointments={upcomingAppts}
+            childrenList={children}
+            therapists={
+              (therapists ?? []) as { id: string; full_name: string; avatar_url: string | null }[]
+            }
+          />
+        </div>
       </div>
     </div>
   )
