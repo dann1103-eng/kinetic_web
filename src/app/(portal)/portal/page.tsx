@@ -80,6 +80,16 @@ type JournalRow = {
   created_at: string
 }
 
+type CalRawRow = {
+  id: string
+  starts_at: string
+  ends_at: string | null
+  child_id: string
+  service_type: string | null
+  event_type: string | null
+  therapist_id: string | null
+}
+
 type InvRow = {
   id: string
   status: string
@@ -268,13 +278,34 @@ export default async function PortalHomePage() {
 
     const { data: calRaw } = await supabase
       .from('appointments')
-      .select('id, starts_at, child_id')
+      .select('id, starts_at, ends_at, child_id, service_type, event_type, therapist_id')
       .in('child_id', childIds)
       .gte('starts_at', monthStart.toISOString())
       .in('status', ['scheduled', 'in_progress', 'replacement'])
       .order('starts_at')
 
-    calendarAppts = (calRaw ?? []) as CalendarAppt[]
+    const calRows = (calRaw ?? []) as CalRawRow[]
+
+    // Fetch therapist names for calendar detail panel
+    const calTherapistIds = Array.from(
+      new Set(calRows.map((a) => a.therapist_id).filter(Boolean) as string[]),
+    )
+    const { data: calTherapists } = calTherapistIds.length
+      ? await supabase.from('users').select('id, full_name').in('id', calTherapistIds)
+      : { data: [] }
+    const calTherapistNames: Record<string, string> = Object.fromEntries(
+      (calTherapists ?? []).map((t) => [t.id, t.full_name]),
+    )
+
+    calendarAppts = calRows.map((a) => ({
+      id: a.id,
+      starts_at: a.starts_at,
+      ends_at: a.ends_at,
+      child_id: a.child_id,
+      service_type: a.service_type,
+      event_type: a.event_type,
+      therapist_name: a.therapist_id ? (calTherapistNames[a.therapist_id] ?? null) : null,
+    }))
   }
 
   // ─── render ───────────────────────────────────────────────────────────────

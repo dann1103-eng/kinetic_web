@@ -50,37 +50,49 @@ export default async function PortalAgendaPage() {
     (a) => new Date(a.starts_at) >= todayMidnight,
   )
 
-  // Subset ligero para el widget de calendario
-  const calendarAppts: CalendarAppt[] = allMonthAppts.map((a) => ({
-    id: a.id,
-    starts_at: a.starts_at,
-    child_id: a.child_id,
-  }))
-
-  // Terapistas mencionados (para labels en la lista)
+  // Terapistas mencionados (para labels en la lista Y en el panel de detalle del calendario)
   const therapistIds = Array.from(
-    new Set(upcomingAppts.map((a) => a.therapist_id).filter(Boolean) as string[]),
+    new Set(allMonthAppts.map((a) => a.therapist_id).filter(Boolean) as string[]),
   )
   const { data: therapists } = therapistIds.length
     ? await supabase.from('users').select('id, full_name, avatar_url').in('id', therapistIds)
     : { data: [] }
 
+  const therapistNamesById: Record<string, string> = Object.fromEntries(
+    (therapists ?? []).map((t) => [t.id, t.full_name]),
+  )
+
+  // Subset para el widget de calendario — incluye todos los campos para el panel de detalle
+  const calendarAppts: CalendarAppt[] = allMonthAppts.map((a) => ({
+    id: a.id,
+    starts_at: a.starts_at,
+    ends_at: a.ends_at ?? null,
+    child_id: a.child_id,
+    service_type: a.service_type ?? null,
+    event_type: a.event_type ?? null,
+    therapist_name: a.therapist_id ? (therapistNamesById[a.therapist_id] ?? null) : null,
+  }))
+
   return (
-    <div className="space-y-6">
-      {/* Widget de calendario mensual */}
-      <PortalCalendarWidget
-        appointments={calendarAppts}
-        childNamesById={childNamesById}
-      />
+    <div className="space-y-6 md:space-y-0 md:flex md:gap-6 md:items-start">
+      {/* Widget de calendario — sticky a la izquierda en desktop */}
+      <div className="md:w-72 md:flex-shrink-0 md:sticky md:top-28">
+        <PortalCalendarWidget
+          appointments={calendarAppts}
+          childNamesById={childNamesById}
+        />
+      </div>
 
       {/* Lista de próximas citas */}
-      <PortalAgendaList
-        appointments={upcomingAppts}
-        childrenList={children}
-        therapists={
-          (therapists ?? []) as { id: string; full_name: string; avatar_url: string | null }[]
-        }
-      />
+      <div className="md:flex-1 md:min-w-0">
+        <PortalAgendaList
+          appointments={upcomingAppts}
+          childrenList={children}
+          therapists={
+            (therapists ?? []) as { id: string; full_name: string; avatar_url: string | null }[]
+          }
+        />
+      </div>
     </div>
   )
 }
