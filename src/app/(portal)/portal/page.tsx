@@ -25,10 +25,9 @@ function shortDate(iso: string | null): string {
   })
 }
 
-function longDate(iso: string | null): string {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString('es-SV', {
-    day: 'numeric',
+function periodLabel(isoDate: string | null): string {
+  if (!isoDate) return ''
+  return new Date(`${isoDate}T12:00:00`).toLocaleDateString('es-SV', {
     month: 'long',
     year: 'numeric',
   })
@@ -66,6 +65,7 @@ type InvRow = {
   payment_date: string | null
   issue_date: string | null
   payment_method: string | null
+  invoice_number: string | null
 }
 
 // ─── page ────────────────────────────────────────────────────────────────────
@@ -85,6 +85,8 @@ export default async function PortalHomePage() {
 
   const canWork    = familyUserRow?.can_work    ?? true
   const canBilling = familyUserRow?.can_billing ?? false
+
+  const firstName = ctx.appUser.full_name.split(' ')[0]
 
   // Niños
   const { data: childrenRaw } = await supabase
@@ -134,7 +136,7 @@ export default async function PortalHomePage() {
     }
   }
 
-  // ── Informes de avance (cards horizontales) ───────────────────────────────
+  // ── Informes de avance ────────────────────────────────────────────────────
   let progressReports: ProgressReportRow[] = []
 
   if (canWork && childIds.length > 0) {
@@ -149,7 +151,7 @@ export default async function PortalHomePage() {
     progressReports = (prRaw ?? []) as ProgressReportRow[]
   }
 
-  // ── Sesiones recientes (lista) ────────────────────────────────────────────
+  // ── Sesiones recientes ────────────────────────────────────────────────────
   let sessionReports: SessionReportRow[] = []
   const sessionApptMap: Record<string, { service_type: string | null; therapist_id: string | null }> = {}
   const sessionTherapistMap: Record<string, string> = {}
@@ -165,7 +167,6 @@ export default async function PortalHomePage() {
       .limit(4)
     sessionReports = (srRaw ?? []) as SessionReportRow[]
 
-    // Traer el tipo de servicio y terapeuta del appointment relacionado
     const sessionIds = sessionReports.map((r) => r.session_id).filter(Boolean) as string[]
     if (sessionIds.length > 0) {
       const { data: apptRows } = await supabase
@@ -196,230 +197,474 @@ export default async function PortalHomePage() {
   }
 
   // ── Facturación ───────────────────────────────────────────────────────────
-  let latestPaidInvoice: InvRow | null = null
+  let allInvoices: InvRow[] = []
   let pendingInvoices = 0
   let pendingTotal    = 0
+  let latestPaidInvoice: InvRow | null = null
+  let recentPaidInvoices: InvRow[] = []
 
   if (canBilling && childIds.length > 0) {
     const { data: invRaw } = await supabase
       .from('invoices')
-      .select('id, status, total_a_pagar, payment_date, issue_date, payment_method')
+      .select('id, status, total_a_pagar, payment_date, issue_date, payment_method, invoice_number')
       .in('child_id', childIds)
       .order('issue_date', { ascending: false })
       .limit(10)
 
-    for (const inv of (invRaw ?? []) as InvRow[]) {
+    allInvoices = (invRaw ?? []) as InvRow[]
+
+    for (const inv of allInvoices) {
       if (inv.status === 'issued') {
         pendingInvoices++
         pendingTotal += Number(inv.total_a_pagar ?? 0)
       }
     }
-    latestPaidInvoice =
-      ((invRaw ?? []) as InvRow[]).find((i) => i.status === 'paid') ?? null
+    latestPaidInvoice = allInvoices.find((i) => i.status === 'paid') ?? null
+    recentPaidInvoices = allInvoices.filter((i) => i.status === 'paid').slice(0, 2)
   }
 
-  // ── render ────────────────────────────────────────────────────────────────
+  // ─── render ───────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ── Próxima Cita ── */}
-      {canWork && (
-        <section>
-          <PortalNextAppointmentCard appointment={nextAppointment} />
-        </section>
-      )}
+      {/* ── Desktop greeting (hidden on mobile) ── */}
+      <div className="hidden md:flex items-start justify-between mb-2">
+        <div>
+          <h1 className="text-[32px] font-black text-fm-on-surface leading-tight">
+            ¡Hola, {firstName}!
+          </h1>
+          <p className="text-[15px] text-fm-on-surface-variant mt-1">
+            Bienvenido al portal de padres
+          </p>
+        </div>
+        <p className="text-[13px] text-fm-on-surface-variant mt-2">
+          {new Date().toLocaleDateString('es-SV', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric',
+          })}
+        </p>
+      </div>
 
-      {/* ── Reportes (informes cuatrimestrales — scroll horizontal) ── */}
-      {canWork && progressReports.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <div className="flex justify-between items-center px-1">
-            <h3 className="text-[20px] font-bold text-fm-on-surface">Reportes</h3>
-            <Link
-              href="/portal/agenda-digital"
-              className="text-[14px] font-semibold text-kp-primary"
-            >
-              Ver todos
-            </Link>
-          </div>
+      {/* ── Main grid: left 8 cols + right 4 cols on desktop; stacked on mobile ── */}
+      <div className="md:grid md:grid-cols-12 md:gap-8 md:items-start">
 
-          <div className="flex gap-4 overflow-x-auto pb-2 snap-x scrollbar-hide -mx-4 px-4">
-            {progressReports.map((report, i) => {
-              const isEven = i % 2 === 0
-              return (
-                <div
-                  key={report.id}
-                  className="min-w-[240px] bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[32px] p-5 snap-start flex-shrink-0"
+        {/* ─── Left / main column ─── */}
+        <div className={`${canBilling ? 'md:col-span-8' : 'md:col-span-12'} flex flex-col gap-6`}>
+
+          {/* Próxima Cita */}
+          {canWork && (
+            <section>
+              <PortalNextAppointmentCard appointment={nextAppointment} />
+            </section>
+          )}
+
+          {/* Reportes */}
+          {canWork && progressReports.length > 0 && (
+            <section className="flex flex-col gap-3">
+              <div className="flex justify-between items-center px-1">
+                <h3 className="text-[20px] font-bold text-fm-on-surface">Reportes</h3>
+                <Link
+                  href="/portal/agenda-digital"
+                  className="text-[14px] font-semibold text-kp-primary"
                 >
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${
-                      isEven ? 'bg-kp-tertiary-container/10' : 'bg-kp-primary-container/10'
-                    }`}
-                  >
-                    <span
-                      className={`material-symbols-outlined ${
-                        isEven ? 'text-kp-tertiary' : 'text-kp-primary'
-                      }`}
-                    >
-                      {isEven ? 'description' : 'assessment'}
-                    </span>
-                  </div>
-                  <h4 className="text-[16px] font-bold text-fm-on-surface mb-1">
-                    Informe cuatrimestral
-                  </h4>
-                  <p className="text-[12px] font-semibold text-fm-on-surface-variant mb-4">
-                    {report.sent_to_family_at
-                      ? `Publicado: ${shortDate(report.sent_to_family_at)}`
-                      : childNamesById[report.child_id] ?? ''}
-                  </p>
-                  <Link
-                    href="/portal/agenda-digital"
-                    className="block w-full py-2 bg-fm-surface-container-low text-fm-on-surface-variant rounded-full text-[12px] font-semibold text-center"
-                  >
-                    Ver PDF
-                  </Link>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* ── Sesiones Recientes ── */}
-      {canWork && sessionReports.length > 0 && (
-        <section className="flex flex-col gap-3">
-          <h3 className="text-[20px] font-bold text-fm-on-surface px-1">
-            Sesiones Recientes
-          </h3>
-
-          <div className="flex flex-col gap-3">
-            {sessionReports.slice(0, 3).map((report) => {
-              const apptData    = report.session_id ? sessionApptMap[report.session_id] : null
-              const therapistId = apptData?.therapist_id ?? null
-              const therapistName = therapistId ? (sessionTherapistMap[therapistId] ?? null) : null
-              const serviceLabel  = capitalize(apptData?.service_type) || 'Reporte de sesión'
-              const dateLabel     = shortDate(report.sent_to_family_at)
-
-              return (
-                <div
-                  key={report.id}
-                  className="bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[24px] p-4 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-fm-surface-container-high rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="material-symbols-outlined text-fm-on-surface-variant text-[20px]">
-                        history
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-[16px] font-semibold text-fm-on-surface">
-                        {serviceLabel}
-                      </p>
-                      <p className="text-[12px] font-semibold text-fm-on-surface-variant">
-                        {dateLabel}
-                        {therapistName && ` • ${therapistName}`}
-                      </p>
-                    </div>
-                  </div>
-                  <Link
-                    href="/portal/agenda-digital"
-                    className="text-kp-primary text-[12px] font-semibold px-4 py-2 hover:bg-kp-primary/5 rounded-full transition-colors flex-shrink-0"
-                  >
-                    Leer reporte
-                  </Link>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* ── Facturación widget ── */}
-      {canBilling && (
-        <section className="flex flex-col gap-3">
-          <h3 className="text-[20px] font-bold text-fm-on-surface px-1">Facturación</h3>
-
-          <div className="bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[32px] p-6">
-
-            {/* Estado: pendiente */}
-            {pendingInvoices > 0 && (
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-kp-secondary-container/10 rounded-full flex items-center justify-center">
-                    <span className="material-symbols-outlined text-kp-secondary">receipt_long</span>
-                  </div>
-                  <div>
-                    <p className="text-[12px] font-semibold text-fm-on-surface-variant">
-                      {pendingInvoices === 1 ? 'Factura pendiente' : 'Facturas pendientes'}
-                    </p>
-                    <p className="text-[18px] font-bold text-fm-on-surface">
-                      ${pendingTotal.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-                <span className="bg-amber-100 text-amber-700 text-[12px] font-semibold px-3 py-1 rounded-full">
-                  PENDIENTE
-                </span>
-              </div>
-            )}
-
-            {/* Estado: pagado */}
-            {pendingInvoices === 0 && latestPaidInvoice && (
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-kp-secondary-container/10 rounded-full flex items-center justify-center">
-                    <span className="material-symbols-outlined text-kp-secondary">receipt_long</span>
-                  </div>
-                  <div>
-                    <p className="text-[12px] font-semibold text-fm-on-surface-variant">
-                      Última factura
-                    </p>
-                    <p className="text-[18px] font-bold text-fm-on-surface">
-                      ${Number(latestPaidInvoice.total_a_pagar ?? 0).toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-                <span className="bg-kp-tertiary-container/10 text-kp-tertiary text-[12px] font-semibold px-3 py-1 rounded-full">
-                  PAGADO
-                </span>
-              </div>
-            )}
-
-            {/* Sin facturas */}
-            {pendingInvoices === 0 && !latestPaidInvoice && (
-              <p className="text-[14px] text-fm-on-surface-variant text-center py-2 mb-4">
-                Sin facturas registradas.
-              </p>
-            )}
-
-            {/* Método de pago / link a facturas */}
-            {latestPaidInvoice?.payment_method ? (
-              <div className="flex items-center justify-between p-4 bg-fm-surface-container-low rounded-2xl">
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-fm-on-surface-variant">credit_card</span>
-                  <p className="text-[14px] font-semibold text-fm-on-surface capitalize">
-                    {latestPaidInvoice.payment_method.replace(/_/g, ' ')}
-                  </p>
-                </div>
-                <Link href="/portal/facturas" className="text-kp-primary text-[12px] font-semibold">
-                  Ver facturas
+                  Ver todos
                 </Link>
               </div>
-            ) : (
-              <Link
-                href="/portal/facturas"
-                className="flex items-center justify-between p-4 bg-fm-surface-container-low rounded-2xl"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-fm-on-surface-variant">receipt</span>
-                  <p className="text-[14px] font-semibold text-fm-on-surface">Ver todas las facturas</p>
+
+              {/* Mobile: horizontal carousel */}
+              <div className="md:hidden flex gap-4 overflow-x-auto pb-2 snap-x scrollbar-hide -mx-4 px-4">
+                {progressReports.map((report, i) => {
+                  const isEven = i % 2 === 0
+                  return (
+                    <div
+                      key={report.id}
+                      className="min-w-[240px] bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[32px] p-5 snap-start flex-shrink-0"
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${
+                          isEven ? 'bg-kp-tertiary-container/10' : 'bg-kp-primary-container/10'
+                        }`}
+                      >
+                        <span
+                          className={`material-symbols-outlined ${
+                            isEven ? 'text-kp-tertiary' : 'text-kp-primary'
+                          }`}
+                        >
+                          {isEven ? 'description' : 'assessment'}
+                        </span>
+                      </div>
+                      <h4 className="text-[16px] font-bold text-fm-on-surface mb-1">
+                        Informe cuatrimestral
+                      </h4>
+                      <p className="text-[12px] font-semibold text-fm-on-surface-variant mb-4">
+                        {report.sent_to_family_at
+                          ? `Publicado: ${shortDate(report.sent_to_family_at)}`
+                          : childNamesById[report.child_id] ?? ''}
+                      </p>
+                      <Link
+                        href="/portal/agenda-digital"
+                        className="block w-full py-2 bg-fm-surface-container-low text-fm-on-surface-variant rounded-full text-[12px] font-semibold text-center"
+                      >
+                        Ver PDF
+                      </Link>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Desktop: bento 2-col grid */}
+              <div className="hidden md:grid grid-cols-2 gap-4">
+                {progressReports.slice(0, 2).map((report, i) => {
+                  const isGreen = i === 0
+                  return (
+                    <div
+                      key={report.id}
+                      className={`rounded-[28px] p-6 flex flex-col ${
+                        isGreen
+                          ? 'bg-kp-tertiary-container text-kp-on-tertiary'
+                          : 'bg-fm-surface-container-lowest border border-fm-outline-variant'
+                      }`}
+                      style={{ minHeight: '240px' }}
+                    >
+                      <div
+                        className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${
+                          isGreen ? 'bg-white/20' : 'bg-kp-primary-container/10'
+                        }`}
+                      >
+                        <span
+                          className={`material-symbols-outlined ${
+                            isGreen ? 'text-white' : 'text-kp-primary'
+                          }`}
+                        >
+                          {isGreen ? 'analytics' : 'psychology'}
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <h4
+                          className={`text-[16px] font-bold mb-1 ${
+                            isGreen ? 'text-white' : 'text-fm-on-surface'
+                          }`}
+                        >
+                          Informe cuatrimestral
+                        </h4>
+                        <p
+                          className={`text-[13px] mb-1 ${
+                            isGreen ? 'text-white/80' : 'text-fm-on-surface-variant'
+                          }`}
+                        >
+                          {childNamesById[report.child_id] ?? '—'}
+                        </p>
+                        {report.sent_to_family_at && (
+                          <p
+                            className={`text-[12px] ${
+                              isGreen ? 'text-white/70' : 'text-fm-on-surface-variant'
+                            }`}
+                          >
+                            Publicado: {shortDate(report.sent_to_family_at)}
+                          </p>
+                        )}
+                      </div>
+                      <Link
+                        href="/portal/agenda-digital"
+                        className={`mt-4 flex items-center gap-1.5 text-[13px] font-semibold ${
+                          isGreen ? 'text-white' : 'text-kp-primary'
+                        }`}
+                      >
+                        Descargar PDF
+                        <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+                      </Link>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Sesiones Recientes */}
+          {canWork && sessionReports.length > 0 && (
+            <section className="flex flex-col gap-3">
+              <h3 className="text-[20px] font-bold text-fm-on-surface px-1">
+                Sesiones Recientes
+              </h3>
+
+              {/* Mobile: flat cards */}
+              <div className="md:hidden flex flex-col gap-3">
+                {sessionReports.slice(0, 3).map((report) => {
+                  const apptData    = report.session_id ? sessionApptMap[report.session_id] : null
+                  const therapistId = apptData?.therapist_id ?? null
+                  const therapistName = therapistId ? (sessionTherapistMap[therapistId] ?? null) : null
+                  const serviceLabel  = capitalize(apptData?.service_type) || 'Reporte de sesión'
+                  const dateLabel     = shortDate(report.sent_to_family_at)
+
+                  return (
+                    <div
+                      key={report.id}
+                      className="bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[24px] p-4 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-fm-surface-container-high rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="material-symbols-outlined text-fm-on-surface-variant text-[20px]">
+                            history
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-[16px] font-semibold text-fm-on-surface">
+                            {serviceLabel}
+                          </p>
+                          <p className="text-[12px] font-semibold text-fm-on-surface-variant">
+                            {dateLabel}
+                            {therapistName && ` • ${therapistName}`}
+                          </p>
+                        </div>
+                      </div>
+                      <Link
+                        href="/portal/agenda-digital"
+                        className="text-kp-primary text-[12px] font-semibold px-4 py-2 hover:bg-kp-primary/5 rounded-full transition-colors flex-shrink-0"
+                      >
+                        Leer reporte
+                      </Link>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Desktop: table-style card with divide-y rows */}
+              <div className="hidden md:block bg-fm-surface-container-lowest border border-fm-outline-variant/20 rounded-[24px] overflow-hidden">
+                {sessionReports.slice(0, 4).map((report, idx) => {
+                  const apptData    = report.session_id ? sessionApptMap[report.session_id] : null
+                  const therapistId = apptData?.therapist_id ?? null
+                  const therapistName = therapistId ? (sessionTherapistMap[therapistId] ?? null) : null
+                  const serviceLabel  = capitalize(apptData?.service_type) || 'Reporte de sesión'
+                  const dateLabel     = shortDate(report.sent_to_family_at)
+
+                  return (
+                    <div
+                      key={report.id}
+                      className={`flex items-center justify-between px-6 py-4 ${
+                        idx > 0 ? 'border-t border-fm-outline-variant/15' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 bg-fm-surface-container-high rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">
+                            history_edu
+                          </span>
+                        </div>
+                        <div>
+                          <p className="text-[15px] font-semibold text-fm-on-surface">
+                            {serviceLabel}
+                          </p>
+                          <p className="text-[12px] text-fm-on-surface-variant">
+                            {dateLabel}
+                            {therapistName && ` · ${therapistName}`}
+                          </p>
+                        </div>
+                      </div>
+                      <Link
+                        href="/portal/agenda-digital"
+                        className="text-kp-primary text-[12px] font-semibold tracking-[0.05em] uppercase bg-kp-primary-container/15 px-4 py-1.5 rounded-full hover:bg-kp-primary-container/25 transition-colors flex-shrink-0"
+                      >
+                        Leer reporte
+                      </Link>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* Facturación — mobile only (desktop is in right column) */}
+          {canBilling && (
+            <section className="md:hidden flex flex-col gap-3">
+              <h3 className="text-[20px] font-bold text-fm-on-surface px-1">Facturación</h3>
+
+              <div className="bg-fm-surface-container-lowest border border-fm-outline-variant rounded-[32px] p-6">
+
+                {pendingInvoices > 0 && (
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-kp-secondary-container/10 rounded-full flex items-center justify-center">
+                        <span className="material-symbols-outlined text-kp-secondary">receipt_long</span>
+                      </div>
+                      <div>
+                        <p className="text-[12px] font-semibold text-fm-on-surface-variant">
+                          {pendingInvoices === 1 ? 'Factura pendiente' : 'Facturas pendientes'}
+                        </p>
+                        <p className="text-[18px] font-bold text-fm-on-surface">
+                          ${pendingTotal.toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="bg-amber-100 text-amber-700 text-[12px] font-semibold px-3 py-1 rounded-full">
+                      PENDIENTE
+                    </span>
+                  </div>
+                )}
+
+                {pendingInvoices === 0 && latestPaidInvoice && (
+                  <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-kp-secondary-container/10 rounded-full flex items-center justify-center">
+                        <span className="material-symbols-outlined text-kp-secondary">receipt_long</span>
+                      </div>
+                      <div>
+                        <p className="text-[12px] font-semibold text-fm-on-surface-variant">
+                          Última factura
+                        </p>
+                        <p className="text-[18px] font-bold text-fm-on-surface">
+                          ${Number(latestPaidInvoice.total_a_pagar ?? 0).toFixed(2)}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="bg-kp-tertiary-container/10 text-kp-tertiary text-[12px] font-semibold px-3 py-1 rounded-full">
+                      PAGADO
+                    </span>
+                  </div>
+                )}
+
+                {pendingInvoices === 0 && !latestPaidInvoice && (
+                  <p className="text-[14px] text-fm-on-surface-variant text-center py-2 mb-4">
+                    Sin facturas registradas.
+                  </p>
+                )}
+
+                {latestPaidInvoice?.payment_method ? (
+                  <div className="flex items-center justify-between p-4 bg-fm-surface-container-low rounded-2xl">
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-fm-on-surface-variant">
+                        credit_card
+                      </span>
+                      <p className="text-[14px] font-semibold text-fm-on-surface capitalize">
+                        {latestPaidInvoice.payment_method.replace(/_/g, ' ')}
+                      </p>
+                    </div>
+                    <Link href="/portal/facturas" className="text-kp-primary text-[12px] font-semibold">
+                      Ver facturas
+                    </Link>
+                  </div>
+                ) : (
+                  <Link
+                    href="/portal/facturas"
+                    className="flex items-center justify-between p-4 bg-fm-surface-container-low rounded-2xl"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="material-symbols-outlined text-fm-on-surface-variant">receipt</span>
+                      <p className="text-[14px] font-semibold text-fm-on-surface">
+                        Ver todas las facturas
+                      </p>
+                    </div>
+                    <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">
+                      chevron_right
+                    </span>
+                  </Link>
+                )}
+              </div>
+            </section>
+          )}
+        </div>
+
+        {/* ─── Right column — desktop only ─── */}
+        {canBilling && (
+          <div className="hidden md:flex md:col-span-4 flex-col">
+            <div className="sticky top-28 flex flex-col gap-4">
+
+              {/* Billing widget */}
+              <div className="bg-fm-surface-container-lowest border border-fm-outline-variant/20 rounded-[28px] p-6">
+                <div className="flex justify-between items-center mb-5">
+                  <h3 className="text-[18px] font-bold text-fm-on-surface">Facturación</h3>
+                  <Link
+                    href="/portal/facturas"
+                    className="text-[12px] font-semibold text-kp-primary hover:underline"
+                  >
+                    Ver todas →
+                  </Link>
                 </div>
-                <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">
-                  chevron_right
-                </span>
-              </Link>
-            )}
+
+                {pendingInvoices > 0 && (
+                  <div className="flex items-center justify-between mb-4 p-3 bg-amber-50 rounded-2xl">
+                    <p className="text-[13px] font-semibold text-amber-800">
+                      {pendingInvoices === 1 ? '1 factura pendiente' : `${pendingInvoices} facturas pendientes`}
+                    </p>
+                    <span className="text-[13px] font-bold text-amber-700">
+                      ${pendingTotal.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+
+                {recentPaidInvoices.length > 0 ? (
+                  <div className="flex flex-col">
+                    {recentPaidInvoices.map((inv, idx) => (
+                      <div
+                        key={inv.id}
+                        className={`flex items-center justify-between py-3 ${
+                          idx > 0 ? 'border-t border-fm-outline-variant/15' : ''
+                        }`}
+                      >
+                        <div className="min-w-0 mr-3">
+                          <p className="text-[14px] font-semibold text-fm-on-surface capitalize truncate">
+                            {periodLabel(inv.issue_date) || inv.invoice_number || '—'}
+                          </p>
+                          {inv.invoice_number && (
+                            <p className="text-[11px] text-fm-on-surface-variant">
+                              {inv.invoice_number}
+                            </p>
+                          )}
+                        </div>
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-[14px] font-bold text-fm-on-surface">
+                            ${Number(inv.total_a_pagar ?? 0).toFixed(2)}
+                          </p>
+                          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                            PAGADO
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[14px] text-fm-on-surface-variant text-center py-3">
+                    Sin facturas recientes.
+                  </p>
+                )}
+
+                {latestPaidInvoice?.payment_method && (
+                  <div className="mt-4 pt-4 border-t border-fm-outline-variant/15 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">
+                      credit_card
+                    </span>
+                    <p className="text-[13px] text-fm-on-surface capitalize">
+                      {latestPaidInvoice.payment_method.replace(/_/g, ' ')}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Quick contact card */}
+              <div className="bg-kp-primary-container/10 border border-kp-primary-container/30 rounded-[28px] p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-kp-primary rounded-xl flex items-center justify-center flex-shrink-0">
+                    <span className="material-symbols-outlined text-kp-on-primary text-[20px]">
+                      support_agent
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-[15px] font-semibold text-fm-on-surface">¿Necesitás ayuda?</p>
+                    <p className="text-[12px] text-fm-on-surface-variant">Contactá a Kinetic</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="w-full py-2.5 bg-kp-primary text-kp-on-primary text-[13px] font-semibold rounded-full hover:bg-kp-primary/90 transition-colors"
+                >
+                  Enviar mensaje
+                </button>
+              </div>
+
+            </div>
           </div>
-        </section>
-      )}
+        )}
+      </div>
     </>
   )
 }

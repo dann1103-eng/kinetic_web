@@ -304,6 +304,17 @@
     box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
   }
 
+  /* Portal background image.
+     Uses the Stitch CDN URL directly. For production, download and host locally:
+     wget -O public/images/portal-bg.webp "https://lh3.googleusercontent.com/aida/ADBb0ui7N-B8r-PKLXR5zZ0pUlyBjCu4AZayo1FS8zeaHKbfDIWGyJuQrB3mEiczJNINNxlQUcgjHTviGUABQj_VE9jVBMJApJpHad5vAglGxXMBI4ACiAKFSQA81QTz0G3KybOLvpAaBY67x3euXd8U1Fkx7MoLWxrVb--pu8HnhDdKeJzccq3sUItEP8jRpM-UH7mACGoiWpzGkmUqfEiIu5RdUBJ7LzcX0d8BeWmzK1o7Zb-obh33bv1840E"
+     Then switch the url() below to url('/images/portal-bg.webp') */
+  .portal-bg-image {
+    background-image: url('https://lh3.googleusercontent.com/aida/ADBb0ui7N-B8r-PKLXR5zZ0pUlyBjCu4AZayo1FS8zeaHKbfDIWGyJuQrB3mEiczJNINNxlQUcgjHTviGUABQj_VE9jVBMJApJpHad5vAglGxXMBI4ACiAKFSQA81QTz0G3KybOLvpAaBY67x3euXd8U1Fkx7MoLWxrVb--pu8HnhDdKeJzccq3sUItEP8jRpM-UH7mACGoiWpzGkmUqfEiIu5RdUBJ7LzcX0d8BeWmzK1o7Zb-obh33bv1840E');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
   .signature-gradient {
     background: linear-gradient(135deg, #1FA4DA 0%, #87daff 100%);
   }
