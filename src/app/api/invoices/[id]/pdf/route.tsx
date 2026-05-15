@@ -19,24 +19,38 @@ export async function GET(
   const { data: invoice } = await supabase.from('invoices').select('*').eq('id', id).maybeSingle()
   if (!invoice) return NextResponse.json({ error: 'Factura no encontrada' }, { status: 404 })
 
-  // Staff (admin/supervisor) siempre puede ver cualquier factura.
-  // Clientes pueden ver solo facturas de los clients a los que están vinculados.
+  // Staff de agencia siempre puede ver cualquier factura.
+  // Clientes FM: solo facturas de sus clients.
+  // Familia Kinetic con can_billing: solo facturas de sus niños.
   const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
-  const isStaff = appUser?.role === 'admin' || appUser?.role === 'supervisor'
+  const AGENCY_ROLES = [
+    'admin', 'supervisor', 'directora', 'coordinadora_terapias',
+    'coordinadora_familias', 'recepcion', 'contable', 'terapista', 'maestra',
+  ]
+  const isStaff = appUser?.role && AGENCY_ROLES.includes(appUser.role)
 
   if (!isStaff) {
     const inv = invoice as Invoice
-    if (!inv.client_id) {
-      // Factura Kinetic (child_id, sin client_id FM) — acceso restringido a staff
-      return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
+    if (inv.client_id) {
+      // Factura FM: verificar vínculo client_users
+      const { data: link } = await supabase
+        .from('client_users')
+        .select('client_id')
+        .eq('user_id', user.id)
+        .eq('client_id', inv.client_id)
+        .maybeSingle()
+      if (!link) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
+    } else {
+      // Factura Kinetic (child_id): familia con can_billing puede descargar.
+      // El SELECT de invoice ya pasó por RLS — solo falta verificar can_billing.
+      const { data: familyUser } = await supabase
+        .from('family_users')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('can_billing', true)
+        .maybeSingle()
+      if (!familyUser) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
     }
-    const { data: link } = await supabase
-      .from('client_users')
-      .select('client_id')
-      .eq('user_id', user.id)
-      .eq('client_id', inv.client_id)
-      .maybeSingle()
-    if (!link) return NextResponse.json({ error: 'Sin permiso' }, { status: 403 })
   }
 
   const { data: items } = await supabase

@@ -22,12 +22,29 @@ export default async function PortalLayout({ children }: { children: React.React
     // Whitelist de rutas Kinetic family. Las rutas FM (/portal/dashboard,
     // /portal/pipeline, /portal/calendario, /portal/empresa, /portal/facturacion,
     // /portal/seleccionar-marca, etc.) se redirigen al home Kinetic family.
-    const FAMILY_ALLOWED_PREFIXES = ['/portal/agenda-digital']
-    const FAMILY_HOME = '/portal/agenda-digital'
+    const FAMILY_ALLOWED_PREFIXES = [
+      '/portal/agenda-digital',
+      '/portal/agenda',
+      '/portal/facturas',
+    ]
+    const FAMILY_HOME = '/portal'
     const isAllowed =
+      currentPath === FAMILY_HOME ||
       FAMILY_ALLOWED_PREFIXES.some((p) => currentPath === p || currentPath.startsWith(p + '/'))
     if (currentPath && !isAllowed) {
       redirect(FAMILY_HOME)
+    }
+
+    // Cargar permisos reales del usuario familiar.
+    const supabaseFamily = await createClient()
+    const { data: familyUserRow } = await supabaseFamily
+      .from('family_users')
+      .select('can_billing, can_work')
+      .eq('user_id', ctx.appUser.id)
+      .maybeSingle()
+    const familyPerms = {
+      can_billing: familyUserRow?.can_billing ?? false,
+      can_work: familyUserRow?.can_work ?? true,
     }
 
     return (
@@ -41,7 +58,7 @@ export default async function PortalLayout({ children }: { children: React.React
             clientOptions={[]}
             activeClientId=""
             clientDisplayName="Kinetic"
-            permissions={{ can_billing: false, can_work: true }}
+            permissions={familyPerms}
             mode="kinetic-family"
           />
           <div className="flex flex-col flex-1 md:ml-64 overflow-hidden">
