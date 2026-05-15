@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
-import type { Appointment, SessionReport, Invoice, Child } from '@/types/db'
+import type { Appointment, Child } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -86,7 +86,13 @@ export default async function PortalHomePage() {
   }
 
   // Último reporte de sesión visible a la familia
-  let latestReport: (Pick<SessionReport, 'id' | 'child_id' | 'sent_to_family_at' | 'actividades'>) | null = null
+  type LatestReport = {
+    id: string
+    child_id: string
+    sent_to_family_at: string | null
+    actividades: string
+  }
+  let latestReport: LatestReport | null = null
   if (canWork && childIds.length > 0) {
     const { data: rptRaw } = await supabase
       .from('session_reports')
@@ -97,13 +103,14 @@ export default async function PortalHomePage() {
       .order('sent_to_family_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-    latestReport = rptRaw as typeof latestReport
+    latestReport = rptRaw as LatestReport | null
   }
 
   // Resumen de facturación: facturas pendientes + total adeudado
+  type InvSummary = { id: string; invoice_number: string; status: string; total_a_pagar: number; payment_date: string | null }
   let pendingInvoices: number = 0
   let pendingTotal: number = 0
-  let latestPaidInvoice: Pick<Invoice, 'id' | 'invoice_number' | 'total_a_pagar' | 'payment_date'> | null = null
+  let latestPaidInvoice: InvSummary | null = null
   if (canBilling && childIds.length > 0) {
     const { data: invRaw } = await supabase
       .from('invoices')
@@ -111,7 +118,7 @@ export default async function PortalHomePage() {
       .in('child_id', childIds)
       .order('issue_date', { ascending: false })
 
-    const invs = (invRaw ?? []) as (Pick<Invoice, 'id' | 'invoice_number' | 'status' | 'total_a_pagar' | 'payment_date'>)[]
+    const invs = (invRaw ?? []) as InvSummary[]
     for (const inv of invs) {
       if (inv.status === 'issued') {
         pendingInvoices++
