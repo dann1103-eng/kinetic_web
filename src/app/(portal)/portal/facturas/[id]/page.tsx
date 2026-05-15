@@ -2,7 +2,6 @@ import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import { TopNav } from '@/components/layout/TopNav'
 import { formatCurrency, formatTaxRate } from '@/lib/domain/invoices'
 import type {
   Child,
@@ -84,10 +83,6 @@ export default async function PortalFacturaDetailPage({
 
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
-      <TopNav
-        title={periodLabel(invoice.issue_date) || invoice.invoice_number}
-        backHref="/portal/facturas"
-      />
       <div className="flex-1 p-4 md:p-6 max-w-3xl mx-auto w-full space-y-4">
 
         {/* Documento */}

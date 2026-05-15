@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import { TopNav } from '@/components/layout/TopNav'
 import type { Appointment, Child } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -130,7 +129,6 @@ export default async function PortalHomePage() {
 
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
-      <TopNav title="Inicio" />
       <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto w-full space-y-5">
 
         {/* Próxima cita */}

@@ -2,7 +2,6 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import { TopNav } from '@/components/layout/TopNav'
 import type { Child, Invoice } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -38,7 +37,6 @@ export default async function PortalFacturasPage() {
   if (!familyUserRow?.can_billing) {
     return (
       <div className="flex flex-col min-h-full bg-fm-background">
-        <TopNav title="Facturas" backHref="/portal" />
         <div className="flex-1 flex items-center justify-center p-6">
           <p className="text-sm text-fm-on-surface-variant text-center max-w-xs">
             El acceso a la sección de facturas no está habilitado para esta cuenta.
@@ -63,7 +61,6 @@ export default async function PortalFacturasPage() {
   if (childIds.length === 0) {
     return (
       <div className="flex flex-col min-h-full bg-fm-background">
-        <TopNav title="Facturas" backHref="/portal" />
         <div className="flex-1 flex items-center justify-center p-6">
           <p className="text-sm text-fm-on-surface-variant">Sin niños registrados.</p>
         </div>
@@ -84,7 +81,6 @@ export default async function PortalFacturasPage() {
 
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
-      <TopNav title="Facturas" backHref="/portal" />
       <div className="flex-1 p-4 md:p-6 max-w-2xl mx-auto w-full space-y-4">
 
         {invoices.length === 0 ? (

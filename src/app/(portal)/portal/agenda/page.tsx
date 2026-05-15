@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import { TopNav } from '@/components/layout/TopNav'
 import { PortalAgendaList } from './PortalAgendaList'
 import type { Appointment, Child } from '@/types/db'
 
@@ -42,7 +41,6 @@ export default async function PortalAgendaPage() {
 
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
-      <TopNav title="Agenda" />
       <div className="flex-1 p-6">
         <PortalAgendaList
           appointments={appointments}
