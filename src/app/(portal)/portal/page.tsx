@@ -6,6 +6,10 @@ import {
   PortalNextAppointmentCard,
   type PortalAppointmentData,
 } from '@/components/portal/PortalNextAppointmentCard'
+import {
+  PortalCalendarWidget,
+  type CalendarAppt,
+} from '@/components/portal/PortalCalendarWidget'
 import type { Child } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -252,6 +256,25 @@ export default async function PortalHomePage() {
     }
     latestPaidInvoice  = allInvoices.find((i) => i.status === 'paid') ?? null
     recentPaidInvoices = allInvoices.filter((i) => i.status === 'paid').slice(0, 2)
+  }
+
+  // ── Citas del mes — para el widget de calendario en el inicio ─────────────
+  let calendarAppts: CalendarAppt[] = []
+
+  if (canWork && childIds.length > 0) {
+    const monthStart = new Date()
+    monthStart.setDate(1)
+    monthStart.setHours(0, 0, 0, 0)
+
+    const { data: calRaw } = await supabase
+      .from('appointments')
+      .select('id, starts_at, child_id')
+      .in('child_id', childIds)
+      .gte('starts_at', monthStart.toISOString())
+      .in('status', ['scheduled', 'in_progress', 'replacement'])
+      .order('starts_at')
+
+    calendarAppts = (calRaw ?? []) as CalendarAppt[]
   }
 
   // ─── render ───────────────────────────────────────────────────────────────
@@ -698,6 +721,17 @@ export default async function PortalHomePage() {
                   </div>
                 )}
               </div>
+
+              {/* Mini calendario */}
+              {canWork && (
+                <div className="flex flex-col gap-2">
+                  <p className="text-[13px] font-semibold text-fm-on-surface-variant px-1">Calendario</p>
+                  <PortalCalendarWidget
+                    appointments={calendarAppts}
+                    childNamesById={childNamesById}
+                  />
+                </div>
+              )}
 
               {/* Quick contact */}
               <div className="bg-kp-primary-container/10 border border-kp-primary-container/30 rounded-[28px] p-6">
