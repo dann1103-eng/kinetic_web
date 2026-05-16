@@ -10,6 +10,7 @@ import {
 } from '@/app/actions/absences'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type { ServiceType } from '@/types/db'
+import { TherapistAvailabilityCalendar } from './TherapistAvailabilityCalendar'
 import {
   daysSinceReported,
   isAbsenceExpired,
@@ -220,11 +221,41 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
 
       {mode === 'reschedule' && (
         <div className="space-y-3 pt-2 border-t border-amber-200">
-          {/* Sugerencias */}
+          {/* 1) Terapista + Duración */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="sm:col-span-2">
+              <Field label="Terapista">
+                <select
+                  value={therapistId}
+                  onChange={(e) => setTherapistId(e.target.value)}
+                  className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
+                >
+                  <option value="">— Elegir —</option>
+                  {therapists.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.full_name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <Field label="Duración (min)">
+              <input
+                type="number"
+                min={5}
+                max={240}
+                value={durationMin}
+                onChange={(e) => setDurationMin(Number(e.target.value))}
+                className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
+              />
+            </Field>
+          </div>
+
+          {/* 2) Sugerencias como atajo */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
-                Sugerencias del terapista (próximos 14 días)
+                Sugerencias automáticas (próximos 14 días)
               </span>
               <button
                 type="button"
@@ -263,6 +294,24 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
             )}
           </div>
 
+          {/* 3) Calendario del terapista */}
+          {therapistId ? (
+            <TherapistAvailabilityCalendar
+              therapistId={therapistId}
+              durationMinutes={durationMin}
+              onSlotClick={(start) => setStartsLocal(isoToLocalInput(start))}
+              highlightSuggestions={suggestions ?? undefined}
+              selectedStartIso={startsLocal ? localInputToISO(startsLocal) : null}
+            />
+          ) : (
+            <div className="rounded-xl border border-dashed border-fm-outline-variant/40 bg-fm-surface-container-low/40 p-6 text-center">
+              <p className="text-xs text-fm-on-surface-variant">
+                Elegí un terapista para ver su agenda.
+              </p>
+            </div>
+          )}
+
+          {/* 4) Fecha/hora + Modalidad */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <Field label="Nueva fecha y hora">
               <input
@@ -271,30 +320,6 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
                 onChange={(e) => setStartsLocal(e.target.value)}
                 className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
               />
-            </Field>
-            <Field label="Duración (min)">
-              <input
-                type="number"
-                min={5}
-                max={240}
-                value={durationMin}
-                onChange={(e) => setDurationMin(Number(e.target.value))}
-                className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
-              />
-            </Field>
-            <Field label="Terapista">
-              <select
-                value={therapistId}
-                onChange={(e) => setTherapistId(e.target.value)}
-                className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
-              >
-                <option value="">— Elegir —</option>
-                {therapists.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.full_name}
-                  </option>
-                ))}
-              </select>
             </Field>
             <Field label="Modalidad">
               <select
@@ -307,6 +332,7 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
               </select>
             </Field>
           </div>
+
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

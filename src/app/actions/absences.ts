@@ -300,3 +300,77 @@ export async function getReplacementSuggestions(
     suggestions: suggestions.map((s) => ({ ...s, durationMinutes })),
   }
 }
+
+// ── Calendario del terapista para vista de reagendamiento ──────────────────
+
+export interface TherapistCalendarAppt {
+  id: string
+  starts_at: string
+  ends_at: string
+  status: string
+  event_type: string | null
+  service_type: string | null
+  child_id: string
+}
+
+export interface TherapistCalendarWindow {
+  appointments: TherapistCalendarAppt[]
+  closures: InstitutionalClosure[]
+  childNamesById: Record<string, string>
+}
+
+/**
+ * Retorna las citas activas del terapista en una ventana de tiempo y los
+ * cierres institucionales aplicables. Pensado para renderizar un calendario
+ * de disponibilidad al momento de reagendar una reposición.
+ */
+export async function getTherapistCalendarWindow(
+  therapistId: string,
+  windowStartIso: string,
+  windowEndIso: string,
+): Promise<{ ok: true; data: TherapistCalendarWindow } | { ok: false; error: string }> {
+  const { supabase, user } = await getActor()
+  if (!isMgmt(user.role)) {
+    return { ok: false, error: 'No autorizado.' }
+  }
+  if (!therapistId) {
+    return { ok: false, error: 'Terapista requerido.' }
+  }
+
+  const { data: apptsRaw, error: apptsErr } = await supabase
+    .from('appointments')
+    .select('id, starts_at, ends_at, status, event_type, service_type, child_id')
+    .eq('therapist_id', therapistId)
+    .not('status', 'in', '(rescheduled,no_show,late_cancel)')
+    .gte('starts_at', windowStartIso)
+    .lte('starts_at', windowEndIso)
+    .order('starts_at')
+
+  if (apptsErr) {
+    return { ok: false, error: 'Error al cargar la agenda del terapista.' }
+  }
+
+  const appointments = (apptsRaw ?? []) as TherapistCalendarAppt[]
+
+  const childIds = Array.from(new Set(appointments.map((a) => a.child_id)))
+  const { data: childrenRaw } = childIds.length
+    ? await supabase.from('children').select('id, full_name, preferred_name').in('id', childIds)
+    : { data: [] as { id: string; full_name: string; preferred_name: string | null }[] }
+
+  const childNamesById: Record<string, string> = Object.fromEntries(
+    (childrenRaw ?? []).map((c) => [c.id, c.preferred_name ?? c.full_name]),
+  )
+
+  const { data: closuresRaw } = await supabase
+    .from('institutional_calendar')
+    .select('*')
+
+  return {
+    ok: true,
+    data: {
+      appointments,
+      closures: (closuresRaw ?? []) as InstitutionalClosure[],
+      childNamesById,
+    },
+  }
+}
