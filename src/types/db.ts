@@ -2088,6 +2088,33 @@ export interface Database {
         Update: Partial<Omit<ReportTemplate, 'id' | 'created_at'>>
         Relationships: []
       }
+      waitlist_entries: {
+        Row: AsRow<WaitlistEntry>
+        Insert: {
+          id?: string
+          child_full_name: string
+          child_birthdate?: string | null
+          child_diagnosis?: string | null
+          parent_full_name: string
+          parent_phone: string
+          parent_email?: string | null
+          requested_service_type: ServiceType
+          preferred_therapist_id?: string | null
+          preferred_days?: string | null
+          notes?: string | null
+          referral_source_id?: string | null
+          status?: WaitlistStatus
+          priority?: number
+          added_by_user_id?: string | null
+          contacted_at?: string | null
+          contacted_by_user_id?: string | null
+          dropped_at?: string | null
+          dropped_reason?: string | null
+          scheduled_child_id?: string | null
+        }
+        Update: Partial<Omit<WaitlistEntry, 'id' | 'added_at'>>
+        Relationships: []
+      }
       treatment_plans: {
         Row: AsRow<TreatmentPlan>
         Insert: {
@@ -2799,6 +2826,37 @@ export interface TherapistWorkScheduleBlock {
   end_time: string    // "HH:MM:SS"
   active: boolean
   created_at: string
+  updated_at: string
+}
+
+// =============================================================================
+// Lista de espera (mig 0116)
+// =============================================================================
+
+export type WaitlistStatus = 'waiting' | 'contacted' | 'scheduled' | 'dropped'
+
+export interface WaitlistEntry {
+  id: string
+  child_full_name: string
+  child_birthdate: string | null
+  child_diagnosis: string | null
+  parent_full_name: string
+  parent_phone: string
+  parent_email: string | null
+  requested_service_type: ServiceType
+  preferred_therapist_id: string | null
+  preferred_days: string | null
+  notes: string | null
+  referral_source_id: string | null
+  status: WaitlistStatus
+  priority: 0 | 1 | 2
+  added_by_user_id: string | null
+  added_at: string
+  contacted_at: string | null
+  contacted_by_user_id: string | null
+  dropped_at: string | null
+  dropped_reason: string | null
+  scheduled_child_id: string | null
   updated_at: string
 }
 

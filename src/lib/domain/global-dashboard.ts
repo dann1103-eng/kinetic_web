@@ -153,6 +153,8 @@ export interface CoordTerapiasDashboardData {
   pendingAbsences: number
   childrenWithoutPlan: { id: string; full_name: string; family_id: string }[]
   childrenWithoutTherapist: { id: string; full_name: string; family_id: string }[]
+  waitlistTotal: number
+  waitlistUrgentStale: number
 }
 
 export async function getCoordTerapiasDashboardData(
@@ -211,12 +213,18 @@ export async function getCoordTerapiasDashboardData(
     }
   }
 
+  // Lista de espera — conteo total + urgentes estancadas (mig 0116)
+  const { detectWaitlistAlerts } = await import('./waitlist-alerts')
+  const wlAlerts = await detectWaitlistAlerts(supabase)
+
   return {
     todayCount: todayCount ?? 0,
     weekCount: weekCount ?? 0,
     pendingAbsences: pendingAbsences ?? 0,
     childrenWithoutPlan: childrenWithoutPlan.slice(0, 10),
     childrenWithoutTherapist: childrenWithoutTherapist.slice(0, 10),
+    waitlistTotal: wlAlerts.totalWaiting,
+    waitlistUrgentStale: wlAlerts.urgentStaleCount,
   }
 }
 

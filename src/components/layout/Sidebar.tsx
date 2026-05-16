@@ -85,6 +85,14 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    href: '/operacion/lista-de-espera',
+    label: 'Lista espera',
+    allowedRoles: ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>hourglass_top</span>
+    ),
+  },
+  {
     href: '/inbox',
     label: 'Equipo',
     icon: (

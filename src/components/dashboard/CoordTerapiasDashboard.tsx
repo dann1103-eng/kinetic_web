@@ -16,7 +16,7 @@ export function CoordTerapiasDashboard({ data, greeting }: Props) {
       </div>
 
       {/* KPIs operativos */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card
           label="Citas hoy"
           value={data.todayCount}
@@ -35,7 +35,28 @@ export function CoordTerapiasDashboard({ data, greeting }: Props) {
           tone={data.pendingAbsences > 0 ? 'warn' : 'ok'}
           href={data.pendingAbsences > 0 ? '/aprobaciones' : undefined}
         />
+        <Card
+          label="En lista de espera"
+          value={data.waitlistTotal}
+          tone={data.waitlistUrgentStale > 0 ? 'warn' : 'info'}
+          href="/operacion/lista-de-espera"
+        />
       </div>
+
+      {data.waitlistUrgentStale > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 flex items-center gap-3">
+          <span className="material-symbols-outlined text-amber-600">priority_high</span>
+          <p className="text-sm font-medium text-amber-900 flex-1">
+            {data.waitlistUrgentStale} {data.waitlistUrgentStale === 1 ? 'entrada urgente' : 'entradas urgentes'} en lista de espera sin atender hace +14 días.
+          </p>
+          <Link
+            href="/operacion/lista-de-espera?status=waiting"
+            className="text-xs font-semibold text-amber-900 hover:underline"
+          >
+            Revisar →
+          </Link>
+        </div>
+      )}
 
       {/* Niños sin plan */}
       {data.childrenWithoutPlan.length > 0 && (
