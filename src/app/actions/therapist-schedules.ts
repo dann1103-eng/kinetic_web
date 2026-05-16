@@ -44,7 +44,7 @@ export async function upsertScheduleBlock(
 
   const payload = {
     therapist_id: input.therapistId,
-    day_of_week: input.dayOfWeek,
+    day_of_week: input.dayOfWeek as 0 | 1 | 2 | 3 | 4 | 5 | 6,
     start_time: input.startTime,
     end_time: input.endTime,
     active: input.active ?? true,
