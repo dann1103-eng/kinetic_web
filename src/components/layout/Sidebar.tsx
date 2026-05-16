@@ -69,6 +69,22 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    href: '/operacion/capacidad-terapistas',
+    label: 'Capacidad',
+    allowedRoles: ['admin', 'directora', 'coordinadora_terapias'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>bar_chart</span>
+    ),
+  },
+  {
+    href: '/operacion/horarios-terapistas',
+    label: 'Horarios',
+    allowedRoles: ['admin', 'directora'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>schedule</span>
+    ),
+  },
+  {
     href: '/inbox',
     label: 'Equipo',
     icon: (

@@ -308,6 +308,7 @@ export interface Database {
           default_assignee: boolean
           current_session_id: string | null
           can_quote: boolean
+          max_hours_per_week: number | null
         }
         Insert: {
           id: string
@@ -318,6 +319,7 @@ export interface Database {
           default_assignee?: boolean
           current_session_id?: string | null
           can_quote?: boolean
+          max_hours_per_week?: number | null
         }
         Update: {
           email?: string
@@ -327,7 +329,21 @@ export interface Database {
           default_assignee?: boolean
           current_session_id?: string | null
           can_quote?: boolean
+          max_hours_per_week?: number | null
         }
+        Relationships: []
+      }
+      therapist_work_schedule: {
+        Row: AsRow<TherapistWorkScheduleBlock>
+        Insert: {
+          id?: string
+          therapist_id: string
+          day_of_week: number
+          start_time: string
+          end_time: string
+          active?: boolean
+        }
+        Update: Partial<Omit<TherapistWorkScheduleBlock, 'id' | 'created_at'>>
         Relationships: []
       }
       plans: {
@@ -2766,6 +2782,22 @@ export interface InstitutionalClosure {
   description: string | null
   all_day: boolean
   year_recurring: boolean
+  created_at: string
+  updated_at: string
+}
+
+/**
+ * Horario laboral configurable de un terapista (mig 0115).
+ * Cada fila es un bloque continuo (un día puede tener múltiples bloques
+ * si hay pausa de almuerzo en medio).
+ */
+export interface TherapistWorkScheduleBlock {
+  id: string
+  therapist_id: string
+  day_of_week: 0 | 1 | 2 | 3 | 4 | 5 | 6  // 0=domingo, 6=sábado
+  start_time: string  // "HH:MM:SS"
+  end_time: string    // "HH:MM:SS"
+  active: boolean
   created_at: string
   updated_at: string
 }
