@@ -511,6 +511,7 @@ function CreateUserModal({ onClose, onCreated }: {
         default_assignee: false,
         current_session_id: null,
         can_quote: false,
+        max_hours_per_week: null,
       })
       onClose()
     })
