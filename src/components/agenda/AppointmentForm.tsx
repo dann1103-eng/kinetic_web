@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   createAppointment,
   cancelAppointment,
+  deleteAppointment,
   rescheduleAppointment,
   updateAppointment,
 } from '@/app/actions/appointments'
@@ -164,6 +165,24 @@ export function AppointmentForm({
     if (!window.confirm('¿Confirmás cancelación de esta cita?')) return
     setSubmitting(true)
     const res = await cancelAppointment(existingAppointment.id, 'late_cancel')
+    setSubmitting(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onClose()
+    router.refresh()
+  }
+
+  async function handleDelete() {
+    if (!existingAppointment) return
+    if (
+      !window.confirm(
+        '¿Eliminar esta cita permanentemente? Esta opción es solo para citas creadas por error. NO usar para no-shows o cancelaciones tardías (eso es "Cancelar cita"). Esta acción no se puede deshacer.',
+      )
+    ) return
+    setSubmitting(true)
+    const res = await deleteAppointment(existingAppointment.id)
     setSubmitting(false)
     if (!res.ok) {
       setError(res.error)
@@ -393,7 +412,7 @@ export function AppointmentForm({
           </div>
 
           <div className="px-6 py-4 border-t border-fm-outline-variant/20 flex items-center justify-between gap-2 sticky bottom-0 bg-fm-surface-container-lowest z-10">
-            <div>
+            <div className="flex items-center gap-2">
               {isEdit && canSchedule && (
                 <button
                   type="button"
@@ -402,6 +421,18 @@ export function AppointmentForm({
                   className="min-h-[44px] px-4 py-2 text-sm rounded-xl text-fm-error hover:bg-fm-error/10"
                 >
                   Cancelar cita
+                </button>
+              )}
+              {isEdit && isAdmin && existingAppointment &&
+                ['scheduled', 'rescheduled', 'replacement'].includes(existingAppointment.status) && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={submitting}
+                  className="min-h-[44px] px-3 py-2 text-xs rounded-xl text-fm-on-surface-variant hover:bg-fm-error/10 hover:text-fm-error border border-fm-outline-variant/30"
+                  title="Eliminar permanentemente — solo para citas creadas por error"
+                >
+                  Eliminar (creada por error)
                 </button>
               )}
             </div>

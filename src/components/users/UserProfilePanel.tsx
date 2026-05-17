@@ -7,6 +7,13 @@ import { UserAvatar } from '@/components/ui/UserAvatar'
 import { updateUserProfile, adminChangeUserPassword, deleteUser } from '@/app/actions/users'
 import { updateUserRole } from '@/app/actions/updateUserRole'
 import { startImpersonation } from '@/app/actions/impersonation'
+import { updateUserSalary } from '@/app/actions/payroll'
+import {
+  CONTRACT_TYPE_LABELS,
+  AFP_PROVIDER_LABELS,
+  type PayrollContractType,
+  type AfpProvider,
+} from '@/types/db'
 import {
   getUserScheduleBlocks,
   getTherapistWeekOccupancy,
@@ -67,7 +74,7 @@ interface Props {
   onDeleted: (id: string) => void
 }
 
-type Tab = 'perfil' | 'horario' | 'capacidad'
+type Tab = 'perfil' | 'salario' | 'horario' | 'capacidad'
 
 // ── Tab: Perfil ─────────────────────────────────────────────────────────────
 
@@ -762,6 +769,198 @@ function CapacidadContent({ occupancy }: { occupancy: WeeklyOccupancy }) {
   )
 }
 
+// ── Tab: Salario ────────────────────────────────────────────────────────────
+
+function SalarioTab({
+  user,
+  onUpdated,
+}: {
+  user: AppUser
+  onUpdated: (patch: Partial<AppUser>) => void
+}) {
+  const router = useRouter()
+  const [isSaving, startSaveTransition] = useTransition()
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState(false)
+
+  const [contractType, setContractType] = useState<PayrollContractType>(user.contract_type)
+  const [monthly, setMonthly] = useState<string>(
+    user.monthly_salary_usd != null ? String(user.monthly_salary_usd) : '',
+  )
+  const [hourly, setHourly] = useState<string>(
+    user.hourly_rate_usd != null ? String(user.hourly_rate_usd) : '',
+  )
+  const [dui, setDui] = useState(user.dui ?? '')
+  const [isssNum, setIsssNum] = useState(user.isss_number ?? '')
+  const [afpNum, setAfpNum] = useState(user.afp_number ?? '')
+  const [afpProv, setAfpProv] = useState<AfpProvider | ''>(user.afp_provider ?? '')
+  const [hireDate, setHireDate] = useState(user.hire_date ?? '')
+
+  function handleSave() {
+    setError(null)
+    setSuccess(false)
+    startSaveTransition(async () => {
+      const res = await updateUserSalary({
+        userId: user.id,
+        monthlySalaryUsd: monthly === '' ? null : Number(monthly),
+        hourlyRateUsd: hourly === '' ? null : Number(hourly),
+        contractType,
+        dui: dui.trim() || null,
+        isssNumber: isssNum.trim() || null,
+        afpNumber: afpNum.trim() || null,
+        afpProvider: afpProv || null,
+        hireDate: hireDate || null,
+      })
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      setSuccess(true)
+      onUpdated({
+        monthly_salary_usd: monthly === '' ? null : Number(monthly),
+        hourly_rate_usd: hourly === '' ? null : Number(hourly),
+        contract_type: contractType,
+        dui: dui.trim() || null,
+        isss_number: isssNum.trim() || null,
+        afp_number: afpNum.trim() || null,
+        afp_provider: afpProv || null,
+        hire_date: hireDate || null,
+      })
+      router.refresh()
+    })
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-xl bg-fm-surface-container-low/50 border border-fm-outline-variant/30 px-4 py-3 text-xs text-fm-on-surface-variant leading-relaxed">
+        Estos datos se usan al generar planillas mensuales (cálculo ISSS / AFP / ISR).
+        Los empleados con <code>sin_contrato</code> no aparecerán en planillas nuevas.
+        Cambios aquí no afectan planillas ya selladas (cada una guarda su snapshot).
+      </div>
+
+      <section className="space-y-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
+          Contrato
+        </h3>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-fm-on-surface-variant">Tipo de contrato</span>
+          <select
+            value={contractType}
+            onChange={(e) => setContractType(e.target.value as PayrollContractType)}
+            className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium"
+          >
+            {(Object.keys(CONTRACT_TYPE_LABELS) as PayrollContractType[]).map((k) => (
+              <option key={k} value={k}>{CONTRACT_TYPE_LABELS[k]}</option>
+            ))}
+          </select>
+        </label>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-fm-on-surface-variant">Salario mensual (USD)</span>
+            <input
+              type="number"
+              step="0.01"
+              min={0}
+              value={monthly}
+              onChange={(e) => setMonthly(e.target.value)}
+              disabled={contractType === 'sin_contrato'}
+              className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium disabled:opacity-50"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-fm-on-surface-variant">Tarifa por hora (USD)</span>
+            <input
+              type="number"
+              step="0.01"
+              min={0}
+              value={hourly}
+              onChange={(e) => setHourly(e.target.value)}
+              disabled={contractType === 'sin_contrato'}
+              className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium disabled:opacity-50"
+            />
+          </label>
+        </div>
+
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-fm-on-surface-variant">Fecha de contratación</span>
+          <input
+            type="date"
+            value={hireDate}
+            onChange={(e) => setHireDate(e.target.value)}
+            className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium"
+          />
+        </label>
+      </section>
+
+      <section className="space-y-3">
+        <h3 className="text-[11px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
+          Datos fiscales y previsionales
+        </h3>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-fm-on-surface-variant">DUI</span>
+          <input
+            type="text"
+            value={dui}
+            onChange={(e) => setDui(e.target.value)}
+            placeholder="00000000-0"
+            className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium"
+          />
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-xs text-fm-on-surface-variant">Nº ISSS</span>
+          <input
+            type="text"
+            value={isssNum}
+            onChange={(e) => setIsssNum(e.target.value)}
+            className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium"
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-fm-on-surface-variant">Nº AFP</span>
+            <input
+              type="text"
+              value={afpNum}
+              onChange={(e) => setAfpNum(e.target.value)}
+              className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-fm-on-surface-variant">AFP</span>
+            <select
+              value={afpProv}
+              onChange={(e) => setAfpProv(e.target.value as AfpProvider | '')}
+              className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium"
+            >
+              <option value="">No especificada</option>
+              {(Object.keys(AFP_PROVIDER_LABELS) as AfpProvider[]).map((k) => (
+                <option key={k} value={k}>{AFP_PROVIDER_LABELS[k]}</option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </section>
+
+      {error && <p className="text-sm text-fm-error">{error}</p>}
+      {success && !error && (
+        <p className="text-sm text-emerald-700">✓ Datos guardados.</p>
+      )}
+
+      <div className="sticky bottom-0 -mx-5 px-5 py-3 bg-fm-surface-container-lowest border-t border-fm-outline-variant/20">
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={isSaving}
+          className="w-full rounded-lg bg-fm-primary px-4 py-2 text-sm font-bold text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {isSaving ? 'Guardando…' : 'Guardar cambios'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Main panel ──────────────────────────────────────────────────────────────
 
 export function UserProfilePanel({
@@ -775,6 +974,7 @@ export function UserProfilePanel({
 
   const tabs: { id: Tab; label: string; icon: string }[] = [
     { id: 'perfil', label: 'Perfil', icon: 'person' },
+    { id: 'salario', label: 'Salario', icon: 'payments' },
     { id: 'horario', label: 'Horario', icon: 'schedule' },
     { id: 'capacidad', label: 'Capacidad', icon: 'bar_chart' },
   ]
@@ -821,6 +1021,7 @@ export function UserProfilePanel({
             onClose={onClose}
           />
         )}
+        {activeTab === 'salario' && <SalarioTab user={user} onUpdated={onUpdated} />}
         {activeTab === 'horario' && <HorarioTab user={user} />}
         {activeTab === 'capacidad' && <CapacidadTab user={user} />}
       </div>

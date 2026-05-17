@@ -228,6 +228,53 @@ export async function markAppointmentInProgress(
   return updateAppointmentStatus(appointmentId, 'in_progress')
 }
 
+/**
+ * Elimina físicamente una cita creada por error. Solo para admin / directora,
+ * y solo si la cita aún está 'scheduled' o 'rescheduled' (no la usamos en
+ * citas con historial como completed / no_show / late_cancel, para preservar
+ * la trazabilidad de inasistencias reales).
+ *
+ * Las FKs con ON DELETE CASCADE limpian: therapy_sessions, session_reports,
+ * appointment_absences, virtual_meetings. Las FKs con SET NULL desvinculan
+ * child_journal_entries.
+ */
+export async function deleteAppointment(
+  appointmentId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+
+  if (!['admin', 'directora'].includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Solo admin o directora pueden eliminar citas creadas por error.' }
+  }
+
+  const supabase = await createClient()
+
+  // Validar estado (no permitir eliminar historial real)
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('status')
+    .eq('id', appointmentId)
+    .maybeSingle()
+  if (!appt) return { ok: false, error: 'Cita no encontrada.' }
+  if (!['scheduled', 'rescheduled', 'replacement'].includes(appt.status)) {
+    return {
+      ok: false,
+      error: 'Solo se pueden eliminar citas que aún no se realizaron. Para no-shows o cancelaciones tardías usá "Cancelar cita" — eso preserva el historial.',
+    }
+  }
+
+  const { error } = await supabase
+    .from('appointments')
+    .delete()
+    .eq('id', appointmentId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
+  return { ok: true }
+}
+
 export async function markAppointmentCompleted(
   appointmentId: string,
   notes?: string,

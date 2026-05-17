@@ -32,12 +32,6 @@ const CARDS: Card[] = [
     active: true,
   },
   {
-    title: 'Operativos',
-    description: 'Asistencia, no-shows, reposiciones cumplidas, capacidad histórica del equipo y churn de familias.',
-    icon: 'event_available',
-    active: false,
-  },
-  {
     title: 'Por terapista',
     description: 'Productividad: sesiones realizadas, no-shows, reposiciones cumplidas, horas trabajadas vs contratadas y cumplimiento de informes cuatrimestrales.',
     icon: 'psychology',
