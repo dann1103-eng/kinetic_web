@@ -309,6 +309,14 @@ export interface Database {
           current_session_id: string | null
           can_quote: boolean
           max_hours_per_week: number | null
+          monthly_salary_usd: number | null
+          hourly_rate_usd: number | null
+          contract_type: PayrollContractType
+          dui: string | null
+          isss_number: string | null
+          afp_number: string | null
+          afp_provider: AfpProvider | null
+          hire_date: string | null
         }
         Insert: {
           id: string
@@ -320,6 +328,14 @@ export interface Database {
           current_session_id?: string | null
           can_quote?: boolean
           max_hours_per_week?: number | null
+          monthly_salary_usd?: number | null
+          hourly_rate_usd?: number | null
+          contract_type?: PayrollContractType
+          dui?: string | null
+          isss_number?: string | null
+          afp_number?: string | null
+          afp_provider?: AfpProvider | null
+          hire_date?: string | null
         }
         Update: {
           email?: string
@@ -330,7 +346,76 @@ export interface Database {
           current_session_id?: string | null
           can_quote?: boolean
           max_hours_per_week?: number | null
+          monthly_salary_usd?: number | null
+          hourly_rate_usd?: number | null
+          contract_type?: PayrollContractType
+          dui?: string | null
+          isss_number?: string | null
+          afp_number?: string | null
+          afp_provider?: AfpProvider | null
+          hire_date?: string | null
         }
+        Relationships: []
+      }
+      payroll_fiscal_config: {
+        Row: AsRow<PayrollFiscalConfig>
+        Insert: {
+          id?: string
+          effective_from: string
+          isss_employee_rate: number
+          isss_employer_rate: number
+          isss_cap_salary_usd: number
+          afp_employee_rate: number
+          afp_employer_rate: number
+          afp_cap_salary_usd?: number | null
+          isr_brackets_json: IsrBracket[]
+          notes?: string | null
+          created_by_user_id?: string | null
+        }
+        Update: Partial<Omit<PayrollFiscalConfig, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      payroll_runs: {
+        Row: AsRow<PayrollRun>
+        Insert: {
+          id?: string
+          period_year: number
+          period_month: number
+          status?: PayrollRunStatus
+          fiscal_config_snapshot_json?: Record<string, unknown> | null
+          notes?: string | null
+          created_by_user_id?: string | null
+        }
+        Update: Partial<Omit<PayrollRun, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      payroll_items: {
+        Row: AsRow<PayrollItem>
+        Insert: {
+          id?: string
+          payroll_run_id: string
+          user_id: string
+          user_snapshot_json?: Record<string, unknown> | null
+          base_salary_usd?: number
+          extra_hours?: number
+          extra_hours_rate_usd?: number | null
+          extra_hours_amount_usd?: number
+          bonus_usd?: number
+          other_deductions_usd?: number
+          gross_total_usd?: number
+          isss_employee_usd?: number
+          afp_employee_usd?: number
+          isr_usd?: number
+          total_deductions_usd?: number
+          net_pay_usd?: number
+          isss_employer_usd?: number
+          afp_employer_usd?: number
+          employer_cost_usd?: number
+          hours_worked_from_appointments?: number | null
+          hours_worked_from_sessions?: number | null
+          notes?: string | null
+        }
+        Update: Partial<Omit<PayrollItem, 'id' | 'created_at'>>
         Relationships: []
       }
       therapist_work_schedule: {
@@ -3340,6 +3425,131 @@ export interface ServiceCatalogItem {
   active: boolean
   sort_order: number
   notes: string | null
+  created_at: string
+  updated_at: string
+}
+
+// =============================================================================
+// Kinetic — Fase 8: Planillas (mig 0117)
+// =============================================================================
+
+export type PayrollContractType = 'mensual_fijo' | 'por_hora' | 'sin_contrato'
+
+export const CONTRACT_TYPE_LABELS: Record<PayrollContractType, string> = {
+  mensual_fijo: 'Mensual fijo',
+  por_hora: 'Por hora',
+  sin_contrato: 'Sin contrato (no entra en planilla)',
+}
+
+export type AfpProvider = 'crecer' | 'confia'
+
+export const AFP_PROVIDER_LABELS: Record<AfpProvider, string> = {
+  crecer: 'Crecer',
+  confia: 'Confía',
+}
+
+export type PayrollRunStatus = 'draft' | 'sealed' | 'paid' | 'cancelled'
+
+export const PAYROLL_RUN_STATUS_LABELS: Record<PayrollRunStatus, string> = {
+  draft: 'Borrador',
+  sealed: 'Sellada',
+  paid: 'Pagada',
+  cancelled: 'Anulada',
+}
+
+/** Tramo del ISR mensual asalariados El Salvador. */
+export interface IsrBracket {
+  /** Mínimo del tramo en USD (inclusive). */
+  from: number
+  /** Máximo del tramo en USD (inclusive) o null si es el último tramo. */
+  to: number | null
+  /** Tasa marginal (e.g., 0.10 = 10%). */
+  rate: number
+  /** Cuota fija a sumar después de aplicar la tasa al excedente. */
+  fixed: number
+  /** Monto a restar de la base antes de aplicar la tasa (límite inferior del tramo). */
+  baseSubtract: number
+}
+
+export interface PayrollFiscalConfig {
+  id: string
+  effective_from: string             // YYYY-MM-DD
+  isss_employee_rate: number
+  isss_employer_rate: number
+  isss_cap_salary_usd: number
+  afp_employee_rate: number
+  afp_employer_rate: number
+  afp_cap_salary_usd: number | null
+  isr_brackets_json: IsrBracket[]
+  notes: string | null
+  created_at: string
+  created_by_user_id: string | null
+}
+
+export interface PayrollRun {
+  id: string
+  period_year: number
+  period_month: number
+  status: PayrollRunStatus
+  fiscal_config_snapshot_json: PayrollFiscalConfig | Record<string, unknown> | null
+  notes: string | null
+  created_at: string
+  created_by_user_id: string | null
+  sealed_at: string | null
+  sealed_by_user_id: string | null
+  paid_at: string | null
+  paid_by_user_id: string | null
+  cancelled_at: string | null
+  cancelled_by_user_id: string | null
+  cancel_reason: string | null
+  updated_at: string
+}
+
+/** Snapshot del empleado al momento de sellar la planilla. */
+export interface PayrollItemUserSnapshot {
+  full_name: string
+  email: string
+  role: UserRole
+  contract_type: PayrollContractType
+  dui: string | null
+  isss_number: string | null
+  afp_number: string | null
+  afp_provider: AfpProvider | null
+  hire_date: string | null
+}
+
+export interface PayrollItem {
+  id: string
+  payroll_run_id: string
+  user_id: string
+  user_snapshot_json: PayrollItemUserSnapshot | null
+
+  base_salary_usd: number
+  extra_hours: number
+  extra_hours_rate_usd: number | null
+  extra_hours_amount_usd: number
+  bonus_usd: number
+  other_deductions_usd: number
+
+  gross_total_usd: number
+  isss_employee_usd: number
+  afp_employee_usd: number
+  isr_usd: number
+  total_deductions_usd: number
+  net_pay_usd: number
+
+  isss_employer_usd: number
+  afp_employer_usd: number
+  employer_cost_usd: number
+
+  hours_worked_from_appointments: number | null
+  hours_worked_from_sessions: number | null
+
+  notes: string | null
+
+  signed_at: string | null
+  signed_ip: string | null
+
   created_at: string
   updated_at: string
 }

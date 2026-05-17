@@ -99,6 +99,18 @@ const topNavItems: NavItem[] = [
       </svg>
     ),
   },
+  {
+    href: '/mis-recibos',
+    label: 'Mis recibos',
+    allowedRoles: [
+      'admin', 'directora', 'supervisor',
+      'coordinadora_familias', 'coordinadora_terapias',
+      'terapista', 'maestra', 'recepcion', 'contable',
+    ],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>receipt_long</span>
+    ),
+  },
 ]
 
 // ── Items only shown at top-level for non-admin/directora ─────────────────

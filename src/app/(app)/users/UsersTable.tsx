@@ -69,6 +69,14 @@ function CreateUserModal({ onClose, onCreated }: {
         current_session_id: null,
         can_quote: false,
         max_hours_per_week: null,
+        monthly_salary_usd: null,
+        hourly_rate_usd: null,
+        contract_type: 'sin_contrato',
+        dui: null,
+        isss_number: null,
+        afp_number: null,
+        afp_provider: null,
+        hire_date: null,
       })
       onClose()
     })

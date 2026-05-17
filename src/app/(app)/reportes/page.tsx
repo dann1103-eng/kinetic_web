@@ -28,7 +28,8 @@ const CARDS: Card[] = [
     title: 'Contabilidad y planillas',
     description: 'Planillas mensuales por terapista, deducciones (ISSS / AFP / ISR), firmas digitales y cierre contable.',
     icon: 'account_balance',
-    active: false,
+    href: '/reportes/contabilidad',
+    active: true,
   },
   {
     title: 'Operativos',
