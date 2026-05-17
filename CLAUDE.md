@@ -166,7 +166,6 @@ Visible si AL MENOS UN item es accesible al usuario. Cada item respeta su propio
 - `/usuarios-portal` — Cuentas family
 - `/operacion/capacidad-terapistas` — Tabla semanal comparativa de ocupación
 - `/billing` — Facturación (FM legacy, can_quote también ve fallback top-level)
-- `/admin/plantillas` — **DEPRECATED** (templates ya no se usan para informes nuevos)
 
 ## Portal padres (`/portal/*`)
 - `/portal` — Inicio con próxima cita + alertas de inasistencias por reponer
@@ -194,10 +193,10 @@ Wrapper: `KineticPortalShell` (sin search bar en desktop; logout va a `/auth/sig
 - Localizador en español con `date-fns/locale/es`, semana inicia lunes.
 
 ## Informes cuatrimestrales
-- **Modo `file` (en uso)**: terapista sube PDF/Word + notas para familia. No requiere plantilla.
-- **Modo `editor` (deprecated)**: plantillas con bloques. No se usa para nuevos informes.
-- `progress_reports.template_id` queda en `null` para informes nuevos.
-- `progress_reports.upload_kind = 'file'` por defecto en `createProgressReport`.
+- **Modo `file` (en uso)**: terapista sube PDF/Word + notas para familia. No requiere plantilla. Único flujo soportado para nuevos informes.
+- **Modo `editor` (legacy histórico)**: plantillas con bloques. Eliminado del flujo de creación. La tabla `report_templates` y la columna `progress_reports.template_id` se conservan **solo lectura** para mostrar informes históricos creados antes del refactor.
+- `progress_reports.template_id` queda en `null` para informes nuevos; aprobaciones y portal hacen lectura directa de `report_templates` cuando `template_id IS NOT NULL` (sin action intermedio).
+- `progress_reports.upload_kind = 'file'` siempre — incluso cuando se elimina el archivo (estado "esperando archivo nuevo").
 - RPC `submit_progress_report` esquiva la validación de plantilla cuando `upload_kind='file'` (migración 0107).
 - **Solo la terapista principal** del niño (`treatment_plans.primary_therapist_id`) ve el pendiente en `/aprobaciones` — filtrado agregado a `summarizeActiveTherapiesForTherapist` (Q2b).
 - `ProgressReportApprovalList`, `ProgressReportApprovalCard` y `ProgressReportsList` (portal) manejan `template_id=null` con optional chaining → muestran solo el archivo.
@@ -276,10 +275,14 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
    - Inbox excluye cuentas family
    - All-day row del calendario oculta
    - Panel de perfil scrolleable correctamente
+10. **Cleanup técnico (Fase 2)**:
+    - Eliminadas rutas `/admin/plantillas/*`, componentes `admin/plantillas/`, y action `report-templates.ts` (sin consumers externos). Tabla `report_templates` y columna `template_id` conservadas para informes históricos (lectura directa desde `/aprobaciones` y portal).
+    - Eliminados links a `/admin/plantillas` en `MgmtDashboard` y `CoordTerapiasDashboard`.
+    - Bug fix: `removeProgressReportFile` ahora deja `upload_kind='file'` (antes: `'editor'`, deprecated).
+    - `supabase/scripts/verify_pending_migrations.sql`: script SQL para validar en Supabase Studio si las 4 migraciones pendientes (0107 kinetic, 0114, 0115, 0116) están aplicadas.
 
 ## Pendiente (próximas sesiones)
 - 📋 **Reportería** (puntos 9 y 10 del plan original) — siguiente foco
-- Plantillas (`/admin/plantillas`): dejar zombie hasta que no haya informes históricos con `template_id`. Luego: borrar página, action `listReportTemplates`, referencias en approval/portal lists, y finalmente la tabla `report_templates`.
 - (Backlog) Detección automática de slot liberado tras cancelar cita → alerta a lista de espera
 - (Backlog) Notificaciones a familias en waitlist por email/WhatsApp
 - (Backlog) Vista mensual/anual de capacidad (actual es solo semanal)

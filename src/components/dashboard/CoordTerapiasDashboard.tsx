@@ -91,7 +91,6 @@ export function CoordTerapiasDashboard({ data, greeting }: Props) {
           { href: '/agenda', label: 'Agenda', icon: 'calendar_today' },
           { href: '/aprobaciones', label: 'Reposiciones', icon: 'event_repeat' },
           { href: '/familias', label: 'Familias', icon: 'groups' },
-          { href: '/admin/plantillas', label: 'Plantillas', icon: 'description' },
         ]}
       />
     </div>

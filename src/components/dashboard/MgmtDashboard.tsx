@@ -143,7 +143,6 @@ export function MgmtDashboard({
               { href: '/familias', label: 'Familias y niños', icon: 'groups' },
               { href: '/agenda', label: 'Agenda', icon: 'calendar_today' },
               { href: '/aprobaciones', label: 'Aprobaciones', icon: 'check_circle' },
-              { href: '/admin/plantillas', label: 'Plantillas', icon: 'description' },
               { href: '/admin/tarifas', label: 'Tarifas', icon: 'sell' },
               { href: '/users', label: 'Staff', icon: 'badge' },
               { href: '/usuarios-portal', label: 'Portal familias', icon: 'family_restroom' },

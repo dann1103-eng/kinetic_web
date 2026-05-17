@@ -176,7 +176,7 @@ export async function removeProgressReportFile(
   await admin
     .from('progress_reports')
     .update({
-      upload_kind: 'editor',
+      upload_kind: 'file',
       file_url: null,
       file_name: null,
       file_size_bytes: null,
