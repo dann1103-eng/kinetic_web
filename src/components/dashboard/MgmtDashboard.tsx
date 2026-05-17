@@ -64,6 +64,11 @@ export function MgmtDashboard({
             <KpiBlock
               label="Niños activos"
               value={data.activeChildren}
+              subtitle={
+                data.activeChildren > 0
+                  ? `${data.activeChildrenNewThisWeek > 0 ? `+${data.activeChildrenNewThisWeek} esta semana · ` : ''}${data.activeChildrenWithPlan} con plan`
+                  : 'Sin niños activos'
+              }
             />
             <KpiBlock
               label="Pendientes de aprobación"

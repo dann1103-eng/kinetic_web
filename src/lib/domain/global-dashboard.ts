@@ -57,6 +57,10 @@ export interface MgmtDashboardData {
   monthlyAppointments: { scheduled: number; completed: number; no_show: number; total: number }
   monthlyRevenueUsd: number
   activeChildren: number
+  /** Niños activos creados en los últimos 7 días. */
+  activeChildrenNewThisWeek: number
+  /** Niños activos con plan de tratamiento activo. */
+  activeChildrenWithPlan: number
   pendingCounts: {
     progressReports: number
     sessionReports: number
@@ -101,6 +105,32 @@ export async function getMgmtDashboardData(
     .select('id', { count: 'exact', head: true })
     .eq('treatment_status', 'active')
 
+  // Niños activos creados en los últimos 7 días
+  const sevenDaysAgoISO = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const { count: activeChildrenNewCount } = await supabase
+    .from('children')
+    .select('id', { count: 'exact', head: true })
+    .eq('treatment_status', 'active')
+    .gte('created_at', sevenDaysAgoISO)
+
+  // Niños activos con plan activo
+  const { data: childrenIdsRaw } = await supabase
+    .from('children')
+    .select('id')
+    .eq('treatment_status', 'active')
+  const activeChildIds = (childrenIdsRaw ?? []).map((r) => r.id)
+  let activeChildrenWithPlanCount = 0
+  if (activeChildIds.length > 0) {
+    const { data: plansRaw } = await supabase
+      .from('treatment_plans')
+      .select('child_id')
+      .eq('active', true)
+      .in('child_id', activeChildIds)
+    activeChildrenWithPlanCount = new Set(
+      (plansRaw ?? []).map((p) => p.child_id),
+    ).size
+  }
+
   // Pendings: progress_reports submitted, session_reports submitted, absences pending
   const [{ count: progressReportsCount }, { count: sessionReportsCount }, { count: absencesCount }] =
     await Promise.all([
@@ -136,6 +166,8 @@ export async function getMgmtDashboardData(
     monthlyAppointments: counts,
     monthlyRevenueUsd,
     activeChildren: activeChildrenCount ?? 0,
+    activeChildrenNewThisWeek: activeChildrenNewCount ?? 0,
+    activeChildrenWithPlan: activeChildrenWithPlanCount,
     pendingCounts: {
       progressReports: progressReportsCount ?? 0,
       sessionReports: sessionReportsCount ?? 0,
