@@ -9,8 +9,8 @@ import type {
   TermAndCondition,
 } from '@/types/db'
 
-const TEAL = '#1FA4DA'
-const RED = '#E5316E'
+const TEAL = '#00675c'
+const RED = '#b31b25'
 const GRAY = '#595c5e'
 const BORDER = '#dfe3e6'
 const BG_SOFT = '#f5f7f9'
@@ -91,7 +91,7 @@ export function QuotePDF({ quote, items }: QuotePDFProps) {
             {logoUrl ? (
               <Image src={logoUrl} style={{ width: 50, height: 50, objectFit: 'contain', backgroundColor: 'white', borderRadius: 6 }} />
             ) : (
-              <View style={styles.logoBox}><Text style={styles.logoText}>FM</Text></View>
+              <View style={styles.logoBox}><Text style={styles.logoText}>K</Text></View>
             )}
             <View style={styles.brandText}>
               <Text style={styles.brandName}>{emitter.trade_name ?? emitter.legal_name}</Text>

@@ -37,7 +37,7 @@ function barColor(pct: number): string {
 
 // Avatar gradients (consistent with dashboard)
 const avatarGradients = [
-  'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)',
+  'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)',
   'linear-gradient(135deg, #d99a26 0%, #ffd58f 100%)',
   'linear-gradient(135deg, #65a73d 0%, #b6e094 100%)',
   'linear-gradient(135deg, #5c4a8a 0%, #b89cff 100%)',
@@ -448,7 +448,7 @@ export function RequirementPanel({
                   onClick={() => !buttonBlocked && setModalOpen(true)}
                   disabled={buttonBlocked}
                   className={`flex-1 md:flex-none px-5 py-2.5 text-white font-bold rounded-full flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 text-sm ${buttonBlocked ? 'opacity-50 cursor-not-allowed' : 'hover:brightness-110'}`}
-                  style={{ background: buttonBlocked ? '#E5316E' : 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
+                  style={{ background: buttonBlocked ? '#E5316E' : 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
                 >
                   <span className="material-symbols-outlined text-base">{buttonBlocked ? 'block' : 'add'}</span>
                   {label}
@@ -509,7 +509,7 @@ export function RequirementPanel({
               onClick={handleRenewContentPackage}
               disabled={renewingPackage}
               className="flex items-center gap-2 px-5 py-2.5 text-white font-bold rounded-full text-sm disabled:opacity-60 flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
+              style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)', boxShadow: '0 4px 15px rgba(0,103,92,0.25)' }}
             >
               <span className="material-symbols-outlined text-base">add_shopping_cart</span>
               {renewingPackage ? 'Creando…' : 'Contratar nuevo paquete'}
@@ -977,7 +977,7 @@ export function RequirementPanel({
                   disabled={savingNotes}
                   className="px-6 py-2.5 text-white font-bold rounded-full shadow-lg hover:scale-[1.02] transition-transform active:scale-95 text-sm disabled:opacity-60"
                   style={{
-                    background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)',
+                    background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)',
                     boxShadow: '0 4px 15px rgba(0,103,92,0.2)',
                   }}
                 >

@@ -130,7 +130,7 @@ export function TermsAndConditionsEditor({ initialTerms }: TermsAndConditionsEdi
                       onClick={() => saveEdit(term)}
                       disabled={isPending}
                       className="rounded-lg text-white text-xs"
-                      style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
+                      style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)' }}
                     >
                       Guardar
                     </Button>
@@ -182,7 +182,7 @@ export function TermsAndConditionsEditor({ initialTerms }: TermsAndConditionsEdi
           onClick={addNew}
           disabled={isPending || !newText.trim()}
           className="rounded-lg text-white text-sm"
-          style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
+          style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)' }}
         >
           + Agregar término
         </Button>

@@ -9,8 +9,8 @@ import type {
 } from '@/types/db'
 import { PAYMENT_METHOD_LABELS } from '@/types/db'
 
-const TEAL = '#1FA4DA'
-const RED = '#E5316E'
+const TEAL = '#00675c'
+const RED = '#b31b25'
 const GRAY = '#595c5e'
 const BORDER = '#dfe3e6'
 const BG_SOFT = '#f5f7f9'
@@ -85,7 +85,7 @@ export function InvoicePDF({ invoice, items }: InvoicePDFProps) {
             {logoUrl ? (
               <Image src={logoUrl} style={{ width: 80, height: 80, objectFit: 'contain' }} />
             ) : (
-              <View style={styles.logoBox}><Text style={styles.logoText}>FM</Text></View>
+              <View style={styles.logoBox}><Text style={styles.logoText}>K</Text></View>
             )}
             <Text style={styles.invoiceTitle}>{invoice.invoice_number}</Text>
           </View>

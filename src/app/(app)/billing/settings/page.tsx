@@ -29,7 +29,7 @@ export default async function BillingSettingsPage() {
       <TopNav title="Configuración de facturación" />
 
       <div className="flex-1 p-6 space-y-6 max-w-4xl">
-        <Section title="Datos del emisor (FM)" description="Información fiscal que aparece en todas las facturas y cotizaciones.">
+        <Section title="Datos del emisor" description="Información fiscal de la clínica que aparece en todas las facturas y cotizaciones.">
           <CompanySettingsForm initial={settings} />
         </Section>
 

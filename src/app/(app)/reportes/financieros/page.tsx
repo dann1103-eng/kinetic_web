@@ -6,13 +6,11 @@ import { TopNav } from '@/components/layout/TopNav'
 import {
   getMonthlyRevenue,
   getAnnualComparison,
-  getCycleStatusBreakdown,
   getPaymentMethodBreakdown,
   getChurnBreakdown,
 } from '@/lib/domain/reports/financial'
 import { MonthlyRevenueSection } from '@/components/reportes/MonthlyRevenueSection'
 import { AnnualComparisonSection } from '@/components/reportes/AnnualComparisonSection'
-import { CycleStatusSection } from '@/components/reportes/CycleStatusSection'
 import { PaymentMethodSection } from '@/components/reportes/PaymentMethodSection'
 import { ChurnSection } from '@/components/reportes/ChurnSection'
 import type { UserRole } from '@/types/db'
@@ -25,8 +23,6 @@ interface PageProps {
   searchParams: Promise<{
     year?: string
     annualYear?: string
-    cyclesFrom?: string
-    cyclesTo?: string
     pmFrom?: string
     pmTo?: string
     churnFrom?: string
@@ -46,7 +42,7 @@ function parseDate(raw: string | undefined, fallback: string): string {
   return raw
 }
 
-function defaultCyclesRange(): { from: string; to: string } {
+function default12mRange(): { from: string; to: string } {
   const now = new Date()
   const to = now.toISOString().slice(0, 10)
   const fromDate = new Date(now)
@@ -72,22 +68,19 @@ export default async function ReportesFinancierosPage({ searchParams }: PageProp
 
   const year = parseYear(params.year, systemYear)
   const annualYear = parseYear(params.annualYear, systemYear)
-  const cyclesDef = defaultCyclesRange()
-  const cyclesFrom = parseDate(params.cyclesFrom, cyclesDef.from)
-  const cyclesTo = parseDate(params.cyclesTo, cyclesDef.to)
+  const range12m = default12mRange()
   const pmDef = defaultPmRange()
   const pmFrom = parseDate(params.pmFrom, pmDef.from)
   const pmTo = parseDate(params.pmTo, pmDef.to)
-  // Churn usa el mismo default que ciclos (últimos 12 meses).
-  const churnFrom = parseDate(params.churnFrom, cyclesDef.from)
-  const churnTo = parseDate(params.churnTo, cyclesDef.to)
+  // Churn usa últimos 12 meses por default.
+  const churnFrom = parseDate(params.churnFrom, range12m.from)
+  const churnTo = parseDate(params.churnTo, range12m.to)
 
   const supabase = await createClient()
 
-  const [monthlyRows, annualData, cyclesData, paymentMethodData, churnData] = await Promise.all([
+  const [monthlyRows, annualData, paymentMethodData, churnData] = await Promise.all([
     getMonthlyRevenue(supabase, { year }),
     getAnnualComparison(supabase, { year: annualYear }),
-    getCycleStatusBreakdown(supabase, { fromDate: cyclesFrom, toDate: cyclesTo }),
     getPaymentMethodBreakdown(supabase, { fromDate: pmFrom, toDate: pmTo }),
     getChurnBreakdown(supabase, { fromDate: churnFrom, toDate: churnTo }),
   ])
@@ -124,7 +117,6 @@ export default async function ReportesFinancierosPage({ searchParams }: PageProp
         <div className="space-y-4">
           <MonthlyRevenueSection year={year} rows={monthlyRows} currentYear={systemYear} />
           <AnnualComparisonSection data={annualData} systemYear={systemYear} />
-          <CycleStatusSection data={cyclesData} fromDate={cyclesFrom} toDate={cyclesTo} />
           <PaymentMethodSection
             rows={paymentMethodData.rows}
             totalUsd={paymentMethodData.totalUsd}

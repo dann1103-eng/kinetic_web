@@ -113,7 +113,7 @@ export function LoginWelcomeDialog() {
             onClick={handleStartShift}
             disabled={isPending}
             className="px-5 py-2 rounded-full text-white font-bold text-sm disabled:opacity-60"
-            style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
+            style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)' }}
           >
             {isPending ? 'Iniciando…' : 'Iniciar jornada'}
           </button>

@@ -193,7 +193,7 @@ export function ClientRequestRequirementModal({ open, onClose }: Props) {
                 type="submit"
                 disabled={isPending}
                 className="rounded-xl text-white font-semibold"
-                style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
+                style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)' }}
               >
                 {isPending ? 'Enviando…' : 'Enviar solicitud'}
               </Button>

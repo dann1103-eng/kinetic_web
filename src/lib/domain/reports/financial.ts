@@ -1,15 +1,15 @@
 /**
  * Reportería financiera Kinetic.
  *
- * 4 funciones puras de agregación sobre `monthly_session_cycles`:
+ * Funciones puras de agregación sobre `monthly_session_cycles` y `children`:
  *   - getMonthlyRevenue(year)            — series mensual del año
  *   - getAnnualComparison(year)          — year-over-year mes a mes
- *   - getCycleStatusBreakdown(from, to)  — generados vs cancelados + motivos
- *   - getPaymentMethodBreakdown(from, to) — distribución por método
+ *   - getPaymentMethodBreakdown(from, to) — distribución por método de pago
+ *   - getChurnBreakdown(from, to)         — flujo de altas/bajas/pausas por mes
  *
  * Convención: agrupar por `paid_at` (no `period_month`), consistente con
  * `getRecepcionDashboardData` en global-dashboard.ts. Filtrar `status != 'cancelled'`
- * cuando se computan ingresos; contar `cancelled` aparte cuando sea relevante.
+ * cuando se computan ingresos.
  */
 
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
@@ -220,112 +220,7 @@ export async function getAnnualComparison(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// 3. Ciclos generados vs cancelados + top motivos
-// ──────────────────────────────────────────────────────────────────────────
-
-export interface CycleStatusMonthRow {
-  month: string              // YYYY-MM
-  monthLabel: string         // "Ene 2026"
-  generatedCount: number     // status != cancelled
-  cancelledCount: number
-  totalCount: number
-  cancellationRate: number   // 0..1
-}
-
-export interface CycleCancelReasonRow {
-  reason: string
-  count: number
-}
-
-export interface CycleStatusBreakdown {
-  rows: CycleStatusMonthRow[]
-  totals: {
-    generated: number
-    cancelled: number
-    total: number
-    cancellationRate: number
-  }
-  topReasons: CycleCancelReasonRow[]
-}
-
-export async function getCycleStatusBreakdown(
-  supabase: SupabaseClient<Database>,
-  opts: { fromDate: string; toDate: string },
-): Promise<CycleStatusBreakdown> {
-  const { startISO, endISO } = dayRangeBoundsSV(opts.fromDate, opts.toDate)
-
-  const { data } = await supabase
-    .from('monthly_session_cycles')
-    .select('paid_at, status, cancel_reason')
-    .gte('paid_at', startISO)
-    .lt('paid_at', endISO)
-
-  const rows = (data ?? []) as Array<{
-    paid_at: string
-    status: MonthlySessionCycleStatus
-    cancel_reason: string | null
-  }>
-
-  // Agrupar por mes (key YYYY-MM) en orden de aparición
-  const byMonth = new Map<string, CycleStatusMonthRow>()
-  let totalGenerated = 0
-  let totalCancelled = 0
-  const reasonCounts = new Map<string, number>()
-
-  for (const r of rows) {
-    const key = monthKeyInSV(r.paid_at)
-    let row = byMonth.get(key)
-    if (!row) {
-      const [yStr, mStr] = key.split('-')
-      const monthIdx = Number(mStr) - 1
-      row = {
-        month: key,
-        monthLabel: `${MONTH_LABELS[monthIdx]} ${yStr}`,
-        generatedCount: 0,
-        cancelledCount: 0,
-        totalCount: 0,
-        cancellationRate: 0,
-      }
-      byMonth.set(key, row)
-    }
-    if (r.status === 'cancelled') {
-      row.cancelledCount++
-      totalCancelled++
-      const reason = (r.cancel_reason ?? '').trim() || 'Sin motivo'
-      reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1)
-    } else {
-      row.generatedCount++
-      totalGenerated++
-    }
-    row.totalCount++
-  }
-
-  for (const row of byMonth.values()) {
-    row.cancellationRate = row.totalCount > 0 ? row.cancelledCount / row.totalCount : 0
-  }
-
-  const sortedRows = Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month))
-  const total = totalGenerated + totalCancelled
-
-  const topReasons = Array.from(reasonCounts.entries())
-    .map(([reason, count]) => ({ reason, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 5)
-
-  return {
-    rows: sortedRows,
-    totals: {
-      generated: totalGenerated,
-      cancelled: totalCancelled,
-      total,
-      cancellationRate: total > 0 ? totalCancelled / total : 0,
-    },
-    topReasons,
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────
-// 4. Métodos de pago
+// 3. Métodos de pago
 // ──────────────────────────────────────────────────────────────────────────
 
 export interface PaymentMethodRow {

@@ -281,7 +281,7 @@ export function ClientForm({ plans, existing }: ClientFormProps) {
       <Button
         onClick={() => setOpen(true)}
         className="text-white font-semibold rounded-xl"
-        style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
+        style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)' }}
       >
         + Nuevo cliente
       </Button>
@@ -642,7 +642,7 @@ export function ClientForm({ plans, existing }: ClientFormProps) {
               type="submit"
               disabled={loading}
               className="flex-1 rounded-xl text-white font-semibold"
-              style={{ background: 'linear-gradient(135deg, #1FA4DA 0%, #87daff 100%)' }}
+              style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)' }}
             >
               {loading ? 'Guardando...' : existing ? 'Guardar cambios' : 'Crear cliente'}
             </Button>
