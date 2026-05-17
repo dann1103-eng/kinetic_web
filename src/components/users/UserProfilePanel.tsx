@@ -9,10 +9,13 @@ import { updateUserRole } from '@/app/actions/updateUserRole'
 import { startImpersonation } from '@/app/actions/impersonation'
 import {
   getUserScheduleBlocks,
+  getTherapistWeekOccupancy,
   upsertScheduleBlock,
   deleteScheduleBlock,
   setMaxHoursPerWeek,
 } from '@/app/actions/therapist-schedules'
+import type { WeeklyOccupancy } from '@/lib/domain/therapist-capacity'
+import { occupancyToneClasses, formatHoursFraction } from '@/lib/domain/therapist-capacity'
 import {
   Select,
   SelectContent,
@@ -52,18 +55,6 @@ const DAYS = [
 
 function trimSeconds(t: string): string {
   return t.length >= 5 ? t.slice(0, 5) : t
-}
-
-function blockMinutes(startTime: string, endTime: string): number {
-  const [sh, sm] = startTime.split(':').map(Number)
-  const [eh, em] = endTime.split(':').map(Number)
-  return (eh * 60 + em) - (sh * 60 + sm)
-}
-
-function minutesToHours(min: number): string {
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
 // ── Interfaces ─────────────────────────────────────────────────────────────
@@ -564,112 +555,209 @@ function HorarioTab({ user }: { user: AppUser }) {
 
 // ── Tab: Capacidad ──────────────────────────────────────────────────────────
 
+const WEEKDAY_LABELS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+
+function formatWeekRange(weekStartIso: string): string {
+  const start = new Date(weekStartIso)
+  const end = new Date(start)
+  end.setDate(end.getDate() + 6)
+  const sameMonth = start.getMonth() === end.getMonth()
+  const startStr = start.toLocaleDateString('es-SV', {
+    day: 'numeric',
+    month: sameMonth ? undefined : 'short',
+  })
+  const endStr = end.toLocaleDateString('es-SV', { day: 'numeric', month: 'short' })
+  return `${startStr} – ${endStr}`
+}
+
+function isCurrentWeek(weekStartIso: string): boolean {
+  const today = new Date()
+  const startToday = new Date(today)
+  startToday.setHours(0, 0, 0, 0)
+  const dow = startToday.getDay()
+  const diff = dow === 0 ? -6 : 1 - dow
+  startToday.setDate(startToday.getDate() + diff)
+  return new Date(weekStartIso).getTime() === startToday.getTime()
+}
+
 function CapacidadTab({ user }: { user: AppUser }) {
-  const [blocks, setBlocks] = useState<TherapistWorkScheduleBlock[]>([])
+  const [occupancy, setOccupancy] = useState<WeeklyOccupancy | null>(null)
+  const [weekStartIso, setWeekStartIso] = useState<string | null>(null)
+  const [referenceDate, setReferenceDate] = useState<Date>(() => new Date())
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    getUserScheduleBlocks(user.id).then((res) => {
-      if (!cancelled && res.ok) setBlocks(res.blocks)
-      if (!cancelled) setLoading(false)
+    setLoading(true)
+    setError(null)
+    getTherapistWeekOccupancy(user.id, referenceDate.toISOString()).then((res) => {
+      if (cancelled) return
+      if (res.ok) {
+        setOccupancy(res.data)
+        setWeekStartIso(res.weekStartIso)
+      } else {
+        setError(res.error)
+      }
+      setLoading(false)
     })
     return () => { cancelled = true }
-  }, [user.id])
+  }, [user.id, referenceDate])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12 text-fm-on-surface-variant text-sm">
-        <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
-        Cargando…
-      </div>
-    )
-  }
-
-  // Compute contracted hours per day
-  let totalMinutes = 0
-  const dayRows = DAYS.map((day) => {
-    const dayBlocks = blocks.filter((b) => b.day_of_week === day.dow)
-    const dayMinutes = dayBlocks.reduce((s, b) => s + blockMinutes(trimSeconds(b.start_time), trimSeconds(b.end_time)), 0)
-    totalMinutes += dayMinutes
-    return { dow: day.dow, label: day.label, dayBlocks, dayMinutes }
-  }).filter((r) => r.dayMinutes > 0)
-
-  const maxMinutes = user.max_hours_per_week != null ? user.max_hours_per_week * 60 : null
-  const exceedsMax = maxMinutes != null && totalMinutes > maxMinutes
-
-  if (dayRows.length === 0) {
-    return (
-      <div className="rounded-xl border border-fm-outline-variant/20 p-6 text-center text-sm text-fm-on-surface-variant">
-        No hay bloques laborales configurados. Definí el horario en la pestaña
-        <span className="font-semibold text-fm-primary"> Horario</span>.
-      </div>
-    )
+  function navigateWeek(direction: 'prev' | 'next' | 'today') {
+    if (direction === 'today') {
+      setReferenceDate(new Date())
+      return
+    }
+    const newDate = new Date(referenceDate)
+    newDate.setDate(newDate.getDate() + (direction === 'prev' ? -7 : 7))
+    setReferenceDate(newDate)
   }
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-fm-on-surface-variant">
-        Horas contractuales calculadas desde el horario laboral configurado.
-      </p>
-
-      <div className="rounded-xl border border-fm-outline-variant/20 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-fm-background text-xs uppercase tracking-wide text-fm-on-surface-variant">
-            <tr>
-              <th className="px-3 py-2 text-left">Día</th>
-              <th className="px-3 py-2 text-left">Bloques</th>
-              <th className="px-3 py-2 text-right">Total</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-fm-outline-variant/10">
-            {dayRows.map((row) => (
-              <tr key={row.dow}>
-                <td className="px-3 py-2 font-medium text-fm-on-surface">{row.label}</td>
-                <td className="px-3 py-2 text-fm-on-surface-variant text-xs">
-                  {row.dayBlocks.map((b) =>
-                    `${trimSeconds(b.start_time)}–${trimSeconds(b.end_time)}`
-                  ).join(', ')}
-                </td>
-                <td className="px-3 py-2 text-right tabular-nums font-semibold text-fm-on-surface">
-                  {minutesToHours(row.dayMinutes)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="bg-fm-background border-t border-fm-outline-variant/20">
-              <td colSpan={2} className="px-3 py-2 text-sm font-bold text-fm-on-surface">
-                Total semanal
-              </td>
-              <td className="px-3 py-2 text-right tabular-nums font-bold text-fm-on-surface">
-                {minutesToHours(totalMinutes)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+      {/* Week navigator */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => navigateWeek('prev')}
+            className="w-7 h-7 inline-flex items-center justify-center rounded-full hover:bg-fm-background text-fm-on-surface-variant"
+            aria-label="Semana anterior"
+          >
+            <span className="material-symbols-outlined text-base">chevron_left</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigateWeek('next')}
+            className="w-7 h-7 inline-flex items-center justify-center rounded-full hover:bg-fm-background text-fm-on-surface-variant"
+            aria-label="Semana siguiente"
+          >
+            <span className="material-symbols-outlined text-base">chevron_right</span>
+          </button>
+          {weekStartIso && (
+            <span className="text-xs font-semibold text-fm-on-surface ml-1">
+              {formatWeekRange(weekStartIso)}
+            </span>
+          )}
+        </div>
+        {weekStartIso && !isCurrentWeek(weekStartIso) && (
+          <button
+            type="button"
+            onClick={() => navigateWeek('today')}
+            className="text-xs font-semibold text-fm-primary hover:underline"
+          >
+            Hoy
+          </button>
+        )}
       </div>
 
-      {maxMinutes != null && (
-        <div className={`rounded-xl border px-4 py-3 text-sm font-medium ${
-          exceedsMax
-            ? 'border-amber-300 bg-amber-50 text-amber-900'
-            : 'border-emerald-200 bg-emerald-50 text-emerald-900'
-        }`}>
-          {exceedsMax
-            ? `Excede el límite de ${minutesToHours(maxMinutes)} por semana (diferencia: +${minutesToHours(totalMinutes - maxMinutes)})`
-            : `Dentro del límite de ${minutesToHours(maxMinutes)} por semana`
-          }
+      {loading ? (
+        <div className="flex items-center justify-center py-12 text-fm-on-surface-variant text-sm">
+          <span className="material-symbols-outlined animate-spin mr-2">progress_activity</span>
+          Cargando ocupación…
+        </div>
+      ) : error ? (
+        <div className="rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-800">
+          {error}
+        </div>
+      ) : occupancy ? (
+        <CapacidadContent occupancy={occupancy} />
+      ) : null}
+    </div>
+  )
+}
+
+function CapacidadContent({ occupancy }: { occupancy: WeeklyOccupancy }) {
+  const tone = occupancyToneClasses(occupancy.occupancyPct, occupancy.totalScheduledMinutes)
+  const hasSchedule = occupancy.totalScheduledMinutes > 0
+
+  return (
+    <div className="space-y-4">
+      {/* Resumen */}
+      <div className={`rounded-xl border-2 px-4 py-3 ${tone.bg} ${tone.text} border-current/20`}>
+        <div className="flex items-baseline justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-wider font-bold opacity-80">
+              Ocupación semanal
+            </p>
+            <p className="text-2xl font-bold tabular-nums leading-tight">
+              {hasSchedule ? `${occupancy.occupancyPct}%` : '—'}
+            </p>
+          </div>
+          <p className="text-sm font-semibold tabular-nums opacity-90">
+            {formatHoursFraction(occupancy.totalWorkedMinutes, occupancy.totalScheduledMinutes)}
+          </p>
+        </div>
+        {!hasSchedule && (
+          <p className="text-xs mt-1 opacity-80">
+            Sin horario configurado. Definí bloques laborales en la pestaña Horario.
+          </p>
+        )}
+        {occupancy.overContract && (
+          <p className="text-xs mt-1.5 font-semibold flex items-center gap-1">
+            <span className="material-symbols-outlined text-sm">priority_high</span>
+            Excede {occupancy.maxHoursPerWeek}h/semana configuradas
+          </p>
+        )}
+      </div>
+
+      {/* Por día */}
+      {hasSchedule && (
+        <div className="rounded-xl border border-fm-outline-variant/20 overflow-hidden">
+          <div className="bg-fm-background px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
+            Por día (agendado / contractual)
+          </div>
+          <div className="divide-y divide-fm-outline-variant/10">
+            {occupancy.byDay.map((day, idx) => {
+              if (day.scheduledMinutes === 0 && day.workedMinutes === 0) return null
+              const dayTone = occupancyToneClasses(
+                day.scheduledMinutes > 0
+                  ? Math.round((day.workedMinutes / day.scheduledMinutes) * 100)
+                  : 0,
+                day.scheduledMinutes,
+              )
+              const barPct = day.scheduledMinutes > 0
+                ? Math.min(100, Math.round((day.workedMinutes / day.scheduledMinutes) * 100))
+                : 0
+              return (
+                <div key={idx} className="px-3 py-2 flex items-center gap-3">
+                  <span className="text-xs font-semibold text-fm-on-surface w-8 shrink-0">
+                    {WEEKDAY_LABELS[idx]}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="h-2 rounded-full bg-fm-surface-container overflow-hidden">
+                      <div
+                        className={`h-full ${dayTone.bg} transition-all`}
+                        style={{ width: `${barPct}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-xs tabular-nums text-fm-on-surface-variant shrink-0 w-20 text-right">
+                    {formatHoursFraction(day.workedMinutes, day.scheduledMinutes)}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
 
-      <a
-        href={`/operacion/capacidad-terapistas`}
-        className="flex items-center gap-2 text-xs text-fm-primary hover:underline"
-      >
-        <span className="material-symbols-outlined text-sm">bar_chart</span>
-        Ver ocupación real esta semana →
-      </a>
+      {/* Leyenda */}
+      <div className="flex items-center gap-3 text-[10px] text-fm-on-surface-variant">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-emerald-400" />
+          &lt;60% libre
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-amber-400" />
+          60-85% óptimo
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-rose-400" />
+          &gt;85% saturado
+        </span>
+      </div>
     </div>
   )
 }
@@ -723,7 +811,7 @@ export function UserProfilePanel({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto px-5 py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
         {activeTab === 'perfil' && (
           <PerfilTab
             user={user}

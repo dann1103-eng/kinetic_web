@@ -544,13 +544,18 @@
     border-color: var(--color-fm-outline-variant);
   }
 
-  .calendar-wrapper .rbc-allday-cell {
-    max-height: 80px !important;
-    overflow-y: auto;
+  /* Ocultar la fila "all-day" del week/day view — Kinetic no usa eventos all-day
+     en el calendario operativo (los cierres institucionales se ven en otra vista). */
+  .calendar-wrapper .rbc-time-view .rbc-allday-cell {
+    display: none !important;
   }
-  .calendar-wrapper .rbc-time-header-gutter {
-    max-height: 80px !important;
-    overflow: hidden;
+  .calendar-wrapper .rbc-time-view .rbc-time-header-content > .rbc-row.rbc-row-resource,
+  .calendar-wrapper .rbc-time-view .rbc-time-header-gutter {
+    display: none !important;
+  }
+  .calendar-wrapper .rbc-time-header.rbc-overflowing {
+    border-right: 0 !important;
+    margin-right: 0 !important;
   }
 
   /* ── Month view: alturas y eventos ── */

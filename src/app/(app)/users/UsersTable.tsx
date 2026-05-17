@@ -272,7 +272,7 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
 
         {/* ── Right: Profile panel ─────────────────────────────────── */}
         {selectedUser && (
-          <div className="w-[380px] shrink-0 sticky top-20 max-h-[calc(100vh-6rem)] rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest shadow-lg overflow-hidden flex flex-col">
+          <div className="w-[380px] shrink-0 sticky top-20 h-[calc(100vh-6rem)] rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest shadow-lg overflow-hidden flex flex-col">
             <UserProfilePanel
               user={selectedUser}
               currentUserId={currentUserId}

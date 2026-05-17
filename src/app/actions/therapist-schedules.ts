@@ -4,6 +4,11 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { TherapistWorkScheduleBlock } from '@/types/db'
+import {
+  calculateWeeklyOccupancy,
+  startOfWeekMonday,
+  type WeeklyOccupancy,
+} from '@/lib/domain/therapist-capacity'
 
 const ADMIN_ROLES = ['admin', 'directora'] as const
 
@@ -84,6 +89,64 @@ export async function deleteScheduleBlock(
   revalidatePath('/operacion/horarios-terapistas')
   revalidatePath('/operacion/capacidad-terapistas')
   return { ok: true }
+}
+
+/**
+ * Devuelve la ocupación semanal de un terapista para la semana que contiene
+ * `referenceDateIso`. Útil para mostrar carga real (citas) vs horas
+ * contractuales (bloques) en el panel de perfil.
+ */
+export async function getTherapistWeekOccupancy(
+  therapistId: string,
+  referenceDateIso: string,
+): Promise<{ ok: true; data: WeeklyOccupancy; weekStartIso: string } | { ok: false; error: string }> {
+  const { supabase } = await getActor()
+
+  // Usuario
+  const { data: userRow, error: userErr } = await supabase
+    .from('users')
+    .select('id, full_name, max_hours_per_week')
+    .eq('id', therapistId)
+    .maybeSingle()
+  if (userErr || !userRow) {
+    return { ok: false, error: userErr?.message ?? 'Usuario no encontrado.' }
+  }
+
+  // Ventana semanal (lun 00:00 → dom 23:59 local)
+  const ref = new Date(referenceDateIso)
+  const weekStart = startOfWeekMonday(ref)
+  const weekEnd = new Date(weekStart)
+  weekEnd.setDate(weekEnd.getDate() + 7)
+
+  // Bloques laborales activos
+  const { data: blocksRaw, error: blocksErr } = await supabase
+    .from('therapist_work_schedule')
+    .select('*')
+    .eq('therapist_id', therapistId)
+    .eq('active', true)
+  if (blocksErr) return { ok: false, error: blocksErr.message }
+
+  // Citas de la semana del terapista
+  const { data: apptsRaw, error: apptsErr } = await supabase
+    .from('appointments')
+    .select('therapist_id, starts_at, ends_at, status')
+    .eq('therapist_id', therapistId)
+    .gte('starts_at', weekStart.toISOString())
+    .lt('starts_at', weekEnd.toISOString())
+  if (apptsErr) return { ok: false, error: apptsErr.message }
+
+  const [occ] = calculateWeeklyOccupancy(
+    [{
+      id: userRow.id,
+      full_name: userRow.full_name ?? '',
+      max_hours_per_week: userRow.max_hours_per_week,
+    }],
+    (blocksRaw ?? []) as TherapistWorkScheduleBlock[],
+    apptsRaw ?? [],
+    weekStart,
+  )
+
+  return { ok: true, data: occ, weekStartIso: weekStart.toISOString() }
 }
 
 export async function getUserScheduleBlocks(

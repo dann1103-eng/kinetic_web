@@ -81,6 +81,14 @@ const topNavItems: NavItem[] = [
     ),
   },
   {
+    href: '/operacion/capacidad-terapistas',
+    label: 'Capacidad equipo',
+    allowedRoles: ['admin', 'directora', 'coordinadora_terapias'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>monitoring</span>
+    ),
+  },
+  {
     href: '/inbox',
     label: 'Equipo',
     icon: (
