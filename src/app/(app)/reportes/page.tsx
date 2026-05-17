@@ -18,15 +18,22 @@ interface Card {
 
 const CARDS: Card[] = [
   {
-    title: 'Financieros',
-    description: 'Ingresos mensuales, ciclos cobrados vs anulados, comparativas anuales y distribución por método de pago.',
-    icon: 'payments',
+    title: 'Ingresos',
+    description: 'Ingresos mensuales, ciclos cobrados vs anulados, comparativas anuales, distribución por método de pago y churn de familias.',
+    icon: 'trending_up',
     href: '/reportes/financieros',
     active: true,
   },
   {
+    title: 'Egresos',
+    description: 'Gastos del centro: planillas (automático) + gastos generales (renta, servicios, transporte, etc.) con CRUD propio.',
+    icon: 'trending_down',
+    href: '/reportes/egresos',
+    active: true,
+  },
+  {
     title: 'Planillas',
-    description: 'Planillas mensuales por empleado, deducciones (ISSS / AFP / ISR), firmas digitales de recepción y cierre de período.',
+    description: 'Generación mensual de planillas con deducciones (ISSS / AFP / ISR), firmas digitales y configuración fiscal.',
     icon: 'receipt_long',
     href: '/reportes/contabilidad',
     active: true,

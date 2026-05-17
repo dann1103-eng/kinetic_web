@@ -418,6 +418,24 @@ export interface Database {
         Update: Partial<Omit<PayrollItem, 'id' | 'created_at'>>
         Relationships: []
       }
+      general_expenses: {
+        Row: AsRow<GeneralExpense>
+        Insert: {
+          id?: string
+          category: ExpenseCategory
+          subcategory?: string | null
+          description?: string | null
+          amount_usd: number
+          expense_date: string
+          payment_method?: string | null
+          provider?: string | null
+          invoice_reference?: string | null
+          notes?: string | null
+          created_by_user_id?: string | null
+        }
+        Update: Partial<Omit<GeneralExpense, 'id' | 'created_at'>>
+        Relationships: []
+      }
       therapist_work_schedule: {
         Row: AsRow<TherapistWorkScheduleBlock>
         Insert: {
@@ -3516,6 +3534,67 @@ export interface PayrollItemUserSnapshot {
   afp_number: string | null
   afp_provider: AfpProvider | null
   hire_date: string | null
+}
+
+// =============================================================================
+// Kinetic — Fase 8b: Gastos generales (egresos no-planilla, mig 0118)
+// =============================================================================
+
+export type ExpenseCategory =
+  | 'renta'
+  | 'servicios_publicos'
+  | 'transporte'
+  | 'sistema_software'
+  | 'material_didactico'
+  | 'mantenimiento'
+  | 'marketing'
+  | 'comunicacion'
+  | 'profesional'
+  | 'impuestos'
+  | 'otros'
+
+export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+  renta: 'Renta del local',
+  servicios_publicos: 'Servicios públicos',
+  transporte: 'Transporte',
+  sistema_software: 'Sistema / software',
+  material_didactico: 'Material didáctico',
+  mantenimiento: 'Mantenimiento',
+  marketing: 'Marketing',
+  comunicacion: 'Comunicación',
+  profesional: 'Servicios profesionales',
+  impuestos: 'Impuestos',
+  otros: 'Otros',
+}
+
+export const EXPENSE_CATEGORY_ORDER: ExpenseCategory[] = [
+  'renta',
+  'servicios_publicos',
+  'transporte',
+  'sistema_software',
+  'material_didactico',
+  'mantenimiento',
+  'marketing',
+  'comunicacion',
+  'profesional',
+  'impuestos',
+  'otros',
+]
+
+export interface GeneralExpense {
+  id: string
+  category: ExpenseCategory
+  subcategory: string | null
+  description: string | null
+  amount_usd: number
+  expense_date: string             // YYYY-MM-DD
+  payment_method: string | null
+  provider: string | null
+  invoice_reference: string | null
+  notes: string | null
+  created_at: string
+  updated_at: string
+  created_by_user_id: string | null
 }
 
 export interface PayrollItem {

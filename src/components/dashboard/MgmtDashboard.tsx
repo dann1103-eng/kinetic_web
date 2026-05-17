@@ -4,6 +4,7 @@ import type { MgmtWidgetsData } from '@/lib/domain/dashboard-widgets'
 import { INTAKE_PHASE_LABELS } from '@/types/db'
 import type { IntakePhase } from '@/types/db'
 import { RevenueTrendSparkline } from './widgets/RevenueTrendSparkline'
+import { ExpenseTrendSparkline } from './widgets/ExpenseTrendSparkline'
 import { CalendarHeatmap } from './widgets/CalendarHeatmap'
 import { TopTherapists } from './widgets/TopTherapists'
 import { AtRiskChildren } from './widgets/AtRiskChildren'
@@ -87,11 +88,14 @@ export function MgmtDashboard({
 
         {/* ─── Main: widgets variados ───────────────────────────────────── */}
         <main className="col-span-12 lg:col-span-8 space-y-12">
-          <RevenueTrendSparkline
-            series={widgets.revenueByDay}
-            totalUsd={data.monthlyRevenueUsd}
-            periodLabel={data.periodLabel}
-          />
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <RevenueTrendSparkline
+              series={widgets.revenueByDay}
+              totalUsd={data.monthlyRevenueUsd}
+              periodLabel={data.periodLabel}
+            />
+            <ExpenseTrendSparkline data={widgets.expensesSummary} />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <CalendarHeatmap

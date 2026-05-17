@@ -77,3 +77,8 @@ SELECT 'mig_0117_sign_my_payroll_item_rpc' AS check_name, COUNT(*)::int AS appli
 FROM pg_proc p
 JOIN pg_namespace n ON p.pronamespace = n.oid
 WHERE n.nspname = 'public' AND p.proname = 'sign_my_payroll_item';
+
+-- ── 0118: gastos generales (egresos no-planilla) ────────────────────
+SELECT 'mig_0118_general_expenses' AS check_name, COUNT(*)::int AS applied
+FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name = 'general_expenses';

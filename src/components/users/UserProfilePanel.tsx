@@ -992,19 +992,20 @@ export function UserProfilePanel({
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 px-5 py-3 border-b border-fm-outline-variant/15 shrink-0">
+      {/* Tabs — scroll horizontal cuando el panel es estrecho */}
+      <div className="flex gap-0.5 px-3 py-2 border-b border-fm-outline-variant/15 shrink-0 overflow-x-auto scrollbar-thin">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors shrink-0 whitespace-nowrap ${
               activeTab === tab.id
                 ? 'bg-fm-primary/10 text-fm-primary'
                 : 'text-fm-on-surface-variant hover:bg-fm-background hover:text-fm-on-surface'
             }`}
+            title={tab.label}
           >
-            <span className="material-symbols-outlined text-base">{tab.icon}</span>
+            <span className="material-symbols-outlined text-[18px]">{tab.icon}</span>
             {tab.label}
           </button>
         ))}

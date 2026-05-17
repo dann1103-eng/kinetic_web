@@ -166,8 +166,9 @@ Visible si AL MENOS UN item es accesible al usuario. Cada item respeta su propio
 - `/users` — Equipo unificado con panel lateral (tabs Perfil / Horario / Capacidad)
 - `/usuarios-portal` — Cuentas family
 - `/operacion/capacidad-terapistas` — Tabla semanal comparativa de ocupación
-- `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion, coordinadora_terapias). Tarjetas activas: **Financieros**, **Planillas** y **Por terapista**. Sub-categoría futura (placeholder): operativos.
-  - `/reportes/financieros` — 5 reportes web+PDF: ingresos mensuales, comparativa anual, ciclos, pagos por método, **churn de familias** (altas, alta médica, bajas, pausas, neto).
+- `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion, coordinadora_terapias). Tarjetas activas: **Ingresos**, **Egresos**, **Planillas** y **Por terapista**.
+  - `/reportes/financieros` — Sección de **Ingresos** (en UI). 5 reportes web+PDF: ingresos mensuales, comparativa anual, ciclos, pagos por método, **churn de familias** (altas, alta médica, bajas, pausas, neto). La ruta sigue siendo `/financieros` por compatibilidad.
+  - `/reportes/egresos` — Egresos del centro: total mensual, desglose por mes (planilla auto + gastos generales), distribución por categoría, CRUD de gastos generales (renta, luz, agua, transporte, etc.). Roles: admin, directora, contable.
   - `/reportes/contabilidad` — Hub de Planillas → listado mensual + configuración. (La ruta sigue siendo `contabilidad` para minimizar churn; en UI se muestra como "Planillas".)
   - `/reportes/contabilidad/planillas` — Listado y creación de planillas mensuales.
   - `/reportes/contabilidad/planillas/[id]` — Detalle: editable en draft, sellado inmutable, firma de empleados, PDF.
@@ -259,6 +260,7 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | 0115 | `therapist_work_schedule` + `users.max_hours_per_week` |
 | 0116 | `waitlist_entries` + enum `waitlist_status` |
 | 0117 | Módulo de planillas: columnas salariales en `users` + `payroll_fiscal_config` (con seed ISSS/AFP/ISR vigentes 2024-2026) + `payroll_runs` + `payroll_items` + RLS + RPC `sign_my_payroll_item` |
+| 0118 | Tabla `general_expenses` (gastos operativos no-planilla: renta, servicios, transporte, etc.) + RLS para admin/directora/contable |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
 > migración automática. Ver `supabase/migrations*/` y revisar cuáles no

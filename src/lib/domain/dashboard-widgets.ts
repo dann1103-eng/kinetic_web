@@ -314,11 +314,14 @@ export async function getChildrenAtRisk(
 
 // ── Bundle: todos los datos extras del MgmtDashboard ──────────────────────
 
+import { getCurrentMonthExpenseSummary, type CurrentMonthExpenseSummary } from './reports/expenses'
+
 export interface MgmtWidgetsData {
   revenueByDay: RevenueDay[]
   appointmentsHeatmap: HeatmapDay[]
   topTherapists: TopTherapistRow[]
   childrenAtRisk: AtRiskChild[]
+  expensesSummary: CurrentMonthExpenseSummary
 }
 
 export async function getMgmtWidgetsData(
@@ -330,16 +333,19 @@ export async function getMgmtWidgetsData(
     appointmentsHeatmap,
     topTherapists,
     childrenAtRisk,
+    expensesSummary,
   ] = await Promise.all([
     getRevenueByDayCurrentMonth(supabase, now),
     getAppointmentsHeatmapMonth(supabase, now),
     getTopTherapistsThisMonth(supabase, now, 5),
     getChildrenAtRisk(supabase, now, 10),
+    getCurrentMonthExpenseSummary(supabase, now),
   ])
   return {
     revenueByDay,
     appointmentsHeatmap,
     topTherapists,
     childrenAtRisk,
+    expensesSummary,
   }
 }
