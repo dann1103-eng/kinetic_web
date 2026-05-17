@@ -7,7 +7,6 @@ import { RevenueTrendSparkline } from './widgets/RevenueTrendSparkline'
 import { CalendarHeatmap } from './widgets/CalendarHeatmap'
 import { TopTherapists } from './widgets/TopTherapists'
 import { AtRiskChildren } from './widgets/AtRiskChildren'
-import { ChildReportsOverview } from './widgets/ChildReportsOverview'
 
 interface Props {
   data: MgmtDashboardData
@@ -102,8 +101,6 @@ export function MgmtDashboard({
             />
             <TopTherapists rows={widgets.topTherapists} />
           </div>
-
-          <ChildReportsOverview rows={widgets.childrenReports} />
 
           {data.childrenByIntakePhase.length > 0 && (
             <section className="space-y-4">

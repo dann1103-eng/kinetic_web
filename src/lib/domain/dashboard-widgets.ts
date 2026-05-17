@@ -312,111 +312,6 @@ export async function getChildrenAtRisk(
     .slice(0, limit)
 }
 
-// ── Reportes por niño (overview) ──────────────────────────────────────────
-
-export interface ChildReportOverview {
-  childId: string
-  fullName: string
-  familyId: string
-  intakePhase: string
-  treatmentStatus: string
-  /** Estado del último informe trimestral. */
-  lastProgressReportStatus: string | null
-  /** Cuántos session_reports pendientes (draft/submitted/rejected). */
-  sessionReportsPending: number
-  /** Tasa de asistencia del mes (0-1) o null si no hay citas. */
-  attendanceRate: number | null
-  /** Citas del mes (usadas para el cálculo). */
-  monthlyAppointmentsCount: number
-}
-
-export async function getChildrenReportsOverview(
-  supabase: SupabaseClient<Database>,
-  now: Date = new Date(),
-  limit = 12,
-): Promise<ChildReportOverview[]> {
-  const startISO = monthStartSV(now).toISOString()
-  const endISO = nextMonthStartSV(now).toISOString()
-
-  const { data: children } = await supabase
-    .from('children')
-    .select('id, full_name, family_id, intake_phase, treatment_status')
-    .eq('treatment_status', 'active')
-    .order('full_name')
-    .limit(limit)
-
-  const list = (children ?? []) as {
-    id: string
-    full_name: string
-    family_id: string
-    intake_phase: string
-    treatment_status: string
-  }[]
-  if (list.length === 0) return []
-
-  const childIds = list.map((c) => c.id)
-
-  const [{ data: progress }, { data: sessionReports }, { data: appointments }] =
-    await Promise.all([
-      supabase
-        .from('progress_reports')
-        .select('child_id, status, period_ends')
-        .in('child_id', childIds)
-        .order('period_ends', { ascending: false }),
-      supabase
-        .from('session_reports')
-        .select('child_id, status')
-        .in('child_id', childIds)
-        .in('status', ['draft', 'submitted', 'rejected']),
-      supabase
-        .from('appointments')
-        .select('child_id, status')
-        .in('child_id', childIds)
-        .gte('starts_at', startISO)
-        .lt('starts_at', endISO),
-    ])
-
-  const lastProgressByChild = new Map<string, string>()
-  for (const r of progress ?? []) {
-    if (!lastProgressByChild.has(r.child_id)) {
-      lastProgressByChild.set(r.child_id, r.status)
-    }
-  }
-
-  const pendingByChild = new Map<string, number>()
-  for (const r of sessionReports ?? []) {
-    pendingByChild.set(
-      r.child_id,
-      (pendingByChild.get(r.child_id) ?? 0) + 1,
-    )
-  }
-
-  const totalsByChild = new Map<string, { total: number; attended: number }>()
-  for (const a of appointments ?? []) {
-    const t = totalsByChild.get(a.child_id) ?? { total: 0, attended: 0 }
-    t.total += 1
-    if (a.status === 'completed') t.attended += 1
-    totalsByChild.set(a.child_id, t)
-  }
-
-  return list.map((c) => {
-    const t = totalsByChild.get(c.id)
-    const attendanceRate =
-      t && t.total > 0 ? t.attended / t.total : null
-    return {
-      childId: c.id,
-      fullName: c.full_name,
-      familyId: c.family_id,
-      intakePhase: c.intake_phase,
-      treatmentStatus: c.treatment_status,
-      lastProgressReportStatus: lastProgressByChild.get(c.id) ?? null,
-      sessionReportsPending: pendingByChild.get(c.id) ?? 0,
-      attendanceRate,
-      monthlyAppointmentsCount: t?.total ?? 0,
-    }
-  })
-}
-
 // ── Bundle: todos los datos extras del MgmtDashboard ──────────────────────
 
 export interface MgmtWidgetsData {
@@ -424,7 +319,6 @@ export interface MgmtWidgetsData {
   appointmentsHeatmap: HeatmapDay[]
   topTherapists: TopTherapistRow[]
   childrenAtRisk: AtRiskChild[]
-  childrenReports: ChildReportOverview[]
 }
 
 export async function getMgmtWidgetsData(
@@ -436,19 +330,16 @@ export async function getMgmtWidgetsData(
     appointmentsHeatmap,
     topTherapists,
     childrenAtRisk,
-    childrenReports,
   ] = await Promise.all([
     getRevenueByDayCurrentMonth(supabase, now),
     getAppointmentsHeatmapMonth(supabase, now),
     getTopTherapistsThisMonth(supabase, now, 5),
     getChildrenAtRisk(supabase, now, 10),
-    getChildrenReportsOverview(supabase, now, 12),
   ])
   return {
     revenueByDay,
     appointmentsHeatmap,
     topTherapists,
     childrenAtRisk,
-    childrenReports,
   }
 }

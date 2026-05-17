@@ -38,10 +38,10 @@ export function TopTherapists({ rows }: Props) {
     <section className="space-y-5">
       <div>
         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-fm-on-surface-variant">
-          Actividad
+          Capacidad
         </p>
         <h2 className="text-2xl font-semibold text-fm-on-surface mt-1">
-          Top terapistas
+          Terapistas más cargadas
         </h2>
       </div>
 
