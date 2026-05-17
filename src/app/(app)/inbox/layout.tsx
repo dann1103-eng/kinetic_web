@@ -157,10 +157,12 @@ async function _loadInitialList(): Promise<ConversationListItem[]> {
 async function loadAllUsers(): Promise<Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[]> {
   try {
     const supabase = await createClient()
+    // Excluir cuentas no-staff: 'client' (FM legacy) y 'family' (portal padres).
+    // El inbox es chat interno del equipo.
     const { data } = await supabase
       .from('users')
       .select('id, full_name, avatar_url, role')
-      .neq('role', 'client')
+      .not('role', 'in', '(client,family)')
       .order('full_name', { ascending: true })
     return (data ?? []) as Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[]
   } catch (e) {
