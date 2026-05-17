@@ -165,6 +165,7 @@ Visible si AL MENOS UN item es accesible al usuario. Cada item respeta su propio
 - `/users` — Equipo unificado con panel lateral (tabs Perfil / Horario / Capacidad)
 - `/usuarios-portal` — Cuentas family
 - `/operacion/capacidad-terapistas` — Tabla semanal comparativa de ocupación
+- `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion). Hoy: 4 reportes financieros (ingresos mensuales, comparativa anual, ciclos generados vs cancelados, pagos por método) con vista web + PDF. Sub-categorías pendientes (placeholders): contabilidad/planillas, operativos, por terapista.
 - `/billing` — Facturación (FM legacy, can_quote también ve fallback top-level)
 
 ## Portal padres (`/portal/*`)
@@ -280,9 +281,18 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
     - Eliminados links a `/admin/plantillas` en `MgmtDashboard` y `CoordTerapiasDashboard`.
     - Bug fix: `removeProgressReportFile` ahora deja `upload_kind='file'` (antes: `'editor'`, deprecated).
     - `supabase/scripts/verify_pending_migrations.sql`: script SQL para validar en Supabase Studio si las 4 migraciones pendientes (0107 kinetic, 0114, 0115, 0116) están aplicadas.
+11. **Reportería financiera (Fase 1A)**:
+    - Ruta nueva `/reportes` (landing con 4 tarjetas; Financieros activa, otras 3 placeholders "Próximamente").
+    - Sub-página `/reportes/financieros` con 4 secciones acordeón: ingresos mensuales, comparativa anual, ciclos generados vs cancelados (con top motivos), pagos por método.
+    - Funciones puras en `src/lib/domain/reports/financial.ts`: `getMonthlyRevenue`, `getAnnualComparison`, `getCycleStatusBreakdown`, `getPaymentMethodBreakdown` — todas leen `monthly_session_cycles` agrupado por `paid_at` en zona SV.
+    - PDFs vía `@react-pdf/renderer`: shell `KineticReportPdf.tsx` + 4 componentes concretos; A4 portrait (mensuales / ciclos / métodos) y A4 landscape (anual). Paleta Kinetic `#00675c`/`#b31b25`.
+    - 4 API routes bajo `/api/reportes/financieros/*` con `renderToBuffer()`. Roles: admin, directora, contable, recepcion. Logo de `app_settings.value` con `key='agency_logo_url'`.
+    - `AccordionSection` reusable extraído a `src/components/ui/AccordionSection.tsx`.
 
 ## Pendiente (próximas sesiones)
-- 📋 **Reportería** (puntos 9 y 10 del plan original) — siguiente foco
+- 📋 **Contabilidad y planillas** (Fase 8 del plan estratégico) — siguiente foco. CRUD completo de planillas (horas × tarifa, deducciones ISSS/AFP/ISR-El Salvador, neto a pagar), sellado/cierre, firma digital del terapista, control de asistencia. Requiere migración nueva (`payroll_runs`, `payroll_items`, tarifas en `users`).
+- 📋 Reportería **Operativos** (asistencia, capacidad histórica, churn) — siguiente sub-fase de reportería.
+- 📋 Reportería **Por terapista** (productividad, horas, cumplimiento de informes) — siguiente sub-fase de reportería.
 - (Backlog) Detección automática de slot liberado tras cancelar cita → alerta a lista de espera
 - (Backlog) Notificaciones a familias en waitlist por email/WhatsApp
 - (Backlog) Vista mensual/anual de capacidad (actual es solo semanal)
