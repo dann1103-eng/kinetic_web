@@ -27,7 +27,7 @@ export default async function PlanillasListPage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopNav title="Planillas" />
+      <TopNav title="Planillas — listado mensual" />
 
       <div className="flex-1 p-6 max-w-6xl mx-auto w-full space-y-6">
         <div className="flex items-center gap-2 pt-2">
@@ -36,15 +36,15 @@ export default async function PlanillasListPage() {
             className="inline-flex items-center gap-1 text-sm text-fm-on-surface-variant hover:text-fm-primary transition-colors"
           >
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
-            Contabilidad
+            Planillas
           </Link>
           <span className="text-fm-on-surface-variant">/</span>
-          <span className="text-sm font-bold text-fm-on-surface">Planillas</span>
+          <span className="text-sm font-bold text-fm-on-surface">Listado mensual</span>
         </div>
 
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-fm-on-surface">Planillas</h1>
+            <h1 className="text-2xl font-extrabold tracking-tight text-fm-on-surface">Listado mensual</h1>
             <p className="text-sm text-fm-on-surface-variant mt-1">
               Una planilla por mes. Estados: borrador (editable) → sellada (inmutable) → pagada. Se puede anular si no fue pagada.
             </p>

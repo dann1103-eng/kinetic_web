@@ -25,9 +25,9 @@ const CARDS: Card[] = [
     active: true,
   },
   {
-    title: 'Contabilidad y planillas',
-    description: 'Planillas mensuales por terapista, deducciones (ISSS / AFP / ISR), firmas digitales y cierre contable.',
-    icon: 'account_balance',
+    title: 'Planillas',
+    description: 'Planillas mensuales por empleado, deducciones (ISSS / AFP / ISR), firmas digitales de recepción y cierre de período.',
+    icon: 'receipt_long',
     href: '/reportes/contabilidad',
     active: true,
   },

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import {
   EVENT_TYPE_LABELS,
   type Appointment,
@@ -47,10 +48,14 @@ export function AgendaPageClient({
 }: AgendaPageClientProps) {
   const isTherapist = currentUserRole === 'terapista'
   const canSchedule = STAFF_ROLES_SCHEDULE.has(currentUserRole)
+  const searchParams = useSearchParams()
 
   // Filtros
+  // Terapista: bloqueado a sí mismo. Otros: leen ?therapistId=XX del URL
+  // (e.g., al venir desde /operacion/capacidad-terapistas), o sin filtro.
+  const therapistIdFromUrl = searchParams.get('therapistId')
   const [filterTherapistId, setFilterTherapistId] = useState<string | null>(
-    isTherapist ? currentUserId : null,
+    isTherapist ? currentUserId : therapistIdFromUrl,
   )
   const [filterEventTypes, setFilterEventTypes] = useState<Set<EventType>>(new Set())
   const [filterVirtualOnly, setFilterVirtualOnly] = useState(false)

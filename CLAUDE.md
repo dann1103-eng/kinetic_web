@@ -166,9 +166,9 @@ Visible si AL MENOS UN item es accesible al usuario. Cada item respeta su propio
 - `/users` — Equipo unificado con panel lateral (tabs Perfil / Horario / Capacidad)
 - `/usuarios-portal` — Cuentas family
 - `/operacion/capacidad-terapistas` — Tabla semanal comparativa de ocupación
-- `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion). Tarjetas activas: **Financieros** (ingresos mensuales, comparativa anual, ciclos, pagos por método) y **Contabilidad y planillas** (CRUD de planillas con cálculo ISSS/AFP/ISR + firma digital). Sub-categorías futuras (placeholders): operativos, por terapista.
+- `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion). Tarjetas activas: **Financieros** (ingresos mensuales, comparativa anual, ciclos, pagos por método) y **Planillas** (CRUD mensual con cálculo ISSS/AFP/ISR + firma digital). Sub-categorías futuras (placeholders): operativos, por terapista.
   - `/reportes/financieros` — 4 reportes web+PDF.
-  - `/reportes/contabilidad` — Landing de contabilidad → planillas + configuración.
+  - `/reportes/contabilidad` — Hub de Planillas → listado mensual + configuración. (La ruta sigue siendo `contabilidad` para minimizar churn; en UI se muestra como "Planillas".)
   - `/reportes/contabilidad/planillas` — Listado y creación de planillas mensuales.
   - `/reportes/contabilidad/planillas/[id]` — Detalle: editable en draft, sellado inmutable, firma de empleados, PDF.
   - `/reportes/contabilidad/configuracion` — Constantes ISSS/AFP/ISR (admin) + tabla de salarios por empleado (admin/directora/contable).

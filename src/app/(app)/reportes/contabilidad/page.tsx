@@ -18,7 +18,7 @@ interface SubCard {
 
 const CARDS: SubCard[] = [
   {
-    title: 'Planillas',
+    title: 'Listado mensual',
     description: 'Generación mensual de planilla con ISSS, AFP e ISR. Sellado del período, firma del empleado y recibo individual descargable.',
     icon: 'receipt_long',
     href: '/reportes/contabilidad/planillas',
@@ -40,7 +40,7 @@ export default async function ContabilidadLandingPage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopNav title="Contabilidad y planillas" />
+      <TopNav title="Planillas" />
 
       <div className="flex-1 p-6 max-w-6xl mx-auto w-full space-y-6">
         <div className="flex items-center gap-2 pt-2">
@@ -52,12 +52,12 @@ export default async function ContabilidadLandingPage() {
             Reportes
           </Link>
           <span className="text-fm-on-surface-variant">/</span>
-          <span className="text-sm font-bold text-fm-on-surface">Contabilidad</span>
+          <span className="text-sm font-bold text-fm-on-surface">Planillas</span>
         </div>
 
         <header>
           <h1 className="text-2xl font-extrabold tracking-tight text-fm-on-surface">
-            Contabilidad y planillas
+            Planillas
           </h1>
           <p className="text-sm text-fm-on-surface-variant mt-1">
             Gestión de planillas mensuales con cálculo de ISSS, AFP e ISR (El Salvador), sellado de período y firma digital del empleado.

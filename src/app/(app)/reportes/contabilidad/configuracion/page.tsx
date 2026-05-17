@@ -66,7 +66,7 @@ export default async function ContabilidadConfigPage() {
             className="inline-flex items-center gap-1 text-sm text-fm-on-surface-variant hover:text-fm-primary transition-colors"
           >
             <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_back</span>
-            Contabilidad
+            Planillas
           </Link>
           <span className="text-fm-on-surface-variant">/</span>
           <span className="text-sm font-bold text-fm-on-surface">Configuración</span>
