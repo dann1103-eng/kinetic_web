@@ -23,6 +23,8 @@ export function PayrollRunPDF({ run, items, logoUrl }: Props) {
   const period = formatPeriodLabel(run.period_year, run.period_month)
   const totals = items.reduce(
     (acc, it) => ({
+      base: acc.base + Number(it.base_salary_usd),
+      extras: acc.extras + Number(it.extra_hours_amount_usd) + Number(it.bonus_usd),
       gross: acc.gross + Number(it.gross_total_usd),
       isssEmp: acc.isssEmp + Number(it.isss_employee_usd),
       afpEmp: acc.afpEmp + Number(it.afp_employee_usd),
@@ -34,7 +36,7 @@ export function PayrollRunPDF({ run, items, logoUrl }: Props) {
       afpPat: acc.afpPat + Number(it.afp_employer_usd),
       employerCost: acc.employerCost + Number(it.employer_cost_usd),
     }),
-    { gross: 0, isssEmp: 0, afpEmp: 0, isr: 0, otherDed: 0, totalDed: 0, net: 0, isssPat: 0, afpPat: 0, employerCost: 0 },
+    { base: 0, extras: 0, gross: 0, isssEmp: 0, afpEmp: 0, isr: 0, otherDed: 0, totalDed: 0, net: 0, isssPat: 0, afpPat: 0, employerCost: 0 },
   )
 
   return (
@@ -50,6 +52,7 @@ export function PayrollRunPDF({ run, items, logoUrl }: Props) {
         <View style={[sharedStyles.tableHeader, { marginTop: 10 }]}>
           <Text style={[sharedStyles.tableHeaderCell, { flex: 2 }]}>Empleado</Text>
           <Text style={[sharedStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Base</Text>
+          <Text style={[sharedStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Extras</Text>
           <Text style={[sharedStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Bruto</Text>
           <Text style={[sharedStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>ISSS</Text>
           <Text style={[sharedStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>AFP</Text>
@@ -68,6 +71,14 @@ export function PayrollRunPDF({ run, items, logoUrl }: Props) {
             const snap = it.user_snapshot_json
             const name = snap?.full_name ?? it.user?.full_name ?? '—'
             const role = snap?.role ?? it.user?.role ?? ''
+            const extraHoursAmount = Number(it.extra_hours_amount_usd)
+            const bonus = Number(it.bonus_usd)
+            const extras = extraHoursAmount + bonus
+            const hours = Number(it.extra_hours)
+            const extrasDetail = [
+              hours > 0 ? `${hours}h` : null,
+              bonus > 0 ? 'bono' : null,
+            ].filter(Boolean).join(' + ')
             return (
               <View
                 key={it.id}
@@ -83,6 +94,21 @@ export function PayrollRunPDF({ run, items, logoUrl }: Props) {
                 <Text style={[sharedStyles.cell, { flex: 1, textAlign: 'right' }]}>
                   {fmtUsd(Number(it.base_salary_usd))}
                 </Text>
+                <View style={{ flex: 1, alignItems: 'flex-end' }}>
+                  <Text
+                    style={[
+                      sharedStyles.cell,
+                      { textAlign: 'right', color: extras > 0 ? '#1e293b' : '#94a3b8' },
+                    ]}
+                  >
+                    {extras > 0 ? `+${fmtUsd(extras)}` : '—'}
+                  </Text>
+                  {extras > 0 && extrasDetail && (
+                    <Text style={{ fontSize: 6, color: '#64748b', textAlign: 'right' }}>
+                      {extrasDetail}
+                    </Text>
+                  )}
+                </View>
                 <Text style={[sharedStyles.cellBold, { flex: 1, textAlign: 'right' }]}>
                   {fmtUsd(Number(it.gross_total_usd))}
                 </Text>
@@ -112,7 +138,15 @@ export function PayrollRunPDF({ run, items, logoUrl }: Props) {
         {/* Totales */}
         <View style={sharedStyles.totalsRow}>
           <Text style={[sharedStyles.totalsLabel, { flex: 2 }]}>Totales</Text>
-          <Text style={[sharedStyles.cell, { flex: 1, textAlign: 'right' }]}>—</Text>
+          <Text style={[sharedStyles.cellBold, { flex: 1, textAlign: 'right' }]}>{fmtUsd(totals.base)}</Text>
+          <Text
+            style={[
+              sharedStyles.cellBold,
+              { flex: 1, textAlign: 'right', color: totals.extras > 0 ? '#1e293b' : '#94a3b8' },
+            ]}
+          >
+            {totals.extras > 0 ? `+${fmtUsd(totals.extras)}` : '—'}
+          </Text>
           <Text style={[sharedStyles.cellBold, { flex: 1, textAlign: 'right' }]}>{fmtUsd(totals.gross)}</Text>
           <Text style={[sharedStyles.cellBold, { flex: 1, textAlign: 'right', color: '#b31b25' }]}>
             −{fmtUsd(totals.isssEmp)}
