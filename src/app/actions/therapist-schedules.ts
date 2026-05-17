@@ -86,6 +86,20 @@ export async function deleteScheduleBlock(
   return { ok: true }
 }
 
+export async function getUserScheduleBlocks(
+  therapistId: string,
+): Promise<{ ok: true; blocks: TherapistWorkScheduleBlock[] } | { ok: false; error: string }> {
+  const { supabase } = await getActor()
+  const { data, error } = await supabase
+    .from('therapist_work_schedule')
+    .select('*')
+    .eq('therapist_id', therapistId)
+    .order('day_of_week')
+    .order('start_time')
+  if (error) return { ok: false, error: error.message }
+  return { ok: true, blocks: (data ?? []) as TherapistWorkScheduleBlock[] }
+}
+
 export async function setMaxHoursPerWeek(
   therapistId: string,
   hours: number | null,

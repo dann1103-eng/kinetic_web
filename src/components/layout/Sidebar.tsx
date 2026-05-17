@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import { UserAvatar } from '@/components/ui/UserAvatar'
@@ -17,7 +17,11 @@ interface NavItem {
   allowedRoles?: UserRole[]
 }
 
-const navItems: NavItem[] = [
+const ADMIN_ROLES: UserRole[] = ['admin', 'directora']
+
+// ── Main top-level nav ────────────────────────────────────────────────────
+
+const topNavItems: NavItem[] = [
   {
     href: '/dashboard',
     label: 'Dashboard',
@@ -69,22 +73,6 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    href: '/operacion/capacidad-terapistas',
-    label: 'Capacidad',
-    allowedRoles: ['admin', 'directora', 'coordinadora_terapias'],
-    icon: (
-      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>bar_chart</span>
-    ),
-  },
-  {
-    href: '/operacion/horarios-terapistas',
-    label: 'Horarios',
-    allowedRoles: ['admin', 'directora'],
-    icon: (
-      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>schedule</span>
-    ),
-  },
-  {
     href: '/operacion/lista-de-espera',
     label: 'Lista espera',
     allowedRoles: ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion'],
@@ -102,6 +90,60 @@ const navItems: NavItem[] = [
     ),
     badgeKey: 'inbox',
   },
+]
+
+// ── Items only shown at top-level for non-admin/directora ─────────────────
+
+const tiempoItem: NavItem = {
+  href: '/tiempo',
+  label: 'Tiempo',
+  icon: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/>
+    </svg>
+  ),
+}
+
+const facturacionItem: NavItem = {
+  href: '/billing',
+  label: 'Facturación',
+  icon: (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+    </svg>
+  ),
+}
+
+// ── Administración group items (admin/directora only) ─────────────────────
+
+const adminGroupItems: NavItem[] = [
+  {
+    href: '/users',
+    label: 'Usuarios',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/usuarios-portal',
+    label: 'Usuarios portal',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 13c-2.4 0-4.55-1.18-5.85-3 .03-1.99 4-3.08 5.85-3.08 1.84 0 5.82 1.09 5.85 3.08-1.3 1.82-3.45 3-5.85 3z"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/billing',
+    label: 'Facturación',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+      </svg>
+    ),
+  },
   {
     href: '/tiempo',
     label: 'Tiempo',
@@ -112,48 +154,21 @@ const navItems: NavItem[] = [
     ),
   },
   {
-    href: '/billing',
-    label: 'Facturación',
-    allowedRoles: ['admin'],
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
-      </svg>
-    ),
-  },
-  {
-    href: '/users',
-    label: 'Usuarios',
-    allowedRoles: ['admin'],
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
-      </svg>
-    ),
-  },
-  {
     href: '/admin/plantillas',
     label: 'Plantillas',
-    allowedRoles: ['admin', 'directora'],
     icon: (
       <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>description</span>
     ),
   },
-  {
-    href: '/usuarios-portal',
-    label: 'Usuarios portal',
-    allowedRoles: ['admin', 'directora'],
-    icon: (
-      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 13c-2.4 0-4.55-1.18-5.85-3 .03-1.99 4-3.08 5.85-3.08 1.84 0 5.82 1.09 5.85 3.08-1.3 1.82-3.45 3-5.85 3z"/>
-      </svg>
-    ),
-  },
 ]
+
+// ── Sidebar props ─────────────────────────────────────────────────────────
 
 interface SidebarProps {
   agencyLogoUrl?: string | null
 }
+
+// ── SidebarContent ────────────────────────────────────────────────────────
 
 export function SidebarContent({
   agencyLogoUrl,
@@ -165,13 +180,57 @@ export function SidebarContent({
   const { data: inboxList } = useInboxList()
   const inboxUnread = inboxList.reduce((sum, c) => sum + c.unread_count, 0)
 
-  const visibleItems = navItems.filter((item) => {
+  const isAdminOrDirectora = ADMIN_ROLES.includes(user.role as UserRole)
+
+  // Admin group: auto-open if a child is currently active
+  const adminGroupDefault = adminGroupItems.some((item) =>
+    item.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(item.href),
+  )
+  const [adminGroupOpen, setAdminGroupOpen] = useState(adminGroupDefault)
+
+  // Keep group open if user navigates into it
+  useEffect(() => {
+    const isActive = adminGroupItems.some((item) => pathname.startsWith(item.href))
+    if (isActive) setAdminGroupOpen(true)
+  }, [pathname])
+
+  // Filter top-level items by role
+  const visibleTopItems = topNavItems.filter((item) => {
     if (!item.allowedRoles) return true
-    if (item.allowedRoles.includes(user.role)) return true
-    // Excepción: usuarios con can_quote ven el link de Facturación
-    if (item.href === '/billing' && user.can_quote) return true
-    return false
+    return item.allowedRoles.includes(user.role)
   })
+
+  function renderNavItem(item: NavItem, indent?: boolean) {
+    const isActive =
+      item.href === '/dashboard'
+        ? pathname === '/dashboard'
+        : pathname.startsWith(item.href)
+
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={onNavigate}
+        className={cn(
+          'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
+          indent && 'pl-5',
+          isActive
+            ? 'bg-fm-primary/10 text-fm-primary'
+            : 'text-fm-on-surface-variant hover:bg-fm-background hover:text-fm-on-surface',
+        )}
+      >
+        <span className={isActive ? 'text-fm-primary' : 'text-fm-outline'}>
+          {item.icon}
+        </span>
+        <span>{item.label}</span>
+        {item.badgeKey === 'inbox' && inboxUnread > 0 && (
+          <span className="ml-auto bg-fm-error text-white text-xs font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+            {inboxUnread > 99 ? '99+' : inboxUnread}
+          </span>
+        )}
+      </Link>
+    )
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -202,41 +261,52 @@ export function SidebarContent({
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {visibleItems.map((item) => {
-          const isActive =
-            item.href === '/dashboard'
-              ? pathname === '/dashboard'
-              : pathname.startsWith(item.href)
+        {/* Top-level items */}
+        {visibleTopItems.map((item) => renderNavItem(item))}
 
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150',
-                isActive
-                  ? 'bg-fm-primary/10 text-fm-primary'
-                  : 'text-fm-on-surface-variant hover:bg-fm-background hover:text-fm-on-surface'
-              )}
+        {/* Tiempo: top-level only for non-admin/directora */}
+        {!isAdminOrDirectora && renderNavItem(tiempoItem)}
+
+        {/* Facturación fallback for can_quote non-admins */}
+        {!isAdminOrDirectora && user.can_quote && renderNavItem(facturacionItem)}
+
+        {/* ── Administración group (admin/directora) ── */}
+        {isAdminOrDirectora && (
+          <div className="mt-1">
+            <div className="my-2 border-t border-fm-outline-variant/15" />
+
+            <button
+              onClick={() => setAdminGroupOpen((v) => !v)}
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-fm-on-surface-variant hover:bg-fm-background transition-colors"
             >
-              <span className={isActive ? 'text-fm-primary' : 'text-fm-outline'}>
-                {item.icon}
+              <span className={cn(
+                'material-symbols-outlined',
+                adminGroupItems.some((i) => pathname.startsWith(i.href))
+                  ? 'text-fm-primary'
+                  : 'text-fm-outline',
+              )} style={{ fontSize: '20px' }}>
+                admin_panel_settings
               </span>
-              <span>{item.label}</span>
-              {item.badgeKey === 'inbox' && inboxUnread > 0 && (
-                <span className="ml-auto bg-fm-error text-white text-xs font-semibold px-2 py-0.5 rounded-full min-w-[20px] text-center">
-                  {inboxUnread > 99 ? '99+' : inboxUnread}
-                </span>
-              )}
-            </Link>
-          )
-        })}
+              <span className="flex-1 text-left">Administración</span>
+              <span
+                className="material-symbols-outlined text-base transition-transform duration-200"
+                style={{ transform: adminGroupOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
+              >
+                expand_more
+              </span>
+            </button>
+
+            {adminGroupOpen && (
+              <div className="mt-0.5 space-y-0.5">
+                {adminGroupItems.map((item) => renderNavItem(item, true))}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* Bottom section */}
       <div className="px-3 pb-4 border-t border-fm-outline-variant/20 pt-3 space-y-0.5">
-        {/* User card → profile */}
         <Link
           href="/profile"
           onClick={onNavigate}
@@ -244,7 +314,7 @@ export function SidebarContent({
             'flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-150',
             pathname === '/profile'
               ? 'bg-fm-primary/10'
-              : 'hover:bg-fm-background'
+              : 'hover:bg-fm-background',
           )}
         >
           <UserAvatar name={user.full_name} avatarUrl={user.avatar_url} size="sm" />

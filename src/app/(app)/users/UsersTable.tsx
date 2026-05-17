@@ -1,18 +1,10 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import type { AppUser, UserRole } from '@/types/db'
 import { UserAvatar } from '@/components/ui/UserAvatar'
-import { updateUserRole } from '@/app/actions/updateUserRole'
-import { updateUserDefaultAssignee } from '@/app/actions/updateUserDefaultAssignee'
-import {
-  adminChangeUserPassword,
-  createUser,
-  deleteUser,
-  updateUserProfile,
-} from '@/app/actions/users'
-import { startImpersonation } from '@/app/actions/impersonation'
+import { createUser } from '@/app/actions/users'
+import { UserProfilePanel } from '@/components/users/UserProfilePanel'
 import {
   Select,
   SelectContent,
@@ -21,457 +13,23 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-interface UsersTableProps {
-  users: AppUser[]
-  currentUserId: string
-}
+// ── Constants ──────────────────────────────────────────────────────────────
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('es-SV', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
-
-/** Roles que se gestionan desde /users (staff). Excluye 'client' y 'family'. */
 const STAFF_ROLES: { value: UserRole; label: string; chip: string }[] = [
-  { value: 'admin',                  label: 'Admin',                chip: 'bg-fm-primary/10 text-fm-primary' },
-  { value: 'directora',              label: 'Directora',            chip: 'bg-rose-100 text-rose-700' },
-  { value: 'supervisor',             label: 'Supervisor',           chip: 'bg-purple-100 text-purple-700' },
-  { value: 'coordinadora_familias',  label: 'Coord. Familias',      chip: 'bg-amber-100 text-amber-800' },
-  { value: 'coordinadora_terapias',  label: 'Coord. Terapias',      chip: 'bg-amber-100 text-amber-800' },
-  { value: 'terapista',              label: 'Terapista',            chip: 'bg-sky-100 text-sky-700' },
-  { value: 'maestra',                label: 'Maestra',              chip: 'bg-emerald-100 text-emerald-700' },
-  { value: 'recepcion',              label: 'Recepción',            chip: 'bg-zinc-100 text-zinc-700' },
-  { value: 'contable',               label: 'Contable',             chip: 'bg-zinc-100 text-zinc-700' },
-  { value: 'operator',               label: 'Operador (legacy)',    chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant' },
+  { value: 'admin',                 label: 'Admin',               chip: 'bg-fm-primary/10 text-fm-primary' },
+  { value: 'directora',             label: 'Directora',           chip: 'bg-rose-100 text-rose-700' },
+  { value: 'supervisor',            label: 'Supervisor',          chip: 'bg-purple-100 text-purple-700' },
+  { value: 'coordinadora_familias', label: 'Coord. Familias',     chip: 'bg-amber-100 text-amber-800' },
+  { value: 'coordinadora_terapias', label: 'Coord. Terapias',     chip: 'bg-amber-100 text-amber-800' },
+  { value: 'terapista',             label: 'Terapista',           chip: 'bg-sky-100 text-sky-700' },
+  { value: 'maestra',               label: 'Maestra',             chip: 'bg-emerald-100 text-emerald-700' },
+  { value: 'recepcion',             label: 'Recepción',           chip: 'bg-zinc-100 text-zinc-700' },
+  { value: 'contable',              label: 'Contable',            chip: 'bg-zinc-100 text-zinc-700' },
+  { value: 'operator',              label: 'Operador (legacy)',   chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant' },
 ]
 
-function roleMeta(role: UserRole): { label: string; chip: string } {
-  return (
-    STAFF_ROLES.find((r) => r.value === role) ?? {
-      label: role,
-      chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant',
-    }
-  )
-}
-
-function RoleBadge({ role }: { role: UserRole }) {
-  const m = roleMeta(role)
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${m.chip}`}>
-      {m.label}
-    </span>
-  )
-}
-
-function UserRow({
-  user,
-  isCurrentUser,
-  onDeleted,
-  onRoleChanged,
-  onDefaultAssigneeChanged,
-  onEdit,
-  onChangePassword,
-}: {
-  user: AppUser
-  isCurrentUser: boolean
-  onDeleted: (id: string) => void
-  onRoleChanged: (id: string, role: UserRole) => void
-  onDefaultAssigneeChanged: (id: string, value: boolean) => void
-  onEdit: (user: AppUser) => void
-  onChangePassword: (user: AppUser) => void
-}) {
-
-  const router = useRouter()
-  const [isPending, setIsPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [isDeleting, startDeleteTransition] = useTransition()
-  const [isTogglingDefault, setIsTogglingDefault] = useState(false)
-
-  function handleRoleChange(newRole: string | null) {
-    if (!newRole || isPending) return
-    setError(null)
-    setIsPending(true)
-    updateUserRole(user.id, newRole as UserRole).then((res) => {
-      setIsPending(false)
-      if (res.error) {
-        setError(res.error)
-      } else {
-        onRoleChanged(user.id, newRole as UserRole)
-        router.refresh()
-      }
-    })
-  }
-
-  function handleToggleDefaultAssignee() {
-    if (isTogglingDefault) return
-    setError(null)
-    const next = !user.default_assignee
-    setIsTogglingDefault(true)
-    // Optimistic update
-    onDefaultAssigneeChanged(user.id, next)
-    updateUserDefaultAssignee(user.id, next).then((res) => {
-      setIsTogglingDefault(false)
-      if (res.error) {
-        setError(res.error)
-        // Revert optimistic change
-        onDefaultAssigneeChanged(user.id, !next)
-      } else {
-        router.refresh()
-      }
-    })
-  }
-
-  function handleDelete() {
-    if (!confirm(`¿Eliminar a ${user.full_name ?? user.email}? Esta acción no se puede deshacer.`)) return
-    startDeleteTransition(async () => {
-      const res = await deleteUser(user.id)
-      if (res.error) { setError(res.error); return }
-      onDeleted(user.id)
-    })
-  }
-
-  return (
-    <div className="grid grid-cols-[minmax(0,1fr)_96px_120px_72px_140px_160px] items-center gap-4 px-4 py-3 border-b border-fm-surface-container-high last:border-0">
-      {/* Usuario: avatar + nombre + email */}
-      <div className="flex items-center gap-3 min-w-0">
-        <UserAvatar name={user.full_name || user.email} avatarUrl={user.avatar_url} size="sm" />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-fm-on-surface truncate">
-              {user.full_name ?? user.email}
-            </p>
-            {isCurrentUser && (
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-fm-primary bg-fm-primary/10 border border-fm-primary/20 px-1.5 py-0.5 rounded-full whitespace-nowrap">
-                Tu cuenta
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-fm-on-surface-variant truncate">{user.email}</p>
-        </div>
-      </div>
-
-      {/* Rol actual */}
-      <div className="hidden sm:flex items-center">
-        <RoleBadge role={user.role} />
-      </div>
-
-      {/* Creado */}
-      <div className="hidden md:block text-xs text-fm-on-surface-variant">
-        {formatDate(user.created_at)}
-      </div>
-
-      {/* Default assignee toggle */}
-      <div className="flex items-center justify-center">
-        <button
-          onClick={handleToggleDefaultAssignee}
-          disabled={isTogglingDefault}
-          title={
-            user.default_assignee
-              ? 'Usuario preseleccionado al crear requerimientos — click para desactivar'
-              : 'Click para preseleccionar al crear requerimientos'
-          }
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
-            user.default_assignee ? 'bg-fm-primary' : 'bg-fm-surface-container-high'
-          }`}
-        >
-          <span
-            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-fm-surface-container-lowest transition-transform ${
-              user.default_assignee ? 'translate-x-[18px]' : 'translate-x-[3px]'
-            }`}
-          />
-        </button>
-      </div>
-
-      {/* Cambiar rol */}
-      <div className="min-w-0">
-        <Select
-          value={user.role}
-          onValueChange={handleRoleChange}
-          disabled={isCurrentUser || isPending}
-        >
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {STAFF_ROLES.map((r) => (
-              <SelectItem key={r.value} value={r.value}>
-                {r.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {error && <p className="mt-1 text-xs text-fm-error truncate">{error}</p>}
-      </div>
-
-      {/* Acciones — siempre 4 slots (placeholder cuando "ver como" no aplica) */}
-      <div className="grid grid-cols-4 gap-1 justify-items-center">
-        <button
-          onClick={() => onEdit(user)}
-          title="Editar perfil"
-          className="p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-background hover:text-fm-primary transition-colors"
-        >
-          <span className="material-symbols-outlined text-base">edit</span>
-        </button>
-
-        <button
-          onClick={() => onChangePassword(user)}
-          title="Cambiar contraseña"
-          className="p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-background hover:text-fm-primary transition-colors"
-        >
-          <span className="material-symbols-outlined text-base">key</span>
-        </button>
-
-        {user.role !== 'admin' && !isCurrentUser ? (
-          <form action={startImpersonation.bind(null, user.id)}>
-            <button
-              type="submit"
-              title={`Ver como ${user.full_name}`}
-              className="p-1.5 rounded-lg text-fm-on-surface-variant hover:bg-fm-background hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
-            >
-              <span className="material-symbols-outlined text-base">visibility</span>
-            </button>
-          </form>
-        ) : (
-          <span aria-hidden className="block w-7 h-7" />
-        )}
-
-        <button
-          onClick={handleDelete}
-          disabled={isCurrentUser || isDeleting}
-          title={isCurrentUser ? 'No puedes eliminar tu propia cuenta' : 'Eliminar usuario'}
-          className="p-1.5 rounded-lg text-fm-error hover:bg-red-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          <span className="material-symbols-outlined text-base">
-            {isDeleting ? 'hourglass_empty' : 'delete'}
-          </span>
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Edit profile modal ─────────────────────────────────────────────────────
-
-function EditProfileModal({
-  user,
-  onClose,
-  onUpdated,
-}: {
-  user: AppUser
-  onClose: () => void
-  onUpdated: (patch: Partial<AppUser>) => void
-}) {
-  const [fullName, setFullName] = useState(user.full_name ?? '')
-  const [email, setEmail] = useState(user.email)
-  const [avatarUrl, setAvatarUrl] = useState(user.avatar_url ?? '')
-  const [error, setError] = useState<string | null>(null)
-  const [isPending, startTransition] = useTransition()
-
-  function handleSubmit() {
-    if (!fullName.trim() || !email.trim()) {
-      setError('Nombre y correo son requeridos.')
-      return
-    }
-    setError(null)
-    startTransition(async () => {
-      const payload: {
-        userId: string
-        fullName?: string
-        email?: string
-        avatarUrl?: string | null
-      } = { userId: user.id }
-      const nextFullName = fullName.trim()
-      const nextEmail = email.trim()
-      const nextAvatar = avatarUrl.trim() ? avatarUrl.trim() : null
-      if (nextFullName !== (user.full_name ?? '')) payload.fullName = nextFullName
-      if (nextEmail !== user.email) payload.email = nextEmail
-      if (nextAvatar !== (user.avatar_url ?? null)) payload.avatarUrl = nextAvatar
-
-      const res = await updateUserProfile(payload)
-      if (res.error) {
-        setError(res.error)
-        return
-      }
-      onUpdated({
-        full_name: nextFullName,
-        email: nextEmail,
-        avatar_url: nextAvatar,
-      })
-      onClose()
-    })
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-fm-surface-container-lowest rounded-[2rem] p-8 w-full max-w-md space-y-5 shadow-2xl">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-extrabold text-fm-on-surface">Editar perfil</h3>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-fm-background text-fm-on-surface-variant">
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs font-bold text-fm-on-surface-variant uppercase tracking-wide">Nombre completo</label>
-            <input
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="mt-1.5 w-full border border-fm-surface-container-high rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-fm-primary/30"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-fm-on-surface-variant uppercase tracking-wide">Correo electrónico</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1.5 w-full border border-fm-surface-container-high rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-fm-primary/30"
-            />
-          </div>
-          <div>
-            <label className="text-xs font-bold text-fm-on-surface-variant uppercase tracking-wide">URL de avatar (opcional)</label>
-            <input
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://…"
-              className="mt-1.5 w-full border border-fm-surface-container-high rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-fm-primary/30"
-            />
-          </div>
-        </div>
-
-        {error && <p className="text-xs text-fm-error font-semibold">{error}</p>}
-
-        <div className="flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 border border-fm-surface-container-high rounded-full text-sm font-bold text-fm-on-surface-variant hover:bg-fm-background"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSubmit}
-            disabled={isPending}
-            className="flex-1 py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
-          >
-            {isPending ? 'Guardando…' : 'Guardar'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Change password modal ──────────────────────────────────────────────────
-
-function ChangePasswordModal({
-  user,
-  onClose,
-}: {
-  user: AppUser
-  onClose: () => void
-}) {
-  const [pw, setPw] = useState('')
-  const [pw2, setPw2] = useState('')
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
-  const [isPending, startTransition] = useTransition()
-
-  function handleSubmit() {
-    if (pw.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres.')
-      return
-    }
-    if (pw !== pw2) {
-      setError('Las contraseñas no coinciden.')
-      return
-    }
-    setError(null)
-    startTransition(async () => {
-      const res = await adminChangeUserPassword({ userId: user.id, newPassword: pw })
-      if (res.error) {
-        setError(res.error)
-        return
-      }
-      setSuccess(true)
-    })
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="bg-fm-surface-container-lowest rounded-[2rem] p-8 w-full max-w-md space-y-5 shadow-2xl">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-extrabold text-fm-on-surface">Cambiar contraseña</h3>
-          <button onClick={onClose} className="p-1 rounded-full hover:bg-fm-background text-fm-on-surface-variant">
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </div>
-
-        <p className="text-xs text-fm-on-surface-variant">
-          Nueva contraseña para <b>{user.full_name ?? user.email}</b>. Compártela con el usuario por un canal seguro.
-        </p>
-
-        {success ? (
-          <>
-            <div className="p-4 rounded-xl bg-fm-primary/10 text-fm-primary text-sm font-semibold">
-              Contraseña actualizada correctamente.
-            </div>
-            <button
-              onClick={onClose}
-              className="w-full py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim"
-            >
-              Cerrar
-            </button>
-          </>
-        ) : (
-          <>
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-fm-on-surface-variant uppercase tracking-wide">Nueva contraseña</label>
-                <input
-                  type="password"
-                  value={pw}
-                  onChange={(e) => setPw(e.target.value)}
-                  placeholder="Mínimo 8 caracteres"
-                  className="mt-1.5 w-full border border-fm-surface-container-high rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-fm-primary/30"
-                />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-fm-on-surface-variant uppercase tracking-wide">Confirmar contraseña</label>
-                <input
-                  type="password"
-                  value={pw2}
-                  onChange={(e) => setPw2(e.target.value)}
-                  className="mt-1.5 w-full border border-fm-surface-container-high rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-fm-primary/30"
-                />
-              </div>
-            </div>
-
-            {error && <p className="text-xs text-fm-error font-semibold">{error}</p>}
-
-            <div className="flex gap-3">
-              <button
-                onClick={onClose}
-                className="flex-1 py-2.5 border border-fm-surface-container-high rounded-full text-sm font-bold text-fm-on-surface-variant hover:bg-fm-background"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSubmit}
-                disabled={isPending}
-                className="flex-1 py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
-              >
-                {isPending ? 'Guardando…' : 'Cambiar contraseña'}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
+function roleMeta(role: UserRole) {
+  return STAFF_ROLES.find((r) => r.value === role) ?? { label: role, chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant' }
 }
 
 // ── Create user modal ──────────────────────────────────────────────────────
@@ -500,7 +58,6 @@ function CreateUserModal({ onClose, onCreated }: {
     startTransition(async () => {
       const res = await createUser({ email: email.trim(), password, fullName: fullName.trim(), role })
       if (res.error) { setError(res.error); return }
-      // Optimistic: create a fake AppUser to show immediately
       onCreated({
         id: crypto.randomUUID(),
         email: email.trim(),
@@ -543,7 +100,7 @@ function CreateUserModal({ onClose, onCreated }: {
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
-              placeholder="ana@fmcommunication.com"
+              placeholder="ana@kinetic.sv"
               className="mt-1.5 w-full border border-fm-surface-container-high rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-fm-primary/30"
             />
           </div>
@@ -565,9 +122,7 @@ function CreateUserModal({ onClose, onCreated }: {
               </SelectTrigger>
               <SelectContent>
                 {STAFF_ROLES.map((r) => (
-                  <SelectItem key={r.value} value={r.value}>
-                    {r.label}
-                  </SelectItem>
+                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -589,7 +144,7 @@ function CreateUserModal({ onClose, onCreated }: {
           <button
             onClick={handleSubmit}
             disabled={isPending}
-            className="flex-1 py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:bg-fm-primary-dim disabled:opacity-60"
+            className="flex-1 py-2.5 bg-fm-primary text-white rounded-full text-sm font-bold hover:opacity-90 disabled:opacity-60"
           >
             {isPending ? 'Creando…' : 'Crear usuario'}
           </button>
@@ -599,78 +154,146 @@ function CreateUserModal({ onClose, onCreated }: {
   )
 }
 
+// ── User card ──────────────────────────────────────────────────────────────
+
+function UserCard({
+  user,
+  isCurrentUser,
+  isSelected,
+  onClick,
+}: {
+  user: AppUser
+  isCurrentUser: boolean
+  isSelected: boolean
+  onClick: () => void
+}) {
+  const { chip } = roleMeta(user.role)
+
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left rounded-2xl border p-4 transition-all duration-150 ${
+        isSelected
+          ? 'border-fm-primary/40 bg-fm-primary/5 shadow-sm'
+          : 'border-fm-outline-variant/20 bg-fm-surface-container-lowest hover:border-fm-outline-variant/40 hover:shadow-sm'
+      }`}
+    >
+      <div className="flex items-start gap-3">
+        <UserAvatar name={user.full_name || user.email} avatarUrl={user.avatar_url} size="md" />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-sm font-semibold text-fm-on-surface truncate">
+              {user.full_name ?? user.email}
+            </p>
+            {isCurrentUser && (
+              <span className="text-[10px] font-bold uppercase tracking-wide text-fm-primary bg-fm-primary/10 px-1.5 py-0.5 rounded-full">
+                Tú
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-fm-on-surface-variant truncate mt-0.5">{user.email}</p>
+          <span className={`inline-flex mt-1.5 items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${chip}`}>
+            {roleMeta(user.role).label}
+          </span>
+        </div>
+        <span className="material-symbols-outlined text-base text-fm-outline mt-1 shrink-0">
+          chevron_right
+        </span>
+      </div>
+    </button>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
+
+interface UsersTableProps {
+  users: AppUser[]
+  currentUserId: string
+}
 
 export function UsersTable({ users: initialUsers, currentUserId }: UsersTableProps) {
   const [users, setUsers] = useState<AppUser[]>(initialUsers)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
-  const [editing, setEditing] = useState<AppUser | null>(null)
-  const [changingPw, setChangingPw] = useState<AppUser | null>(null)
+
+  const selectedUser = users.find((u) => u.id === selectedId) ?? null
+
+  // Group by role category for display
+  const managementRoles: UserRole[] = ['admin', 'directora', 'supervisor']
+  const coordRoles: UserRole[] = ['coordinadora_familias', 'coordinadora_terapias', 'recepcion', 'contable']
+  const therapistRoles: UserRole[] = ['terapista', 'maestra']
+
+  const groups = [
+    { label: 'Dirección y administración', users: users.filter((u) => managementRoles.includes(u.role)) },
+    { label: 'Coordinación y recepción',   users: users.filter((u) => coordRoles.includes(u.role)) },
+    { label: 'Terapistas y maestras',      users: users.filter((u) => therapistRoles.includes(u.role)) },
+    { label: 'Otros',                      users: users.filter((u) => !managementRoles.includes(u.role) && !coordRoles.includes(u.role) && !therapistRoles.includes(u.role)) },
+  ].filter((g) => g.users.length > 0)
 
   return (
     <>
-      <div className="glass-panel overflow-hidden">
-        {/* Header — mismo grid template que UserRow para alinear todas las columnas */}
-        <div className="grid grid-cols-[minmax(0,1fr)_96px_120px_72px_140px_160px] items-center gap-4 px-4 py-3 bg-fm-background border-b border-fm-surface-container-high text-xs font-semibold text-fm-on-surface-variant uppercase tracking-wide">
-          <div>Usuario</div>
-          <div className="hidden sm:block">Rol actual</div>
-          <div className="hidden md:block">Creado</div>
-          <div className="text-center">Default</div>
-          <div>Cambiar rol</div>
-          <div className="text-center">Acciones</div>
+      <div className="flex gap-6 items-start">
+        {/* ── Left: Team list ─────────────────────────────────────── */}
+        <div className="flex-1 min-w-0 space-y-6">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-fm-on-surface-variant">
+              {users.length} {users.length === 1 ? 'persona' : 'personas'} en el equipo
+            </p>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-fm-primary text-white font-bold rounded-full hover:opacity-90 transition-all text-sm"
+            >
+              <span className="material-symbols-outlined text-base">person_add</span>
+              Crear usuario
+            </button>
+          </div>
+
+          {/* Groups */}
+          {groups.map((group) => (
+            <div key={group.label}>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-fm-on-surface-variant mb-2">
+                {group.label}
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {group.users.map((user) => (
+                  <UserCard
+                    key={user.id}
+                    user={user}
+                    isCurrentUser={user.id === currentUserId}
+                    isSelected={user.id === selectedId}
+                    onClick={() => setSelectedId((prev) => (prev === user.id ? null : user.id))}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
 
-        {users.length === 0 ? (
-          <p className="px-4 py-8 text-center text-sm text-fm-on-surface-variant">
-            No hay usuarios registrados.
-          </p>
-        ) : (
-          users.map((user) => (
-            <UserRow
-              key={user.id}
-              user={user}
-              isCurrentUser={user.id === currentUserId}
-              onDeleted={(id) => setUsers(prev => prev.filter(u => u.id !== id))}
-              onRoleChanged={(id, role) => setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))}
-              onDefaultAssigneeChanged={(id, value) =>
-                setUsers(prev => prev.map(u => u.id === id ? { ...u, default_assignee: value } : u))
+        {/* ── Right: Profile panel ─────────────────────────────────── */}
+        {selectedUser && (
+          <div className="w-[380px] shrink-0 sticky top-20 max-h-[calc(100vh-6rem)] rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest shadow-lg overflow-hidden flex flex-col">
+            <UserProfilePanel
+              user={selectedUser}
+              currentUserId={currentUserId}
+              onClose={() => setSelectedId(null)}
+              onUpdated={(patch) =>
+                setUsers((prev) => prev.map((u) => (u.id === selectedUser.id ? { ...u, ...patch } : u)))
               }
-              onEdit={(u) => setEditing(u)}
-              onChangePassword={(u) => setChangingPw(u)}
+              onDeleted={(id) => {
+                setUsers((prev) => prev.filter((u) => u.id !== id))
+                setSelectedId(null)
+              }}
             />
-          ))
+          </div>
         )}
-      </div>
-
-      <div className="mt-4 flex justify-end">
-        <button
-          onClick={() => setShowCreate(true)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-fm-primary text-white font-bold rounded-full hover:bg-fm-primary-dim transition-all text-sm"
-        >
-          <span className="material-symbols-outlined text-base">person_add</span>
-          Crear usuario
-        </button>
       </div>
 
       {showCreate && (
         <CreateUserModal
           onClose={() => setShowCreate(false)}
-          onCreated={(user) => setUsers(prev => [...prev, user])}
+          onCreated={(user) => setUsers((prev) => [...prev, user])}
         />
-      )}
-
-      {editing && (
-        <EditProfileModal
-          user={editing}
-          onClose={() => setEditing(null)}
-          onUpdated={(patch) =>
-            setUsers((prev) => prev.map((u) => (u.id === editing.id ? { ...u, ...patch } : u)))
-          }
-        />
-      )}
-
-      {changingPw && (
-        <ChangePasswordModal user={changingPw} onClose={() => setChangingPw(null)} />
       )}
     </>
   )
