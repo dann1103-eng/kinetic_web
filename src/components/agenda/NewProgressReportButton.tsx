@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Dialog,
@@ -10,9 +10,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog'
 import { createProgressReport } from '@/app/actions/progress-reports'
-import { listReportTemplates } from '@/app/actions/report-templates'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
-import type { ReportTemplate, ServiceType } from '@/types/db'
+import type { ServiceType } from '@/types/db'
 
 interface NewProgressReportButtonProps {
   familyId: string
@@ -52,41 +51,11 @@ export function NewProgressReportButton({ familyId, childId }: NewProgressReport
   const [periodEnds, setPeriodEnds] = useState(initialPeriod.ends)
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [templates, setTemplates] = useState<ReportTemplate[]>([])
-  const [templateId, setTemplateId] = useState<string>('')
-  const [loadingTemplates, setLoadingTemplates] = useState(false)
-
-  // Cargar plantillas filtradas por servicio elegido + universales (NULL).
-  useEffect(() => {
-    if (!open) return
-    setLoadingTemplates(true)
-    listReportTemplates({
-      kind: 'progress',
-      serviceType,
-      includeUniversal: true,
-      activeOnly: true,
-    })
-      .then((list) => {
-        setTemplates(list)
-        // Auto-select: preferir plantilla específica del servicio; si no, la primera.
-        const preferred = list.find((t) => t.service_type === serviceType) ?? list[0]
-        setTemplateId(preferred?.id ?? '')
-      })
-      .catch((e: unknown) => {
-        const msg = e instanceof Error ? e.message : 'Error cargando plantillas.'
-        setError(msg)
-      })
-      .finally(() => setLoadingTemplates(false))
-  }, [open, serviceType])
 
   const handleCreate = () => {
     setError(null)
     if (periodStarts > periodEnds) {
       setError('La fecha de inicio debe ser anterior a la de fin.')
-      return
-    }
-    if (!templateId) {
-      setError('Seleccioná una plantilla.')
       return
     }
     startTransition(async () => {
@@ -95,7 +64,6 @@ export function NewProgressReportButton({ familyId, childId }: NewProgressReport
         serviceType,
         periodStarts,
         periodEnds,
-        templateId,
       })
       if (!res.ok) {
         setError(res.error)
@@ -121,8 +89,9 @@ export function NewProgressReportButton({ familyId, childId }: NewProgressReport
           <DialogHeader>
             <DialogTitle>Nuevo informe de avances</DialogTitle>
             <DialogDescription>
-              Generá un informe cuatrimestral para una terapia específica del niño/a. Si ya existe uno para
-              ese servicio en ese período, se abrirá el existente.
+              Generá un informe cuatrimestral para una terapia específica del niño/a.
+              Vas a poder subir el archivo del informe en la siguiente pantalla.
+              Si ya existe uno para ese servicio en ese período, se abrirá el existente.
             </DialogDescription>
           </DialogHeader>
 
@@ -139,28 +108,6 @@ export function NewProgressReportButton({ familyId, childId }: NewProgressReport
                 {SERVICE_OPTIONS.map((s) => (
                   <option key={s} value={s}>
                     {SERVICE_TYPE_LABELS[s]}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant mb-1">
-                Plantilla
-              </label>
-              <select
-                value={templateId}
-                onChange={(e) => setTemplateId(e.target.value)}
-                disabled={loadingTemplates || templates.length === 0}
-                className="w-full rounded-xl border border-fm-outline-variant/30 bg-fm-surface-container-low px-3 py-2 text-sm text-fm-on-surface disabled:opacity-50"
-              >
-                {loadingTemplates && <option>Cargando…</option>}
-                {!loadingTemplates && templates.length === 0 && (
-                  <option>Sin plantillas disponibles</option>
-                )}
-                {templates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}{t.service_type ? '' : ' (universal)'}
                   </option>
                 ))}
               </select>
@@ -211,7 +158,7 @@ export function NewProgressReportButton({ familyId, childId }: NewProgressReport
               disabled={isPending}
               className="px-4 py-2 rounded-xl text-sm font-semibold bg-fm-primary text-white hover:bg-fm-primary/90 disabled:opacity-50 transition-colors"
             >
-              {isPending ? 'Creando…' : 'Crear y editar'}
+              {isPending ? 'Creando…' : 'Crear y subir archivo'}
             </button>
           </div>
         </DialogContent>

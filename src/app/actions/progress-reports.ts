@@ -19,28 +19,14 @@ export interface CreateProgressReportInput {
   serviceType: string
   periodStarts: string // YYYY-MM-DD
   periodEnds: string   // YYYY-MM-DD
-  /** Si se omite, se busca la plantilla "Genérica" como fallback. */
-  templateId?: string
-}
-
-/** Lookup del seed Genérica para fallback cuando el caller no manda templateId. */
-async function getGenericProgressTemplateId(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-): Promise<string | null> {
-  const { data } = await supabase
-    .from('report_templates')
-    .select('id')
-    .eq('kind', 'progress')
-    .is('service_type', null)
-    .eq('name', 'Informe de avances — Genérica')
-    .eq('active', true)
-    .maybeSingle()
-  return data?.id ?? null
 }
 
 /**
- * Crea un draft de progress_report. Si ya existe uno para
+ * Crea un draft de progress_report en modo file. Si ya existe uno para
  * (childId, serviceType, periodStarts) lo retorna en su estado actual.
+ *
+ * Las terapistas elaboran el informe por su cuenta y lo suben como archivo,
+ * por lo que no se requiere seleccionar plantilla.
  */
 export async function createProgressReport(input: CreateProgressReportInput): Promise<
   | { ok: true; report: ProgressReport }
@@ -70,14 +56,6 @@ export async function createProgressReport(input: CreateProgressReportInput): Pr
     return { ok: true, report: existing as ProgressReport }
   }
 
-  const templateId = input.templateId ?? (await getGenericProgressTemplateId(supabase))
-  if (!templateId) {
-    return {
-      ok: false,
-      error: 'No hay plantilla disponible para crear el informe. Contactá a la directora.',
-    }
-  }
-
   const { data: created, error: insertErr } = await supabase
     .from('progress_reports')
     .insert({
@@ -87,7 +65,8 @@ export async function createProgressReport(input: CreateProgressReportInput): Pr
       period_ends: input.periodEnds,
       authored_by_user_id: user.id,
       data_json: {},
-      template_id: templateId,
+      template_id: null,
+      upload_kind: 'file',
     })
     .select('*')
     .single()
