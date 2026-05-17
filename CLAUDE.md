@@ -167,12 +167,12 @@ Visible si AL MENOS UN item es accesible al usuario. Cada item respeta su propio
 - `/usuarios-portal` — Cuentas family
 - `/operacion/capacidad-terapistas` — Tabla semanal comparativa de ocupación
 - `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion, coordinadora_terapias). Tarjetas activas: **Financieros**, **Planillas** y **Por terapista**. Sub-categoría futura (placeholder): operativos.
-  - `/reportes/financieros` — 4 reportes web+PDF (ingresos mensuales, comparativa anual, ciclos, pagos por método).
+  - `/reportes/financieros` — 5 reportes web+PDF: ingresos mensuales, comparativa anual, ciclos, pagos por método, **churn de familias** (altas, alta médica, bajas, pausas, neto).
   - `/reportes/contabilidad` — Hub de Planillas → listado mensual + configuración. (La ruta sigue siendo `contabilidad` para minimizar churn; en UI se muestra como "Planillas".)
   - `/reportes/contabilidad/planillas` — Listado y creación de planillas mensuales.
   - `/reportes/contabilidad/planillas/[id]` — Detalle: editable en draft, sellado inmutable, firma de empleados, PDF.
   - `/reportes/contabilidad/configuracion` — Constantes ISSS/AFP/ISR (admin) + tabla de salarios por empleado (admin/directora/contable).
-  - `/reportes/por-terapista` — Tabla comparativa mensual del equipo con KPIs por terapista: asistencia (completed/no_show/late_cancel/reposiciones), carga horaria (trabajadas vs contratadas), cumplimiento de informes cuatrimestrales. Roles: admin, directora, coordinadora_terapias. Cada fila tiene botón de descarga PDF individual; cabecera tiene descarga del PDF del equipo.
+  - `/reportes/por-terapista` — Tabla comparativa mensual del equipo con KPIs por terapista: asistencia (completed/no_show/late_cancel/reposiciones), carga horaria (trabajadas vs contratadas), cumplimiento de informes cuatrimestrales. Roles: admin, directora, coordinadora_terapias. Cada fila tiene botón de descarga PDF individual; cabecera tiene descarga del PDF del equipo. Incluye **sección de Capacidad histórica** (heatmap últimos 6 meses con tendencia ↑↓→ por terapista).
 - `/billing` — Facturación (FM legacy, can_quote también ve fallback top-level)
 
 ## Portal padres (`/portal/*`)
@@ -316,7 +316,6 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
     - Tarjeta "Por terapista" activada en `/reportes`. Usa `appointment_absences` con status='replaced' para contar reposiciones cumplidas.
 
 ## Pendiente (próximas sesiones)
-- 📋 Reportería **Operativos** (asistencia agregada del centro, capacidad histórica multi-mes, churn de familias) — última sub-fase de reportería.
 - (Backlog) Detección automática de slot liberado tras cancelar cita → alerta a lista de espera
 - (Backlog) Notificaciones a familias en waitlist por email/WhatsApp
 - (Backlog) Vista mensual/anual de capacidad (actual es solo semanal)

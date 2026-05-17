@@ -454,6 +454,156 @@ export async function getTherapistDetailedReport(
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Capacidad histórica multi-mes
+// ──────────────────────────────────────────────────────────────────────────
+// Tendencia de ocupación por terapista en los últimos N meses.
+// Útil para decidir contrataciones, detectar burnout o sub-utilización.
+
+export interface MonthlyOccupancyCell {
+  year: number
+  month: number             // 1-12
+  label: string             // "Ene 2026"
+  hoursWorked: number
+  hoursContracted: number | null
+  occupancyPct: number | null
+}
+
+export interface TherapistHistoricalRow {
+  therapist: TherapistInfo
+  cells: MonthlyOccupancyCell[]   // ordenadas asc por (year, month)
+  /** Promedio simple de occupancyPct sobre los meses con dato. */
+  averagePct: number | null
+  /** Tendencia: diff entre último mes y primero (en puntos porcentuales). */
+  trendDelta: number | null
+}
+
+export interface TherapistHistoricalCapacity {
+  monthsBack: number
+  monthLabels: string[]             // headers de la tabla: ["Ene 2026", "Feb 2026", ...]
+  rows: TherapistHistoricalRow[]
+}
+
+/**
+ * Calcula ocupación mensual por terapista para los últimos `monthsBack` meses
+ * (incluyendo el mes actual). Usa el mismo método que computeHoursLoad:
+ * horas trabajadas = suma de duración de citas completadas;
+ * horas contratadas estimadas = max_hours_per_week × (días del mes / 7).
+ */
+export async function getTherapistHistoricalCapacity(
+  supabase: SupabaseClient<Database>,
+  opts: { monthsBack?: number; reference?: Date } = {},
+): Promise<TherapistHistoricalCapacity> {
+  const monthsBack = opts.monthsBack ?? 6
+  const ref = opts.reference ?? new Date()
+  const refSv = toZonedTime(ref, TZ)
+
+  // Lista de meses ordenados ascendentemente (más antiguo a más reciente)
+  const months: Array<{ year: number; month: number; daysInMonth: number; startISO: string; endISO: string; label: string }> = []
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const y = refSv.getFullYear()
+    const m = refSv.getMonth() + 1 - i
+    // Normalize negative/overflow months
+    const normalized = normalizeYearMonth(y, m)
+    const bounds = monthBoundsSV(normalized.year, normalized.month)
+    months.push({
+      year: normalized.year,
+      month: normalized.month,
+      daysInMonth: bounds.daysInMonth,
+      startISO: bounds.startISO,
+      endISO: bounds.endISO,
+      label: `${MONTH_LABELS[normalized.month - 1].slice(0, 3)} ${normalized.year}`,
+    })
+  }
+
+  const overallStartISO = months[0].startISO
+  const overallEndISO = months[months.length - 1].endISO
+
+  // 1. Terapistas
+  const { data: therapistsRaw } = await supabase
+    .from('users')
+    .select('id, full_name, role, max_hours_per_week')
+    .in('role', THERAPIST_ROLES)
+    .order('full_name')
+  const therapists = (therapistsRaw ?? []) as TherapistInfo[]
+  const therapistIds = therapists.map((t) => t.id)
+
+  // 2. Todas las citas completed en el rango
+  const { data: apptsRaw } = await supabase
+    .from('appointments')
+    .select('therapist_id, status, starts_at, ends_at')
+    .eq('status', 'completed')
+    .gte('starts_at', overallStartISO)
+    .lt('starts_at', overallEndISO)
+    .in('therapist_id', therapistIds.length > 0 ? therapistIds : [''])
+  const appts = (apptsRaw ?? []) as Array<{
+    therapist_id: string | null
+    status: string
+    starts_at: string
+    ends_at: string
+  }>
+
+  // 3. Por cada terapista, computar ocupación por mes
+  const rows: TherapistHistoricalRow[] = therapists.map((t) => {
+    const myAppts = appts.filter((a) => a.therapist_id === t.id)
+    const cells: MonthlyOccupancyCell[] = months.map((m) => {
+      // filtrar citas de este mes (por starts_at)
+      const cellAppts = myAppts.filter((a) => {
+        const startMs = new Date(a.starts_at).getTime()
+        const startBoundMs = new Date(m.startISO).getTime()
+        const endBoundMs = new Date(m.endISO).getTime()
+        return startMs >= startBoundMs && startMs < endBoundMs
+      })
+      let workedMs = 0
+      for (const a of cellAppts) {
+        workedMs += Math.max(0, new Date(a.ends_at).getTime() - new Date(a.starts_at).getTime())
+      }
+      const hoursWorked = Math.round((workedMs / 3_600_000) * 10) / 10
+      const hoursContracted = t.max_hours_per_week != null
+        ? Math.round(t.max_hours_per_week * (m.daysInMonth / 7) * 10) / 10
+        : null
+      const occupancyPct = hoursContracted != null && hoursContracted > 0
+        ? Math.round((hoursWorked / hoursContracted) * 1000) / 10
+        : null
+      return {
+        year: m.year,
+        month: m.month,
+        label: m.label,
+        hoursWorked,
+        hoursContracted,
+        occupancyPct,
+      }
+    })
+
+    const occupancies = cells.map((c) => c.occupancyPct).filter((v): v is number => v != null)
+    const averagePct = occupancies.length > 0
+      ? Math.round((occupancies.reduce((s, v) => s + v, 0) / occupancies.length) * 10) / 10
+      : null
+
+    const first = cells[0]?.occupancyPct ?? null
+    const last = cells[cells.length - 1]?.occupancyPct ?? null
+    const trendDelta = first != null && last != null
+      ? Math.round((last - first) * 10) / 10
+      : null
+
+    return { therapist: t, cells, averagePct, trendDelta }
+  })
+
+  return {
+    monthsBack,
+    monthLabels: months.map((m) => m.label),
+    rows,
+  }
+}
+
+function normalizeYearMonth(year: number, month: number): { year: number; month: number } {
+  let y = year
+  let m = month
+  while (m < 1) { m += 12; y-- }
+  while (m > 12) { m -= 12; y++ }
+  return { year: y, month: m }
+}
+
 // ── Helpers de formato ────────────────────────────────────────────────────
 
 export function fmtPercent(v: number, fractionDigits = 1): string {

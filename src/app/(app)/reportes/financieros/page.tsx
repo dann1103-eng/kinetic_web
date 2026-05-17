@@ -8,11 +8,13 @@ import {
   getAnnualComparison,
   getCycleStatusBreakdown,
   getPaymentMethodBreakdown,
+  getChurnBreakdown,
 } from '@/lib/domain/reports/financial'
 import { MonthlyRevenueSection } from '@/components/reportes/MonthlyRevenueSection'
 import { AnnualComparisonSection } from '@/components/reportes/AnnualComparisonSection'
 import { CycleStatusSection } from '@/components/reportes/CycleStatusSection'
 import { PaymentMethodSection } from '@/components/reportes/PaymentMethodSection'
+import { ChurnSection } from '@/components/reportes/ChurnSection'
 import type { UserRole } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -27,6 +29,8 @@ interface PageProps {
     cyclesTo?: string
     pmFrom?: string
     pmTo?: string
+    churnFrom?: string
+    churnTo?: string
   }>
 }
 
@@ -74,14 +78,18 @@ export default async function ReportesFinancierosPage({ searchParams }: PageProp
   const pmDef = defaultPmRange()
   const pmFrom = parseDate(params.pmFrom, pmDef.from)
   const pmTo = parseDate(params.pmTo, pmDef.to)
+  // Churn usa el mismo default que ciclos (últimos 12 meses).
+  const churnFrom = parseDate(params.churnFrom, cyclesDef.from)
+  const churnTo = parseDate(params.churnTo, cyclesDef.to)
 
   const supabase = await createClient()
 
-  const [monthlyRows, annualData, cyclesData, paymentMethodData] = await Promise.all([
+  const [monthlyRows, annualData, cyclesData, paymentMethodData, churnData] = await Promise.all([
     getMonthlyRevenue(supabase, { year }),
     getAnnualComparison(supabase, { year: annualYear }),
     getCycleStatusBreakdown(supabase, { fromDate: cyclesFrom, toDate: cyclesTo }),
     getPaymentMethodBreakdown(supabase, { fromDate: pmFrom, toDate: pmTo }),
+    getChurnBreakdown(supabase, { fromDate: churnFrom, toDate: churnTo }),
   ])
 
   return (
@@ -108,7 +116,8 @@ export default async function ReportesFinancierosPage({ searchParams }: PageProp
             Reportes financieros
           </h1>
           <p className="text-sm text-fm-on-surface-variant mt-1">
-            Ingresos, ciclos y métodos de pago. Datos basados en <code>monthly_session_cycles</code> agrupados por fecha de pago en zona SV.
+            Ingresos, ciclos, métodos de pago y churn de familias. Datos basados en{' '}
+            <code>monthly_session_cycles</code> y <code>children.treatment_status</code> en zona SV.
           </p>
         </header>
 
@@ -123,6 +132,7 @@ export default async function ReportesFinancierosPage({ searchParams }: PageProp
             fromDate={pmFrom}
             toDate={pmTo}
           />
+          <ChurnSection data={churnData} fromDate={churnFrom} toDate={churnTo} />
         </div>
       </div>
     </div>

@@ -5,10 +5,12 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import {
   getTherapistMonthlyReport,
+  getTherapistHistoricalCapacity,
   fmtHours,
   fmtPercent,
 } from '@/lib/domain/reports/therapist'
 import { PeriodSelector } from '@/components/reportes/por-terapista/PeriodSelector'
+import { HistoricalCapacitySection } from '@/components/reportes/por-terapista/HistoricalCapacitySection'
 import { ReportDownloadButton } from '@/components/reportes/ReportDownloadButton'
 import type { UserRole } from '@/types/db'
 
@@ -61,7 +63,10 @@ export default async function ReportesPorTerapistaPage({ searchParams }: PagePro
   const month = parseMonth(params.month, now.getMonth() + 1)
 
   const supabase = await createClient()
-  const report = await getTherapistMonthlyReport(supabase, { year, month })
+  const [report, historicalCapacity] = await Promise.all([
+    getTherapistMonthlyReport(supabase, { year, month }),
+    getTherapistHistoricalCapacity(supabase, { monthsBack: 6 }),
+  ])
 
   return (
     <div className="flex flex-col min-h-full">
@@ -204,6 +209,9 @@ export default async function ReportesPorTerapistaPage({ searchParams }: PagePro
             </table>
           </div>
         )}
+
+        {/* Capacidad histórica multi-mes */}
+        <HistoricalCapacitySection data={historicalCapacity} />
 
         <details className="text-xs text-fm-on-surface-variant px-2">
           <summary className="cursor-pointer hover:text-fm-on-surface">Notas del cálculo</summary>

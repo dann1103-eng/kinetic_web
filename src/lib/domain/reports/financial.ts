@@ -382,6 +382,122 @@ export async function getPaymentMethodBreakdown(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Churn de familias / niños (basado en treatment_status)
+// ──────────────────────────────────────────────────────────────────────────
+// Mide flujo neto: niños que se vuelven 'active' (altas nuevas) vs niños que
+// salen del sistema (alta médica, baja, pausa) en un período.
+
+/** Estados terminales positivos (alta médica = tratamiento completado). */
+const MEDICAL_DISCHARGE_STATES = new Set(['discharged_final', 'discharged_conditional'])
+/** Estado terminal negativo (abandono). */
+const DROPPED_STATES = new Set(['dropped'])
+/** Estados "en riesgo" (no terminal pero sin tratamiento activo). */
+const AT_RISK_STATES = new Set(['paused', 'considering_discharge'])
+
+export interface ChurnMonthRow {
+  month: string                  // YYYY-MM
+  monthLabel: string             // "Ene 2026"
+  newActives: number             // niños que pasaron a 'active' este mes
+  medicalDischarges: number      // alta médica (positivo)
+  dropouts: number               // baja por abandono (negativo)
+  paused: number                 // pausados o considerando alta
+  netChange: number              // newActives − (medicalDischarges + dropouts)
+}
+
+export interface ChurnBreakdown {
+  rows: ChurnMonthRow[]
+  totals: {
+    newActives: number
+    medicalDischarges: number
+    dropouts: number
+    paused: number
+    netChange: number
+  }
+  /** % de bajas sobre el total de salidas (bajas / (bajas + altas médicas)). */
+  abandonRatePct: number
+}
+
+export async function getChurnBreakdown(
+  supabase: SupabaseClient<Database>,
+  opts: { fromDate: string; toDate: string },
+): Promise<ChurnBreakdown> {
+  const { startISO, endISO } = dayRangeBoundsSV(opts.fromDate, opts.toDate)
+
+  const { data } = await supabase
+    .from('children')
+    .select('treatment_status, treatment_status_changed_at')
+    .gte('treatment_status_changed_at', startISO)
+    .lt('treatment_status_changed_at', endISO)
+
+  const rows = (data ?? []) as Array<{
+    treatment_status: string
+    treatment_status_changed_at: string
+  }>
+
+  // Agrupar por mes
+  const byMonth = new Map<string, ChurnMonthRow>()
+  let totalNewActives = 0
+  let totalMedical = 0
+  let totalDropouts = 0
+  let totalPaused = 0
+
+  for (const r of rows) {
+    const key = monthKeyInSV(r.treatment_status_changed_at)
+    let row = byMonth.get(key)
+    if (!row) {
+      const [yStr, mStr] = key.split('-')
+      const monthIdx = Number(mStr) - 1
+      row = {
+        month: key,
+        monthLabel: `${MONTH_LABELS[monthIdx]} ${yStr}`,
+        newActives: 0,
+        medicalDischarges: 0,
+        dropouts: 0,
+        paused: 0,
+        netChange: 0,
+      }
+      byMonth.set(key, row)
+    }
+
+    if (r.treatment_status === 'active') {
+      row.newActives++
+      totalNewActives++
+    } else if (MEDICAL_DISCHARGE_STATES.has(r.treatment_status)) {
+      row.medicalDischarges++
+      totalMedical++
+    } else if (DROPPED_STATES.has(r.treatment_status)) {
+      row.dropouts++
+      totalDropouts++
+    } else if (AT_RISK_STATES.has(r.treatment_status)) {
+      row.paused++
+      totalPaused++
+    }
+  }
+
+  for (const row of byMonth.values()) {
+    row.netChange = row.newActives - (row.medicalDischarges + row.dropouts)
+  }
+
+  const sorted = Array.from(byMonth.values()).sort((a, b) => a.month.localeCompare(b.month))
+  const totalExits = totalMedical + totalDropouts
+  const abandonRatePct = totalExits > 0
+    ? Math.round((totalDropouts / totalExits) * 1000) / 10
+    : 0
+
+  return {
+    rows: sorted,
+    totals: {
+      newActives: totalNewActives,
+      medicalDischarges: totalMedical,
+      dropouts: totalDropouts,
+      paused: totalPaused,
+      netChange: totalNewActives - (totalMedical + totalDropouts),
+    },
+    abandonRatePct,
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Helpers de formato (compartidos UI + PDF)
 // ──────────────────────────────────────────────────────────────────────────
 
