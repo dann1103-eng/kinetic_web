@@ -6,7 +6,6 @@ import type { AppUser, UserRole, TherapistWorkScheduleBlock } from '@/types/db'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { updateUserProfile, adminChangeUserPassword, deleteUser } from '@/app/actions/users'
 import { updateUserRole } from '@/app/actions/updateUserRole'
-import { updateUserDefaultAssignee } from '@/app/actions/updateUserDefaultAssignee'
 import { startImpersonation } from '@/app/actions/impersonation'
 import {
   getUserScheduleBlocks,
@@ -108,9 +107,6 @@ function PerfilTab({
   const [isChangingRole, startRoleTransition] = useTransition()
   const [roleError, setRoleError] = useState<string | null>(null)
 
-  // Default assignee
-  const [isTogglingDefault, setIsTogglingDefault] = useState(false)
-
   // Password section
   const [showPw, setShowPw] = useState(false)
   const [pw, setPw] = useState('')
@@ -151,21 +147,6 @@ function PerfilTab({
       if (res.error) { setRoleError(res.error); return }
       onUpdated({ role: newRole as UserRole })
       router.refresh()
-    })
-  }
-
-  function handleToggleDefault() {
-    if (isTogglingDefault) return
-    const next = !user.default_assignee
-    setIsTogglingDefault(true)
-    onUpdated({ default_assignee: next })
-    updateUserDefaultAssignee(user.id, next).then((res) => {
-      setIsTogglingDefault(false)
-      if (res.error) {
-        onUpdated({ default_assignee: !next })
-      } else {
-        router.refresh()
-      }
     })
   }
 
@@ -269,24 +250,6 @@ function PerfilTab({
           </div>
           {roleError && <p className="mt-1 text-xs text-fm-error">{roleError}</p>}
         </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-fm-on-surface">Asignado por defecto</p>
-            <p className="text-xs text-fm-on-surface-variant">Preseleccionado al crear requerimientos</p>
-          </div>
-          <button
-            onClick={handleToggleDefault}
-            disabled={isTogglingDefault}
-            className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 ${
-              user.default_assignee ? 'bg-fm-primary' : 'bg-fm-surface-container-high'
-            }`}
-          >
-            <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-              user.default_assignee ? 'translate-x-[18px]' : 'translate-x-[3px]'
-            }`} />
-          </button>
-        </div>
       </div>
 
       {/* Change password */}
@@ -378,6 +341,7 @@ function HorarioTab({ user }: { user: AppUser }) {
   }[]>([])
   const [error, setError] = useState<string | null>(null)
   const [isSaving, startSaveTransition] = useTransition()
+  const [saveSuccess, setSaveSuccess] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -400,6 +364,23 @@ function HorarioTab({ user }: { user: AppUser }) {
     return () => { cancelled = true }
   }, [user.id])
 
+  // Detect dirty state: changes vs original
+  const isDirty = (() => {
+    if (draftBlocks.length !== originalBlockIds.length) return true
+    const origMap = new Map(blocks.map((b) => [b.id, b]))
+    for (const d of draftBlocks) {
+      if (!d.id) return true
+      const orig = origMap.get(d.id)
+      if (!orig) return true
+      if (trimSeconds(orig.start_time) !== d.start_time) return true
+      if (trimSeconds(orig.end_time) !== d.end_time) return true
+      if (orig.day_of_week !== d.day_of_week) return true
+    }
+    const maxFromUser = user.max_hours_per_week != null ? String(user.max_hours_per_week) : ''
+    if (maxHours !== maxFromUser) return true
+    return false
+  })()
+
   function addBlock(dow: number) {
     setDraftBlocks((prev) => [
       ...prev,
@@ -417,6 +398,7 @@ function HorarioTab({ user }: { user: AppUser }) {
 
   async function handleSave() {
     setError(null)
+    setSaveSuccess(false)
     startSaveTransition(async () => {
       const hours = maxHours.trim() === '' ? null : Number(maxHours)
       if (hours != null && Number.isNaN(hours)) { setError('Horas semanales inválidas.'); return }
@@ -454,6 +436,8 @@ function HorarioTab({ user }: { user: AppUser }) {
           end_time: trimSeconds(b.end_time),
         })))
       }
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 2500)
       router.refresh()
     })
   }
@@ -468,7 +452,7 @@ function HorarioTab({ user }: { user: AppUser }) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-2">
       {/* Max hours */}
       <div className="rounded-xl bg-fm-surface-container-low/50 p-3">
         <label className="block text-xs font-semibold uppercase tracking-wider text-fm-on-surface-variant mb-1.5">
@@ -545,13 +529,35 @@ function HorarioTab({ user }: { user: AppUser }) {
         </div>
       )}
 
-      <button
-        onClick={handleSave}
-        disabled={isSaving}
-        className="w-full py-2.5 rounded-lg bg-fm-primary text-white text-sm font-bold hover:opacity-90 disabled:opacity-60"
-      >
-        {isSaving ? 'Guardando…' : 'Guardar horario'}
-      </button>
+      {/* Sticky save bar — siempre visible al final del panel */}
+      <div className="sticky bottom-0 -mx-5 -mb-4 px-5 py-3 bg-fm-surface-container-lowest border-t border-fm-outline-variant/15 shadow-[0_-4px_8px_-4px_rgba(0,0,0,0.06)]">
+        {saveSuccess && !isDirty ? (
+          <div className="flex items-center justify-center gap-2 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-sm font-semibold text-emerald-800">
+            <span className="material-symbols-outlined text-base">check_circle</span>
+            Horario guardado
+          </div>
+        ) : (
+          <button
+            onClick={handleSave}
+            disabled={isSaving || !isDirty}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg bg-fm-primary text-white text-sm font-bold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isSaving ? (
+              <>
+                <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>
+                Guardando…
+              </>
+            ) : isDirty ? (
+              <>
+                <span className="material-symbols-outlined text-base">save</span>
+                Guardar cambios
+              </>
+            ) : (
+              'Sin cambios para guardar'
+            )}
+          </button>
+        )}
+      </div>
     </div>
   )
 }
