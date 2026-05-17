@@ -88,7 +88,9 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
         </div>
         <p className="text-sm text-fm-on-surface-variant max-w-prose">
           Familias que solicitaron cita pero no se pudieron agendar. Al liberar capacidad,
-          contactalas en orden de prioridad y antigüedad.
+          contactalas en orden de prioridad y antigüedad. Las entradas <strong>agendadas</strong>{' '}
+          (ya convertidas en familia) y <strong>descartadas</strong> salen de la vista activa;
+          podés verlas con los filtros de histórico.
         </p>
       </header>
 
@@ -131,11 +133,11 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-fm-on-surface-variant">Estado:</span>
           {[
-            { val: undefined, label: 'Todos' },
+            { val: undefined, label: 'Activas' },
             { val: 'waiting', label: 'En espera' },
             { val: 'contacted', label: 'Contactadas' },
-            { val: 'scheduled', label: 'Agendadas' },
-            { val: 'dropped', label: 'Descartadas' },
+            { val: 'scheduled', label: 'Agendadas (histórico)' },
+            { val: 'dropped', label: 'Descartadas (histórico)' },
           ].map((f) => {
             const active = (statusFilter ?? undefined) === f.val
             const query = new URLSearchParams()

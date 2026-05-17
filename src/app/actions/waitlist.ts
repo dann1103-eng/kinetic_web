@@ -361,7 +361,15 @@ export async function listWaitlist(
     .order('priority', { ascending: false })
     .order('added_at', { ascending: true })
 
-  if (filters.status) query = query.eq('status', filters.status)
+  if (filters.status) {
+    // Filtro explícito (incluye consultar estados terminales para auditoría).
+    query = query.eq('status', filters.status)
+  } else {
+    // Default: solo entradas ACTIVAS (waiting + contacted). Las terminales
+    // (scheduled / dropped) se ocultan porque su registro vivo ya está en
+    // familias/niños o ya fue descartado.
+    query = query.in('status', ['waiting', 'contacted'])
+  }
   if (filters.serviceType) query = query.eq('requested_service_type', filters.serviceType)
 
   const { data } = await query
