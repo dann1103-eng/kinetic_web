@@ -59,6 +59,21 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
     therapists.map((t) => [t.id, t.full_name]),
   )
 
+  // Lookup family_id de los niños vinculados a entradas 'scheduled' (para link directo a ficha)
+  const scheduledChildIds = entries
+    .map((e) => e.scheduled_child_id)
+    .filter((x): x is string => !!x)
+  const familyIdByChildId: Record<string, string> = {}
+  if (scheduledChildIds.length > 0) {
+    const { data: childRows } = await supabase
+      .from('children')
+      .select('id, family_id')
+      .in('id', scheduledChildIds)
+    for (const row of (childRows ?? []) as { id: string; family_id: string }[]) {
+      familyIdByChildId[row.id] = row.family_id
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
       <header className="space-y-2">
@@ -144,7 +159,11 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <WaitlistTable entries={entries} therapistsById={therapistsById} />
+      <WaitlistTable
+        entries={entries}
+        therapistsById={therapistsById}
+        familyIdByChildId={familyIdByChildId}
+      />
     </div>
   )
 }

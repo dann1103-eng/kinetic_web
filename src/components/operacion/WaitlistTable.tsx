@@ -10,11 +10,15 @@ import {
   markScheduled,
   dropEntry,
   reopenEntry,
+  revertScheduledToContacted,
 } from '@/app/actions/waitlist'
+import { TransformWaitlistModal } from './TransformWaitlistModal'
 
 interface Props {
   entries: WaitlistEntry[]
   therapistsById: Record<string, string>
+  /** Mapa de child_id → family_id, para link directo a ficha desde entradas scheduled. */
+  familyIdByChildId?: Record<string, string>
 }
 
 const PRIORITY_TONE: Record<number, { label: string; bg: string; text: string }> = {
@@ -47,12 +51,13 @@ function calcAge(birthdate: string | null): string {
   return `${years}a`
 }
 
-export function WaitlistTable({ entries, therapistsById }: Props) {
+export function WaitlistTable({ entries, therapistsById, familyIdByChildId }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<WaitlistEntry | null>(null)
   const [dropReason, setDropReason] = useState('')
+  const [transformTarget, setTransformTarget] = useState<WaitlistEntry | null>(null)
 
   function handleContacted(id: string) {
     setError(null)
@@ -63,10 +68,19 @@ export function WaitlistTable({ entries, therapistsById }: Props) {
     })
   }
 
-  function handleScheduled(id: string) {
+  function handleScheduledManual(id: string) {
     setError(null)
     startTransition(async () => {
       const res = await markScheduled(id)
+      if (!res.ok) setError(res.error)
+      else router.refresh()
+    })
+  }
+
+  function handleRevertScheduled(id: string) {
+    setError(null)
+    startTransition(async () => {
+      const res = await revertScheduledToContacted(id)
       if (!res.ok) setError(res.error)
       else router.refresh()
     })
@@ -221,12 +235,14 @@ export function WaitlistTable({ entries, therapistsById }: Props) {
                           >
                             Contactada
                           </button>
-                          <Link
-                            href={`/familias/new?waitlist=${e.id}`}
-                            className="text-xs font-semibold text-emerald-700 hover:underline"
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => setTransformTarget(e)}
+                            className="text-xs font-semibold text-emerald-700 hover:underline disabled:opacity-50"
                           >
-                            Crear familia
-                          </Link>
+                            Convertir a familia
+                          </button>
                           <button
                             type="button"
                             disabled={isPending}
@@ -242,8 +258,17 @@ export function WaitlistTable({ entries, therapistsById }: Props) {
                           <button
                             type="button"
                             disabled={isPending}
-                            onClick={() => handleScheduled(e.id)}
+                            onClick={() => setTransformTarget(e)}
                             className="text-xs font-semibold text-emerald-700 hover:underline disabled:opacity-50"
+                          >
+                            Convertir a familia
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleScheduledManual(e.id)}
+                            className="text-xs text-fm-on-surface-variant hover:underline disabled:opacity-50"
+                            title="Marcar como agendada sin crear familia (la familia ya existe)"
                           >
                             Marcar agendada
                           </button>
@@ -254,6 +279,46 @@ export function WaitlistTable({ entries, therapistsById }: Props) {
                             className="text-xs text-fm-on-surface-variant hover:underline disabled:opacity-50"
                           >
                             Volver a espera
+                          </button>
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => setDropTarget(e)}
+                            className="text-xs text-fm-error hover:underline disabled:opacity-50"
+                          >
+                            Descartar
+                          </button>
+                        </>
+                      )}
+                      {e.status === 'scheduled' && (
+                        <>
+                          {(() => {
+                            const childId = e.scheduled_child_id
+                            const familyId = childId ? familyIdByChildId?.[childId] : undefined
+                            if (childId && familyId) {
+                              return (
+                                <Link
+                                  href={`/familias/${familyId}/children/${childId}`}
+                                  className="text-xs font-semibold text-fm-primary hover:underline"
+                                >
+                                  Ver ficha del niño
+                                </Link>
+                              )
+                            }
+                            return (
+                              <span className="text-[10px] italic text-amber-700 max-w-[140px] text-right">
+                                Sin link al niño. Marcala como contactada y volvé a convertir.
+                              </span>
+                            )
+                          })()}
+                          <button
+                            type="button"
+                            disabled={isPending}
+                            onClick={() => handleRevertScheduled(e.id)}
+                            className="text-xs text-fm-on-surface-variant hover:underline disabled:opacity-50"
+                            title="Limpia el link al niño y vuelve la entrada a 'contactada'. La familia y el niño NO se borran."
+                          >
+                            Volver a contactada
                           </button>
                           <button
                             type="button"
@@ -283,6 +348,14 @@ export function WaitlistTable({ entries, therapistsById }: Props) {
           </tbody>
         </table>
       </div>
+
+      {/* Transform modal */}
+      {transformTarget && (
+        <TransformWaitlistModal
+          entry={transformTarget}
+          onClose={() => setTransformTarget(null)}
+        />
+      )}
 
       {/* Drop modal */}
       {dropTarget && (
