@@ -184,7 +184,21 @@ export async function resolveAbsenceWithReplacement(
 
   revalidatePath('/aprobaciones')
   revalidatePath('/agenda')
-  return { ok: true, replacement: data as Appointment }
+
+  // Revalidar el dashboard del niño (contador "pendientes de reponer").
+  const newAppt = data as Appointment
+  if (newAppt?.child_id) {
+    const { data: childRow } = await supabase
+      .from('children')
+      .select('id, family_id')
+      .eq('id', newAppt.child_id)
+      .maybeSingle()
+    if (childRow) {
+      revalidatePath(`/familias/${childRow.family_id}/children/${childRow.id}`)
+    }
+  }
+
+  return { ok: true, replacement: newAppt }
 }
 
 // ── Waive (mgmt) ───────────────────────────────────────────────────────────
@@ -219,7 +233,28 @@ export async function waiveAbsence(
   }
 
   revalidatePath('/aprobaciones')
-  return { ok: true, absence: data as AppointmentAbsence }
+
+  // Revalidar el dashboard del niño (contador "pendientes de reponer").
+  const waived = data as AppointmentAbsence
+  if (waived?.appointment_id) {
+    const { data: apptRow } = await supabase
+      .from('appointments')
+      .select('child_id')
+      .eq('id', waived.appointment_id)
+      .maybeSingle()
+    if (apptRow?.child_id) {
+      const { data: childRow } = await supabase
+        .from('children')
+        .select('id, family_id')
+        .eq('id', apptRow.child_id)
+        .maybeSingle()
+      if (childRow) {
+        revalidatePath(`/familias/${childRow.family_id}/children/${childRow.id}`)
+      }
+    }
+  }
+
+  return { ok: true, absence: waived }
 }
 
 // ── Sugerencias de slots para reposición ───────────────────────────────────

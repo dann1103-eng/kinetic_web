@@ -116,6 +116,23 @@ export async function summarizeActiveTherapiesForTherapist(
   }
   if (activeChildById.size === 0) return []
 
+  // Q2b. El informe cuatrimestral es competencia SOLO de la terapista principal
+  // del niño (treatment_plans.primary_therapist_id). Si esta terapista no es
+  // la principal de un niño, no debe aparecerle como pendiente —aunque haya
+  // dado terapias de respaldo.
+  const { data: plansRaw } = await supabase
+    .from('treatment_plans')
+    .select('child_id')
+    .in('child_id', Array.from(activeChildById.keys()))
+    .eq('primary_therapist_id', therapistId)
+
+  const primaryChildIds = new Set((plansRaw ?? []).map((p) => p.child_id))
+  // Filtrar el mapa a solo los niños donde es la principal.
+  for (const id of Array.from(activeChildById.keys())) {
+    if (!primaryChildIds.has(id)) activeChildById.delete(id)
+  }
+  if (activeChildById.size === 0) return []
+
   // Q3. Progress reports existentes en la ventana (cualquier estado, para mostrar
   // estado real). El "más reciente por par" se queda con el de mayor period_ends.
   const serviceTypes = Array.from(new Set(Array.from(pairs.values()).map((p) => p.serviceType)))

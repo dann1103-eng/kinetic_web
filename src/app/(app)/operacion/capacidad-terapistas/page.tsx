@@ -99,7 +99,7 @@ export default async function CapacidadTerapistasPage({ searchParams }: PageProp
       </header>
 
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <WeekNavigator weekStart={weekStart} weekEnd={weekEnd} />
+        <WeekNavigator weekStartParam={toDateParam(weekStart)} />
         <Link
           href="/operacion/horarios-terapistas"
           className="text-sm font-semibold text-fm-primary hover:underline"
