@@ -166,12 +166,13 @@ Visible si AL MENOS UN item es accesible al usuario. Cada item respeta su propio
 - `/users` — Equipo unificado con panel lateral (tabs Perfil / Horario / Capacidad)
 - `/usuarios-portal` — Cuentas family
 - `/operacion/capacidad-terapistas` — Tabla semanal comparativa de ocupación
-- `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion). Tarjetas activas: **Financieros** (ingresos mensuales, comparativa anual, ciclos, pagos por método) y **Planillas** (CRUD mensual con cálculo ISSS/AFP/ISR + firma digital). Sub-categorías futuras (placeholders): operativos, por terapista.
-  - `/reportes/financieros` — 4 reportes web+PDF.
+- `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion, coordinadora_terapias). Tarjetas activas: **Financieros**, **Planillas** y **Por terapista**. Sub-categoría futura (placeholder): operativos.
+  - `/reportes/financieros` — 4 reportes web+PDF (ingresos mensuales, comparativa anual, ciclos, pagos por método).
   - `/reportes/contabilidad` — Hub de Planillas → listado mensual + configuración. (La ruta sigue siendo `contabilidad` para minimizar churn; en UI se muestra como "Planillas".)
   - `/reportes/contabilidad/planillas` — Listado y creación de planillas mensuales.
   - `/reportes/contabilidad/planillas/[id]` — Detalle: editable en draft, sellado inmutable, firma de empleados, PDF.
   - `/reportes/contabilidad/configuracion` — Constantes ISSS/AFP/ISR (admin) + tabla de salarios por empleado (admin/directora/contable).
+  - `/reportes/por-terapista` — Tabla comparativa mensual del equipo con KPIs por terapista: asistencia (completed/no_show/late_cancel/reposiciones), carga horaria (trabajadas vs contratadas), cumplimiento de informes cuatrimestrales. Roles: admin, directora, coordinadora_terapias. Cada fila tiene botón de descarga PDF individual; cabecera tiene descarga del PDF del equipo.
 - `/billing` — Facturación (FM legacy, can_quote también ve fallback top-level)
 
 ## Portal padres (`/portal/*`)
@@ -295,7 +296,7 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
     - PDFs vía `@react-pdf/renderer`: shell `KineticReportPdf.tsx` + 4 componentes concretos; A4 portrait (mensuales / ciclos / métodos) y A4 landscape (anual). Paleta Kinetic `#00675c`/`#b31b25`.
     - 4 API routes bajo `/api/reportes/financieros/*` con `renderToBuffer()`. Roles: admin, directora, contable, recepcion. Logo de `app_settings.value` con `key='agency_logo_url'`.
     - `AccordionSection` reusable extraído a `src/components/ui/AccordionSection.tsx`.
-12. **Contabilidad y planillas (Fase 8)**:
+12. **Planillas y contabilidad (Fase 8)**:
     - Migración 0117: columnas salariales en `users` (`monthly_salary_usd`, `hourly_rate_usd`, `contract_type`, `dui`, `isss_number`, `afp_number`, `afp_provider`, `hire_date`) + tablas `payroll_fiscal_config` (con seed SV: ISSS 3%/7.5% tope $1000, AFP 7.25%/8.75%, ISR 4 tramos) + `payroll_runs` + `payroll_items` + RLS + RPC `sign_my_payroll_item`.
     - Función pura `calculatePayroll` en `src/lib/domain/payroll/calculation.ts` con `applyIsrBrackets`. Toda la matemática es testable sin Supabase. Configuración fiscal versionable por `effective_from`.
     - Server actions en `src/app/actions/payroll.ts`: `createPayrollRun`, `updatePayrollItem`, `removePayrollItem`, `sealPayrollRun`, `markPayrollRunPaid`, `cancelPayrollRun`, `signMyPayrollItem` (vía RPC `SECURITY DEFINER`), `updateUserSalary`, `updateActiveFiscalConfig`, más lecturas (`listPayrollRuns`, `getPayrollRunDetail`, `listMyPayrollItems`, `getMyPayrollItem`).
@@ -303,11 +304,19 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
     - UI admin en `/reportes/contabilidad/*`: landing, lista de planillas, detalle editable con KPIs y tabla colapsable por empleado, configuración (constantes fiscales + tabla de salarios). Solo admin/directora/contable.
     - UI empleado en `/mis-recibos`: lista de planillas selladas/pagadas + detalle con desglose + botón "Firmar recibo (conforme)". Sidebar top-level visible a todo el staff (no family/client).
     - PDFs: `PayrollRunPDF` (landscape, planilla completa con totales + aportes patronales) y `PayrollItemPDF` (portrait, recibo individual con desglose + zona de firma o sello "firmado digitalmente"). API routes `/api/reportes/contabilidad/{planilla,recibo}/[id]`.
-    - Tarjeta "Contabilidad y planillas" activada en `/reportes`. Script `supabase/scripts/verify_pending_migrations.sql` extendido con checks de mig 0117.
+    - Tarjeta "Planillas" activada en `/reportes`. Script `supabase/scripts/verify_pending_migrations.sql` extendido con checks de mig 0117.
+13. **Reportes por terapista**:
+    - Ruta `/reportes/por-terapista` (admin, directora, coordinadora_terapias). Filtros: año + mes.
+    - 3 KPIs por terapista en función pura `src/lib/domain/reports/therapist.ts`:
+      - **Asistencia**: completed / no_show / late_cancel / replacement_attended + show rate %.
+      - **Carga horaria**: hoursWorked (suma de duraciones completed) vs hoursContracted (estimado `max_hours_per_week × días/7`).
+      - **Cumplimiento informes**: niños como primary_therapist + informes vencidos en el período + entregados (approved/sent_to_family) + % cumplimiento.
+    - PDFs: `TeamReportPDF` (landscape A4, tabla comparativa con headers anidados) + `IndividualTherapistPDF` (portrait A4, KPI boxes + detalle de citas).
+    - API routes: `/api/reportes/por-terapista/{equipo,individual/[id]}`. El terapista puede descargar su propio PDF individual (auto-reporte).
+    - Tarjeta "Por terapista" activada en `/reportes`. Usa `appointment_absences` con status='replaced' para contar reposiciones cumplidas.
 
 ## Pendiente (próximas sesiones)
-- 📋 Reportería **Operativos** (asistencia, capacidad histórica, churn) — siguiente sub-fase de reportería.
-- 📋 Reportería **Por terapista** (productividad, horas, cumplimiento de informes) — siguiente sub-fase de reportería.
+- 📋 Reportería **Operativos** (asistencia agregada del centro, capacidad histórica multi-mes, churn de familias) — última sub-fase de reportería.
 - (Backlog) Detección automática de slot liberado tras cancelar cita → alerta a lista de espera
 - (Backlog) Notificaciones a familias en waitlist por email/WhatsApp
 - (Backlog) Vista mensual/anual de capacidad (actual es solo semanal)

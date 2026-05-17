@@ -161,7 +161,7 @@ const adminGroupItems: NavItem[] = [
   {
     href: '/reportes',
     label: 'Reportes',
-    allowedRoles: ['admin', 'directora', 'contable', 'recepcion'],
+    allowedRoles: ['admin', 'directora', 'contable', 'recepcion', 'coordinadora_terapias'],
     icon: (
       <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>summarize</span>
     ),

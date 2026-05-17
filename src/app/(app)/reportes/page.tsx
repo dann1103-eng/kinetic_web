@@ -6,7 +6,7 @@ import type { UserRole } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES: UserRole[] = ['admin', 'directora', 'contable', 'recepcion']
+const ALLOWED_ROLES: UserRole[] = ['admin', 'directora', 'contable', 'recepcion', 'coordinadora_terapias']
 
 interface Card {
   title: string
@@ -39,9 +39,10 @@ const CARDS: Card[] = [
   },
   {
     title: 'Por terapista',
-    description: 'Productividad: sesiones realizadas, horas trabajadas vs contratadas, cumplimiento de informes cuatrimestrales.',
+    description: 'Productividad: sesiones realizadas, no-shows, reposiciones cumplidas, horas trabajadas vs contratadas y cumplimiento de informes cuatrimestrales.',
     icon: 'psychology',
-    active: false,
+    href: '/reportes/por-terapista',
+    active: true,
   },
 ]
 
