@@ -1,53 +1,69 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
   <!--
     Patrón de fondo para el portal de padres Kinetic.
-    Reemplaza el URL efímero del CDN de Stitch que expiró.
-    Estilo: orgánico, soft, pediátrico — formas redondeadas en tonos del primary
-    Kinetic (#00675c teal) + acentos suaves de los colores secundarios.
+    Las opacidades aquí son altas porque el contenedor que lo monta usa
+    opacity-[0.07] mobile / opacity-20 desktop, así que el aporte real
+    es bastante sutil. Si parece muy sutil aún, subir las alphas acá.
   -->
   <defs>
     <linearGradient id="bg-gradient" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#e6f5f3" />
-      <stop offset="50%" stop-color="#f5f9fa" />
-      <stop offset="100%" stop-color="#fef5e5" />
+      <stop offset="0%" stop-color="#a8e3da" />
+      <stop offset="40%" stop-color="#f0f6f6" />
+      <stop offset="100%" stop-color="#fde4b0" />
     </linearGradient>
-    <radialGradient id="circle-teal" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#00675c" stop-opacity="0.18" />
+    <radialGradient id="blob-teal" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00675c" stop-opacity="0.85" />
+      <stop offset="70%" stop-color="#00675c" stop-opacity="0.15" />
       <stop offset="100%" stop-color="#00675c" stop-opacity="0" />
     </radialGradient>
-    <radialGradient id="circle-amber" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#f7b945" stop-opacity="0.14" />
+    <radialGradient id="blob-amber" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f7b945" stop-opacity="0.7" />
+      <stop offset="70%" stop-color="#f7b945" stop-opacity="0.1" />
       <stop offset="100%" stop-color="#f7b945" stop-opacity="0" />
     </radialGradient>
-    <radialGradient id="circle-green" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#7cc74f" stop-opacity="0.12" />
+    <radialGradient id="blob-green" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7cc74f" stop-opacity="0.65" />
+      <stop offset="70%" stop-color="#7cc74f" stop-opacity="0.1" />
       <stop offset="100%" stop-color="#7cc74f" stop-opacity="0" />
     </radialGradient>
-    <radialGradient id="circle-pink" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#e5316e" stop-opacity="0.08" />
+    <radialGradient id="blob-pink" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#e5316e" stop-opacity="0.5" />
+      <stop offset="70%" stop-color="#e5316e" stop-opacity="0.08" />
       <stop offset="100%" stop-color="#e5316e" stop-opacity="0" />
+    </radialGradient>
+    <radialGradient id="blob-sky" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#5bd4ff" stop-opacity="0.55" />
+      <stop offset="70%" stop-color="#5bd4ff" stop-opacity="0.1" />
+      <stop offset="100%" stop-color="#5bd4ff" stop-opacity="0" />
     </radialGradient>
   </defs>
 
   <!-- Base gradient -->
-  <rect width="800" height="600" fill="url(#bg-gradient)" />
+  <rect width="1600" height="1000" fill="url(#bg-gradient)" />
 
-  <!-- Soft floating organic shapes -->
-  <circle cx="100" cy="80" r="180" fill="url(#circle-teal)" />
-  <circle cx="700" cy="120" r="160" fill="url(#circle-amber)" />
-  <circle cx="200" cy="450" r="200" fill="url(#circle-green)" />
-  <circle cx="650" cy="500" r="170" fill="url(#circle-pink)" />
-  <circle cx="400" cy="280" r="220" fill="url(#circle-teal)" />
+  <!-- Large soft organic blobs (paleta Kinetic) -->
+  <circle cx="200" cy="180" r="340" fill="url(#blob-teal)" />
+  <circle cx="1400" cy="220" r="320" fill="url(#blob-amber)" />
+  <circle cx="380" cy="800" r="380" fill="url(#blob-green)" />
+  <circle cx="1280" cy="820" r="340" fill="url(#blob-pink)" />
+  <circle cx="800" cy="500" r="450" fill="url(#blob-teal)" />
+  <circle cx="1100" cy="100" r="220" fill="url(#blob-sky)" />
+  <circle cx="100" cy="500" r="240" fill="url(#blob-amber)" />
+  <circle cx="900" cy="900" r="260" fill="url(#blob-sky)" />
 
-  <!-- Small floating decorative dots / blobs (very subtle) -->
-  <g opacity="0.5">
-    <circle cx="150" cy="200" r="3" fill="#00675c" opacity="0.3" />
-    <circle cx="380" cy="100" r="4" fill="#7cc74f" opacity="0.25" />
-    <circle cx="580" cy="240" r="3" fill="#f7b945" opacity="0.3" />
-    <circle cx="720" cy="340" r="5" fill="#00675c" opacity="0.2" />
-    <circle cx="250" cy="380" r="3" fill="#e5316e" opacity="0.25" />
-    <circle cx="500" cy="450" r="4" fill="#7cc74f" opacity="0.25" />
-    <circle cx="80" cy="320" r="3" fill="#f7b945" opacity="0.3" />
-    <circle cx="440" cy="540" r="3" fill="#00675c" opacity="0.25" />
+  <!-- Subtle decorative dots scattered -->
+  <g opacity="0.7">
+    <circle cx="300" cy="380" r="5" fill="#00675c" />
+    <circle cx="760" cy="180" r="6" fill="#7cc74f" />
+    <circle cx="1160" cy="440" r="5" fill="#f7b945" />
+    <circle cx="1440" cy="640" r="7" fill="#00675c" />
+    <circle cx="500" cy="700" r="5" fill="#e5316e" />
+    <circle cx="1000" cy="830" r="6" fill="#7cc74f" />
+    <circle cx="160" cy="640" r="5" fill="#f7b945" />
+    <circle cx="880" cy="980" r="5" fill="#00675c" />
+    <circle cx="1500" cy="300" r="4" fill="#e5316e" />
+    <circle cx="640" cy="940" r="6" fill="#5bd4ff" />
+    <circle cx="1320" cy="100" r="5" fill="#7cc74f" />
+    <circle cx="60" cy="200" r="4" fill="#f7b945" />
   </g>
 </svg>
