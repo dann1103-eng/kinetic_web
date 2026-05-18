@@ -1,69 +1,35 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
   <!--
     Patrón de fondo para el portal de padres Kinetic.
-    Las opacidades aquí son altas porque el contenedor que lo monta usa
-    opacity-[0.07] mobile / opacity-20 desktop, así que el aporte real
-    es bastante sutil. Si parece muy sutil aún, subir las alphas acá.
+    Formas sólidas planas (sin gradients radiales) en la paleta Kinetic.
+    El contenedor que monta este SVG usa opacity-[0.07] mobile / opacity-20
+    desktop, así que el aporte real es bastante sutil.
   -->
-  <defs>
-    <linearGradient id="bg-gradient" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#a8e3da" />
-      <stop offset="40%" stop-color="#f0f6f6" />
-      <stop offset="100%" stop-color="#fde4b0" />
-    </linearGradient>
-    <radialGradient id="blob-teal" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#00675c" stop-opacity="0.85" />
-      <stop offset="70%" stop-color="#00675c" stop-opacity="0.15" />
-      <stop offset="100%" stop-color="#00675c" stop-opacity="0" />
-    </radialGradient>
-    <radialGradient id="blob-amber" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#f7b945" stop-opacity="0.7" />
-      <stop offset="70%" stop-color="#f7b945" stop-opacity="0.1" />
-      <stop offset="100%" stop-color="#f7b945" stop-opacity="0" />
-    </radialGradient>
-    <radialGradient id="blob-green" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#7cc74f" stop-opacity="0.65" />
-      <stop offset="70%" stop-color="#7cc74f" stop-opacity="0.1" />
-      <stop offset="100%" stop-color="#7cc74f" stop-opacity="0" />
-    </radialGradient>
-    <radialGradient id="blob-pink" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#e5316e" stop-opacity="0.5" />
-      <stop offset="70%" stop-color="#e5316e" stop-opacity="0.08" />
-      <stop offset="100%" stop-color="#e5316e" stop-opacity="0" />
-    </radialGradient>
-    <radialGradient id="blob-sky" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#5bd4ff" stop-opacity="0.55" />
-      <stop offset="70%" stop-color="#5bd4ff" stop-opacity="0.1" />
-      <stop offset="100%" stop-color="#5bd4ff" stop-opacity="0" />
-    </radialGradient>
-  </defs>
 
-  <!-- Base gradient -->
-  <rect width="1600" height="1000" fill="url(#bg-gradient)" />
+  <!-- Base color soft -->
+  <rect width="1600" height="1000" fill="#f0f6f6" />
 
-  <!-- Large soft organic blobs (paleta Kinetic) -->
-  <circle cx="200" cy="180" r="340" fill="url(#blob-teal)" />
-  <circle cx="1400" cy="220" r="320" fill="url(#blob-amber)" />
-  <circle cx="380" cy="800" r="380" fill="url(#blob-green)" />
-  <circle cx="1280" cy="820" r="340" fill="url(#blob-pink)" />
-  <circle cx="800" cy="500" r="450" fill="url(#blob-teal)" />
-  <circle cx="1100" cy="100" r="220" fill="url(#blob-sky)" />
-  <circle cx="100" cy="500" r="240" fill="url(#blob-amber)" />
-  <circle cx="900" cy="900" r="260" fill="url(#blob-sky)" />
+  <!-- Círculos sólidos grandes (paleta Kinetic, fills planos) -->
+  <circle cx="200" cy="180" r="280" fill="#00675c" />
+  <circle cx="1400" cy="220" r="260" fill="#f7b945" />
+  <circle cx="380" cy="800" r="320" fill="#7cc74f" />
+  <circle cx="1280" cy="820" r="280" fill="#e5316e" />
+  <circle cx="800" cy="500" r="380" fill="#00675c" />
+  <circle cx="1100" cy="100" r="180" fill="#5bd4ff" />
+  <circle cx="100" cy="500" r="200" fill="#f7b945" />
+  <circle cx="900" cy="900" r="220" fill="#5bd4ff" />
 
-  <!-- Subtle decorative dots scattered -->
-  <g opacity="0.7">
-    <circle cx="300" cy="380" r="5" fill="#00675c" />
-    <circle cx="760" cy="180" r="6" fill="#7cc74f" />
-    <circle cx="1160" cy="440" r="5" fill="#f7b945" />
-    <circle cx="1440" cy="640" r="7" fill="#00675c" />
-    <circle cx="500" cy="700" r="5" fill="#e5316e" />
-    <circle cx="1000" cy="830" r="6" fill="#7cc74f" />
-    <circle cx="160" cy="640" r="5" fill="#f7b945" />
-    <circle cx="880" cy="980" r="5" fill="#00675c" />
-    <circle cx="1500" cy="300" r="4" fill="#e5316e" />
-    <circle cx="640" cy="940" r="6" fill="#5bd4ff" />
-    <circle cx="1320" cy="100" r="5" fill="#7cc74f" />
-    <circle cx="60" cy="200" r="4" fill="#f7b945" />
-  </g>
+  <!-- Dots decorativos sólidos -->
+  <circle cx="300" cy="380" r="6" fill="#00675c" />
+  <circle cx="760" cy="180" r="8" fill="#7cc74f" />
+  <circle cx="1160" cy="440" r="6" fill="#f7b945" />
+  <circle cx="1440" cy="640" r="9" fill="#00675c" />
+  <circle cx="500" cy="700" r="6" fill="#e5316e" />
+  <circle cx="1000" cy="830" r="8" fill="#7cc74f" />
+  <circle cx="160" cy="640" r="6" fill="#f7b945" />
+  <circle cx="880" cy="980" r="6" fill="#00675c" />
+  <circle cx="1500" cy="300" r="5" fill="#e5316e" />
+  <circle cx="640" cy="940" r="8" fill="#5bd4ff" />
+  <circle cx="1320" cy="100" r="6" fill="#7cc74f" />
+  <circle cx="60" cy="200" r="5" fill="#f7b945" />
 </svg>
