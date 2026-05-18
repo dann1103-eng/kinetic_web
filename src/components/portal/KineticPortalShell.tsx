@@ -113,20 +113,19 @@ export function KineticPortalShell({
       {/* ── Desktop sidebar (hidden below md) ── */}
       <aside className="hidden md:flex fixed top-0 left-0 h-full w-64 bg-fm-surface/95 backdrop-blur-sm border-r border-fm-outline-variant/30 flex-col z-50">
 
-        {/* Brand mark */}
-        <div className="px-6 pt-8 pb-5">
-          <p className="text-[22px] font-black text-kp-primary tracking-tight">Kinetic</p>
-          <p className="text-[11px] font-semibold tracking-[0.08em] text-fm-on-surface-variant uppercase mt-0.5">
-            Portal de Padres
-          </p>
-        </div>
-
-        {/* User card */}
-        <div className="mx-4 mb-5 p-3 rounded-2xl bg-kp-primary-container/10 flex items-center gap-3">
-          {renderAvatar('sm')}
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-fm-on-surface truncate">{userName}</p>
-            <p className="text-[11px] text-fm-on-surface-variant">Familia</p>
+        {/* Brand mark — Kinetic Portal · Pediatric Care */}
+        <div className="px-6 pt-8 pb-6 flex items-start gap-3">
+          <div className="w-10 h-10 rounded-xl bg-kp-primary-container/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span className="material-symbols-outlined text-kp-primary text-[22px]">
+              health_and_safety
+            </span>
+          </div>
+          <div className="leading-tight">
+            <p className="text-[20px] font-black text-fm-on-surface tracking-tight">Kinetic</p>
+            <p className="text-[16px] font-bold text-kp-primary tracking-tight -mt-0.5">Portal</p>
+            <p className="text-[10px] font-semibold tracking-[0.08em] text-fm-on-surface-variant uppercase mt-1">
+              Pediatric Care
+            </p>
           </div>
         </div>
 
@@ -174,15 +173,50 @@ export function KineticPortalShell({
       </aside>
 
       {/* ── Desktop top app bar (hidden below md) ── */}
-      <header className="hidden md:flex fixed top-0 left-64 right-0 h-20 bg-fm-surface/80 backdrop-blur-sm border-b border-fm-outline-variant/20 items-center justify-end px-10 z-40">
-        {/* Actions: dark mode toggle + user chip */}
-        <div className="flex items-center gap-2">
+      <header className="hidden md:flex fixed top-0 left-64 right-0 h-20 bg-fm-surface/80 backdrop-blur-sm border-b border-fm-outline-variant/20 items-center justify-between px-8 z-40 gap-4">
+        {/* Search bar — UI only por ahora (sin búsqueda real conectada) */}
+        <div className="flex-1 max-w-md">
+          <label className="flex items-center gap-2 rounded-full bg-fm-surface-container-low/60 border border-fm-outline-variant/30 px-4 py-2 focus-within:border-kp-primary/40 focus-within:bg-fm-surface-container-low transition-colors">
+            <span className="material-symbols-outlined text-[18px] text-fm-on-surface-variant">search</span>
+            <input
+              type="search"
+              placeholder="Buscar citas, reportes…"
+              className="flex-1 bg-transparent text-sm text-fm-on-surface placeholder-fm-on-surface-variant focus:outline-none"
+              aria-label="Buscar"
+            />
+          </label>
+        </div>
+
+        {/* Actions: dark mode + notifications + chat + user chip */}
+        <div className="flex items-center gap-1">
           {renderThemeToggle()}
 
-          {/* User chip */}
-          <div className="flex items-center gap-2 pl-3 border-l border-fm-outline-variant/30 ml-1">
+          <button
+            type="button"
+            className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-kp-primary/5 transition-colors"
+            aria-label="Notificaciones"
+          >
+            <span className="material-symbols-outlined text-fm-on-surface-variant">notifications</span>
+            {/* Punto de notificación — visible solo cuando hay notificaciones reales (TODO: wire) */}
+            {/* <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-fm-error" /> */}
+          </button>
+
+          <Link
+            href="/portal/agenda-digital"
+            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-kp-primary/5 transition-colors"
+            aria-label="Agenda digital"
+            title="Ir a Agenda digital (conversación con el equipo)"
+          >
+            <span className="material-symbols-outlined text-fm-on-surface-variant">chat_bubble</span>
+          </Link>
+
+          {/* User chip con nombre completo + rol */}
+          <div className="flex items-center gap-2.5 pl-3 ml-2 border-l border-fm-outline-variant/30">
+            <div className="text-right leading-tight">
+              <p className="text-[13px] font-bold text-fm-on-surface">{userName}</p>
+              <p className="text-[11px] text-fm-on-surface-variant">Familia</p>
+            </div>
             {renderAvatar('sm')}
-            <span className="text-[14px] font-semibold text-fm-on-surface">{firstName}</span>
           </div>
         </div>
       </header>
