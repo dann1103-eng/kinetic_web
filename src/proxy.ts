@@ -77,6 +77,18 @@ export async function proxy(request: NextRequest) {
 
     const { pathname } = request.nextUrl
 
+    // Helper: preserva cookies refrescadas por Supabase al redirigir,
+    // así no perdemos la oportunidad de extender la sesión durante un
+    // redirect (e.g., cuando el JWT viejo es válido pero estaba por
+    // expirar y Supabase generó cookies nuevas durante getUser()).
+    function redirectKeepingCookies(targetUrl: URL): NextResponse {
+      const res = NextResponse.redirect(targetUrl)
+      supabaseResponse.cookies.getAll().forEach((cookie) => {
+        res.cookies.set(cookie)
+      })
+      return res
+    }
+
     // Public routes — /login and /auth/* (signout route handler)
     if (pathname.startsWith('/login') || pathname.startsWith('/auth')) {
       // Redirect already-authenticated users away from login (role-aware)
@@ -87,16 +99,16 @@ export async function proxy(request: NextRequest) {
           .eq('id', user.id)
           .maybeSingle()
         let dest = '/dashboard'
-        if (appUser?.role === 'family') dest = '/portal/agenda-digital'
+        if (appUser?.role === 'family') dest = '/portal'
         else if (appUser?.role === 'client') dest = '/portal/dashboard'
-        return NextResponse.redirect(new URL(dest, request.url))
+        return redirectKeepingCookies(new URL(dest, request.url))
       }
       return supabaseResponse
     }
 
     // All other routes require auth
     if (!user) {
-      return NextResponse.redirect(new URL('/login', request.url))
+      return redirectKeepingCookies(new URL('/login', request.url))
     }
 
     // Fetch role for authenticated, non-public requests
@@ -127,12 +139,12 @@ export async function proxy(request: NextRequest) {
 
     // Rule 2a: clientes FM en rutas staff → portal FM
     if (effectiveRole === 'client' && startsWithAny(pathname, STAFF_PREFIXES)) {
-      return NextResponse.redirect(new URL('/portal/dashboard', request.url))
+      return redirectKeepingCookies(new URL('/portal/dashboard', request.url))
     }
 
-    // Rule 2b: familias Kinetic en rutas staff → portal Kinetic family
+    // Rule 2b: familias Kinetic en rutas staff → portal Kinetic family (home)
     if (effectiveRole === 'family' && startsWithAny(pathname, STAFF_PREFIXES)) {
-      return NextResponse.redirect(new URL('/portal/agenda-digital', request.url))
+      return redirectKeepingCookies(new URL('/portal', request.url))
     }
 
     // Rule 3: staff (real, no suplantando cliente/familia) en /portal/* → /dashboard
@@ -142,7 +154,7 @@ export async function proxy(request: NextRequest) {
       effectiveRole !== 'family' &&
       pathname.startsWith(PORTAL_PREFIX)
     ) {
-      return NextResponse.redirect(new URL('/dashboard', request.url))
+      return redirectKeepingCookies(new URL('/dashboard', request.url))
     }
 
     supabaseResponse.headers.set('x-pathname', pathname)
