@@ -108,6 +108,7 @@ export async function proxy(request: NextRequest) {
 
     // All other routes require auth
     if (!user) {
+      console.warn(`[proxy] no user, redirecting to /login from ${pathname}`)
       return redirectKeepingCookies(new URL('/login', request.url))
     }
 

@@ -11,9 +11,17 @@ import { UserProvider } from '@/contexts/UserContext'
 import { SessionSentinel } from '@/components/auth/SessionSentinel'
 import { SpectatorBanner } from '@/components/layout/SpectatorBanner'
 
+// Forzar dynamic: el layout lee cookies (auth) y headers (x-pathname) de la
+// request actual. Sin esto Next.js puede intentar cachear el layout y la
+// auth check correr con datos viejos entre navegaciones.
+export const dynamic = 'force-dynamic'
+
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const ctx = await getEffectiveUser()
-  if (!ctx) redirect('/login')
+  if (!ctx) {
+    console.warn('[portal-layout] getEffectiveUser returned null → /login')
+    redirect('/login')
+  }
 
   // Kinetic family users bypass the FM client-selector flow entirely.
   if (ctx.appUser.role === 'family') {
