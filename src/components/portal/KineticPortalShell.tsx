@@ -162,13 +162,18 @@ export function KineticPortalShell({
             <span className="material-symbols-outlined text-[20px]">help_outline</span>
             Ayuda
           </button>
-          <Link
-            href="/auth/signout"
-            className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[14px] font-semibold text-fm-on-surface-variant hover:bg-fm-surface-container-high transition-colors"
-          >
-            <span className="material-symbols-outlined text-[20px]">logout</span>
-            Cerrar sesión
-          </Link>
+          {/* form POST en vez de <Link>: si fuera Link, Next.js prefetchea el
+              href en el render → /auth/signout se ejecuta solo y limpia las
+              cookies sin que el usuario haga click. */}
+          <form action="/auth/signout" method="post">
+            <button
+              type="submit"
+              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[14px] font-semibold text-fm-on-surface-variant hover:bg-fm-surface-container-high transition-colors text-left"
+            >
+              <span className="material-symbols-outlined text-[20px]">logout</span>
+              Cerrar sesión
+            </button>
+          </form>
         </div>
       </aside>
 

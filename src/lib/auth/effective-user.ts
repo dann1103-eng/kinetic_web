@@ -35,15 +35,28 @@ export async function getEffectiveUser(): Promise<EffectiveUserContext | null> {
   const supabase = await createClient()
   const {
     data: { user: authUser },
+    error: authError,
   } = await supabase.auth.getUser()
-  if (!authUser) return null
+  if (!authUser) {
+    if (authError) {
+      console.warn('[getEffectiveUser] auth.getUser error:', authError.message)
+    } else {
+      console.warn('[getEffectiveUser] auth.getUser returned no user (no cookie)')
+    }
+    return null
+  }
 
-  const { data: realAppUser } = await supabase
+  const { data: realAppUser, error: userError } = await supabase
     .from('users')
     .select('*')
     .eq('id', authUser.id)
     .single()
-  if (!realAppUser) return null
+  if (!realAppUser) {
+    console.warn(
+      `[getEffectiveUser] no row in users table for authUid=${authUser.id} email=${authUser.email} — ${userError?.message ?? 'no error returned'}`,
+    )
+    return null
+  }
 
   const cookieStore = await cookies()
   const targetId = cookieStore.get(IMPERSONATE_COOKIE)?.value

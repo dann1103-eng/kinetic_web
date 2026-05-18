@@ -39,6 +39,18 @@ async function handleSignout(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  // Defensa contra Next.js prefetch: si la request es un prefetch automático,
+  // NO ejecutar el signout. Esto pasa si algún <Link href="/auth/signout"> se
+  // renderiza — Next prefetchea el href en el background, desloguendo al
+  // usuario sin que hizo click. La forma correcta de invocar signout es por
+  // POST (formulario); el GET solo queda como compat de URLs directas.
+  const prefetchHeader =
+    request.headers.get('next-router-prefetch') ??
+    request.headers.get('x-purpose') ??
+    request.headers.get('purpose')
+  if (prefetchHeader) {
+    return new NextResponse(null, { status: 204 })
+  }
   return handleSignout(request)
 }
 
