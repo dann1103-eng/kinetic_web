@@ -17,7 +17,9 @@ interface Props {
 
 const ALL_NAV_ITEMS = [
   { href: '/portal',                label: 'Inicio',   icon: 'home',           exact: true,  requiresWork: false, requiresBilling: false },
-  { href: '/portal/agenda',         label: 'Citas',    icon: 'calendar_month', exact: false, requiresWork: true,  requiresBilling: false },
+  // `exact: true` en Citas evita que /portal/agenda-digital active también
+  // este tab (porque agenda-digital startsWith /portal/agenda).
+  { href: '/portal/agenda',         label: 'Citas',    icon: 'calendar_month', exact: true,  requiresWork: true,  requiresBilling: false },
   { href: '/portal/agenda-digital', label: 'Reportes', icon: 'description',    exact: false, requiresWork: true,  requiresBilling: false },
   { href: '/portal/facturas',       label: 'Facturas', icon: 'receipt_long',   exact: false, requiresWork: false, requiresBilling: true  },
 ]
