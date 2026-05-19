@@ -15,6 +15,7 @@ import {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
+// Catálogo completo (incluye legacy para resolver chips de users existentes).
 const STAFF_ROLES: { value: UserRole; label: string; chip: string }[] = [
   { value: 'admin',                 label: 'Admin',               chip: 'bg-fm-primary/10 text-fm-primary' },
   { value: 'directora',             label: 'Directora',           chip: 'bg-rose-100 text-rose-700' },
@@ -27,6 +28,10 @@ const STAFF_ROLES: { value: UserRole; label: string; chip: string }[] = [
   { value: 'contable',              label: 'Contable',            chip: 'bg-zinc-100 text-zinc-700' },
   { value: 'operator',              label: 'Operador (legacy)',   chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant' },
 ]
+
+// Roles asignables al CREAR un usuario nuevo. Excluye legacy/deprecated.
+const DEPRECATED_ROLES: UserRole[] = ['supervisor', 'operator', 'maestra']
+const SELECTABLE_ROLES = STAFF_ROLES.filter((r) => !DEPRECATED_ROLES.includes(r.value))
 
 function roleMeta(role: UserRole) {
   return STAFF_ROLES.find((r) => r.value === role) ?? { label: role, chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant' }
@@ -129,7 +134,7 @@ function CreateUserModal({ onClose, onCreated }: {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {STAFF_ROLES.map((r) => (
+                {SELECTABLE_ROLES.map((r) => (
                   <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                 ))}
               </SelectContent>

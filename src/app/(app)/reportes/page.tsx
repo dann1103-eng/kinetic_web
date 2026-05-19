@@ -52,6 +52,12 @@ export default async function ReportesLandingPage() {
   if (!ctx) redirect('/login')
   if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
 
+  // coordinadora_terapias solo ve la tarjeta "Por terapista" — no tiene acceso a Ingresos/Egresos/Planillas.
+  const visibleCards =
+    ctx.appUser.role === 'coordinadora_terapias'
+      ? CARDS.filter((c) => c.href === '/reportes/por-terapista')
+      : CARDS
+
   return (
     <div className="flex flex-col min-h-full">
       <TopNav title="Reportes" />
@@ -67,7 +73,7 @@ export default async function ReportesLandingPage() {
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {CARDS.map((card) => (
+          {visibleCards.map((card) => (
             <CategoryCard key={card.title} card={card} />
           ))}
         </div>

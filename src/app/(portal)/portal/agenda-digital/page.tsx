@@ -5,6 +5,7 @@ import { PortalJournalClient } from './PortalJournalClient'
 import { SessionReportsList } from '@/components/portal/SessionReportsList'
 import { ProgressReportsList } from '@/components/portal/ProgressReportsList'
 import type {
+  ChildAttachment,
   ChildJournalEntry,
   SessionReport,
   ProgressReport,
@@ -106,6 +107,24 @@ export default async function PortalAgendaDigitalPage() {
     ((templatesRaw ?? []) as ReportTemplate[]).map((t) => [t.id, t]),
   )
 
+  // Adjuntos extra ligados a progress_reports (mig 0119).
+  const progressReportIds = progressReports.map((r) => r.id)
+  const attachmentsByReportId: Record<string, ChildAttachment[]> = {}
+  if (progressReportIds.length > 0) {
+    const { data: attRaw } = await supabase
+      .from('child_attachments')
+      .select('*')
+      .in('progress_report_id', progressReportIds)
+      .eq('visible_to_family', true)
+      .order('created_at', { ascending: false })
+    for (const a of (attRaw ?? []) as ChildAttachment[]) {
+      if (!a.progress_report_id) continue
+      if (!attachmentsByReportId[a.progress_report_id])
+        attachmentsByReportId[a.progress_report_id] = []
+      attachmentsByReportId[a.progress_report_id].push(a)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {progressReports.length > 0 && (
@@ -117,6 +136,7 @@ export default async function PortalAgendaDigitalPage() {
             reports={progressReports}
             childNamesById={childNamesById}
             templateMap={templateMap}
+            attachmentsByReportId={attachmentsByReportId}
           />
         </section>
       )}

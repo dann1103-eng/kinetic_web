@@ -19,6 +19,7 @@ import {
   getReportFileSignedUrl,
 } from '@/app/actions/report-files'
 import type { SessionReport } from '@/types/db'
+import { ChildAttachmentManagerLazy } from '@/components/shared/ChildAttachmentManagerLazy'
 
 interface SessionReportModalProps {
   open: boolean
@@ -310,6 +311,17 @@ export function SessionReportModal({
             {mode === 'file' ? 'Archivo guardado.' : 'Borrador guardado.'}
           </div>
         )}
+
+        {/* Adjuntos extra de la sesión (tareas, imágenes, etc.) — mig 0119 */}
+        <div className="border-t border-fm-outline-variant/15 pt-3">
+          <ChildAttachmentManagerLazy
+            childId={report.child_id}
+            link={{ sessionReportId: report.id }}
+            defaultKind="tarea"
+            title="Adjuntos para la familia"
+            allowedKinds={['tarea', 'imagen', 'evaluacion', 'otro']}
+          />
+        </div>
 
         <div className="-mx-4 -mb-4 flex flex-wrap items-center gap-2 rounded-b-xl border-t bg-muted/30 p-4">
           {/* Eliminar borrador — solo visible cuando el reporte es draft */}

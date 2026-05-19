@@ -33,6 +33,10 @@ import {
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
+// Lista completa de roles staff. Se mantienen los legacy (supervisor, operator,
+// maestra) en el catálogo para que los chips/labels de usuarios EXISTENTES con
+// esos roles sigan resolviéndose correctamente. La asignación de roles nuevos
+// se hace desde SELECTABLE_ROLES (abajo) que los excluye.
 const STAFF_ROLES: { value: UserRole; label: string; chip: string }[] = [
   { value: 'admin',                 label: 'Admin',               chip: 'bg-fm-primary/10 text-fm-primary' },
   { value: 'directora',             label: 'Directora',           chip: 'bg-rose-100 text-rose-700' },
@@ -45,6 +49,12 @@ const STAFF_ROLES: { value: UserRole; label: string; chip: string }[] = [
   { value: 'contable',              label: 'Contable',            chip: 'bg-zinc-100 text-zinc-700' },
   { value: 'operator',              label: 'Operador (legacy)',   chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant' },
 ]
+
+// Roles asignables a usuarios nuevos / en cambio de rol. Excluye supervisor,
+// maestra y operator (legacy/deprecated). Si el usuario actual tiene uno de
+// esos roles, el selector lo agrega dinámicamente para no romper edición.
+const DEPRECATED_ROLES: UserRole[] = ['supervisor', 'operator', 'maestra']
+const SELECTABLE_ROLES = STAFF_ROLES.filter((r) => !DEPRECATED_ROLES.includes(r.value))
 
 function roleMeta(role: UserRole) {
   return STAFF_ROLES.find((r) => r.value === role) ?? { label: role, chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant' }
@@ -240,7 +250,16 @@ function PerfilTab({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {STAFF_ROLES.map((r) => (
+                {/* Si el usuario tiene un rol deprecated, lo agregamos al
+                    inicio del selector para que la UI no pierda su valor
+                    actual. Después solo puede cambiar a un SELECTABLE_ROLE. */}
+                {DEPRECATED_ROLES.includes(user.role) &&
+                  !SELECTABLE_ROLES.some((r) => r.value === user.role) && (
+                    <SelectItem value={user.role}>
+                      {roleMeta(user.role).label} (deprecated)
+                    </SelectItem>
+                  )}
+                {SELECTABLE_ROLES.map((r) => (
                   <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
                 ))}
               </SelectContent>

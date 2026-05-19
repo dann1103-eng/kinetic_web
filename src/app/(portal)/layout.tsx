@@ -34,6 +34,7 @@ export default async function PortalLayout({ children }: { children: React.React
     const FAMILY_ALLOWED_PREFIXES = [
       '/portal/agenda-digital',
       '/portal/agenda',
+      '/portal/descargas',
       '/portal/facturas',
     ]
     const FAMILY_HOME = '/portal'

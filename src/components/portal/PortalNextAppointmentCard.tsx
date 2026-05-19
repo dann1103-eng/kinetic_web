@@ -8,7 +8,48 @@ export interface PortalAppointmentData {
   ends_at: string | null
   child_name: string
   therapist_name: string | null
+  therapist_avatar_url?: string | null
   service_type: string | null
+}
+
+function therapistInitials(name: string | null): string {
+  if (!name) return '?'
+  return name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? '')
+    .join('')
+}
+
+function TherapistAvatar({
+  name,
+  url,
+  size,
+}: {
+  name: string | null
+  url: string | null | undefined
+  size: number
+}) {
+  const initials = therapistInitials(name)
+  return (
+    <div
+      className="rounded-full overflow-hidden flex-shrink-0 border-2 border-kp-primary-container/30 bg-kp-primary-container/15 flex items-center justify-center"
+      style={{ width: `${size}px`, height: `${size}px` }}
+      aria-hidden="true"
+    >
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={url}
+          alt={name ?? 'Terapista'}
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <span className="text-[10px] font-bold text-kp-primary">{initials}</span>
+      )}
+    </div>
+  )
 }
 
 function formatDate(iso: string): string {
@@ -85,7 +126,11 @@ export function PortalNextAppointmentCard({
               </div>
               {appointment.therapist_name && (
                 <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-fm-on-surface-variant text-[20px]">person</span>
+                  <TherapistAvatar
+                    name={appointment.therapist_name}
+                    url={appointment.therapist_avatar_url}
+                    size={28}
+                  />
                   <span className="inline-flex items-center gap-1 text-[13px] font-semibold bg-kp-primary-container/15 text-kp-primary px-3 py-1 rounded-full">
                     con {appointment.therapist_name}
                   </span>
@@ -149,7 +194,11 @@ export function PortalNextAppointmentCard({
                 </div>
                 {appointment.therapist_name && (
                   <div className="flex items-center gap-2.5">
-                    <span className="material-symbols-outlined text-fm-on-surface-variant text-[18px]">person</span>
+                    <TherapistAvatar
+                      name={appointment.therapist_name}
+                      url={appointment.therapist_avatar_url}
+                      size={26}
+                    />
                     <span className="inline-flex items-center gap-1 text-[13px] font-semibold bg-kp-primary-container/15 text-kp-primary px-3 py-1 rounded-full">
                       con {appointment.therapist_name}
                     </span>

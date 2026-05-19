@@ -436,6 +436,27 @@ export interface Database {
         Update: Partial<Omit<GeneralExpense, 'id' | 'created_at'>>
         Relationships: []
       }
+      child_attachments: {
+        Row: AsRow<ChildAttachment>
+        Insert: {
+          id?: string
+          child_id: string
+          appointment_id?: string | null
+          session_report_id?: string | null
+          progress_report_id?: string | null
+          file_url: string
+          file_name: string
+          file_size_bytes?: number | null
+          file_mime_type?: string | null
+          title?: string | null
+          description?: string | null
+          kind?: ChildAttachmentKind
+          visible_to_family?: boolean
+          uploaded_by_user_id?: string | null
+        }
+        Update: Partial<Omit<ChildAttachment, 'id' | 'created_at'>>
+        Relationships: []
+      }
       therapist_work_schedule: {
         Row: AsRow<TherapistWorkScheduleBlock>
         Insert: {
@@ -3595,6 +3616,47 @@ export interface GeneralExpense {
   created_at: string
   updated_at: string
   created_by_user_id: string | null
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Child attachments (mig 0119) — adjuntos unificados cross-entity
+// ──────────────────────────────────────────────────────────────────────────
+
+export type ChildAttachmentKind =
+  | 'tarea'
+  | 'evaluacion'
+  | 'imagen'
+  | 'informe_adicional'
+  | 'otro'
+
+export const CHILD_ATTACHMENT_KIND_LABELS: Record<ChildAttachmentKind, string> = {
+  tarea: 'Tarea',
+  evaluacion: 'Evaluación',
+  imagen: 'Imagen',
+  informe_adicional: 'Informe adicional',
+  otro: 'Otro',
+}
+
+export interface ChildAttachment {
+  id: string
+  child_id: string
+  appointment_id: string | null
+  session_report_id: string | null
+  progress_report_id: string | null
+
+  file_url: string                  // path en bucket reports-files
+  file_name: string
+  file_size_bytes: number | null
+  file_mime_type: string | null
+
+  title: string | null
+  description: string | null
+  kind: ChildAttachmentKind
+
+  visible_to_family: boolean
+  uploaded_by_user_id: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface PayrollItem {

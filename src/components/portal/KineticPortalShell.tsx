@@ -21,6 +21,7 @@ const ALL_NAV_ITEMS = [
   // este tab (porque agenda-digital startsWith /portal/agenda).
   { href: '/portal/agenda',         label: 'Citas',    icon: 'calendar_month', exact: true,  requiresWork: true,  requiresBilling: false },
   { href: '/portal/agenda-digital', label: 'Reportes', icon: 'description',    exact: false, requiresWork: true,  requiresBilling: false },
+  { href: '/portal/descargas',      label: 'Descargas', icon: 'download',      exact: false, requiresWork: true,  requiresBilling: false },
   { href: '/portal/facturas',       label: 'Facturas', icon: 'receipt_long',   exact: false, requiresWork: false, requiresBilling: true  },
 ]
 
@@ -178,42 +179,11 @@ export function KineticPortalShell({
       </aside>
 
       {/* ── Desktop top app bar (hidden below md) ── */}
-      <header className="hidden md:flex fixed top-0 left-64 right-0 h-20 bg-fm-surface/80 backdrop-blur-sm border-b border-fm-outline-variant/20 items-center justify-between px-8 z-40 gap-4">
-        {/* Search bar — UI only por ahora (sin búsqueda real conectada) */}
-        <div className="flex-1 max-w-md">
-          <label className="flex items-center gap-2 rounded-full bg-fm-surface-container-low/60 border border-fm-outline-variant/30 px-4 py-2 focus-within:border-kp-primary/40 focus-within:bg-fm-surface-container-low transition-colors">
-            <span className="material-symbols-outlined text-[18px] text-fm-on-surface-variant">search</span>
-            <input
-              type="search"
-              placeholder="Buscar citas, reportes…"
-              className="flex-1 bg-transparent text-sm text-fm-on-surface placeholder-fm-on-surface-variant focus:outline-none"
-              aria-label="Buscar"
-            />
-          </label>
-        </div>
-
-        {/* Actions: dark mode + notifications + chat + user chip */}
+      <header className="hidden md:flex fixed top-0 left-64 right-0 h-20 bg-fm-surface/80 backdrop-blur-sm border-b border-fm-outline-variant/20 items-center justify-end px-8 z-40 gap-4">
+        {/* Actions: dark mode + user chip
+            (search bar / notificaciones / chat removidos — sin backend real aún) */}
         <div className="flex items-center gap-1">
           {renderThemeToggle()}
-
-          <button
-            type="button"
-            className="relative w-10 h-10 flex items-center justify-center rounded-full hover:bg-kp-primary/5 transition-colors"
-            aria-label="Notificaciones"
-          >
-            <span className="material-symbols-outlined text-fm-on-surface-variant">notifications</span>
-            {/* Punto de notificación — visible solo cuando hay notificaciones reales (TODO: wire) */}
-            {/* <span className="absolute top-2 right-2.5 w-2 h-2 rounded-full bg-fm-error" /> */}
-          </button>
-
-          <Link
-            href="/portal/agenda-digital"
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-kp-primary/5 transition-colors"
-            aria-label="Agenda digital"
-            title="Ir a Agenda digital (conversación con el equipo)"
-          >
-            <span className="material-symbols-outlined text-fm-on-surface-variant">chat_bubble</span>
-          </Link>
 
           {/* User chip con nombre completo + rol */}
           <div className="flex items-center gap-2.5 pl-3 ml-2 border-l border-fm-outline-variant/30">

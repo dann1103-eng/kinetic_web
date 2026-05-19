@@ -167,13 +167,16 @@ export default async function PortalHomePage() {
     if (apptRaw) {
       const appt = apptRaw as NextAppt
       let therapistName: string | null = null
+      let therapistAvatarUrl: string | null = null
       if (appt.therapist_id) {
         const { data: th } = await supabase
           .from('users')
-          .select('full_name')
+          .select('full_name, avatar_url')
           .eq('id', appt.therapist_id)
           .maybeSingle()
-        therapistName = (th as { full_name: string } | null)?.full_name ?? null
+        const row = th as { full_name: string; avatar_url: string | null } | null
+        therapistName = row?.full_name ?? null
+        therapistAvatarUrl = row?.avatar_url ?? null
       }
       nextAppointment = {
         id: appt.id,
@@ -181,6 +184,7 @@ export default async function PortalHomePage() {
         ends_at: appt.ends_at,
         child_name: childNamesById[appt.child_id] ?? '',
         therapist_name: therapistName,
+        therapist_avatar_url: therapistAvatarUrl,
         service_type: appt.service_type,
       }
     }

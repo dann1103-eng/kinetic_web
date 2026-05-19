@@ -82,3 +82,29 @@ WHERE n.nspname = 'public' AND p.proname = 'sign_my_payroll_item';
 SELECT 'mig_0118_general_expenses' AS check_name, COUNT(*)::int AS applied
 FROM information_schema.tables
 WHERE table_schema = 'public' AND table_name = 'general_expenses';
+
+-- ── 0119: child_attachments (adjuntos unificados) ───────────────────
+SELECT 'mig_0119_child_attachments' AS check_name, COUNT(*)::int AS applied
+FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name = 'child_attachments';
+
+SELECT 'mig_0119_child_attachments_kind_check' AS check_name,
+       (CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END)::int AS applied
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'child_attachments'
+  AND column_name = 'kind';
+
+-- ── 0120: submit_session_report con bypass para morning_program ─────
+SELECT 'mig_0120_submit_session_report_morning' AS check_name,
+       CASE
+         WHEN COUNT(*) = 0 THEN 0
+         WHEN MAX(CASE
+                    WHEN pg_get_functiondef(p.oid) LIKE '%enrolled_program%'
+                    THEN 1 ELSE 0
+                  END) = 1 THEN 1
+         ELSE 0
+       END AS applied
+FROM pg_proc p
+JOIN pg_namespace n ON p.pronamespace = n.oid
+WHERE n.nspname = 'public' AND p.proname = 'submit_session_report';

@@ -13,6 +13,7 @@ import type {
   ReportTemplateBlock,
   ServiceType,
 } from '@/types/db'
+import { ChildAttachmentManagerLazy } from '@/components/shared/ChildAttachmentManagerLazy'
 
 interface ChildInfo {
   id: string
@@ -147,22 +148,31 @@ export function ProgressReportApprovalCard({
       </button>
 
       {expanded && (
-        <div className="space-y-3 border-t border-fm-outline-variant/15 pt-3">
-          {blocks.length === 0 && (
-            <p className="text-xs italic text-fm-on-surface-variant">
-              No hay plantilla disponible para mostrar el contenido.
-            </p>
-          )}
-          {blocks.map((block) => (
-            <div key={block.key}>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant mb-0.5">
-                {block.label}
-              </p>
-              <div className="text-sm text-fm-on-surface whitespace-pre-wrap">
-                {renderBlockValue(data, block)}
+        <div className="space-y-4 border-t border-fm-outline-variant/15 pt-3">
+          {blocks.length > 0 &&
+            blocks.map((block) => (
+              <div key={block.key}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant mb-0.5">
+                  {block.label}
+                </p>
+                <div className="text-sm text-fm-on-surface whitespace-pre-wrap">
+                  {renderBlockValue(data, block)}
+                </div>
               </div>
+            ))}
+
+          {/* Documentos adicionales (mig 0119) */}
+          {child && (
+            <div className="pt-2 border-t border-fm-outline-variant/15">
+              <ChildAttachmentManagerLazy
+                childId={child.id}
+                link={{ progressReportId: report.id }}
+                defaultKind="informe_adicional"
+                title="Documentos adicionales"
+                allowedKinds={['informe_adicional', 'evaluacion', 'otro']}
+              />
             </div>
-          ))}
+          )}
         </div>
       )}
 
