@@ -99,9 +99,9 @@ CREATE POLICY child_attachments_select_family ON child_attachments
     AND EXISTS (
       SELECT 1
       FROM children c
-      JOIN family_members fm ON fm.family_id = c.family_id
+      JOIN family_users fu ON fu.family_id = c.family_id
       WHERE c.id = child_attachments.child_id
-        AND fm.user_id = auth.uid()
+        AND fu.user_id = auth.uid()
     )
   );
 

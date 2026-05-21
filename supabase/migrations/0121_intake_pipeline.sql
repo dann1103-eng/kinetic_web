@@ -313,9 +313,9 @@ CREATE POLICY child_discharge_records_select_family ON child_discharge_records
     status = 'sent_to_family'
     AND EXISTS (
       SELECT 1 FROM children c
-      JOIN family_members fm ON fm.family_id = c.family_id
+      JOIN family_users fu ON fu.family_id = c.family_id
       WHERE c.id = child_discharge_records.child_id
-        AND fm.user_id = auth.uid()
+        AND fu.user_id = auth.uid()
     )
   );
 
