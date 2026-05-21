@@ -1,159 +1,152 @@
 -- Verificación de migraciones marcadas como pendientes en CLAUDE.md
--- Pegar en Supabase Studio → SQL Editor → Run.
--- Cada bloque devuelve una fila con `applied`: 1 = migración aplicada, 0 = falta aplicar.
+-- Pegar TODO el script en Supabase Studio → SQL Editor → Run.
 --
--- Si una migración falta, abrir el archivo correspondiente en
--- supabase/migrations/ o supabase/migrations-kinetic/ y pegarlo en el editor.
+-- Devuelve UNA tabla con todos los checks. applied=1 → aplicada, 0 → falta.
+-- Supabase Studio muestra solo la última sentencia si hay varios SELECT
+-- separados por `;`, por eso usamos UNION ALL en un solo SELECT.
 
--- ── 0114: progress_reports.family_notes ────────────────────────────
-SELECT 'mig_0114_family_notes' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name = 'progress_reports'
-  AND column_name = 'family_notes';
-
--- ── 0115: therapist_work_schedule + users.max_hours_per_week ──────
-SELECT 'mig_0115_therapist_work_schedule' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'therapist_work_schedule';
-
-SELECT 'mig_0115_users_max_hours_per_week' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name = 'users'
-  AND column_name = 'max_hours_per_week';
-
--- ── 0116: waitlist_entries + enum waitlist_status ──────────────────
-SELECT 'mig_0116_waitlist_entries' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'waitlist_entries';
-
-SELECT 'mig_0116_waitlist_status_enum' AS check_name, COUNT(*)::int AS applied
-FROM pg_type WHERE typname = 'waitlist_status';
-
--- ── 0107 kinetic: submit_progress_report con bypass para upload_kind='file' ──
--- Verifica que el cuerpo del RPC referencia upload_kind y 'file'.
-SELECT 'mig_0107_submit_progress_report_file_bypass' AS check_name,
-       CASE
-         WHEN COUNT(*) = 0 THEN 0
-         WHEN MAX(CASE
-                    WHEN pg_get_functiondef(p.oid) LIKE '%upload_kind%'
-                     AND pg_get_functiondef(p.oid) LIKE '%file%'
-                    THEN 1 ELSE 0
-                  END) = 1 THEN 1
-         ELSE 0
-       END AS applied
-FROM pg_proc p
-JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE n.nspname = 'public' AND p.proname = 'submit_progress_report';
-
--- ── 0117: módulo de planillas (Fase 8) ─────────────────────────────
--- Crea: columnas salariales en users, payroll_fiscal_config (con seed),
--- payroll_runs, payroll_items, RLS, y RPC sign_my_payroll_item.
-
-SELECT 'mig_0117_users_salary_cols' AS check_name,
-       (CASE WHEN COUNT(*) = 8 THEN 1 ELSE 0 END)::int AS applied
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name = 'users'
-  AND column_name IN (
-    'monthly_salary_usd', 'hourly_rate_usd', 'contract_type',
-    'dui', 'isss_number', 'afp_number', 'afp_provider', 'hire_date'
-  );
-
-SELECT 'mig_0117_payroll_fiscal_config' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'payroll_fiscal_config';
-
-SELECT 'mig_0117_payroll_runs' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'payroll_runs';
-
-SELECT 'mig_0117_payroll_items' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'payroll_items';
-
-SELECT 'mig_0117_sign_my_payroll_item_rpc' AS check_name, COUNT(*)::int AS applied
-FROM pg_proc p
-JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE n.nspname = 'public' AND p.proname = 'sign_my_payroll_item';
-
--- ── 0118: gastos generales (egresos no-planilla) ────────────────────
-SELECT 'mig_0118_general_expenses' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'general_expenses';
-
--- ── 0119: child_attachments (adjuntos unificados) ───────────────────
-SELECT 'mig_0119_child_attachments' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'child_attachments';
-
-SELECT 'mig_0119_child_attachments_kind_check' AS check_name,
-       (CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END)::int AS applied
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name = 'child_attachments'
-  AND column_name = 'kind';
-
--- ── 0120: submit_session_report con bypass para morning_program ─────
-SELECT 'mig_0120_submit_session_report_morning' AS check_name,
-       CASE
-         WHEN COUNT(*) = 0 THEN 0
-         WHEN MAX(CASE
-                    WHEN pg_get_functiondef(p.oid) LIKE '%enrolled_program%'
-                    THEN 1 ELSE 0
-                  END) = 1 THEN 1
-         ELSE 0
-       END AS applied
-FROM pg_proc p
-JOIN pg_namespace n ON p.pronamespace = n.oid
-WHERE n.nspname = 'public' AND p.proname = 'submit_session_report';
-
--- ── 0121: pipeline completo de admisión ─────────────────────────────
-SELECT 'mig_0121_intake_phase_catalog' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'intake_phase_catalog';
-
-SELECT 'mig_0121_catalog_seed_count' AS check_name,
-       (CASE WHEN COUNT(*) = 17 THEN 1 ELSE 0 END)::int AS applied
-FROM intake_phase_catalog;
-
-SELECT 'mig_0121_waitlist_current_phase_code' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name = 'waitlist_entries'
-  AND column_name = 'current_phase_code';
-
-SELECT 'mig_0121_children_current_phase_code' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name = 'children'
-  AND column_name = 'current_phase_code';
-
-SELECT 'mig_0121_child_phase_history' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'child_phase_history';
-
-SELECT 'mig_0121_child_discharge_records' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'child_discharge_records';
-
-SELECT 'mig_0121_dashboard_alerts' AS check_name, COUNT(*)::int AS applied
-FROM information_schema.tables
-WHERE table_schema = 'public' AND table_name = 'dashboard_alerts';
-
-SELECT 'mig_0121_sync_legacy_phase_trigger' AS check_name, COUNT(*)::int AS applied
-FROM pg_trigger t
-JOIN pg_class c ON c.oid = t.tgrelid
-WHERE c.relname = 'children' AND t.tgname = 'children_sync_legacy_phase';
-
--- ── 0122: campos del formulario de prospectos en waitlist_entries ────
-SELECT 'mig_0122_waitlist_form_fields' AS check_name,
-       (CASE WHEN COUNT(*) = 5 THEN 1 ELSE 0 END)::int AS applied
-FROM information_schema.columns
-WHERE table_schema = 'public'
-  AND table_name = 'waitlist_entries'
-  AND column_name IN (
-    'child_age_text', 'has_previous_evaluation', 'referral_channel',
-    'referral_channel_other', 'interest_text'
-  );
+WITH checks AS (
+  -- ── 0114 ───────────────────────────────────────────────────────────
+  SELECT 1 AS ord, 'mig_0114_family_notes' AS check_name,
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='progress_reports'
+            AND column_name='family_notes') AS applied
+  UNION ALL
+  -- ── 0115 ───────────────────────────────────────────────────────────
+  SELECT 2, 'mig_0115_therapist_work_schedule',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='therapist_work_schedule')
+  UNION ALL
+  SELECT 3, 'mig_0115_users_max_hours_per_week',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='users'
+            AND column_name='max_hours_per_week')
+  UNION ALL
+  -- ── 0116 ───────────────────────────────────────────────────────────
+  SELECT 4, 'mig_0116_waitlist_entries',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='waitlist_entries')
+  UNION ALL
+  SELECT 5, 'mig_0116_waitlist_status_enum',
+         (SELECT COUNT(*)::int FROM pg_type WHERE typname='waitlist_status')
+  UNION ALL
+  -- ── 0107 kinetic ───────────────────────────────────────────────────
+  SELECT 6, 'mig_0107_submit_progress_report_file_bypass',
+         (SELECT CASE
+                   WHEN COUNT(*) = 0 THEN 0
+                   WHEN MAX(CASE
+                              WHEN pg_get_functiondef(p.oid) LIKE '%upload_kind%'
+                               AND pg_get_functiondef(p.oid) LIKE '%file%'
+                              THEN 1 ELSE 0
+                            END) = 1 THEN 1
+                   ELSE 0
+                 END
+          FROM pg_proc p
+          JOIN pg_namespace n ON p.pronamespace=n.oid
+          WHERE n.nspname='public' AND p.proname='submit_progress_report')
+  UNION ALL
+  -- ── 0117 ───────────────────────────────────────────────────────────
+  SELECT 7, 'mig_0117_users_salary_cols',
+         (SELECT (CASE WHEN COUNT(*)=8 THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='users'
+            AND column_name IN ('monthly_salary_usd','hourly_rate_usd','contract_type',
+                                'dui','isss_number','afp_number','afp_provider','hire_date'))
+  UNION ALL
+  SELECT 8, 'mig_0117_payroll_fiscal_config',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='payroll_fiscal_config')
+  UNION ALL
+  SELECT 9, 'mig_0117_payroll_runs',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='payroll_runs')
+  UNION ALL
+  SELECT 10, 'mig_0117_payroll_items',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='payroll_items')
+  UNION ALL
+  SELECT 11, 'mig_0117_sign_my_payroll_item_rpc',
+         (SELECT COUNT(*)::int FROM pg_proc p
+          JOIN pg_namespace n ON p.pronamespace=n.oid
+          WHERE n.nspname='public' AND p.proname='sign_my_payroll_item')
+  UNION ALL
+  -- ── 0118 ───────────────────────────────────────────────────────────
+  SELECT 12, 'mig_0118_general_expenses',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='general_expenses')
+  UNION ALL
+  -- ── 0119 ───────────────────────────────────────────────────────────
+  SELECT 13, 'mig_0119_child_attachments',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='child_attachments')
+  UNION ALL
+  SELECT 14, 'mig_0119_child_attachments_kind_check',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='child_attachments'
+            AND column_name='kind')
+  UNION ALL
+  -- ── 0120 ───────────────────────────────────────────────────────────
+  SELECT 15, 'mig_0120_submit_session_report_morning',
+         (SELECT CASE
+                   WHEN COUNT(*) = 0 THEN 0
+                   WHEN MAX(CASE
+                              WHEN pg_get_functiondef(p.oid) LIKE '%enrolled_program%'
+                              THEN 1 ELSE 0
+                            END) = 1 THEN 1
+                   ELSE 0
+                 END
+          FROM pg_proc p
+          JOIN pg_namespace n ON p.pronamespace=n.oid
+          WHERE n.nspname='public' AND p.proname='submit_session_report')
+  UNION ALL
+  -- ── 0121 ───────────────────────────────────────────────────────────
+  SELECT 16, 'mig_0121_intake_phase_catalog',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='intake_phase_catalog')
+  UNION ALL
+  SELECT 17, 'mig_0121_catalog_seed_count_17',
+         (SELECT (CASE WHEN COUNT(*)=17 THEN 1 ELSE 0 END)::int
+          FROM intake_phase_catalog)
+  UNION ALL
+  SELECT 18, 'mig_0121_waitlist_current_phase_code',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='waitlist_entries'
+            AND column_name='current_phase_code')
+  UNION ALL
+  SELECT 19, 'mig_0121_children_current_phase_code',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='children'
+            AND column_name='current_phase_code')
+  UNION ALL
+  SELECT 20, 'mig_0121_child_phase_history',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='child_phase_history')
+  UNION ALL
+  SELECT 21, 'mig_0121_child_discharge_records',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='child_discharge_records')
+  UNION ALL
+  SELECT 22, 'mig_0121_dashboard_alerts',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='dashboard_alerts')
+  UNION ALL
+  SELECT 23, 'mig_0121_sync_legacy_phase_trigger',
+         (SELECT COUNT(*)::int FROM pg_trigger t
+          JOIN pg_class c ON c.oid=t.tgrelid
+          WHERE c.relname='children' AND t.tgname='children_sync_legacy_phase')
+  UNION ALL
+  -- ── 0122 ───────────────────────────────────────────────────────────
+  SELECT 24, 'mig_0122_waitlist_form_fields',
+         (SELECT (CASE WHEN COUNT(*)=5 THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='waitlist_entries'
+            AND column_name IN ('child_age_text','has_previous_evaluation',
+                                'referral_channel','referral_channel_other','interest_text'))
+)
+SELECT
+  check_name,
+  applied,
+  CASE WHEN applied = 1 THEN '✓' ELSE '✗ FALTA' END AS estado
+FROM checks
+ORDER BY ord;
