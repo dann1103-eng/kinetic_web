@@ -24,10 +24,12 @@ const URGENT_STALE_DAYS = 14
 export async function detectWaitlistAlerts(
   supabase: SupabaseClient<Database>,
 ): Promise<WaitlistAlerts> {
+  // "Esperando" = sin scheduled_child_id Y no en fase terminal.
   const { data: waitingRaw } = await supabase
     .from('waitlist_entries')
-    .select('requested_service_type, priority, added_at')
-    .eq('status', 'waiting')
+    .select('requested_service_type, priority, added_at, current_phase_code, scheduled_child_id')
+    .is('scheduled_child_id', null)
+    .not('current_phase_code', 'in', '(5_1_alta_terapeutica,5_2_retirado)')
 
   const waiting = (waitingRaw ?? []) as {
     requested_service_type: string

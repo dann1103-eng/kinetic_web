@@ -2,14 +2,8 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import type {
-  ReferralChannel,
-  ServiceType,
-  WaitlistEntry,
-  WaitlistStatus,
-} from '@/types/db'
+import type { ReferralChannel, ServiceType, WaitlistEntry } from '@/types/db'
 
 const COORD_ROLES = [
   'admin',
@@ -30,6 +24,10 @@ function isCoord(role: string): boolean {
   return (COORD_ROLES as readonly string[]).includes(role)
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Creación de entrada
+// ──────────────────────────────────────────────────────────────────────────
+
 export interface CreateWaitlistInput {
   childFullName: string
   childBirthdate?: string | null
@@ -43,7 +41,7 @@ export interface CreateWaitlistInput {
   notes?: string | null
   referralSourceId?: string | null
   priority?: 0 | 1 | 2
-  // Mig 0122: campos del formulario de prospectos
+  // Campos del Google Form (mig 0122)
   childAgeText?: string | null
   hasPreviousEvaluation?: boolean | null
   referralChannel?: ReferralChannel | null
@@ -106,157 +104,72 @@ export async function createWaitlistEntry(
   return { ok: true, entry: data as WaitlistEntry }
 }
 
-export async function markContacted(
-  id: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { supabase, user } = await getActor()
-  if (!isCoord(user.role)) return { ok: false, error: 'No autorizado.' }
+// ──────────────────────────────────────────────────────────────────────────
+// Listado
+// ──────────────────────────────────────────────────────────────────────────
 
-  const { error } = await supabase
-    .from('waitlist_entries')
-    .update({
-      status: 'contacted',
-      contacted_at: new Date().toISOString(),
-      contacted_by_user_id: user.id,
-      // Sync con pipeline 0121
-      current_phase_code: '1_2_informacion_enviada',
-    })
-    .eq('id', id)
-
-  if (error) return { ok: false, error: error.message }
-  revalidatePath('/operacion/lista-de-espera')
-  return { ok: true }
+export interface ListWaitlistFilters {
+  serviceType?: ServiceType
+  /** Filtrar por código de sub-fase exacto del catálogo. */
+  phaseCode?: string
+  /** Filtrar por grupo (1-5). Mutuamente exclusivo con phaseCode. */
+  phaseGroup?: 1 | 2 | 3 | 4 | 5
+  /** Si true, también muestra entradas en fases terminales (5.x) y boundary (3.2). */
+  includeHistorical?: boolean
 }
 
-export async function markScheduled(
-  id: string,
-  childId?: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { supabase, user } = await getActor()
-  if (!isCoord(user.role)) return { ok: false, error: 'No autorizado.' }
+export async function listWaitlist(
+  filters: ListWaitlistFilters = {},
+): Promise<WaitlistEntry[]> {
+  const { supabase } = await getActor()
 
-  const { error } = await supabase
+  let query = supabase
     .from('waitlist_entries')
-    .update({
-      status: 'scheduled',
-      scheduled_child_id: childId ?? null,
-      current_phase_code: '3_2_inscripcion_activa',
-    })
-    .eq('id', id)
+    .select('*')
+    .order('priority', { ascending: false })
+    .order('added_at', { ascending: true })
 
-  if (error) return { ok: false, error: error.message }
-  revalidatePath('/operacion/lista-de-espera')
-  revalidatePath('/dashboard')
-  return { ok: true }
-}
-
-export async function dropEntry(
-  id: string,
-  reason: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { supabase, user } = await getActor()
-  if (!isCoord(user.role)) return { ok: false, error: 'No autorizado.' }
-  if (reason.trim().length < 3) {
-    return { ok: false, error: 'El motivo debe tener al menos 3 caracteres.' }
+  if (filters.phaseCode) {
+    query = query.eq('current_phase_code', filters.phaseCode)
+  } else if (filters.phaseGroup) {
+    query = query.like('current_phase_code', `${filters.phaseGroup}_%`)
   }
 
-  const { error } = await supabase
-    .from('waitlist_entries')
-    .update({
-      status: 'dropped',
-      dropped_at: new Date().toISOString(),
-      dropped_reason: reason.trim(),
-      current_phase_code: '5_2_retirado',
-    })
-    .eq('id', id)
+  if (!filters.includeHistorical) {
+    // Default: ocultar terminales (5_x) y la boundary (3_2) que ya tiene child creado.
+    query = query.not('current_phase_code', 'in', '(3_2_inscripcion_activa,5_1_alta_terapeutica,5_2_retirado)')
+  }
 
-  if (error) return { ok: false, error: error.message }
-  revalidatePath('/operacion/lista-de-espera')
-  revalidatePath('/dashboard')
-  return { ok: true }
+  if (filters.serviceType) query = query.eq('requested_service_type', filters.serviceType)
+
+  const { data } = await query
+  return (data ?? []) as WaitlistEntry[]
 }
 
-/**
- * Vuelve una entrada agendada al estado 'contacted'. Útil cuando alguien
- * marcó por error o la familia se arrepiente antes de la primera cita.
- * Limpia `scheduled_child_id` pero NO borra la familia/niño si ya existe;
- * el coordinador debe decidir qué hacer con esa data manualmente.
- */
-export async function revertScheduledToContacted(
-  id: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { supabase, user } = await getActor()
-  if (!isCoord(user.role)) return { ok: false, error: 'No autorizado.' }
+// ──────────────────────────────────────────────────────────────────────────
+// Transformación manual a familia (override admin con formulario completo)
+// ──────────────────────────────────────────────────────────────────────────
+//
+// La transformación automática vive en `advanceWaitlistPhase` (intake-pipeline.ts)
+// y se dispara al avanzar a `3_2_inscripcion_activa`. Esta versión exportada
+// queda como flow alternativo cuando recepción quiere setear datos extra
+// (segundo contacto, emergency contact, gender, etc.) antes de crear.
 
-  const { error } = await supabase
-    .from('waitlist_entries')
-    .update({
-      status: 'contacted',
-      scheduled_child_id: null,
-      current_phase_code: '1_2_informacion_enviada',
-    })
-    .eq('id', id)
-
-  if (error) return { ok: false, error: error.message }
-  revalidatePath('/operacion/lista-de-espera')
-  return { ok: true }
-}
-
-export async function reopenEntry(
-  id: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { supabase, user } = await getActor()
-  if (!isCoord(user.role)) return { ok: false, error: 'No autorizado.' }
-
-  const { error } = await supabase
-    .from('waitlist_entries')
-    .update({
-      status: 'waiting',
-      contacted_at: null,
-      contacted_by_user_id: null,
-      dropped_at: null,
-      dropped_reason: null,
-      current_phase_code: '1_1_contacto_inicial',
-    })
-    .eq('id', id)
-
-  if (error) return { ok: false, error: error.message }
-  revalidatePath('/operacion/lista-de-espera')
-  return { ok: true }
-}
-
-/**
- * Transforma una entrada de lista de espera en familia + niño.
- *
- * Flujo:
- *   1. Valida la entrada (debe estar en 'waiting' o 'contacted')
- *   2. Inserta una nueva `families` con datos del padre/madre
- *   3. Inserta un `children` vinculado a esa family (code se autoasigna por trigger)
- *   4. Marca la entrada como 'scheduled' con scheduled_child_id apuntando al niño
- *
- * Usa admin client para evitar problemas de RLS y permitir rollback parcial si
- * el child falla (se elimina la familia recién creada).
- */
 export interface TransformWaitlistInput {
   entryId: string
-  /** Apellido/identificador de la familia (default: primary_contact_name de la entrada). */
   primaryContactName?: string
   primaryContactPhone?: string | null
   primaryContactEmail?: string | null
-  /** Datos opcionales adicionales para la familia */
   secondaryContactName?: string | null
   secondaryContactPhone?: string | null
   emergencyContactName?: string | null
   emergencyContactPhone?: string | null
   emergencyContactRelation?: string | null
   familyNotes?: string | null
-  /** Nombre completo del niño (default: child_full_name de la entrada). */
   childFullName?: string
   preferredName?: string | null
-  /** Fecha de nacimiento del niño (default: child_birthdate de la entrada). */
   birthDate?: string | null
   gender?: 'M' | 'F' | 'other' | null
-  /** Texto libre del diagnóstico (default: child_diagnosis de la entrada). */
   diagnosesDisplayText?: string | null
   childNotes?: string | null
 }
@@ -267,10 +180,10 @@ export async function transformWaitlistEntryToFamily(
   | { ok: true; familyId: string; childId: string; childCode: string | null }
   | { ok: false; error: string }
 > {
+  const { createAdminClient } = await import('@/lib/supabase/admin')
   const { supabase, user } = await getActor()
   if (!isCoord(user.role)) return { ok: false, error: 'No autorizado.' }
 
-  // 1. Cargar entrada
   const { data: entryRow, error: entryErr } = await supabase
     .from('waitlist_entries')
     .select('*')
@@ -280,14 +193,10 @@ export async function transformWaitlistEntryToFamily(
   if (!entryRow) return { ok: false, error: 'Entrada no encontrada.' }
   const entry = entryRow as WaitlistEntry
 
-  if (entry.status === 'scheduled') {
+  if (entry.scheduled_child_id) {
     return { ok: false, error: 'Esta entrada ya fue convertida en familia.' }
   }
-  if (entry.status === 'dropped') {
-    return { ok: false, error: 'No se puede transformar una entrada descartada. Reabrirla primero.' }
-  }
 
-  // 2. Resolver datos finales (override con input, default con entry)
   const familyName = (input.primaryContactName ?? entry.parent_full_name).trim()
   const childName = (input.childFullName ?? entry.child_full_name).trim()
   if (!familyName) return { ok: false, error: 'El nombre del contacto principal es obligatorio.' }
@@ -295,7 +204,6 @@ export async function transformWaitlistEntryToFamily(
 
   const admin = createAdminClient()
 
-  // 3. Insertar familia
   const { data: createdFamily, error: familyErr } = await admin
     .from('families')
     .insert({
@@ -318,7 +226,6 @@ export async function transformWaitlistEntryToFamily(
   }
   const familyId = createdFamily.id
 
-  // 4. Insertar niño (con rollback de familia si falla)
   const { data: createdChild, error: childErr } = await admin
     .from('children')
     .insert({
@@ -332,30 +239,27 @@ export async function transformWaitlistEntryToFamily(
       referral_source_id: entry.referral_source_id ?? null,
       notes: input.childNotes?.trim() || null,
       created_by_user_id: user.id,
+      current_phase_code: '3_3_activo_en_terapias',
     })
     .select('id, code')
     .single()
 
   if (childErr || !createdChild) {
-    // Rollback: eliminar familia recién creada para no dejar huérfanos
     await admin.from('families').delete().eq('id', familyId).then(() => null)
     return { ok: false, error: childErr?.message ?? 'No se pudo crear el niño.' }
   }
   const childId = createdChild.id
   const childCode = (createdChild.code as string | null) ?? null
 
-  // 5. Marcar la entrada como agendada con link al child
   const { error: updErr } = await admin
     .from('waitlist_entries')
     .update({
-      status: 'scheduled',
       scheduled_child_id: childId,
+      current_phase_code: '3_2_inscripcion_activa',
     })
     .eq('id', input.entryId)
 
   if (updErr) {
-    // La familia y niño quedaron creados — el flujo de waitlist quedó inconsistente.
-    // Es mejor que el coordinador lo resuelva manualmente que perder los datos.
     return {
       ok: false,
       error: `Familia y niño creados (familyId=${familyId}), pero falló actualizar la lista de espera: ${updErr.message}`,
@@ -366,48 +270,4 @@ export async function transformWaitlistEntryToFamily(
   revalidatePath('/familias')
   revalidatePath('/dashboard')
   return { ok: true, familyId, childId, childCode }
-}
-
-export interface ListWaitlistFilters {
-  status?: WaitlistStatus
-  serviceType?: ServiceType
-  /** Filtrar por código de sub-fase exacto del catálogo. */
-  phaseCode?: string
-  /** Filtrar por grupo (1-5). Mutuamente exclusivo con phaseCode. */
-  phaseGroup?: 1 | 2 | 3 | 4 | 5
-  /** Si true, también muestra entradas terminales (scheduled / dropped). */
-  includeHistorical?: boolean
-}
-
-export async function listWaitlist(
-  filters: ListWaitlistFilters = {},
-): Promise<WaitlistEntry[]> {
-  const { supabase } = await getActor()
-
-  let query = supabase
-    .from('waitlist_entries')
-    .select('*')
-    .order('priority', { ascending: false })
-    .order('added_at', { ascending: true })
-
-  if (filters.status) {
-    query = query.eq('status', filters.status)
-  } else if (!filters.includeHistorical) {
-    // Default: solo entradas ACTIVAS (waiting + contacted). Las terminales
-    // (scheduled / dropped) se ocultan porque su registro vivo ya está en
-    // familias/niños o ya fue descartado.
-    query = query.in('status', ['waiting', 'contacted'])
-  }
-
-  if (filters.phaseCode) {
-    query = query.eq('current_phase_code', filters.phaseCode)
-  } else if (filters.phaseGroup) {
-    // Phase codes empiezan por `{group}_` — ej. '2_3_observacion_escolar'.
-    query = query.like('current_phase_code', `${filters.phaseGroup}_%`)
-  }
-
-  if (filters.serviceType) query = query.eq('requested_service_type', filters.serviceType)
-
-  const { data } = await query
-  return (data ?? []) as WaitlistEntry[]
 }

@@ -14,7 +14,6 @@ import {
 } from '@/types/db'
 import { groupPhaseCatalog } from '@/lib/domain/intake-pipeline'
 import { advanceWaitlistPhase } from '@/app/actions/intake-pipeline'
-import { dropEntry, reopenEntry } from '@/app/actions/waitlist'
 import { daysSinceAdded } from '@/lib/domain/waitlist-alerts'
 import { PhaseAdvanceMenu } from '@/components/pipeline/PhaseAdvanceMenu'
 
@@ -104,7 +103,7 @@ export function WaitlistPipelineBoard({
   function handleReopen(entryId: string) {
     setError(null)
     startTransition(async () => {
-      const res = await reopenEntry(entryId)
+      const res = await advanceWaitlistPhase(entryId, '1_1_contacto_inicial', 'Reabierta desde estado terminal.')
       if (!res.ok) setError(res.error)
       else {
         setSelected(null)
@@ -115,9 +114,13 @@ export function WaitlistPipelineBoard({
 
   function confirmDrop() {
     if (!dropTarget) return
+    if (dropReason.trim().length < 3) {
+      setError('El motivo debe tener al menos 3 caracteres.')
+      return
+    }
     setError(null)
     startTransition(async () => {
-      const res = await dropEntry(dropTarget.id, dropReason)
+      const res = await advanceWaitlistPhase(dropTarget.id, '5_2_retirado', dropReason.trim())
       if (!res.ok) setError(res.error)
       else {
         setDropTarget(null)
@@ -480,7 +483,7 @@ function DetailDrawer({
           <Row label="Días en espera" value={`${days}d`} />
           <Row label="Prioridad" value={PRIORITY_TONE[entry.priority]?.label ?? 'Normal'} />
           {entry.notes && <Row label="Notas" value={entry.notes} />}
-          {entry.status === 'dropped' && entry.dropped_reason && (
+          {currentPhase?.code === '5_2_retirado' && entry.dropped_reason && (
             <Row label="Motivo de descarte" value={entry.dropped_reason} />
           )}
         </div>
@@ -498,7 +501,7 @@ function DetailDrawer({
           <p className="text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
             Acciones
           </p>
-          {entry.status !== 'dropped' && (
+          {!currentPhase?.is_terminal && (
             <div className="flex flex-wrap gap-2">
               <PhaseAdvanceMenu
                 catalog={phaseCatalog}
@@ -518,7 +521,7 @@ function DetailDrawer({
               </button>
             </div>
           )}
-          {entry.status === 'dropped' && (
+          {currentPhase?.is_terminal && (
             <button
               type="button"
               disabled={isPending}

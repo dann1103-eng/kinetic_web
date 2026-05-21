@@ -10,14 +10,8 @@ import {
   type WaitlistEntry,
 } from '@/types/db'
 import { daysSinceAdded } from '@/lib/domain/waitlist-alerts'
-import {
-  markContacted,
-  markScheduled,
-  dropEntry,
-  reopenEntry,
-  revertScheduledToContacted,
-} from '@/app/actions/waitlist'
 import { advanceWaitlistPhase } from '@/app/actions/intake-pipeline'
+import { transformWaitlistEntryToFamily } from '@/app/actions/waitlist'
 import { TransformWaitlistModal } from './TransformWaitlistModal'
 import { PhaseChip } from '@/components/pipeline/PhaseChip'
 import { PhaseAdvanceMenu } from '@/components/pipeline/PhaseAdvanceMenu'
@@ -25,7 +19,7 @@ import { PhaseAdvanceMenu } from '@/components/pipeline/PhaseAdvanceMenu'
 interface Props {
   entries: WaitlistEntry[]
   therapistsById: Record<string, string>
-  /** Mapa de child_id → family_id, para link directo a ficha desde entradas scheduled. */
+  /** Mapa de child_id → family_id, para link directo a ficha desde entradas ya inscritas. */
   familyIdByChildId?: Record<string, string>
   /** Catálogo de sub-fases para el dropdown de avance. */
   phaseCatalog: IntakePhaseCatalogEntry[]
@@ -37,7 +31,6 @@ const PRIORITY_TONE: Record<number, { label: string; bg: string; text: string }>
   2: { label: 'Urgente', bg: 'bg-rose-100', text: 'text-rose-900' },
 }
 
-
 function calcAge(birthdate: string | null): string {
   if (!birthdate) return '—'
   const [y, m, d] = birthdate.split('-').map(Number)
@@ -45,9 +38,7 @@ function calcAge(birthdate: string | null): string {
   const now = new Date()
   let years = now.getFullYear() - dob.getFullYear()
   const monthDiff = now.getMonth() - dob.getMonth()
-  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) {
-    years--
-  }
+  if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < dob.getDate())) years--
   if (years < 1) {
     const months = (now.getFullYear() - dob.getFullYear()) * 12 + monthDiff
     return `${months}m`
@@ -75,55 +66,24 @@ export function WaitlistTable({
     setError(null)
     startTransition(async () => {
       const res = await advanceWaitlistPhase(entryId, toCode)
-      if (!res.ok) {
-        setError(res.error)
-      } else {
-        router.refresh()
-      }
-    })
-  }
-
-  function handleContacted(id: string) {
-    setError(null)
-    startTransition(async () => {
-      const res = await markContacted(id)
       if (!res.ok) setError(res.error)
       else router.refresh()
     })
   }
 
-  function handleScheduledManual(id: string) {
-    setError(null)
-    startTransition(async () => {
-      const res = await markScheduled(id)
-      if (!res.ok) setError(res.error)
-      else router.refresh()
-    })
-  }
-
-  function handleRevertScheduled(id: string) {
-    setError(null)
-    startTransition(async () => {
-      const res = await revertScheduledToContacted(id)
-      if (!res.ok) setError(res.error)
-      else router.refresh()
-    })
-  }
-
-  function handleReopen(id: string) {
-    setError(null)
-    startTransition(async () => {
-      const res = await reopenEntry(id)
-      if (!res.ok) setError(res.error)
-      else router.refresh()
-    })
+  function handleReopen(entryId: string) {
+    handleAdvanceTo(entryId, '1_1_contacto_inicial')
   }
 
   function confirmDrop() {
     if (!dropTarget) return
+    if (dropReason.trim().length < 3) {
+      setError('El motivo del descarte debe tener al menos 3 caracteres.')
+      return
+    }
     setError(null)
     startTransition(async () => {
-      const res = await dropEntry(dropTarget.id, dropReason)
+      const res = await advanceWaitlistPhase(dropTarget.id, '5_2_retirado', dropReason.trim())
       if (!res.ok) {
         setError(res.error)
       } else {
@@ -160,7 +120,7 @@ export function WaitlistTable({
               <th className="px-4 py-3 text-xs uppercase tracking-wider font-semibold text-fm-on-surface-variant">Contacto</th>
               <th className="px-4 py-3 text-xs uppercase tracking-wider font-semibold text-fm-on-surface-variant">Terapia</th>
               <th className="px-4 py-3 text-xs uppercase tracking-wider font-semibold text-fm-on-surface-variant">Preferencias</th>
-              <th className="px-4 py-3 text-xs uppercase tracking-wider font-semibold text-fm-on-surface-variant">Estado</th>
+              <th className="px-4 py-3 text-xs uppercase tracking-wider font-semibold text-fm-on-surface-variant">Sub-fase</th>
               <th className="px-4 py-3 text-xs uppercase tracking-wider font-semibold text-fm-on-surface-variant text-right">Espera</th>
               <th className="px-4 py-3 text-xs uppercase tracking-wider font-semibold text-fm-on-surface-variant text-right">Acciones</th>
             </tr>
@@ -173,6 +133,10 @@ export function WaitlistTable({
               const preferredTherapist = e.preferred_therapist_id
                 ? therapistsById[e.preferred_therapist_id]
                 : null
+              const isTerminal = phase?.is_terminal ?? false
+              const isInscribed = !!e.scheduled_child_id
+              const familyId = e.scheduled_child_id ? familyIdByChildId?.[e.scheduled_child_id] : undefined
+
               return (
                 <tr
                   key={e.id}
@@ -252,7 +216,7 @@ export function WaitlistTable({
                   </td>
                   <td className="px-4 py-3">
                     <PhaseChip phase={phase} fallback="(sin fase)" />
-                    {e.status === 'dropped' && e.dropped_reason && (
+                    {phase?.code === '5_2_retirado' && e.dropped_reason && (
                       <p className="text-[11px] text-fm-on-surface-variant italic mt-1 max-w-[160px]">
                         {e.dropped_reason}
                       </p>
@@ -263,18 +227,18 @@ export function WaitlistTable({
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-col gap-1 items-end">
-                      {/* Link a ficha si ya fue inscrito y existe child */}
-                      {e.scheduled_child_id && familyIdByChildId?.[e.scheduled_child_id] && (
+                      {/* Link a ficha si ya hay child */}
+                      {isInscribed && familyId && (
                         <Link
-                          href={`/familias/${familyIdByChildId[e.scheduled_child_id]}/children/${e.scheduled_child_id}`}
+                          href={`/familias/${familyId}/children/${e.scheduled_child_id}`}
                           className="text-xs font-semibold text-fm-primary hover:underline"
                         >
                           Ver ficha del niño
                         </Link>
                       )}
 
-                      {/* Avanzar a otra sub-fase del pipeline */}
-                      {e.status !== 'dropped' && (
+                      {/* Avanzar fase — solo si no terminal */}
+                      {!isTerminal && (
                         <PhaseAdvanceMenu
                           catalog={phaseCatalog}
                           currentCode={e.current_phase_code}
@@ -284,8 +248,8 @@ export function WaitlistTable({
                         />
                       )}
 
-                      {/* Convertir manualmente (admin override, formulario completo) */}
-                      {(e.status === 'waiting' || e.status === 'contacted') && (
+                      {/* Convertir manualmente con form completo — antes de inscribir */}
+                      {!isInscribed && !isTerminal && (
                         <button
                           type="button"
                           disabled={isPending}
@@ -297,46 +261,8 @@ export function WaitlistTable({
                         </button>
                       )}
 
-                      {/* Marcar agendada (legacy compatibility) */}
-                      {e.status === 'contacted' && (
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => handleScheduledManual(e.id)}
-                          className="text-xs text-fm-on-surface-variant hover:underline disabled:opacity-50"
-                          title="Marcar como agendada sin crear familia"
-                        >
-                          Marcar agendada
-                        </button>
-                      )}
-
-                      {/* Contactar rápido */}
-                      {e.status === 'waiting' && (
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => handleContacted(e.id)}
-                          className="text-xs text-fm-primary hover:underline disabled:opacity-50"
-                        >
-                          Marcar contactada
-                        </button>
-                      )}
-
-                      {/* Volver atrás scheduled → contactada */}
-                      {e.status === 'scheduled' && (
-                        <button
-                          type="button"
-                          disabled={isPending}
-                          onClick={() => handleRevertScheduled(e.id)}
-                          className="text-xs text-fm-on-surface-variant hover:underline disabled:opacity-50"
-                          title="Limpia el link al niño y vuelve la entrada a 'contactada'."
-                        >
-                          Volver a contactada
-                        </button>
-                      )}
-
                       {/* Descartar / reabrir */}
-                      {e.status !== 'dropped' && (
+                      {!isTerminal && (
                         <button
                           type="button"
                           disabled={isPending}
@@ -346,7 +272,7 @@ export function WaitlistTable({
                           Descartar
                         </button>
                       )}
-                      {e.status === 'dropped' && (
+                      {isTerminal && (
                         <button
                           type="button"
                           disabled={isPending}
@@ -381,7 +307,8 @@ export function WaitlistTable({
               Descartar entrada
             </h3>
             <p className="text-xs text-fm-on-surface-variant">
-              ¿Por qué se descarta a {dropTarget.child_full_name}? (mín. 3 caracteres)
+              ¿Por qué se descarta a {dropTarget.child_full_name}? Pasa a fase{' '}
+              <strong>5.2 Retirado</strong>.
             </p>
             <textarea
               value={dropReason}

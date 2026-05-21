@@ -112,15 +112,26 @@ export async function advanceWaitlistPhase(
     }
   }
 
-  // Actualizar la entrada con la nueva fase + status legacy compatible.
+  // Actualizar la entrada con la nueva fase.
+  const now = new Date().toISOString()
+  const updatePatch: Partial<Omit<WaitlistEntry, 'id' | 'added_at'>> = {
+    current_phase_code: toCode,
+  }
+  // Timestamps de auditoría (audit-only, ya no manejan status)
+  if (toCode === '1_2_informacion_enviada' || toCode === '1_3_entrevista_agendada') {
+    updatePatch.contacted_at = now
+    updatePatch.contacted_by_user_id = user.id
+  }
+  if (toCode === '5_2_retirado') {
+    updatePatch.dropped_at = now
+  }
+  if (transformed) {
+    updatePatch.scheduled_child_id = transformed.childId
+  }
+
   const { data: updated, error: updErr } = await admin
     .from('waitlist_entries')
-    .update({
-      current_phase_code: toCode,
-      status: legacyStatusForPhase(toCode),
-      ...legacyTimestampsForPhase(toCode, user.id),
-      ...(transformed ? { scheduled_child_id: transformed.childId } : {}),
-    })
+    .update(updatePatch)
     .eq('id', entryId)
     .select('*')
     .single()
@@ -354,33 +365,6 @@ export async function getFutureAppointmentsCount(
 // ──────────────────────────────────────────────────────────────────────────
 // Helpers privados
 // ──────────────────────────────────────────────────────────────────────────
-
-/** Mapea la nueva sub-fase al status legacy de waitlist_entries. */
-function legacyStatusForPhase(toCode: string): 'waiting' | 'contacted' | 'scheduled' | 'dropped' {
-  if (toCode === '5_2_retirado') return 'dropped'
-  if (toCode === '3_2_inscripcion_activa' || toCode === '3_3_activo_en_terapias') return 'scheduled'
-  if (toCode.startsWith('1_1')) return 'waiting'
-  return 'contacted'
-}
-
-function legacyTimestampsForPhase(
-  toCode: string,
-  userId: string,
-): Partial<{
-  contacted_at: string | null
-  contacted_by_user_id: string | null
-  dropped_at: string | null
-  dropped_reason: string | null
-}> {
-  const now = new Date().toISOString()
-  if (toCode === '1_2_informacion_enviada' || toCode === '1_3_entrevista_agendada') {
-    return { contacted_at: now, contacted_by_user_id: userId }
-  }
-  if (toCode === '5_2_retirado') {
-    return { dropped_at: now }
-  }
-  return {}
-}
 
 type AdminClient = ReturnType<typeof createAdminClient>
 

@@ -2228,7 +2228,6 @@ export interface Database {
           preferred_days?: string | null
           notes?: string | null
           referral_source_id?: string | null
-          status?: WaitlistStatus
           priority?: number
           added_by_user_id?: string | null
           contacted_at?: string | null
@@ -3030,8 +3029,6 @@ export interface TherapistWorkScheduleBlock {
 // Lista de espera (mig 0116)
 // =============================================================================
 
-export type WaitlistStatus = 'waiting' | 'contacted' | 'scheduled' | 'dropped'
-
 export type ReferralChannel =
   | 'redes_sociales'
   | 'medico'
@@ -3062,7 +3059,6 @@ export interface WaitlistEntry {
   preferred_days: string | null
   notes: string | null
   referral_source_id: string | null
-  status: WaitlistStatus
   priority: 0 | 1 | 2
   added_by_user_id: string | null
   added_at: string

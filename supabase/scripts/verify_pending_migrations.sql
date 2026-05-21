@@ -143,6 +143,17 @@ WITH checks AS (
           WHERE table_schema='public' AND table_name='waitlist_entries'
             AND column_name IN ('child_age_text','has_previous_evaluation',
                                 'referral_channel','referral_channel_other','interest_text'))
+  UNION ALL
+  -- ── 0123 (destructive cleanup — applied=1 cuando NO existe) ────────
+  SELECT 25, 'mig_0123_dropped_waitlist_status_col',
+         (SELECT (CASE WHEN COUNT(*)=0 THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='waitlist_entries'
+            AND column_name='status')
+  UNION ALL
+  SELECT 26, 'mig_0123_dropped_waitlist_status_enum',
+         (SELECT (CASE WHEN COUNT(*)=0 THEN 1 ELSE 0 END)::int
+          FROM pg_type WHERE typname='waitlist_status')
 )
 SELECT
   check_name,
