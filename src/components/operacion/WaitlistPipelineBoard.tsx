@@ -4,6 +4,18 @@ import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  useDraggable,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core'
+import { CSS } from '@dnd-kit/utilities'
+import {
   PHASE_GROUP_COLORS,
   PHASE_GROUP_LABELS,
   REFERRAL_CHANNEL_LABELS,
@@ -45,16 +57,6 @@ function calcAge(birthdate: string | null): string {
   return `${years}a`
 }
 
-/**
- * Vista pipeline (estilo kanban) de la lista de espera. Las entradas se
- * agrupan por `current_phase_code` en columnas, y las columnas a su vez se
- * agrupan visualmente por grupo (1. Primer contacto, 2. Proceso de Admisión,
- * 3. Inicio Terapéutico). Cada card es una familia; click → drawer con
- * detalle + acciones.
- *
- * Solo muestra fases con `is_waitlist_visible=true` (1.x, 2.x, 3.x).
- * Las terminales 5.x viven en el toggle de "histórico".
- */
 export function WaitlistPipelineBoard({
   entries,
   therapistsById,
@@ -67,17 +69,14 @@ export function WaitlistPipelineBoard({
   const [selected, setSelected] = useState<WaitlistEntry | null>(null)
   const [dropTarget, setDropTarget] = useState<WaitlistEntry | null>(null)
   const [dropReason, setDropReason] = useState('')
+  const [activeEntry, setActiveEntry] = useState<WaitlistEntry | null>(null)
 
   const visiblePhases = useMemo(
     () => phaseCatalog.filter((p) => p.is_waitlist_visible).sort((a, b) => a.sort_order - b.sort_order),
     [phaseCatalog],
   )
-  const groups = useMemo(
-    () => groupPhaseCatalog(visiblePhases),
-    [visiblePhases],
-  )
+  const groups = useMemo(() => groupPhaseCatalog(visiblePhases), [visiblePhases])
 
-  // Agrupar entries por phase code
   const byPhase = useMemo(() => {
     const map: Record<string, WaitlistEntry[]> = {}
     for (const e of entries) {
@@ -87,6 +86,10 @@ export function WaitlistPipelineBoard({
     }
     return map
   }, [entries])
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  )
 
   function handleAdvance(entryId: string, toCode: string) {
     setError(null)
@@ -131,63 +134,88 @@ export function WaitlistPipelineBoard({
     })
   }
 
+  function onDragStart({ active }: DragStartEvent) {
+    const entry = active.data.current?.entry as WaitlistEntry | undefined
+    if (entry) setActiveEntry(entry)
+  }
+
+  function onDragEnd({ over }: DragEndEvent) {
+    setActiveEntry(null)
+    if (!over || !activeEntry) return
+    const toCode = over.id as string
+    const fromCode = activeEntry.current_phase_code ?? '1_1_contacto_inicial'
+    if (toCode === fromCode) return
+    handleAdvance(activeEntry.id, toCode)
+  }
+
   return (
-    <div className="space-y-4">
-      {error && (
-        <div className="rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-800">
-          {error}
-        </div>
-      )}
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+      <div className="space-y-4">
+        {error && (
+          <div className="rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-800">
+            {error}
+          </div>
+        )}
 
-      {/* Pipeline horizontal */}
-      <div className="space-y-6">
-        {groups.map((g) => {
-          const palette = PHASE_GROUP_COLORS[g.group_number as PhaseGroupNumber]
-          const totalInGroup = g.phases.reduce(
-            (sum, p) => sum + (byPhase[p.code]?.length ?? 0),
-            0,
-          )
-          return (
-            <section key={g.group_number} className="space-y-2">
-              <header className="flex items-baseline gap-3">
-                <span
-                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${palette.bg} ${palette.text}`}
-                >
-                  <span className="font-mono text-[10px] opacity-70">
-                    Grupo {g.group_number}
+        <div className="space-y-6">
+          {groups.map((g) => {
+            const palette = PHASE_GROUP_COLORS[g.group_number as PhaseGroupNumber]
+            const totalInGroup = g.phases.reduce(
+              (sum, p) => sum + (byPhase[p.code]?.length ?? 0),
+              0,
+            )
+            return (
+              <section key={g.group_number} className="space-y-2">
+                <header className="flex items-baseline gap-3">
+                  <span
+                    className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${palette.bg} ${palette.text}`}
+                  >
+                    <span className="font-mono text-[10px] opacity-70">
+                      Grupo {g.group_number}
+                    </span>
+                    {PHASE_GROUP_LABELS[g.group_number as PhaseGroupNumber]}
                   </span>
-                  {PHASE_GROUP_LABELS[g.group_number as PhaseGroupNumber]}
-                </span>
-                <span className="text-xs text-fm-on-surface-variant tabular-nums">
-                  {totalInGroup} {totalInGroup === 1 ? 'familia' : 'familias'}
-                </span>
-              </header>
+                  <span className="text-xs text-fm-on-surface-variant tabular-nums">
+                    {totalInGroup} {totalInGroup === 1 ? 'familia' : 'familias'}
+                  </span>
+                </header>
 
-              <div className="overflow-x-auto pb-2">
-                <div className="flex gap-3 min-w-min">
-                  {g.phases.map((phase) => {
-                    const items = byPhase[phase.code] ?? []
-                    return (
-                      <PhaseColumn
-                        key={phase.code}
-                        phase={phase}
-                        items={items}
-                        palette={palette}
-                        therapistsById={therapistsById}
-                        onSelect={(e) => setSelected(e)}
-                      />
-                    )
-                  })}
+                <div className="overflow-x-auto pb-2">
+                  <div className="flex gap-3 min-w-min">
+                    {g.phases.map((phase) => {
+                      const items = byPhase[phase.code] ?? []
+                      return (
+                        <PhaseColumn
+                          key={phase.code}
+                          phase={phase}
+                          items={items}
+                          palette={palette}
+                          therapistsById={therapistsById}
+                          activeEntryId={activeEntry?.id ?? null}
+                          onSelect={(e) => setSelected(e)}
+                        />
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
-            </section>
-          )
-        })}
+              </section>
+            )
+          })}
+        </div>
+
+        {/* Drag overlay — mini card floating while dragging */}
+        <DragOverlay dropAnimation={null}>
+          {activeEntry ? (
+            <div className="rotate-1 scale-105 opacity-90 w-72">
+              <CardBody entry={activeEntry} therapistsById={therapistsById} />
+            </div>
+          ) : null}
+        </DragOverlay>
       </div>
 
-      {/* Detail drawer */}
+      {/* Detail modal */}
       {selected && (
-        <DetailDrawer
+        <DetailModal
           entry={selected}
           phaseCatalog={phaseCatalog}
           therapistsById={therapistsById}
@@ -200,7 +228,7 @@ export function WaitlistPipelineBoard({
         />
       )}
 
-      {/* Drop modal */}
+      {/* Drop reason modal */}
       {dropTarget && (
         <div className="fixed inset-0 z-[60] bg-black/40 flex items-center justify-center p-4">
           <div className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-3">
@@ -215,13 +243,13 @@ export function WaitlistPipelineBoard({
               placeholder="Ej: se fue a otra clínica, no contesta, etc."
               className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
             />
+            {error && (
+              <p className="text-xs text-fm-error">{error}</p>
+            )}
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setDropTarget(null)
-                  setDropReason('')
-                }}
+                onClick={() => { setDropTarget(null); setDropReason(''); setError(null) }}
                 disabled={isPending}
                 className="px-3 py-1.5 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
               >
@@ -239,12 +267,12 @@ export function WaitlistPipelineBoard({
           </div>
         </div>
       )}
-    </div>
+    </DndContext>
   )
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Column
+// Column — droppable
 // ──────────────────────────────────────────────────────────────────────────
 
 function PhaseColumn({
@@ -252,14 +280,18 @@ function PhaseColumn({
   items,
   palette,
   therapistsById,
+  activeEntryId,
   onSelect,
 }: {
   phase: IntakePhaseCatalogEntry
   items: WaitlistEntry[]
   palette: { bg: string; text: string; ring: string }
   therapistsById: Record<string, string>
+  activeEntryId: string | null
   onSelect: (e: WaitlistEntry) => void
 }) {
+  const { setNodeRef, isOver } = useDroppable({ id: phase.code })
+
   return (
     <div className="flex-shrink-0 w-72 flex flex-col">
       <div
@@ -282,17 +314,30 @@ function PhaseColumn({
         )}
       </div>
 
-      <div className="bg-fm-surface-container-low/30 rounded-b-xl border border-fm-outline-variant/20 border-t-0 p-2 flex-1 min-h-[120px] space-y-2">
-        {items.length === 0 && (
+      <div
+        ref={setNodeRef}
+        className={`rounded-b-xl border border-fm-outline-variant/20 border-t-0 p-2 flex-1 min-h-[120px] space-y-2 transition-colors ${
+          isOver
+            ? 'bg-fm-primary/10 border-fm-primary/40'
+            : 'bg-fm-surface-container-low/30'
+        }`}
+      >
+        {items.length === 0 && !isOver && (
           <p className="text-[11px] italic text-fm-on-surface-variant text-center py-6">
             Sin familias en esta fase.
           </p>
         )}
+        {isOver && items.length === 0 && (
+          <div className="flex items-center justify-center py-6">
+            <span className="material-symbols-outlined text-fm-primary/60 text-2xl">add_circle</span>
+          </div>
+        )}
         {items.map((e) => (
-          <Card
+          <DraggableCard
             key={e.id}
             entry={e}
             therapistsById={therapistsById}
+            isBeingDragged={activeEntryId === e.id}
             onClick={() => onSelect(e)}
           />
         ))}
@@ -302,17 +347,60 @@ function PhaseColumn({
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Card
+// Draggable card wrapper
 // ──────────────────────────────────────────────────────────────────────────
 
-function Card({
+function DraggableCard({
   entry,
   therapistsById,
+  isBeingDragged,
   onClick,
 }: {
   entry: WaitlistEntry
   therapistsById: Record<string, string>
+  isBeingDragged: boolean
   onClick: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({
+    id: entry.id,
+    data: { entry },
+  })
+
+  const style = transform
+    ? { transform: CSS.Transform.toString(transform) }
+    : undefined
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`transition-opacity ${isBeingDragged ? 'opacity-30' : ''}`}
+      {...attributes}
+    >
+      <CardBody
+        entry={entry}
+        therapistsById={therapistsById}
+        onClick={onClick}
+        dragListeners={listeners}
+      />
+    </div>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Card body (shared between DraggableCard and DragOverlay)
+// ──────────────────────────────────────────────────────────────────────────
+
+function CardBody({
+  entry,
+  therapistsById,
+  onClick,
+  dragListeners,
+}: {
+  entry: WaitlistEntry
+  therapistsById: Record<string, string>
+  onClick?: () => void
+  dragListeners?: Record<string, unknown>
 }) {
   const priority = PRIORITY_TONE[entry.priority] ?? PRIORITY_TONE[0]
   const days = daysSinceAdded(entry.added_at)
@@ -323,65 +411,83 @@ function Card({
   const isStale = days > 14 && entry.priority >= 1
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full text-left rounded-lg border bg-fm-surface-container-lowest p-2.5 hover:shadow-md hover:border-fm-primary/40 transition-all space-y-1.5 ${
+    <div
+      className={`w-full rounded-lg border bg-fm-surface-container-lowest hover:shadow-md hover:border-fm-primary/40 transition-all space-y-1.5 ${
         isStale ? 'border-amber-400' : 'border-fm-outline-variant/30'
       }`}
     >
-      <div className="flex items-start gap-1.5">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-fm-on-surface leading-tight truncate">
-            {entry.child_full_name}
+      {/* Drag handle + click area */}
+      <div className="flex items-start">
+        {/* Drag grip */}
+        <button
+          type="button"
+          className="flex-shrink-0 px-1.5 pt-2.5 pb-0 text-fm-on-surface-variant/40 hover:text-fm-on-surface-variant cursor-grab active:cursor-grabbing touch-none"
+          aria-label="Arrastrar"
+          {...dragListeners}
+        >
+          <span className="material-symbols-outlined text-base select-none">drag_indicator</span>
+        </button>
+
+        {/* Clickable content */}
+        <button
+          type="button"
+          onClick={onClick}
+          className="flex-1 min-w-0 text-left pr-2.5 pt-2.5 pb-2.5 space-y-1.5"
+        >
+          <div className="flex items-start gap-1.5">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-fm-on-surface leading-tight truncate">
+                {entry.child_full_name}
+              </p>
+              {age && (
+                <p className="text-[11px] text-fm-on-surface-variant">{age}</p>
+              )}
+            </div>
+            {entry.priority > 0 && (
+              <span
+                className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded flex-shrink-0 ${priority.bg} ${priority.text}`}
+              >
+                {entry.priority === 2 ? '!!' : '!'}
+              </span>
+            )}
+          </div>
+
+          <p className="text-[11px] text-fm-on-surface-variant truncate">
+            {SERVICE_TYPE_LABELS[entry.requested_service_type] ?? entry.requested_service_type}
           </p>
-          {age && (
-            <p className="text-[11px] text-fm-on-surface-variant">{age}</p>
+
+          {(therapist || entry.referral_channel) && (
+            <div className="flex flex-wrap items-center gap-1">
+              {therapist && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-fm-primary/10 text-fm-primary truncate max-w-full">
+                  {therapist}
+                </span>
+              )}
+              {entry.referral_channel && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-fm-secondary/10 text-fm-secondary">
+                  {REFERRAL_CHANNEL_LABELS[entry.referral_channel]}
+                </span>
+              )}
+            </div>
           )}
-        </div>
-        {entry.priority > 0 && (
-          <span
-            className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${priority.bg} ${priority.text}`}
-          >
-            {entry.priority === 2 ? '!!' : '!'}
-          </span>
-        )}
-      </div>
 
-      <p className="text-[11px] text-fm-on-surface-variant truncate">
-        {SERVICE_TYPE_LABELS[entry.requested_service_type] ?? entry.requested_service_type}
-      </p>
-
-      {(therapist || entry.referral_channel) && (
-        <div className="flex flex-wrap items-center gap-1">
-          {therapist && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-fm-primary/10 text-fm-primary truncate max-w-full">
-              {therapist}
+          <div className="flex items-center justify-between text-[10px] text-fm-on-surface-variant pt-1 border-t border-fm-outline-variant/10">
+            <span className="truncate">{entry.parent_full_name}</span>
+            <span className={`tabular-nums ${isStale ? 'text-amber-700 font-bold' : ''}`}>
+              {days === 0 ? 'hoy' : `${days}d`}
             </span>
-          )}
-          {entry.referral_channel && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-fm-secondary/10 text-fm-secondary">
-              {REFERRAL_CHANNEL_LABELS[entry.referral_channel]}
-            </span>
-          )}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between text-[10px] text-fm-on-surface-variant pt-1 border-t border-fm-outline-variant/10">
-        <span className="truncate">{entry.parent_full_name}</span>
-        <span className={`tabular-nums ${isStale ? 'text-amber-700 font-bold' : ''}`}>
-          {days === 0 ? 'hoy' : `${days}d`}
-        </span>
+          </div>
+        </button>
       </div>
-    </button>
+    </div>
   )
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Detail drawer
+// Detail modal (centered, scrollable)
 // ──────────────────────────────────────────────────────────────────────────
 
-function DetailDrawer({
+function DetailModal({
   entry,
   phaseCatalog,
   therapistsById,
@@ -414,90 +520,105 @@ function DetailDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/40 flex items-stretch justify-end"
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-fm-surface-container-lowest w-full max-w-md h-full overflow-y-auto shadow-2xl p-5 space-y-4"
+        className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-start justify-between gap-2">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
-              {currentPhase ? `${currentPhase.group_number}.${currentPhase.sub_order} · ${currentPhase.group_name}` : 'Sin fase'}
-            </p>
-            <h3 className="text-lg font-bold text-fm-on-surface mt-0.5">
-              {entry.child_full_name}
-            </h3>
-            {currentPhase && (
-              <p className="text-sm text-fm-on-surface-variant">{currentPhase.label}</p>
-            )}
+        {/* Sticky header */}
+        <div className="sticky top-0 z-10 bg-fm-surface-container-lowest rounded-t-2xl px-5 pt-5 pb-3 border-b border-fm-outline-variant/15">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
+                {currentPhase
+                  ? `${currentPhase.group_number}.${currentPhase.sub_order} · ${currentPhase.group_name}`
+                  : 'Sin fase'}
+              </p>
+              <h3 className="text-lg font-bold text-fm-on-surface mt-0.5">
+                {entry.child_full_name}
+              </h3>
+              {currentPhase && (
+                <p className="text-sm text-fm-on-surface-variant">{currentPhase.label}</p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-fm-on-surface-variant hover:text-fm-on-surface mt-0.5"
+              aria-label="Cerrar"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-fm-on-surface-variant hover:text-fm-on-surface"
-            aria-label="Cerrar"
-          >
-            <span className="material-symbols-outlined">close</span>
-          </button>
-        </header>
+        </div>
 
-        <div className="space-y-2 text-sm">
-          {entry.child_age_text || entry.child_birthdate ? (
-            <Row label="Edad" value={entry.child_age_text ?? calcAge(entry.child_birthdate)} />
-          ) : null}
-          {entry.child_diagnosis && <Row label="Diagnóstico" value={entry.child_diagnosis} />}
-          {entry.has_previous_evaluation !== null && (
-            <Row label="Eval. previa" value={entry.has_previous_evaluation ? 'Sí' : 'No'} />
-          )}
-          <Row
-            label="Servicio"
-            value={SERVICE_TYPE_LABELS[entry.requested_service_type] ?? entry.requested_service_type}
-          />
-          {entry.interest_text && <Row label="Interés" value={entry.interest_text} />}
-          <Row label="Padre/madre" value={entry.parent_full_name} />
-          <Row label="Teléfono" value={
-            <a href={`tel:${entry.parent_phone}`} className="text-fm-primary hover:underline">
-              {entry.parent_phone}
-            </a>
-          } />
-          {entry.parent_email && (
-            <Row label="Email" value={
-              <a href={`mailto:${entry.parent_email}`} className="text-fm-primary hover:underline">
-                {entry.parent_email}
-              </a>
-            } />
-          )}
-          {entry.referral_channel && (
+        {/* Scrollable body */}
+        <div className="flex-1 px-5 py-4 space-y-4">
+          <div className="space-y-2 text-sm">
+            {entry.child_age_text || entry.child_birthdate ? (
+              <Row label="Edad" value={entry.child_age_text ?? calcAge(entry.child_birthdate)} />
+            ) : null}
+            {entry.child_diagnosis && <Row label="Diagnóstico" value={entry.child_diagnosis} />}
+            {entry.has_previous_evaluation !== null && (
+              <Row label="Eval. previa" value={entry.has_previous_evaluation ? 'Sí' : 'No'} />
+            )}
             <Row
-              label="Conoció por"
+              label="Servicio"
+              value={SERVICE_TYPE_LABELS[entry.requested_service_type] ?? entry.requested_service_type}
+            />
+            {entry.interest_text && <Row label="Interés" value={entry.interest_text} />}
+            <Row label="Padre/madre" value={entry.parent_full_name} />
+            <Row
+              label="Teléfono"
               value={
-                REFERRAL_CHANNEL_LABELS[entry.referral_channel] +
-                (entry.referral_channel_other ? ` (${entry.referral_channel_other})` : '')
+                <a href={`tel:${entry.parent_phone}`} className="text-fm-primary hover:underline">
+                  {entry.parent_phone}
+                </a>
               }
             />
-          )}
-          {therapist && <Row label="Terapista preferida" value={therapist} />}
-          {entry.preferred_days && <Row label="Días preferidos" value={entry.preferred_days} />}
-          <Row label="Días en espera" value={`${days}d`} />
-          <Row label="Prioridad" value={PRIORITY_TONE[entry.priority]?.label ?? 'Normal'} />
-          {entry.notes && <Row label="Notas" value={entry.notes} />}
-          {currentPhase?.code === '5_2_retirado' && entry.dropped_reason && (
-            <Row label="Motivo de descarte" value={entry.dropped_reason} />
+            {entry.parent_email && (
+              <Row
+                label="Email"
+                value={
+                  <a href={`mailto:${entry.parent_email}`} className="text-fm-primary hover:underline">
+                    {entry.parent_email}
+                  </a>
+                }
+              />
+            )}
+            {entry.referral_channel && (
+              <Row
+                label="Conoció por"
+                value={
+                  REFERRAL_CHANNEL_LABELS[entry.referral_channel] +
+                  (entry.referral_channel_other ? ` (${entry.referral_channel_other})` : '')
+                }
+              />
+            )}
+            {therapist && <Row label="Terapista preferida" value={therapist} />}
+            {entry.preferred_days && <Row label="Días preferidos" value={entry.preferred_days} />}
+            <Row label="Días en espera" value={`${days}d`} />
+            <Row label="Prioridad" value={PRIORITY_TONE[entry.priority]?.label ?? 'Normal'} />
+            {entry.notes && <Row label="Notas" value={entry.notes} />}
+            {currentPhase?.code === '5_2_retirado' && entry.dropped_reason && (
+              <Row label="Motivo de descarte" value={entry.dropped_reason} />
+            )}
+          </div>
+
+          {childLink && (
+            <Link
+              href={childLink}
+              className="block text-center text-sm font-semibold py-2 rounded-lg bg-fm-primary/10 text-fm-primary hover:bg-fm-primary/15"
+            >
+              Ver ficha del niño →
+            </Link>
           )}
         </div>
 
-        {childLink && (
-          <Link
-            href={childLink}
-            className="block text-center text-sm font-semibold py-2 rounded-lg bg-fm-primary/10 text-fm-primary hover:bg-fm-primary/15"
-          >
-            Ver ficha del niño →
-          </Link>
-        )}
-
-        <div className="pt-3 border-t border-fm-outline-variant/20 space-y-2">
+        {/* Sticky footer with actions */}
+        <div className="sticky bottom-0 bg-fm-surface-container-lowest rounded-b-2xl px-5 py-4 border-t border-fm-outline-variant/15 space-y-2">
           <p className="text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
             Acciones
           </p>
