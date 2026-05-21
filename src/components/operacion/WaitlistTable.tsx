@@ -1,27 +1,29 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
+  PHASE_GROUP_COLORS,
+  PHASE_GROUP_LABELS,
   REFERRAL_CHANNEL_LABELS,
   SERVICE_TYPE_LABELS,
   type IntakePhaseCatalogEntry,
+  type PhaseGroupNumber,
   type WaitlistEntry,
 } from '@/types/db'
+import { groupPhaseCatalog } from '@/lib/domain/intake-pipeline'
 import { daysSinceAdded } from '@/lib/domain/waitlist-alerts'
 import { advanceWaitlistPhase } from '@/app/actions/intake-pipeline'
-import { transformWaitlistEntryToFamily } from '@/app/actions/waitlist'
 import { TransformWaitlistModal } from './TransformWaitlistModal'
 import { PhaseChip } from '@/components/pipeline/PhaseChip'
-import { PhaseAdvanceMenu } from '@/components/pipeline/PhaseAdvanceMenu'
 
 interface Props {
   entries: WaitlistEntry[]
   therapistsById: Record<string, string>
   /** Mapa de child_id → family_id, para link directo a ficha desde entradas ya inscritas. */
   familyIdByChildId?: Record<string, string>
-  /** Catálogo de sub-fases para el dropdown de avance. */
+  /** Catálogo de sub-fases para el modal de avance. */
   phaseCatalog: IntakePhaseCatalogEntry[]
 }
 
@@ -58,6 +60,7 @@ export function WaitlistTable({
   const [dropTarget, setDropTarget] = useState<WaitlistEntry | null>(null)
   const [dropReason, setDropReason] = useState('')
   const [transformTarget, setTransformTarget] = useState<WaitlistEntry | null>(null)
+  const [phaseTarget, setPhaseTarget] = useState<WaitlistEntry | null>(null)
 
   const catalogByCode: Record<string, IntakePhaseCatalogEntry> = {}
   for (const p of phaseCatalog) catalogByCode[p.code] = p
@@ -227,42 +230,37 @@ export function WaitlistTable({
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-col gap-1 items-end">
-                      {/* Link a ficha si ya hay child */}
                       {isInscribed && familyId && (
                         <Link
                           href={`/familias/${familyId}/children/${e.scheduled_child_id}`}
                           className="text-xs font-semibold text-fm-primary hover:underline"
                         >
-                          Ver ficha del niño
+                          Ver ficha
                         </Link>
                       )}
 
-                      {/* Avanzar fase — solo si no terminal */}
                       {!isTerminal && (
-                        <PhaseAdvanceMenu
-                          catalog={phaseCatalog}
-                          currentCode={e.current_phase_code}
-                          onlyWaitlistVisible
+                        <button
+                          type="button"
                           disabled={isPending}
-                          onAdvance={(toCode) => handleAdvanceTo(e.id, toCode)}
-
-                        />
+                          onClick={() => setPhaseTarget(e)}
+                          className="text-xs font-semibold text-fm-primary hover:underline disabled:opacity-50"
+                        >
+                          Cambiar fase
+                        </button>
                       )}
 
-                      {/* Convertir manualmente con form completo — antes de inscribir */}
                       {!isInscribed && !isTerminal && (
                         <button
                           type="button"
                           disabled={isPending}
                           onClick={() => setTransformTarget(e)}
                           className="text-xs font-semibold text-emerald-700 hover:underline disabled:opacity-50"
-                          title="Crear familia + niño con formulario completo"
                         >
                           Convertir a familia
                         </button>
                       )}
 
-                      {/* Descartar / reabrir */}
                       {!isTerminal && (
                         <button
                           type="button"
@@ -291,6 +289,20 @@ export function WaitlistTable({
           </tbody>
         </table>
       </div>
+
+      {/* Phase select modal */}
+      {phaseTarget && (
+        <PhaseSelectModal
+          entry={phaseTarget}
+          phaseCatalog={phaseCatalog}
+          isPending={isPending}
+          onClose={() => setPhaseTarget(null)}
+          onAdvance={(toCode) => {
+            setPhaseTarget(null)
+            handleAdvanceTo(phaseTarget.id, toCode)
+          }}
+        />
+      )}
 
       {/* Transform modal */}
       {transformTarget && (
@@ -322,10 +334,7 @@ export function WaitlistTable({
               <button
                 type="button"
                 disabled={isPending}
-                onClick={() => {
-                  setDropTarget(null)
-                  setDropReason('')
-                }}
+                onClick={() => { setDropTarget(null); setDropReason('') }}
                 className="px-3 py-1.5 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
               >
                 Cancelar
@@ -343,5 +352,127 @@ export function WaitlistTable({
         </div>
       )}
     </>
+  )
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Modal de selección de fase (reutiliza el mismo patrón que DetailModal)
+// ──────────────────────────────────────────────────────────────────────────
+
+function PhaseSelectModal({
+  entry,
+  phaseCatalog,
+  isPending,
+  onClose,
+  onAdvance,
+}: {
+  entry: WaitlistEntry
+  phaseCatalog: IntakePhaseCatalogEntry[]
+  isPending: boolean
+  onClose: () => void
+  onAdvance: (toCode: string) => void
+}) {
+  const visiblePhases = useMemo(
+    () => phaseCatalog.filter((p) => p.is_waitlist_visible).sort((a, b) => a.sort_order - b.sort_order),
+    [phaseCatalog],
+  )
+  const groups = useMemo(() => groupPhaseCatalog(visiblePhases), [visiblePhases])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex-shrink-0 px-5 pt-5 pb-3 border-b border-fm-outline-variant/15">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
+                {entry.child_full_name}
+              </p>
+              <h3 className="text-base font-bold text-fm-on-surface mt-0.5">
+                Seleccionar nueva fase
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-fm-on-surface-variant hover:text-fm-on-surface mt-0.5"
+              aria-label="Cerrar"
+            >
+              <span className="material-symbols-outlined">close</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Phase list — scrollable */}
+        <div className="flex-1 overflow-y-auto">
+          {groups.map((g) => {
+            const palette = PHASE_GROUP_COLORS[g.group_number as PhaseGroupNumber]
+            return (
+              <div key={g.group_number} className="border-b border-fm-outline-variant/10 last:border-0">
+                <div className={`px-5 py-2 text-[10px] font-bold uppercase tracking-wider ${palette.bg} ${palette.text}`}>
+                  {g.group_number}. {g.group_name}
+                  <span className="ml-1 normal-case font-normal opacity-70">
+                    · {PHASE_GROUP_LABELS[g.group_number as PhaseGroupNumber]}
+                  </span>
+                </div>
+                <ul>
+                  {g.phases.map((p) => {
+                    const isCurrent = p.code === entry.current_phase_code
+                    return (
+                      <li key={p.code}>
+                        <button
+                          type="button"
+                          disabled={isCurrent || isPending}
+                          onClick={() => onAdvance(p.code)}
+                          className={`w-full text-left px-5 py-3 flex items-center gap-3 hover:bg-fm-surface-container transition-colors disabled:cursor-not-allowed ${
+                            isCurrent ? 'bg-fm-surface-container-low' : ''
+                          }`}
+                        >
+                          <span className="font-mono text-[11px] text-fm-on-surface-variant w-6 flex-shrink-0">
+                            {p.group_number}.{p.sub_order}
+                          </span>
+                          <span className="flex-1 text-sm">
+                            <span className={`font-medium ${isCurrent ? 'text-fm-primary' : 'text-fm-on-surface'}`}>
+                              {p.label}
+                            </span>
+                            {p.is_optional && (
+                              <span className="ml-2 text-[10px] uppercase text-fm-on-surface-variant">
+                                opcional
+                              </span>
+                            )}
+                          </span>
+                          {isCurrent && (
+                            <span className="material-symbols-outlined text-fm-primary text-base flex-shrink-0">
+                              check_circle
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="flex-shrink-0 px-5 py-3 border-t border-fm-outline-variant/15">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-xs font-semibold text-fm-on-surface-variant hover:text-fm-on-surface"
+          >
+            ← Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
