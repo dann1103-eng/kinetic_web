@@ -10,7 +10,6 @@ import {
   SERVICE_TYPE_LABELS,
   type PhaseGroupNumber,
   type ServiceType,
-  type WaitlistStatus,
 } from '@/types/db'
 import { WaitlistViewSwitcher } from '@/components/operacion/WaitlistViewSwitcher'
 import { NewWaitlistEntryButton } from '@/components/operacion/NewWaitlistEntryButton'
@@ -27,13 +26,11 @@ const ALLOWED_ROLES = [
 
 interface PageProps {
   searchParams: Promise<{
-    status?: string
     service?: string
     group?: string
+    historical?: string
   }>
 }
-
-const VALID_STATUSES: WaitlistStatus[] = ['waiting', 'contacted', 'scheduled', 'dropped']
 
 export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
   const ctx = await getEffectiveUser()
@@ -41,10 +38,8 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
   if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
 
   const params = await searchParams
-  const statusFilter = (VALID_STATUSES.includes(params.status as WaitlistStatus)
-    ? (params.status as WaitlistStatus)
-    : undefined) as WaitlistStatus | undefined
   const serviceFilter = params.service as ServiceType | undefined
+  const includeHistorical = params.historical === '1'
   const groupFilterRaw = params.group ? Number(params.group) : undefined
   const groupFilter: PhaseGroupNumber | undefined =
     groupFilterRaw && [1, 2, 3, 4, 5].includes(groupFilterRaw)
@@ -55,9 +50,9 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
 
   const [entries, phaseCatalog] = await Promise.all([
     listWaitlist({
-      status: statusFilter,
       serviceType: serviceFilter,
       phaseGroup: groupFilter,
+      includeHistorical,
     }),
     listPhaseCatalog(),
   ])
@@ -76,7 +71,7 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
     therapists.map((t) => [t.id, t.full_name]),
   )
 
-  // Lookup family_id de los niños vinculados a entradas 'scheduled' (para link directo a ficha)
+  // Lookup family_id de los niños vinculados a entradas con scheduled_child_id
   const scheduledChildIds = entries
     .map((e) => e.scheduled_child_id)
     .filter((x): x is string => !!x)
@@ -89,6 +84,20 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
     for (const row of (childRows ?? []) as { id: string; family_id: string }[]) {
       familyIdByChildId[row.id] = row.family_id
     }
+  }
+
+  function buildQuery(overrides: Partial<{ service: string; group: string; historical: string }>) {
+    const q = new URLSearchParams()
+    const merged = {
+      service: overrides.service ?? serviceFilter ?? '',
+      group: overrides.group ?? (groupFilter ? String(groupFilter) : ''),
+      historical: overrides.historical ?? (includeHistorical ? '1' : ''),
+    }
+    if (merged.service) q.set('service', merged.service)
+    if (merged.group) q.set('group', merged.group)
+    if (merged.historical) q.set('historical', merged.historical)
+    const s = q.toString()
+    return `/operacion/lista-de-espera${s ? `?${s}` : ''}`
   }
 
   return (
@@ -104,10 +113,10 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
           <NewWaitlistEntryButton therapists={therapists} />
         </div>
         <p className="text-sm text-fm-on-surface-variant max-w-prose">
-          Familias que solicitaron cita pero no se pudieron agendar. Al liberar capacidad,
-          contactalas en orden de prioridad y antigüedad. Las entradas <strong>agendadas</strong>{' '}
-          (ya convertidas en familia) y <strong>descartadas</strong> salen de la vista activa;
-          podés verlas con los filtros de histórico.
+          Familias que solicitaron cita y avanzan por las sub-fases del pipeline
+          (1.1 → 3.2). Al completar <strong>3.2 Inscripción</strong> se crea
+          automáticamente la familia + niño en el CRM. Las entradas descartadas
+          quedan ocultas; activá el toggle <em>Histórico</em> para verlas.
         </p>
       </header>
 
@@ -148,36 +157,6 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
       {/* Filtros */}
       <div className="flex flex-col gap-3 border-b border-fm-outline-variant/20 pb-3">
         <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs text-fm-on-surface-variant">Estado:</span>
-          {[
-            { val: undefined, label: 'Activas' },
-            { val: 'waiting', label: 'En espera' },
-            { val: 'contacted', label: 'Contactadas' },
-            { val: 'scheduled', label: 'Agendadas (histórico)' },
-            { val: 'dropped', label: 'Descartadas (histórico)' },
-          ].map((f) => {
-            const active = (statusFilter ?? undefined) === f.val
-            const query = new URLSearchParams()
-            if (f.val) query.set('status', f.val)
-            if (serviceFilter) query.set('service', serviceFilter)
-            if (groupFilter) query.set('group', String(groupFilter))
-            const href = `/operacion/lista-de-espera${query.toString() ? `?${query.toString()}` : ''}`
-            return (
-              <Link
-                key={f.label}
-                href={href}
-                className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${
-                  active
-                    ? 'bg-fm-primary text-white'
-                    : 'text-fm-on-surface-variant hover:bg-fm-surface-container'
-                }`}
-              >
-                {f.label}
-              </Link>
-            )
-          })}
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs text-fm-on-surface-variant">Grupo:</span>
           {[
             { val: undefined as number | undefined, label: 'Todos' },
@@ -186,11 +165,7 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
             { val: 3, label: PHASE_GROUP_LABELS[3] },
           ].map((f) => {
             const active = (groupFilter ?? undefined) === f.val
-            const query = new URLSearchParams()
-            if (statusFilter) query.set('status', statusFilter)
-            if (serviceFilter) query.set('service', serviceFilter)
-            if (f.val) query.set('group', String(f.val))
-            const href = `/operacion/lista-de-espera${query.toString() ? `?${query.toString()}` : ''}`
+            const href = buildQuery({ group: f.val ? String(f.val) : '' })
             return (
               <Link
                 key={f.label}
@@ -205,6 +180,20 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
               </Link>
             )
           })}
+          <Link
+            href={buildQuery({ historical: includeHistorical ? '' : '1' })}
+            className={`ml-auto inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${
+              includeHistorical
+                ? 'bg-fm-on-surface text-white'
+                : 'text-fm-on-surface-variant hover:bg-fm-surface-container border border-fm-outline-variant/30'
+            }`}
+            title="Mostrar también descartados / ya inscritos"
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+              {includeHistorical ? 'visibility' : 'visibility_off'}
+            </span>
+            Histórico
+          </Link>
         </div>
       </div>
 
