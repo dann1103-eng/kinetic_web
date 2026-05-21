@@ -727,13 +727,13 @@ BEGIN
         -- Crear invoice
         INSERT INTO public.invoices (
           invoice_number, client_id, child_id, issue_date,
-          currency, subtotal, discount_amount, tax_rate, tax_amount, total,
+          currency, subtotal, discount_amount, tax_rate, tax_amount, total, total_a_pagar,
           status, payment_date, payment_method, notes,
           client_snapshot_json, emitter_snapshot_json, created_by
         ) VALUES (
           'KIN-' || to_char(v_m, 'YYYYMM') || '-' || LPAD(v_invn::text, 4, '0'),
           NULL, v_child, v_m + INTERVAL '4 days',
-          'USD', v_total, 0, 0, 0, v_total,
+          'USD', v_total, 0, 0, 0, v_total, v_total,
           'paid', (v_m + INTERVAL '4 days')::date, 'transfer',
           'Ciclo mensual ' || to_char(v_m, 'YYYY-MM') || ' (seed)',
           jsonb_build_object('child_id', v_child, 'child_full_name', v_child_name),
