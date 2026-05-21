@@ -32,6 +32,7 @@ export function PhaseAdvanceMenu({
   label = 'Avanzar a…',
 }: Props) {
   const [open, setOpen] = useState(false)
+  const [dropW, setDropW] = useState(288)
   const [pos, setPos] = useState<{
     top?: number
     bottom?: number
@@ -70,15 +71,20 @@ export function PhaseAdvanceMenu({
 
     const rect = triggerRef.current.getBoundingClientRect()
     const GAP = 4
+    const DROP_W = Math.min(288, window.innerWidth - 16)
     const MAX_DROP_H = Math.min(window.innerHeight * 0.6, 400)
     const spaceBelow = window.innerHeight - rect.bottom - GAP
     const spaceAbove = rect.top - GAP
 
+    // Clamp left so the dropdown never overflows the viewport
+    const left = Math.max(8, Math.min(rect.left, window.innerWidth - DROP_W - 8))
+
     if (spaceBelow >= Math.min(MAX_DROP_H, 180) || spaceBelow >= spaceAbove) {
-      setPos({ top: rect.bottom + GAP, left: rect.left })
+      setPos({ top: rect.bottom + GAP, left })
     } else {
-      setPos({ bottom: window.innerHeight - rect.top + GAP, left: rect.left })
+      setPos({ bottom: window.innerHeight - rect.top + GAP, left })
     }
+    setDropW(DROP_W)
     setOpen(true)
   }
 
@@ -97,7 +103,7 @@ export function PhaseAdvanceMenu({
           bottom: pos.bottom,
           left: pos.left,
           zIndex: 9999,
-          width: '18rem',
+          width: dropW,
         }}
         className="max-h-[60vh] overflow-y-auto rounded-xl border border-fm-outline-variant/30 bg-fm-surface-container-lowest shadow-2xl"
       >
