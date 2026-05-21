@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
+  REFERRAL_CHANNEL_LABELS,
   SERVICE_TYPE_LABELS,
   type IntakePhaseCatalogEntry,
   type WaitlistEntry,
@@ -181,13 +182,18 @@ export function WaitlistTable({
                     <p className="font-semibold text-fm-on-surface">{e.child_full_name}</p>
                     <div className="mt-0.5 flex items-center gap-2">
                       <span className="text-xs text-fm-on-surface-variant tabular-nums">
-                        {calcAge(e.child_birthdate)}
+                        {e.child_age_text ?? calcAge(e.child_birthdate)}
                       </span>
                       <span
                         className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${priority.bg} ${priority.text}`}
                       >
                         {priority.label}
                       </span>
+                      {e.has_previous_evaluation && (
+                        <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-900">
+                          Eval. previa
+                        </span>
+                      )}
                     </div>
                     {e.child_diagnosis && (
                       <p className="text-xs text-fm-on-surface-variant mt-1 italic line-clamp-2 max-w-[180px]">
@@ -216,6 +222,19 @@ export function WaitlistTable({
                     {SERVICE_TYPE_LABELS[e.requested_service_type] ?? e.requested_service_type}
                   </td>
                   <td className="px-4 py-3 text-xs text-fm-on-surface-variant">
+                    {e.referral_channel && (
+                      <p>
+                        <span className="font-semibold">Conoció por:</span>{' '}
+                        {REFERRAL_CHANNEL_LABELS[e.referral_channel]}
+                        {e.referral_channel_other && ` (${e.referral_channel_other})`}
+                      </p>
+                    )}
+                    {e.interest_text && (
+                      <p>
+                        <span className="font-semibold">Interés:</span>{' '}
+                        <span className="italic">{e.interest_text}</span>
+                      </p>
+                    )}
                     {preferredTherapist && (
                       <p>
                         <span className="font-semibold">Terapista:</span> {preferredTherapist}
@@ -226,7 +245,7 @@ export function WaitlistTable({
                         <span className="font-semibold">Días:</span> {e.preferred_days}
                       </p>
                     )}
-                    {!preferredTherapist && !e.preferred_days && '—'}
+                    {!preferredTherapist && !e.preferred_days && !e.referral_channel && !e.interest_text && '—'}
                     {e.notes && (
                       <p className="italic mt-1 line-clamp-2 max-w-[200px]">{e.notes}</p>
                     )}

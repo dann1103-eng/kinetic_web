@@ -2237,6 +2237,11 @@ export interface Database {
           dropped_reason?: string | null
           scheduled_child_id?: string | null
           current_phase_code?: string | null
+          child_age_text?: string | null
+          has_previous_evaluation?: boolean | null
+          referral_channel?: ReferralChannel | null
+          referral_channel_other?: string | null
+          interest_text?: string | null
         }
         Update: Partial<Omit<WaitlistEntry, 'id' | 'added_at'>>
         Relationships: []
@@ -3027,6 +3032,23 @@ export interface TherapistWorkScheduleBlock {
 
 export type WaitlistStatus = 'waiting' | 'contacted' | 'scheduled' | 'dropped'
 
+export type ReferralChannel =
+  | 'redes_sociales'
+  | 'medico'
+  | 'amigo_familiar'
+  | 'reingreso'
+  | 'colegio'
+  | 'otro'
+
+export const REFERRAL_CHANNEL_LABELS: Record<ReferralChannel, string> = {
+  redes_sociales: 'Redes Sociales',
+  medico: 'Médico',
+  amigo_familiar: 'Amigo o familiar',
+  reingreso: 'Reingreso',
+  colegio: 'Colegio',
+  otro: 'Otro',
+}
+
 export interface WaitlistEntry {
   id: string
   child_full_name: string
@@ -3052,6 +3074,12 @@ export interface WaitlistEntry {
   updated_at: string
   /** Pipeline 0121: sub-fase actual del catálogo intake_phase_catalog. */
   current_phase_code: string | null
+  /** Mig 0122: campos del formulario de prospectos (Google Form 2022). */
+  child_age_text: string | null
+  has_previous_evaluation: boolean | null
+  referral_channel: ReferralChannel | null
+  referral_channel_other: string | null
+  interest_text: string | null
 }
 
 export interface VirtualMeeting {

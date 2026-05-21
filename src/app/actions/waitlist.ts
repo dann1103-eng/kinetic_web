@@ -4,7 +4,12 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import type { ServiceType, WaitlistEntry, WaitlistStatus } from '@/types/db'
+import type {
+  ReferralChannel,
+  ServiceType,
+  WaitlistEntry,
+  WaitlistStatus,
+} from '@/types/db'
 
 const COORD_ROLES = [
   'admin',
@@ -38,6 +43,12 @@ export interface CreateWaitlistInput {
   notes?: string | null
   referralSourceId?: string | null
   priority?: 0 | 1 | 2
+  // Mig 0122: campos del formulario de prospectos
+  childAgeText?: string | null
+  hasPreviousEvaluation?: boolean | null
+  referralChannel?: ReferralChannel | null
+  referralChannelOther?: string | null
+  interestText?: string | null
 }
 
 export async function createWaitlistEntry(
@@ -76,6 +87,12 @@ export async function createWaitlistEntry(
       referral_source_id: input.referralSourceId || null,
       priority: input.priority ?? 0,
       added_by_user_id: user.id,
+      child_age_text: input.childAgeText?.trim() || null,
+      has_previous_evaluation:
+        input.hasPreviousEvaluation === undefined ? null : input.hasPreviousEvaluation,
+      referral_channel: input.referralChannel ?? null,
+      referral_channel_other: input.referralChannelOther?.trim() || null,
+      interest_text: input.interestText?.trim() || null,
     })
     .select('*')
     .single()

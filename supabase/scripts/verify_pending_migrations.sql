@@ -146,3 +146,14 @@ SELECT 'mig_0121_sync_legacy_phase_trigger' AS check_name, COUNT(*)::int AS appl
 FROM pg_trigger t
 JOIN pg_class c ON c.oid = t.tgrelid
 WHERE c.relname = 'children' AND t.tgname = 'children_sync_legacy_phase';
+
+-- ── 0122: campos del formulario de prospectos en waitlist_entries ────
+SELECT 'mig_0122_waitlist_form_fields' AS check_name,
+       (CASE WHEN COUNT(*) = 5 THEN 1 ELSE 0 END)::int AS applied
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'waitlist_entries'
+  AND column_name IN (
+    'child_age_text', 'has_previous_evaluation', 'referral_channel',
+    'referral_channel_other', 'interest_text'
+  );

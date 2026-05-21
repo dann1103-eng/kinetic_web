@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { SERVICE_TYPE_LABELS, type ServiceType } from '@/types/db'
+import {
+  REFERRAL_CHANNEL_LABELS,
+  SERVICE_TYPE_LABELS,
+  type ReferralChannel,
+  type ServiceType,
+} from '@/types/db'
 import { createWaitlistEntry } from '@/app/actions/waitlist'
 
 interface Props {
@@ -18,28 +23,40 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
 
   const [childFullName, setChildFullName] = useState('')
   const [childBirthdate, setChildBirthdate] = useState('')
+  const [childAgeText, setChildAgeText] = useState('')
   const [childDiagnosis, setChildDiagnosis] = useState('')
   const [parentFullName, setParentFullName] = useState('')
   const [parentPhone, setParentPhone] = useState('')
   const [parentEmail, setParentEmail] = useState('')
   const [requestedServiceType, setRequestedServiceType] = useState<ServiceType>('lenguaje')
+  const [interestText, setInterestText] = useState('')
   const [preferredTherapistId, setPreferredTherapistId] = useState('')
   const [preferredDays, setPreferredDays] = useState('')
   const [notes, setNotes] = useState('')
   const [priority, setPriority] = useState<0 | 1 | 2>(0)
+  const [hasPreviousEvaluation, setHasPreviousEvaluation] = useState<
+    boolean | null
+  >(null)
+  const [referralChannel, setReferralChannel] = useState<ReferralChannel | ''>('')
+  const [referralChannelOther, setReferralChannelOther] = useState('')
 
   function reset() {
     setChildFullName('')
     setChildBirthdate('')
+    setChildAgeText('')
     setChildDiagnosis('')
     setParentFullName('')
     setParentPhone('')
     setParentEmail('')
     setRequestedServiceType('lenguaje')
+    setInterestText('')
     setPreferredTherapistId('')
     setPreferredDays('')
     setNotes('')
     setPriority(0)
+    setHasPreviousEvaluation(null)
+    setReferralChannel('')
+    setReferralChannelOther('')
     setError(null)
   }
 
@@ -58,6 +75,12 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
         preferredDays: preferredDays || null,
         notes: notes || null,
         priority,
+        childAgeText: childAgeText || null,
+        hasPreviousEvaluation,
+        referralChannel: referralChannel || null,
+        referralChannelOther:
+          referralChannel === 'otro' ? referralChannelOther || null : null,
+        interestText: interestText || null,
       })
       if (!res.ok) {
         setError(res.error)
@@ -100,6 +123,15 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
               className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
             />
           </Field>
+          <Field label="Edad">
+            <input
+              type="text"
+              value={childAgeText}
+              onChange={(e) => setChildAgeText(e.target.value)}
+              placeholder="Ej: 5 años, 3 años 8 meses"
+              className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
+            />
+          </Field>
           <Field label="Fecha de nacimiento">
             <input
               type="date"
@@ -107,6 +139,35 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
               onChange={(e) => setChildBirthdate(e.target.value)}
               className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
             />
+          </Field>
+          <Field label="¿Tiene evaluación previa?">
+            <div className="flex gap-3 pt-1">
+              <label className="text-sm flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="prev-eval"
+                  checked={hasPreviousEvaluation === true}
+                  onChange={() => setHasPreviousEvaluation(true)}
+                />
+                Sí
+              </label>
+              <label className="text-sm flex items-center gap-1.5">
+                <input
+                  type="radio"
+                  name="prev-eval"
+                  checked={hasPreviousEvaluation === false}
+                  onChange={() => setHasPreviousEvaluation(false)}
+                />
+                No
+              </label>
+              <button
+                type="button"
+                onClick={() => setHasPreviousEvaluation(null)}
+                className="text-xs text-fm-on-surface-variant hover:underline ml-auto"
+              >
+                Limpiar
+              </button>
+            </div>
           </Field>
           <Field label="Diagnóstico (opcional)" className="md:col-span-2">
             <input
@@ -141,6 +202,41 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
               value={parentEmail}
               onChange={(e) => setParentEmail(e.target.value)}
               className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
+            />
+          </Field>
+
+          <Field label="¿Cómo se enteró?">
+            <select
+              value={referralChannel}
+              onChange={(e) =>
+                setReferralChannel(e.target.value as ReferralChannel | '')
+              }
+              className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
+            >
+              <option value="">— Sin especificar —</option>
+              {Object.entries(REFERRAL_CHANNEL_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field
+            label={referralChannel === 'otro' ? 'Especificá (Otro)' : 'Detalle del referente (opcional)'}
+          >
+            <input
+              type="text"
+              value={referralChannelOther}
+              onChange={(e) => setReferralChannelOther(e.target.value)}
+              placeholder={
+                referralChannel === 'medico'
+                  ? 'Nombre del médico'
+                  : referralChannel === 'colegio'
+                  ? 'Nombre del colegio'
+                  : 'Detalle'
+              }
+              disabled={!referralChannel}
+              className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm disabled:bg-fm-surface-container"
             />
           </Field>
 
@@ -185,6 +281,16 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
               value={preferredDays}
               onChange={(e) => setPreferredDays(e.target.value)}
               placeholder="Ej: lunes/miércoles tarde"
+              className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
+            />
+          </Field>
+
+          <Field label="Interesado en (texto libre)" className="md:col-span-2">
+            <textarea
+              value={interestText}
+              onChange={(e) => setInterestText(e.target.value)}
+              rows={2}
+              placeholder="Ej: terapia de lenguaje 2x semana, evaluación inicial, programa matutino…"
               className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
             />
           </Field>
