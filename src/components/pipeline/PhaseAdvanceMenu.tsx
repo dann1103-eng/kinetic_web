@@ -13,6 +13,13 @@ interface Props {
   disabled?: boolean
   onAdvance: (toCode: string) => void
   label?: string
+  /**
+   * Dónde abrir el dropdown.
+   * - 'bottom-right' (default): se abre hacia abajo alineado a la derecha del trigger.
+   * - 'bottom-left': se abre hacia abajo alineado a la izquierda del trigger.
+   * - 'top-left': se abre hacia arriba alineado a la izquierda del trigger (útil en footers).
+   */
+  placement?: 'bottom-right' | 'bottom-left' | 'top-left'
 }
 
 /**
@@ -27,6 +34,7 @@ export function PhaseAdvanceMenu({
   disabled = false,
   onAdvance,
   label = 'Avanzar a…',
+  placement = 'bottom-right',
 }: Props) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -61,7 +69,13 @@ export function PhaseAdvanceMenu({
         </span>
       </button>
       {open && (
-        <div className="absolute right-0 z-50 mt-1 w-72 max-h-[60vh] overflow-y-auto rounded-xl border border-fm-outline-variant/30 bg-fm-surface-container-lowest shadow-xl">
+        <div className={`absolute z-[200] w-72 max-h-[60vh] overflow-y-auto rounded-xl border border-fm-outline-variant/30 bg-fm-surface-container-lowest shadow-xl ${
+          placement === 'top-left'
+            ? 'left-0 bottom-full mb-1'
+            : placement === 'bottom-left'
+              ? 'left-0 top-full mt-1'
+              : 'right-0 top-full mt-1'
+        }`}>
           {groups.map((g) => {
             const palette = PHASE_GROUP_COLORS[g.group_number as PhaseGroupNumber]
             return (

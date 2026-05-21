@@ -631,6 +631,7 @@ function DetailModal({
                 disabled={isPending}
                 onAdvance={onAdvance}
                 label="Cambiar fase…"
+                placement="top-left"
               />
               <button
                 type="button"
