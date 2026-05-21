@@ -164,18 +164,21 @@ export default async function DashboardPage({
   }
 
   if (KINETIC_COORD_FAMILIAS.includes(role)) {
+    // Niños activos = no cerrados (excluye 5.x). Agrupa por current_phase_code.
     const { data: phaseRaw } = await supabase
       .from('children')
-      .select('intake_phase')
-      .eq('treatment_status', 'active')
+      .select('current_phase_code')
+      .not('current_phase_code', 'in', '(5_1_alta_terapeutica,5_2_retirado)')
+    const rows = (phaseRaw ?? []) as { current_phase_code: string | null }[]
     const phaseMap = new Map<string, number>()
-    for (const r of phaseRaw ?? []) {
-      phaseMap.set(r.intake_phase, (phaseMap.get(r.intake_phase) ?? 0) + 1)
+    for (const r of rows) {
+      if (!r.current_phase_code) continue
+      phaseMap.set(r.current_phase_code, (phaseMap.get(r.current_phase_code) ?? 0) + 1)
     }
     const childrenByIntakePhase = Array.from(phaseMap.entries())
       .map(([phase, count]) => ({ phase, count }))
       .sort((a, b) => b.count - a.count)
-    const totalActive = (phaseRaw ?? []).length
+    const totalActive = rows.length
     return (
       <div className="flex flex-col min-h-full">
         <TopNav title="Dashboard" />

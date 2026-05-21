@@ -43,11 +43,11 @@ export default async function AgendaPage() {
     .order('starts_at')
 
   // Niños activos para autocomplete del modal (no críticos para la grid).
+  // Activos = no en fases terminales (5.x).
   const { data: children } = await supabase
     .from('children')
-    .select('id, code, full_name, family_id, treatment_status')
-    .neq('treatment_status', 'discharged_final')
-    .neq('treatment_status', 'dropped')
+    .select('id, code, full_name, family_id, current_phase_code')
+    .not('current_phase_code', 'in', '(5_1_alta_terapeutica,5_2_retirado)')
     .order('full_name')
 
   // Terapistas para filtros y autocomplete.
@@ -71,7 +71,7 @@ export default async function AgendaPage() {
           currentUserRole={role}
           currentUserId={ctx.appUser.id}
           initialAppointments={(appointments ?? []) as Appointment[]}
-          childrenList={(children ?? []) as Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'treatment_status'>[]}
+          childrenList={(children ?? []) as Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>[]}
           therapists={therapists ?? []}
           closures={(closures ?? []) as InstitutionalClosure[]}
         />

@@ -1,31 +1,27 @@
 import Link from 'next/link'
-import { INTAKE_PHASE_LABELS } from '@/types/db'
-import type { IntakePhase } from '@/types/db'
 import { QuickLinks } from './MgmtDashboard'
 import { DashboardAlertsBanner } from './DashboardAlertsBanner'
 
 interface Props {
   greeting: string
+  /** phase = código del catálogo (ej. "3_3_activo_en_terapias"). */
   childrenByIntakePhase: { phase: string; count: number }[]
   totalActive: number
 }
 
-function intakeLabel(p: string): string {
-  return INTAKE_PHASE_LABELS[p as IntakePhase] ?? p
+/** Convierte un code "3_3_activo_en_terapias" → "3.3 Activo en terapias". */
+function intakeLabel(code: string): string {
+  const match = code.match(/^(\d+)_(\d+)_(.+)$/)
+  if (!match) return code
+  const [, group, order, slug] = match
+  const human = slug.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+  return `${group}.${order} ${human}`
 }
 
-const PRE_THERAPY_PHASES = new Set([
-  'solicitud_informacion',
-  'bateria_preguntas',
-  'entrevista_directora',
-  'propuesta_observacion_evaluacion',
-  'propuesta_economica_evaluacion',
-  'agenda_observacion',
-  'en_observacion_evaluacion',
-  'informe_resultados',
-  'propuesta_plan_terapias',
-  'propuesta_economica_terapias',
-])
+/** Pre-terapia = grupos 1 y 2 (Primer contacto + Proceso de Admisión). */
+function isPreTherapy(code: string): boolean {
+  return code.startsWith('1_') || code.startsWith('2_')
+}
 
 export function CoordFamiliasDashboard({
   greeting,
@@ -33,14 +29,14 @@ export function CoordFamiliasDashboard({
   totalActive,
 }: Props) {
   const inFunnel = childrenByIntakePhase
-    .filter((p) => PRE_THERAPY_PHASES.has(p.phase))
+    .filter((p) => isPreTherapy(p.phase))
     .reduce((s, p) => s + p.count, 0)
 
   const inTherapy =
-    childrenByIntakePhase.find((p) => p.phase === 'en_terapias')?.count ?? 0
+    childrenByIntakePhase.find((p) => p.phase === '3_3_activo_en_terapias')?.count ?? 0
 
   const discharged =
-    childrenByIntakePhase.find((p) => p.phase === 'alta')?.count ?? 0
+    childrenByIntakePhase.find((p) => p.phase === '5_1_alta_terapeutica')?.count ?? 0
 
   return (
     <div className="p-6 max-w-5xl mx-auto w-full space-y-6">

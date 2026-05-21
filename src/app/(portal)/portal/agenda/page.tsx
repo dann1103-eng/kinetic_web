@@ -16,12 +16,12 @@ export default async function PortalAgendaPage() {
   // Niños (RLS filtra por familia)
   const { data: childrenRaw } = await supabase
     .from('children')
-    .select('id, code, full_name, family_id, treatment_status')
+    .select('id, code, full_name, family_id, current_phase_code')
     .order('full_name')
 
   const children = (childrenRaw ?? []) as Pick<
     Child,
-    'id' | 'code' | 'full_name' | 'family_id' | 'treatment_status'
+    'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'
   >[]
 
   const childNamesById: Record<string, string> = Object.fromEntries(

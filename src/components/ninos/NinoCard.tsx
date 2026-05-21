@@ -1,12 +1,9 @@
 import Link from 'next/link'
 import { ChildAvatar } from '@/components/ui/ChildAvatar'
-import {
-  SERVICE_TYPE_LABELS,
-  INTAKE_PHASE_LABELS,
-  TREATMENT_STATUS_LABELS,
-} from '@/types/db'
-import type { ServiceType } from '@/types/db'
+import { SERVICE_TYPE_LABELS } from '@/types/db'
+import type { IntakePhaseCatalogEntry, ServiceType } from '@/types/db'
 import type { NinoCardData } from '@/lib/domain/ninos-dashboard'
+import { isChildInActiveTreatment, phaseByCode } from '@/lib/domain/intake-pipeline'
 
 function ageText(birthDate: string | null): string {
   if (!birthDate) return ''
@@ -31,9 +28,10 @@ function formatPeriod(ym: string): string {
 
 interface Props {
   data: NinoCardData
+  phaseCatalog: IntakePhaseCatalogEntry[]
 }
 
-export function NinoCard({ data }: Props) {
+export function NinoCard({ data, phaseCatalog }: Props) {
   const { child, plan, attendance, lastCycle } = data
 
   const therapies = (plan?.therapies_json ?? []).filter((t) => t.active !== false)
@@ -42,7 +40,8 @@ export function NinoCard({ data }: Props) {
       ? Math.round((attendance.completed / attendance.total) * 100)
       : null
 
-  const isActive = child.treatment_status === 'active'
+  const phase = phaseByCode(child.current_phase_code, phaseCatalog)
+  const isActive = isChildInActiveTreatment(child.current_phase_code)
 
   return (
     <Link
@@ -62,12 +61,14 @@ export function NinoCard({ data }: Props) {
             </p>
           )}
           <div className="flex flex-wrap gap-1 mt-1.5">
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-fm-primary/8 text-fm-primary font-medium">
-              {INTAKE_PHASE_LABELS[child.intake_phase] ?? child.intake_phase}
-            </span>
-            {!isActive && (
+            {phase && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-fm-primary/8 text-fm-primary font-medium">
+                {phase.group_number}.{phase.sub_order} {phase.label}
+              </span>
+            )}
+            {!isActive && phase && (
               <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
-                {TREATMENT_STATUS_LABELS[child.treatment_status] ?? child.treatment_status}
+                {phase.is_terminal ? 'Cerrado' : 'No activo'}
               </span>
             )}
           </div>

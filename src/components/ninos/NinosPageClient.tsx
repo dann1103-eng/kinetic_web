@@ -4,12 +4,13 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { NinoCard } from './NinoCard'
 import type { NinoCardData } from '@/lib/domain/ninos-dashboard'
-import type { TreatmentStatus, MorningProgram } from '@/types/db'
+import type { IntakePhaseCatalogEntry, MorningProgram } from '@/types/db'
 
 interface Props {
   niños: NinoCardData[]
   periodMonth: string       // 'YYYY-MM' activo
   availableMonths: string[]
+  phaseCatalog: IntakePhaseCatalogEntry[]
 }
 
 function monthLabel(ym: string): string {
@@ -19,14 +20,17 @@ function monthLabel(ym: string): string {
   })
 }
 
-const STATUS_OPTIONS: { value: string; label: string }[] = [
-  { value: 'all', label: 'Todos los estados' },
-  { value: 'active', label: 'Activo' },
-  { value: 'paused', label: 'Pausado' },
-  { value: 'considering_discharge', label: 'Por dar alta' },
-  { value: 'discharged_conditional', label: 'Alta condicional' },
-  { value: 'discharged_final', label: 'Alta final' },
-  { value: 'dropped', label: 'Baja' },
+// Filtros por grupo del pipeline (mig 0121). Reemplaza el viejo filtro
+// por treatment_status que ya no existe.
+const PHASE_FILTER_OPTIONS: { value: string; label: string }[] = [
+  { value: 'all', label: 'Todas las fases' },
+  { value: 'group_1', label: '1 · Primer contacto' },
+  { value: 'group_2', label: '2 · Proceso de Admisión' },
+  { value: 'group_3', label: '3 · Inicio Terapéutico' },
+  { value: 'group_4', label: '4 · Seguimiento' },
+  { value: 'group_5', label: '5 · Cierre' },
+  { value: 'active', label: 'Activos (en terapia o seguimiento)' },
+  { value: 'closed', label: 'Cerrados (alta o retiro)' },
 ]
 
 const PROGRAM_OPTIONS: { value: string; label: string }[] = [
@@ -40,17 +44,31 @@ const PROGRAM_OPTIONS: { value: string; label: string }[] = [
 const SELECT_CLASS =
   'text-sm border border-fm-outline-variant/30 rounded-xl px-3 py-1.5 bg-fm-surface-container-lowest text-fm-on-surface capitalize focus:outline-none focus:ring-2 focus:ring-fm-primary/40'
 
-export function NinosPageClient({ niños, periodMonth, availableMonths }: Props) {
+function phaseMatchesFilter(phaseCode: string | null, filter: string): boolean {
+  if (filter === 'all') return true
+  if (!phaseCode) return false
+  if (filter.startsWith('group_')) {
+    const n = filter.slice(6)
+    return phaseCode.startsWith(`${n}_`)
+  }
+  if (filter === 'active') {
+    return phaseCode === '3_3_activo_en_terapias' || phaseCode.startsWith('4_')
+  }
+  if (filter === 'closed') {
+    return phaseCode === '5_1_alta_terapeutica' || phaseCode === '5_2_retirado'
+  }
+  return true
+}
+
+export function NinosPageClient({ niños, periodMonth, availableMonths, phaseCatalog }: Props) {
   const router = useRouter()
   const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [phaseFilter, setPhaseFilter] = useState<string>('all')
   const [programFilter, setProgramFilter] = useState<string>('all')
 
   const filtered = niños.filter((d) => {
     if (search && !d.child.full_name.toLowerCase().includes(search.toLowerCase())) return false
-    if (statusFilter !== 'all' && d.child.treatment_status !== (statusFilter as TreatmentStatus)) {
-      return false
-    }
+    if (!phaseMatchesFilter(d.child.current_phase_code, phaseFilter)) return false
     if (programFilter !== 'all') {
       if (programFilter === 'none' && d.child.enrolled_program !== null) return false
       if (programFilter !== 'none' && d.child.enrolled_program !== (programFilter as MorningProgram)) {
@@ -91,13 +109,13 @@ export function NinosPageClient({ niños, periodMonth, availableMonths }: Props)
           />
         </div>
 
-        {/* Estado */}
+        {/* Fase */}
         <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          value={phaseFilter}
+          onChange={(e) => setPhaseFilter(e.target.value)}
           className={SELECT_CLASS}
         >
-          {STATUS_OPTIONS.map((o) => (
+          {PHASE_FILTER_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
@@ -134,7 +152,7 @@ export function NinosPageClient({ niños, periodMonth, availableMonths }: Props)
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((d) => (
-            <NinoCard key={d.child.id} data={d} />
+            <NinoCard key={d.child.id} data={d} phaseCatalog={phaseCatalog} />
           ))}
         </div>
       )}

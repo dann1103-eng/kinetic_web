@@ -99,25 +99,27 @@ export async function getMgmtDashboardData(
   const monthlyRevenueUsd =
     (cyclesRaw ?? []).reduce((s, c) => s + Number(c.payment_amount_usd ?? 0), 0)
 
-  // Niños activos
+  // Niños activos = en terapia (3.3) o en seguimiento (4.x)
+  const ACTIVE_PHASE_FILTER = 'current_phase_code.eq.3_3_activo_en_terapias,current_phase_code.like.4_%'
+
   const { count: activeChildrenCount } = await supabase
     .from('children')
     .select('id', { count: 'exact', head: true })
-    .eq('treatment_status', 'active')
+    .or(ACTIVE_PHASE_FILTER)
 
   // Niños activos creados en los últimos 7 días
   const sevenDaysAgoISO = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
   const { count: activeChildrenNewCount } = await supabase
     .from('children')
     .select('id', { count: 'exact', head: true })
-    .eq('treatment_status', 'active')
+    .or(ACTIVE_PHASE_FILTER)
     .gte('created_at', sevenDaysAgoISO)
 
   // Niños activos con plan activo
   const { data: childrenIdsRaw } = await supabase
     .from('children')
     .select('id')
-    .eq('treatment_status', 'active')
+    .or(ACTIVE_PHASE_FILTER)
   const activeChildIds = (childrenIdsRaw ?? []).map((r) => r.id)
   let activeChildrenWithPlanCount = 0
   if (activeChildIds.length > 0) {
@@ -148,14 +150,14 @@ export async function getMgmtDashboardData(
         .eq('status', 'pending'),
     ])
 
-  // Children por intake_phase
+  // Children por current_phase_code (todas las activas, no solo grupos 3/4)
   const { data: phaseRaw } = await supabase
     .from('children')
-    .select('intake_phase')
-    .eq('treatment_status', 'active')
+    .select('current_phase_code')
+    .not('current_phase_code', 'is', null)
   const phaseMap = new Map<string, number>()
-  for (const r of phaseRaw ?? []) {
-    phaseMap.set(r.intake_phase, (phaseMap.get(r.intake_phase) ?? 0) + 1)
+  for (const r of (phaseRaw ?? []) as { current_phase_code: string }[]) {
+    phaseMap.set(r.current_phase_code, (phaseMap.get(r.current_phase_code) ?? 0) + 1)
   }
   const childrenByIntakePhase = Array.from(phaseMap.entries())
     .map(([phase, count]) => ({ phase, count }))
@@ -220,7 +222,7 @@ export async function getCoordTerapiasDashboardData(
   const { data: activeChildren } = await supabase
     .from('children')
     .select('id, full_name, family_id')
-    .eq('treatment_status', 'active')
+    .or('current_phase_code.eq.3_3_activo_en_terapias,current_phase_code.like.4_%')
     .order('full_name')
   const childIds = (activeChildren ?? []).map((c) => c.id)
 
@@ -321,7 +323,7 @@ export async function getRecepcionDashboardData(
   const { data: activeWithPlanRaw } = await supabase
     .from('children')
     .select('id, full_name, family_id')
-    .eq('treatment_status', 'active')
+    .or('current_phase_code.eq.3_3_activo_en_terapias,current_phase_code.like.4_%')
   const activeChildren = (activeWithPlanRaw ?? []) as {
     id: string
     full_name: string

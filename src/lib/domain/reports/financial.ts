@@ -277,17 +277,18 @@ export async function getPaymentMethodBreakdown(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Churn de familias / niños (basado en treatment_status)
+// Churn de familias / niños (basado en child_phase_history)
 // ──────────────────────────────────────────────────────────────────────────
-// Mide flujo neto: niños que se vuelven 'active' (altas nuevas) vs niños que
-// salen del sistema (alta médica, baja, pausa) en un período.
+// Mide flujo neto a partir de las transiciones del pipeline (mig 0121):
+//   - newActives: transiciones a `3_3_activo_en_terapias`
+//   - medicalDischarges: transiciones a `5_1_alta_terapeutica`
+//   - dropouts: transiciones a `5_2_retirado`
+//   - paused: transiciones a `4_1_pausa_temporal` o `4_2_seguimiento_pendiente`
 
-/** Estados terminales positivos (alta médica = tratamiento completado). */
-const MEDICAL_DISCHARGE_STATES = new Set(['discharged_final', 'discharged_conditional'])
-/** Estado terminal negativo (abandono). */
-const DROPPED_STATES = new Set(['dropped'])
-/** Estados "en riesgo" (no terminal pero sin tratamiento activo). */
-const AT_RISK_STATES = new Set(['paused', 'considering_discharge'])
+const PHASE_NEW_ACTIVE = '3_3_activo_en_terapias'
+const PHASE_MEDICAL_DISCHARGE = '5_1_alta_terapeutica'
+const PHASE_DROPPED = '5_2_retirado'
+const PHASES_PAUSED = new Set(['4_1_pausa_temporal', '4_2_seguimiento_pendiente'])
 
 export interface ChurnMonthRow {
   month: string                  // YYYY-MM
@@ -319,14 +320,15 @@ export async function getChurnBreakdown(
   const { startISO, endISO } = dayRangeBoundsSV(opts.fromDate, opts.toDate)
 
   const { data } = await supabase
-    .from('children')
-    .select('treatment_status, treatment_status_changed_at')
-    .gte('treatment_status_changed_at', startISO)
-    .lt('treatment_status_changed_at', endISO)
+    .from('child_phase_history')
+    .select('to_phase_code, changed_at')
+    .not('child_id', 'is', null)
+    .gte('changed_at', startISO)
+    .lt('changed_at', endISO)
 
   const rows = (data ?? []) as Array<{
-    treatment_status: string
-    treatment_status_changed_at: string
+    to_phase_code: string
+    changed_at: string
   }>
 
   // Agrupar por mes
@@ -337,7 +339,7 @@ export async function getChurnBreakdown(
   let totalPaused = 0
 
   for (const r of rows) {
-    const key = monthKeyInSV(r.treatment_status_changed_at)
+    const key = monthKeyInSV(r.changed_at)
     let row = byMonth.get(key)
     if (!row) {
       const [yStr, mStr] = key.split('-')
@@ -354,16 +356,16 @@ export async function getChurnBreakdown(
       byMonth.set(key, row)
     }
 
-    if (r.treatment_status === 'active') {
+    if (r.to_phase_code === PHASE_NEW_ACTIVE) {
       row.newActives++
       totalNewActives++
-    } else if (MEDICAL_DISCHARGE_STATES.has(r.treatment_status)) {
+    } else if (r.to_phase_code === PHASE_MEDICAL_DISCHARGE) {
       row.medicalDischarges++
       totalMedical++
-    } else if (DROPPED_STATES.has(r.treatment_status)) {
+    } else if (r.to_phase_code === PHASE_DROPPED) {
       row.dropouts++
       totalDropouts++
-    } else if (AT_RISK_STATES.has(r.treatment_status)) {
+    } else if (PHASES_PAUSED.has(r.to_phase_code)) {
       row.paused++
       totalPaused++
     }

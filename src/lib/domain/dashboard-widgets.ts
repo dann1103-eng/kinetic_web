@@ -227,10 +227,11 @@ export async function getChildrenAtRisk(
   const startISO = monthStartSV(now).toISOString()
   const periodMonth = startISO.slice(0, 8) + '01'
 
+  // "Activos" = en terapia (3.3) o en seguimiento (4.x). Excluye intake (1.x, 2.x, 3.1, 3.2) y cierres (5.x).
   const { data: children } = await supabase
     .from('children')
     .select('id, full_name, family_id')
-    .eq('treatment_status', 'active')
+    .or('current_phase_code.eq.3_3_activo_en_terapias,current_phase_code.like.4_%')
 
   const list = (children ?? []) as {
     id: string

@@ -7,12 +7,9 @@ import { FamilyForm } from '@/components/families/FamilyForm'
 import { ChildForm } from '@/components/families/ChildForm'
 import { JournalTab } from './JournalTab'
 import { FamilyInvoicesSection } from '@/components/families/FamilyInvoicesSection'
-import {
-  INTAKE_PHASE_LABELS,
-  TREATMENT_STATUS_LABELS,
-  MORNING_PROGRAM_LABELS,
-} from '@/types/db'
-import type { Family, Child } from '@/types/db'
+import { MORNING_PROGRAM_LABELS } from '@/types/db'
+import type { Family, Child, IntakePhaseCatalogEntry } from '@/types/db'
+import { listPhaseCatalog } from '@/app/actions/intake-pipeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +46,9 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
 
   const childrenList = (children ?? []) as Child[]
   const familyTyped = family as Family
+  const phaseCatalog = await listPhaseCatalog()
+  const phasesByCode: Record<string, IntakePhaseCatalogEntry> = {}
+  for (const p of phaseCatalog) phasesByCode[p.code] = p
 
   const hasEmergency = !!familyTyped.emergency_contact_name
   const hasSecondary = !!familyTyped.secondary_contact_name
@@ -242,12 +242,12 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
                   </p>
                 </div>
               ) : childrenList.length === 1 ? (
-                <ChildHeroCard familyId={id} child={childrenList[0]} />
+                <ChildHeroCard familyId={id} child={childrenList[0]} phasesByCode={phasesByCode} />
               ) : (
                 <div className="space-y-3">
-                  <ChildHeroCard familyId={id} child={childrenList[0]} />
+                  <ChildHeroCard familyId={id} child={childrenList[0]} phasesByCode={phasesByCode} />
                   {childrenList.slice(1).map((child) => (
-                    <ChildRow key={child.id} familyId={id} child={child} />
+                    <ChildRow key={child.id} familyId={id} child={child} phasesByCode={phasesByCode} />
                   ))}
                 </div>
               )}
@@ -315,8 +315,17 @@ function childAgeYears(birth: string | null): number | null {
   )
 }
 
-function ChildHeroCard({ familyId, child }: { familyId: string; child: Child }) {
+function ChildHeroCard({
+  familyId,
+  child,
+  phasesByCode,
+}: {
+  familyId: string
+  child: Child
+  phasesByCode: Record<string, IntakePhaseCatalogEntry>
+}) {
   const age = childAgeYears(child.birth_date)
+  const phase = child.current_phase_code ? phasesByCode[child.current_phase_code] : null
 
   return (
     <Link
@@ -360,12 +369,11 @@ function ChildHeroCard({ familyId, child }: { familyId: string; child: Child }) 
             {MORNING_PROGRAM_LABELS[child.enrolled_program]}
           </span>
         )}
-        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-fm-primary/10 text-fm-primary">
-          {INTAKE_PHASE_LABELS[child.intake_phase]}
-        </span>
-        <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-fm-surface-container text-fm-on-surface-variant">
-          {TREATMENT_STATUS_LABELS[child.treatment_status]}
-        </span>
+        {phase && (
+          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-fm-primary/10 text-fm-primary">
+            {phase.group_number}.{phase.sub_order} · {phase.label}
+          </span>
+        )}
       </div>
 
       {child.diagnoses_display_text && (
@@ -377,8 +385,17 @@ function ChildHeroCard({ familyId, child }: { familyId: string; child: Child }) 
   )
 }
 
-function ChildRow({ familyId, child }: { familyId: string; child: Child }) {
+function ChildRow({
+  familyId,
+  child,
+  phasesByCode,
+}: {
+  familyId: string
+  child: Child
+  phasesByCode: Record<string, IntakePhaseCatalogEntry>
+}) {
   const age = childAgeYears(child.birth_date)
+  const phase = child.current_phase_code ? phasesByCode[child.current_phase_code] : null
 
   return (
     <Link
@@ -402,12 +419,11 @@ function ChildRow({ familyId, child }: { familyId: string; child: Child }) {
         </p>
       </div>
       <div className="hidden sm:flex items-center gap-1.5 shrink-0">
-        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-fm-primary/10 text-fm-primary">
-          {INTAKE_PHASE_LABELS[child.intake_phase]}
-        </span>
-        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-fm-surface-container text-fm-on-surface-variant">
-          {TREATMENT_STATUS_LABELS[child.treatment_status]}
-        </span>
+        {phase && (
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-fm-primary/10 text-fm-primary">
+            {phase.group_number}.{phase.sub_order} · {phase.label}
+          </span>
+        )}
       </div>
       <span
         className="material-symbols-outlined text-fm-on-surface-variant group-hover:text-fm-primary transition-colors shrink-0"

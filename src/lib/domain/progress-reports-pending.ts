@@ -102,15 +102,23 @@ export async function summarizeActiveTherapiesForTherapist(
 
   const childIds = Array.from(new Set(Array.from(pairs.values()).map((p) => p.childId)))
 
-  // Q2. Solo niños con treatment_status='active'.
+  // Q2. Solo niños activos = en terapia (3.3) o en seguimiento (4.x).
   const { data: childrenRaw } = await supabase
     .from('children')
-    .select('id, full_name, preferred_name, treatment_status')
+    .select('id, full_name, preferred_name, current_phase_code')
     .in('id', childIds)
 
   const activeChildById = new Map<string, { full_name: string; preferred_name: string | null }>()
-  for (const c of childrenRaw ?? []) {
-    if (c.treatment_status === 'active') {
+  for (const c of (childrenRaw ?? []) as Array<{
+    id: string
+    full_name: string
+    preferred_name: string | null
+    current_phase_code: string | null
+  }>) {
+    const isActive =
+      c.current_phase_code === '3_3_activo_en_terapias' ||
+      (c.current_phase_code?.startsWith('4_') ?? false)
+    if (isActive) {
       activeChildById.set(c.id, { full_name: c.full_name, preferred_name: c.preferred_name })
     }
   }

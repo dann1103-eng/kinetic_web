@@ -2052,9 +2052,6 @@ export interface Database {
           referral_source_type?: ReferralSourceType | null
           referral_source_id?: string | null
           referral_notes?: string | null
-          intake_phase?: IntakePhase
-          treatment_status?: TreatmentStatus
-          treatment_status_notes?: string | null
           enrolled_program?: MorningProgram | null
           enrollment_started_at?: string | null
           enrollment_ended_at?: string | null
@@ -2735,51 +2732,8 @@ export type ReferralSourceType =
   | 'referral_other'
 
 /** 12 fases del pipeline de atención del paciente (ver plan v0.7 sección A). */
-export type IntakePhase =
-  | 'solicitud_informacion'
-  | 'bateria_preguntas'
-  | 'entrevista_directora'
-  | 'propuesta_observacion_evaluacion'
-  | 'propuesta_economica_evaluacion'
-  | 'agenda_observacion'
-  | 'en_observacion_evaluacion'
-  | 'informe_resultados'
-  | 'propuesta_plan_terapias'
-  | 'propuesta_economica_terapias'
-  | 'en_terapias'
-  | 'alta'
-
-export const INTAKE_PHASE_LABELS: Record<IntakePhase, string> = {
-  solicitud_informacion: 'Solicitud de información',
-  bateria_preguntas: 'Batería de preguntas',
-  entrevista_directora: 'Entrevista con directora',
-  propuesta_observacion_evaluacion: 'Propuesta de observación/evaluación',
-  propuesta_economica_evaluacion: 'Propuesta económica (evaluación)',
-  agenda_observacion: 'Agenda de observación',
-  en_observacion_evaluacion: 'En observación/evaluación',
-  informe_resultados: 'Informe de resultados',
-  propuesta_plan_terapias: 'Propuesta de plan de terapias',
-  propuesta_economica_terapias: 'Propuesta económica (terapias)',
-  en_terapias: 'En terapias',
-  alta: 'Alta',
-}
-
-export type TreatmentStatus =
-  | 'active'
-  | 'considering_discharge'
-  | 'discharged_conditional'
-  | 'discharged_final'
-  | 'paused'
-  | 'dropped'
-
-export const TREATMENT_STATUS_LABELS: Record<TreatmentStatus, string> = {
-  active: 'Activo',
-  considering_discharge: 'Considerando alta',
-  discharged_conditional: 'Alta condicional',
-  discharged_final: 'Alta final',
-  paused: 'Pausado',
-  dropped: 'Baja',
-}
+// IntakePhase y TreatmentStatus deprecated en mig 0124. La fuente de verdad
+// ahora es children.current_phase_code → intake_phase_catalog.
 
 export type MorningProgram = 'blue_kids' | 'learning_kids' | 'aula_educativa'
 
@@ -3111,11 +3065,6 @@ export interface Child {
   referral_source_type: ReferralSourceType | null
   referral_source_id: string | null
   referral_notes: string | null
-  intake_phase: IntakePhase
-  intake_phase_changed_at: string
-  treatment_status: TreatmentStatus
-  treatment_status_changed_at: string
-  treatment_status_notes: string | null
   enrolled_program: MorningProgram | null
   enrollment_started_at: string | null
   enrollment_ended_at: string | null
@@ -3126,6 +3075,10 @@ export interface Child {
   updated_at: string
   /** Pipeline 0121: sub-fase actual del catálogo intake_phase_catalog. */
   current_phase_code: string | null
+  /** Mig 0124: timestamp del último cambio de fase. */
+  current_phase_changed_at: string
+  /** Mig 0124: notas asociadas al cambio de fase actual. */
+  current_phase_notes: string | null
 }
 
 // ──────────────────────────────────────────────────────────────────────────

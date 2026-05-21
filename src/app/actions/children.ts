@@ -89,10 +89,8 @@ export async function removeChildPhoto(
 import type {
   Child,
   DiagnosisCode,
-  IntakePhase,
   MorningProgram,
   ReferralSourceType,
-  TreatmentStatus,
 } from '@/types/db'
 
 /**
@@ -116,7 +114,8 @@ export async function createChild(input: {
   referral_source_type?: ReferralSourceType | null
   referral_source_id?: string | null
   referral_notes?: string | null
-  intake_phase?: IntakePhase
+  /** Sub-fase del catálogo intake_phase_catalog (default: '1_1_contacto_inicial'). */
+  current_phase_code?: string
   enrolled_program?: MorningProgram | null
   notes?: string | null
 }): Promise<{ ok: true; childId: string; code: string } | { ok: false; error: string }> {
@@ -151,7 +150,7 @@ export async function createChild(input: {
       referral_source_type: input.referral_source_type ?? null,
       referral_source_id: input.referral_source_id ?? null,
       referral_notes: input.referral_notes?.trim() || null,
-      intake_phase: input.intake_phase ?? 'solicitud_informacion',
+      current_phase_code: input.current_phase_code ?? '1_1_contacto_inicial',
       enrolled_program: input.enrolled_program ?? null,
       notes: input.notes?.trim() || null,
       created_by_user_id: ctx.appUser.id,
@@ -194,27 +193,10 @@ export async function updateChild(
   return { ok: true }
 }
 
-export async function setChildIntakePhase(
-  childId: string,
-  phase: IntakePhase,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  return updateChild(childId, {
-    intake_phase: phase,
-    intake_phase_changed_at: new Date().toISOString(),
-  })
-}
-
-export async function setChildTreatmentStatus(
-  childId: string,
-  status: TreatmentStatus,
-  notes?: string,
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  return updateChild(childId, {
-    treatment_status: status,
-    treatment_status_changed_at: new Date().toISOString(),
-    treatment_status_notes: notes?.trim() || null,
-  })
-}
+// setChildIntakePhase y setChildTreatmentStatus eliminadas en mig 0124.
+// Para cambiar la fase de un niño usar `advanceChildPhase` de
+// src/app/actions/intake-pipeline.ts — gestiona validación, history,
+// cancelación de citas y notificaciones.
 
 export async function deleteChild(
   childId: string,

@@ -9,7 +9,7 @@ import {
 } from '@/types/db'
 import { formatDateTime, isJoinable } from '@/lib/domain/appointment'
 
-type ChildLite = Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'treatment_status'>
+type ChildLite = Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>
 type TherapistLite = { id: string; full_name: string; avatar_url: string | null }
 
 interface PortalAgendaListProps {

@@ -22,7 +22,7 @@ import {
 } from '@/types/db'
 import { defaultDurationMinutes, findClosureAffecting } from '@/lib/domain/appointment'
 
-type ChildLite = Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'treatment_status'>
+type ChildLite = Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>
 type TherapistLite = { id: string; full_name: string; role: string; avatar_url: string | null }
 
 interface AppointmentFormProps {

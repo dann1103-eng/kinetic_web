@@ -1,8 +1,6 @@
 import Link from 'next/link'
 import type { MgmtDashboardData } from '@/lib/domain/global-dashboard'
 import type { MgmtWidgetsData } from '@/lib/domain/dashboard-widgets'
-import { INTAKE_PHASE_LABELS } from '@/types/db'
-import type { IntakePhase } from '@/types/db'
 import { RevenueTrendSparkline } from './widgets/RevenueTrendSparkline'
 import { ExpenseTrendSparkline } from './widgets/ExpenseTrendSparkline'
 import { CalendarHeatmap } from './widgets/CalendarHeatmap'
@@ -22,8 +20,17 @@ function fmtMoney(n: number): string {
   return `$${n.toFixed(2)}`
 }
 
-function intakeLabel(p: string): string {
-  return INTAKE_PHASE_LABELS[p as IntakePhase] ?? p
+/**
+ * Label corto para una sub-fase del catálogo (mig 0121). El code viene en
+ * formato "{group}_{order}_{slug}", ej. "3_3_activo_en_terapias". Convertimos
+ * a algo legible como "3.3 Activo en terapias".
+ */
+function intakeLabel(code: string): string {
+  const match = code.match(/^(\d+)_(\d+)_(.+)$/)
+  if (!match) return code
+  const [, group, order, slug] = match
+  const human = slug.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase())
+  return `${group}.${order} ${human}`
 }
 
 export function MgmtDashboard({

@@ -4,6 +4,7 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { NinosPageClient } from '@/components/ninos/NinosPageClient'
 import { getNinosDashboardData, getAvailableMonths } from '@/lib/domain/ninos-dashboard'
+import { listPhaseCatalog } from '@/app/actions/intake-pipeline'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,7 +34,10 @@ export default async function NinosPage({
     month && availableMonths.includes(month) ? month : availableMonths[0]
 
   const supabase = await createClient()
-  const niños = await getNinosDashboardData(supabase, periodMonth)
+  const [niños, phaseCatalog] = await Promise.all([
+    getNinosDashboardData(supabase, periodMonth),
+    listPhaseCatalog(),
+  ])
 
   return (
     <div className="flex flex-col min-h-full">
@@ -42,6 +46,7 @@ export default async function NinosPage({
         niños={niños}
         periodMonth={periodMonth}
         availableMonths={availableMonths}
+        phaseCatalog={phaseCatalog}
       />
     </div>
   )

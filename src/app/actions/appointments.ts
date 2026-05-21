@@ -54,11 +54,15 @@ export async function createAppointment(
   // Validar que el niño existe y está activo
   const { data: child } = await supabase
     .from('children')
-    .select('id, treatment_status, family_id')
+    .select('id, current_phase_code, family_id')
     .eq('id', input.child_id)
     .maybeSingle()
   if (!child) return { ok: false, error: 'Niño/a no encontrado' }
-  if (child.treatment_status === 'discharged_final' || child.treatment_status === 'dropped') {
+  // No agendar a niños en fase terminal (alta o retiro)
+  if (
+    child.current_phase_code === '5_1_alta_terapeutica' ||
+    child.current_phase_code === '5_2_retirado'
+  ) {
     return { ok: false, error: 'El niño/a ya no está activo en Kinetic' }
   }
 

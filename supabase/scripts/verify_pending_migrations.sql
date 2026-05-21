@@ -154,6 +154,26 @@ WITH checks AS (
   SELECT 26, 'mig_0123_dropped_waitlist_status_enum',
          (SELECT (CASE WHEN COUNT(*)=0 THEN 1 ELSE 0 END)::int
           FROM pg_type WHERE typname='waitlist_status')
+  UNION ALL
+  -- ── 0124 (destructive — applied=1 cuando columnas NO existen) ──────
+  SELECT 27, 'mig_0124_dropped_children_legacy_cols',
+         (SELECT (CASE WHEN COUNT(*)=0 THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='children'
+            AND column_name IN ('intake_phase','intake_phase_changed_at',
+                                'treatment_status','treatment_status_changed_at',
+                                'treatment_status_notes'))
+  UNION ALL
+  SELECT 28, 'mig_0124_dropped_sync_legacy_trigger',
+         (SELECT (CASE WHEN COUNT(*)=0 THEN 1 ELSE 0 END)::int
+          FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+          WHERE c.relname='children' AND t.tgname='children_sync_legacy_phase')
+  UNION ALL
+  SELECT 29, 'mig_0124_current_phase_audit_cols',
+         (SELECT (CASE WHEN COUNT(*)=2 THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='children'
+            AND column_name IN ('current_phase_changed_at','current_phase_notes'))
 )
 SELECT
   check_name,

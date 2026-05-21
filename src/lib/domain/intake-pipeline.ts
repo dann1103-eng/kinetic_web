@@ -202,6 +202,57 @@ export function getNextPhase(
   return candidates[0] ?? null
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Helpers derivados (back-compat para componentes que antes leían
+// intake_phase / treatment_status legacy — mig 0124)
+// ──────────────────────────────────────────────────────────────────────────
+
+/**
+ * `true` si el niño está en tratamiento activo (recibiendo terapias):
+ * grupo 3.3 (Activo en Terapias) o grupo 4.x (Seguimiento). Excluye los
+ * niños aún en intake (1.x, 2.x, 3.1, 3.2) y los cierres (5.x).
+ */
+export function isChildInActiveTreatment(
+  currentPhaseCode: string | null | undefined,
+): boolean {
+  if (!currentPhaseCode) return false
+  return (
+    currentPhaseCode === '3_3_activo_en_terapias' ||
+    currentPhaseCode.startsWith('4_')
+  )
+}
+
+/** `true` si el niño está pausado (4.1 Pausa Temporal). */
+export function isChildPaused(currentPhaseCode: string | null | undefined): boolean {
+  return currentPhaseCode === '4_1_pausa_temporal'
+}
+
+/** `true` si el niño está en una fase terminal (5.1 Alta o 5.2 Retirado). */
+export function isChildClosed(currentPhaseCode: string | null | undefined): boolean {
+  return (
+    currentPhaseCode === '5_1_alta_terapeutica' ||
+    currentPhaseCode === '5_2_retirado'
+  )
+}
+
+/** `true` si el niño está aún en pipeline de admisión (grupos 1 y 2). */
+export function isChildInIntake(currentPhaseCode: string | null | undefined): boolean {
+  if (!currentPhaseCode) return false
+  return currentPhaseCode.startsWith('1_') || currentPhaseCode.startsWith('2_')
+}
+
+/**
+ * Devuelve la fase del catálogo dado un code; null si no se encuentra.
+ * Helper de conveniencia para componentes que tienen un array de phases.
+ */
+export function phaseByCode(
+  code: string | null | undefined,
+  catalog: IntakePhaseCatalogEntry[],
+): IntakePhaseCatalogEntry | null {
+  if (!code) return null
+  return catalog.find((p) => p.code === code) ?? null
+}
+
 export interface DischargeStats {
   total_sessions_attended: number
   attendance_rate_pct: number
