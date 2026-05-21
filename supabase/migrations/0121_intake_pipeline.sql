@@ -367,8 +367,10 @@ CREATE TABLE IF NOT EXISTS dashboard_alerts (
 COMMENT ON TABLE dashboard_alerts IS
   'Banners temporales (típicamente 7 días) en dashboards de coordinación. Para alta/retiro y otros milestones de fase.';
 
+-- now() no es IMMUTABLE, no puede ir en un WHERE de índice. Usamos un
+-- índice simple sobre expires_at; las queries filtran con `expires_at > now()`.
 CREATE INDEX IF NOT EXISTS dashboard_alerts_active_idx
-  ON dashboard_alerts (expires_at) WHERE expires_at > now();
+  ON dashboard_alerts (expires_at DESC);
 CREATE INDEX IF NOT EXISTS dashboard_alerts_child_idx
   ON dashboard_alerts (child_id) WHERE child_id IS NOT NULL;
 
