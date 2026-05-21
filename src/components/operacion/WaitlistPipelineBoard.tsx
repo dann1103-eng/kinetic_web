@@ -27,7 +27,6 @@ import {
 import { groupPhaseCatalog } from '@/lib/domain/intake-pipeline'
 import { advanceWaitlistPhase } from '@/app/actions/intake-pipeline'
 import { daysSinceAdded } from '@/lib/domain/waitlist-alerts'
-import { PhaseAdvanceMenu } from '@/components/pipeline/PhaseAdvanceMenu'
 
 interface Props {
   entries: WaitlistEntry[]
@@ -484,7 +483,7 @@ function CardBody({
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Detail modal (centered, scrollable)
+// Detail modal (centered, scrollable, con selector de fase inline)
 // ──────────────────────────────────────────────────────────────────────────
 
 function DetailModal({
@@ -508,6 +507,8 @@ function DetailModal({
   onDrop: () => void
   onReopen: () => void
 }) {
+  const [view, setView] = useState<'info' | 'phases'>('info')
+
   const currentPhase = phaseCatalog.find((p) => p.code === entry.current_phase_code)
   const days = daysSinceAdded(entry.added_at)
   const therapist = entry.preferred_therapist_id
@@ -518,6 +519,12 @@ function DetailModal({
       ? `/familias/${familyIdByChildId[entry.scheduled_child_id]}/children/${entry.scheduled_child_id}`
       : null
 
+  const visiblePhases = useMemo(
+    () => phaseCatalog.filter((p) => p.is_waitlist_visible).sort((a, b) => a.sort_order - b.sort_order),
+    [phaseCatalog],
+  )
+  const groups = useMemo(() => groupPhaseCatalog(visiblePhases), [visiblePhases])
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
@@ -527,26 +534,51 @@ function DetailModal({
         className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Sticky header */}
-        <div className="sticky top-0 z-10 bg-fm-surface-container-lowest rounded-t-2xl px-5 pt-5 pb-3 border-b border-fm-outline-variant/15">
+        {/* Header */}
+        <div className="flex-shrink-0 bg-fm-surface-container-lowest rounded-t-2xl px-5 pt-5 pb-3 border-b border-fm-outline-variant/15">
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
-                {currentPhase
-                  ? `${currentPhase.group_number}.${currentPhase.sub_order} · ${currentPhase.group_name}`
-                  : 'Sin fase'}
-              </p>
-              <h3 className="text-lg font-bold text-fm-on-surface mt-0.5">
-                {entry.child_full_name}
-              </h3>
-              {currentPhase && (
-                <p className="text-sm text-fm-on-surface-variant">{currentPhase.label}</p>
+            <div className="flex items-center gap-2 min-w-0">
+              {view === 'phases' && (
+                <button
+                  type="button"
+                  onClick={() => setView('info')}
+                  className="text-fm-on-surface-variant hover:text-fm-on-surface flex-shrink-0"
+                  aria-label="Volver"
+                >
+                  <span className="material-symbols-outlined">arrow_back</span>
+                </button>
               )}
+              <div className="min-w-0">
+                {view === 'info' ? (
+                  <>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
+                      {currentPhase
+                        ? `${currentPhase.group_number}.${currentPhase.sub_order} · ${currentPhase.group_name}`
+                        : 'Sin fase'}
+                    </p>
+                    <h3 className="text-lg font-bold text-fm-on-surface mt-0.5 truncate">
+                      {entry.child_full_name}
+                    </h3>
+                    {currentPhase && (
+                      <p className="text-sm text-fm-on-surface-variant">{currentPhase.label}</p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
+                      {entry.child_full_name}
+                    </p>
+                    <h3 className="text-base font-bold text-fm-on-surface mt-0.5">
+                      Seleccionar nueva fase
+                    </h3>
+                  </>
+                )}
+              </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="text-fm-on-surface-variant hover:text-fm-on-surface mt-0.5"
+              className="text-fm-on-surface-variant hover:text-fm-on-surface mt-0.5 flex-shrink-0"
               aria-label="Cerrar"
             >
               <span className="material-symbols-outlined">close</span>
@@ -555,102 +587,168 @@ function DetailModal({
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          <div className="space-y-2 text-sm">
-            {entry.child_age_text || entry.child_birthdate ? (
-              <Row label="Edad" value={entry.child_age_text ?? calcAge(entry.child_birthdate)} />
-            ) : null}
-            {entry.child_diagnosis && <Row label="Diagnóstico" value={entry.child_diagnosis} />}
-            {entry.has_previous_evaluation !== null && (
-              <Row label="Eval. previa" value={entry.has_previous_evaluation ? 'Sí' : 'No'} />
-            )}
-            <Row
-              label="Servicio"
-              value={SERVICE_TYPE_LABELS[entry.requested_service_type] ?? entry.requested_service_type}
-            />
-            {entry.interest_text && <Row label="Interés" value={entry.interest_text} />}
-            <Row label="Padre/madre" value={entry.parent_full_name} />
-            <Row
-              label="Teléfono"
-              value={
-                <a href={`tel:${entry.parent_phone}`} className="text-fm-primary hover:underline">
-                  {entry.parent_phone}
-                </a>
-              }
-            />
-            {entry.parent_email && (
-              <Row
-                label="Email"
-                value={
-                  <a href={`mailto:${entry.parent_email}`} className="text-fm-primary hover:underline">
-                    {entry.parent_email}
-                  </a>
-                }
-              />
-            )}
-            {entry.referral_channel && (
-              <Row
-                label="Conoció por"
-                value={
-                  REFERRAL_CHANNEL_LABELS[entry.referral_channel] +
-                  (entry.referral_channel_other ? ` (${entry.referral_channel_other})` : '')
-                }
-              />
-            )}
-            {therapist && <Row label="Terapista preferida" value={therapist} />}
-            {entry.preferred_days && <Row label="Días preferidos" value={entry.preferred_days} />}
-            <Row label="Días en espera" value={`${days}d`} />
-            <Row label="Prioridad" value={PRIORITY_TONE[entry.priority]?.label ?? 'Normal'} />
-            {entry.notes && <Row label="Notas" value={entry.notes} />}
-            {currentPhase?.code === '5_2_retirado' && entry.dropped_reason && (
-              <Row label="Motivo de descarte" value={entry.dropped_reason} />
-            )}
-          </div>
+        <div className="flex-1 overflow-y-auto">
+          {view === 'info' ? (
+            <div className="px-5 py-4 space-y-4">
+              <div className="space-y-2 text-sm">
+                {entry.child_age_text || entry.child_birthdate ? (
+                  <Row label="Edad" value={entry.child_age_text ?? calcAge(entry.child_birthdate)} />
+                ) : null}
+                {entry.child_diagnosis && <Row label="Diagnóstico" value={entry.child_diagnosis} />}
+                {entry.has_previous_evaluation !== null && (
+                  <Row label="Eval. previa" value={entry.has_previous_evaluation ? 'Sí' : 'No'} />
+                )}
+                <Row
+                  label="Servicio"
+                  value={SERVICE_TYPE_LABELS[entry.requested_service_type] ?? entry.requested_service_type}
+                />
+                {entry.interest_text && <Row label="Interés" value={entry.interest_text} />}
+                <Row label="Padre/madre" value={entry.parent_full_name} />
+                <Row
+                  label="Teléfono"
+                  value={
+                    <a href={`tel:${entry.parent_phone}`} className="text-fm-primary hover:underline">
+                      {entry.parent_phone}
+                    </a>
+                  }
+                />
+                {entry.parent_email && (
+                  <Row
+                    label="Email"
+                    value={
+                      <a href={`mailto:${entry.parent_email}`} className="text-fm-primary hover:underline">
+                        {entry.parent_email}
+                      </a>
+                    }
+                  />
+                )}
+                {entry.referral_channel && (
+                  <Row
+                    label="Conoció por"
+                    value={
+                      REFERRAL_CHANNEL_LABELS[entry.referral_channel] +
+                      (entry.referral_channel_other ? ` (${entry.referral_channel_other})` : '')
+                    }
+                  />
+                )}
+                {therapist && <Row label="Terapista preferida" value={therapist} />}
+                {entry.preferred_days && <Row label="Días preferidos" value={entry.preferred_days} />}
+                <Row label="Días en espera" value={`${days}d`} />
+                <Row label="Prioridad" value={PRIORITY_TONE[entry.priority]?.label ?? 'Normal'} />
+                {entry.notes && <Row label="Notas" value={entry.notes} />}
+                {currentPhase?.code === '5_2_retirado' && entry.dropped_reason && (
+                  <Row label="Motivo de descarte" value={entry.dropped_reason} />
+                )}
+              </div>
 
-          {childLink && (
-            <Link
-              href={childLink}
-              className="block text-center text-sm font-semibold py-2 rounded-lg bg-fm-primary/10 text-fm-primary hover:bg-fm-primary/15"
-            >
-              Ver ficha del niño →
-            </Link>
+              {childLink && (
+                <Link
+                  href={childLink}
+                  className="block text-center text-sm font-semibold py-2 rounded-lg bg-fm-primary/10 text-fm-primary hover:bg-fm-primary/15"
+                >
+                  Ver ficha del niño →
+                </Link>
+              )}
+            </div>
+          ) : (
+            /* ── Vista de selección de fase ── */
+            <div>
+              {groups.map((g) => {
+                const palette = PHASE_GROUP_COLORS[g.group_number as PhaseGroupNumber]
+                return (
+                  <div key={g.group_number} className="border-b border-fm-outline-variant/10 last:border-0">
+                    <div className={`px-5 py-2 text-[10px] font-bold uppercase tracking-wider ${palette.bg} ${palette.text}`}>
+                      {g.group_number}. {g.group_name}
+                    </div>
+                    <ul>
+                      {g.phases.map((p) => {
+                        const isCurrent = p.code === entry.current_phase_code
+                        return (
+                          <li key={p.code}>
+                            <button
+                              type="button"
+                              disabled={isCurrent || isPending}
+                              onClick={() => {
+                                setView('info')
+                                onAdvance(p.code)
+                              }}
+                              className={`w-full text-left px-5 py-3 flex items-center gap-3 hover:bg-fm-surface-container transition-colors disabled:cursor-not-allowed ${
+                                isCurrent ? 'bg-fm-surface-container-low' : ''
+                              }`}
+                            >
+                              <span className="font-mono text-[11px] text-fm-on-surface-variant w-6 flex-shrink-0">
+                                {p.group_number}.{p.sub_order}
+                              </span>
+                              <span className="flex-1 text-sm">
+                                <span className={`font-medium ${isCurrent ? 'text-fm-primary' : 'text-fm-on-surface'}`}>
+                                  {p.label}
+                                </span>
+                                {p.is_optional && (
+                                  <span className="ml-2 text-[10px] uppercase text-fm-on-surface-variant">
+                                    opcional
+                                  </span>
+                                )}
+                              </span>
+                              {isCurrent && (
+                                <span className="material-symbols-outlined text-fm-primary text-base flex-shrink-0">
+                                  check_circle
+                                </span>
+                              )}
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )
+              })}
+            </div>
           )}
         </div>
 
-        {/* Sticky footer with actions */}
-        <div className="sticky bottom-0 bg-fm-surface-container-lowest rounded-b-2xl px-5 py-4 border-t border-fm-outline-variant/15 space-y-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
-            Acciones
-          </p>
-          {!currentPhase?.is_terminal && (
-            <div className="flex flex-wrap gap-2">
-              <PhaseAdvanceMenu
-                catalog={phaseCatalog}
-                currentCode={entry.current_phase_code}
-                onlyWaitlistVisible
-                disabled={isPending}
-                onAdvance={onAdvance}
-                label="Cambiar fase…"
-
-              />
-              <button
-                type="button"
-                disabled={isPending}
-                onClick={onDrop}
-                className="text-xs font-semibold text-fm-error hover:underline disabled:opacity-50"
-              >
-                Descartar
-              </button>
+        {/* Footer */}
+        <div className="flex-shrink-0 bg-fm-surface-container-lowest rounded-b-2xl px-5 py-3 border-t border-fm-outline-variant/15">
+          {view === 'info' ? (
+            <div className="flex items-center gap-3">
+              {!currentPhase?.is_terminal && (
+                <>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => setView('phases')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-fm-primary text-white text-xs font-semibold hover:bg-fm-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-base">swap_horiz</span>
+                    Cambiar fase
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={onDrop}
+                    className="text-xs font-semibold text-fm-error hover:underline disabled:opacity-50"
+                  >
+                    Descartar
+                  </button>
+                </>
+              )}
+              {currentPhase?.is_terminal && (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={onReopen}
+                  className="text-xs font-semibold text-fm-primary hover:underline disabled:opacity-50"
+                >
+                  Reabrir
+                </button>
+              )}
             </div>
-          )}
-          {currentPhase?.is_terminal && (
+          ) : (
             <button
               type="button"
-              disabled={isPending}
-              onClick={onReopen}
-              className="text-xs font-semibold text-fm-primary hover:underline disabled:opacity-50"
+              onClick={() => setView('info')}
+              className="text-xs font-semibold text-fm-on-surface-variant hover:text-fm-on-surface"
             >
-              Reabrir
+              ← Cancelar
             </button>
           )}
         </div>
