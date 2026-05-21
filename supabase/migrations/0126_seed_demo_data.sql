@@ -99,7 +99,7 @@ BEGIN
   -- 2. Salarios del equipo (mensual_fijo para todos menos terapistas)
   -- ════════════════════════════════════════════════════════════════════════
   UPDATE public.users SET
-    monthly_salary_usd=1400, contract_type='mensual_fijo', afp_provider='confía',
+    monthly_salary_usd=1400, contract_type='mensual_fijo', afp_provider='confia',
     hire_date='2021-06-01'
   WHERE role='admin';
 
@@ -109,7 +109,7 @@ BEGIN
   WHERE role='directora';
 
   UPDATE public.users SET
-    monthly_salary_usd=900, contract_type='mensual_fijo', afp_provider='confía',
+    monthly_salary_usd=900, contract_type='mensual_fijo', afp_provider='confia',
     hire_date='2022-03-01'
   WHERE role='coordinadora_familias';
 
@@ -119,7 +119,7 @@ BEGIN
   WHERE role='coordinadora_terapias';
 
   UPDATE public.users SET
-    monthly_salary_usd=550, contract_type='mensual_fijo', afp_provider='confía',
+    monthly_salary_usd=550, contract_type='mensual_fijo', afp_provider='confia',
     hire_date='2023-01-10'
   WHERE role='recepcion';
 
@@ -129,7 +129,7 @@ BEGIN
   WHERE role='contable';
 
   UPDATE public.users SET
-    monthly_salary_usd=700, contract_type='mensual_fijo', afp_provider='confía',
+    monthly_salary_usd=700, contract_type='mensual_fijo', afp_provider='confia',
     hire_date='2023-03-01'
   WHERE role='maestra';
 
