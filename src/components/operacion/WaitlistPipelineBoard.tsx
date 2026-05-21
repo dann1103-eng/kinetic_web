@@ -524,7 +524,7 @@ function DetailModal({
       onClick={onClose}
     >
       <div
-        className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto flex flex-col"
+        className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Sticky header */}
@@ -555,7 +555,7 @@ function DetailModal({
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div className="space-y-2 text-sm">
             {entry.child_age_text || entry.child_birthdate ? (
               <Row label="Edad" value={entry.child_age_text ?? calcAge(entry.child_birthdate)} />

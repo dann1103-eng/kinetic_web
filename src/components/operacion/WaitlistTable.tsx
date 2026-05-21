@@ -245,6 +245,7 @@ export function WaitlistTable({
                           onlyWaitlistVisible
                           disabled={isPending}
                           onAdvance={(toCode) => handleAdvanceTo(e.id, toCode)}
+                          placement="bottom-left"
                         />
                       )}
 
