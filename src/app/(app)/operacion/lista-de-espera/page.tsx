@@ -3,8 +3,15 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { listWaitlist } from '@/app/actions/waitlist'
+import { listPhaseCatalog } from '@/app/actions/intake-pipeline'
 import { detectWaitlistAlerts } from '@/lib/domain/waitlist-alerts'
-import { SERVICE_TYPE_LABELS, type ServiceType, type WaitlistStatus } from '@/types/db'
+import {
+  PHASE_GROUP_LABELS,
+  SERVICE_TYPE_LABELS,
+  type PhaseGroupNumber,
+  type ServiceType,
+  type WaitlistStatus,
+} from '@/types/db'
 import { WaitlistTable } from '@/components/operacion/WaitlistTable'
 import { NewWaitlistEntryButton } from '@/components/operacion/NewWaitlistEntryButton'
 
@@ -22,6 +29,7 @@ interface PageProps {
   searchParams: Promise<{
     status?: string
     service?: string
+    group?: string
   }>
 }
 
@@ -37,13 +45,22 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
     ? (params.status as WaitlistStatus)
     : undefined) as WaitlistStatus | undefined
   const serviceFilter = params.service as ServiceType | undefined
+  const groupFilterRaw = params.group ? Number(params.group) : undefined
+  const groupFilter: PhaseGroupNumber | undefined =
+    groupFilterRaw && [1, 2, 3, 4, 5].includes(groupFilterRaw)
+      ? (groupFilterRaw as PhaseGroupNumber)
+      : undefined
 
   const supabase = await createClient()
 
-  const entries = await listWaitlist({
-    status: statusFilter,
-    serviceType: serviceFilter,
-  })
+  const [entries, phaseCatalog] = await Promise.all([
+    listWaitlist({
+      status: statusFilter,
+      serviceType: serviceFilter,
+      phaseGroup: groupFilter,
+    }),
+    listPhaseCatalog(),
+  ])
 
   const alerts = await detectWaitlistAlerts(supabase)
 
@@ -129,8 +146,8 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
       )}
 
       {/* Filtros */}
-      <div className="flex items-center gap-4 flex-wrap border-b border-fm-outline-variant/20 pb-3">
-        <div className="flex items-center gap-1.5">
+      <div className="flex flex-col gap-3 border-b border-fm-outline-variant/20 pb-3">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs text-fm-on-surface-variant">Estado:</span>
           {[
             { val: undefined, label: 'Activas' },
@@ -143,6 +160,36 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
             const query = new URLSearchParams()
             if (f.val) query.set('status', f.val)
             if (serviceFilter) query.set('service', serviceFilter)
+            if (groupFilter) query.set('group', String(groupFilter))
+            const href = `/operacion/lista-de-espera${query.toString() ? `?${query.toString()}` : ''}`
+            return (
+              <Link
+                key={f.label}
+                href={href}
+                className={`text-xs font-semibold px-2.5 py-1 rounded-full transition-colors ${
+                  active
+                    ? 'bg-fm-primary text-white'
+                    : 'text-fm-on-surface-variant hover:bg-fm-surface-container'
+                }`}
+              >
+                {f.label}
+              </Link>
+            )
+          })}
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs text-fm-on-surface-variant">Grupo:</span>
+          {[
+            { val: undefined as number | undefined, label: 'Todos' },
+            { val: 1, label: PHASE_GROUP_LABELS[1] },
+            { val: 2, label: PHASE_GROUP_LABELS[2] },
+            { val: 3, label: PHASE_GROUP_LABELS[3] },
+          ].map((f) => {
+            const active = (groupFilter ?? undefined) === f.val
+            const query = new URLSearchParams()
+            if (statusFilter) query.set('status', statusFilter)
+            if (serviceFilter) query.set('service', serviceFilter)
+            if (f.val) query.set('group', String(f.val))
             const href = `/operacion/lista-de-espera${query.toString() ? `?${query.toString()}` : ''}`
             return (
               <Link
@@ -165,6 +212,7 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
         entries={entries}
         therapistsById={therapistsById}
         familyIdByChildId={familyIdByChildId}
+        phaseCatalog={phaseCatalog}
       />
     </div>
   )

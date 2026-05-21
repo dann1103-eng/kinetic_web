@@ -101,6 +101,8 @@ export async function markContacted(
       status: 'contacted',
       contacted_at: new Date().toISOString(),
       contacted_by_user_id: user.id,
+      // Sync con pipeline 0121
+      current_phase_code: '1_2_informacion_enviada',
     })
     .eq('id', id)
 
@@ -121,6 +123,7 @@ export async function markScheduled(
     .update({
       status: 'scheduled',
       scheduled_child_id: childId ?? null,
+      current_phase_code: '3_2_inscripcion_activa',
     })
     .eq('id', id)
 
@@ -146,6 +149,7 @@ export async function dropEntry(
       status: 'dropped',
       dropped_at: new Date().toISOString(),
       dropped_reason: reason.trim(),
+      current_phase_code: '5_2_retirado',
     })
     .eq('id', id)
 
@@ -172,6 +176,7 @@ export async function revertScheduledToContacted(
     .update({
       status: 'contacted',
       scheduled_child_id: null,
+      current_phase_code: '1_2_informacion_enviada',
     })
     .eq('id', id)
 
@@ -194,6 +199,7 @@ export async function reopenEntry(
       contacted_by_user_id: null,
       dropped_at: null,
       dropped_reason: null,
+      current_phase_code: '1_1_contacto_inicial',
     })
     .eq('id', id)
 
@@ -348,6 +354,12 @@ export async function transformWaitlistEntryToFamily(
 export interface ListWaitlistFilters {
   status?: WaitlistStatus
   serviceType?: ServiceType
+  /** Filtrar por código de sub-fase exacto del catálogo. */
+  phaseCode?: string
+  /** Filtrar por grupo (1-5). Mutuamente exclusivo con phaseCode. */
+  phaseGroup?: 1 | 2 | 3 | 4 | 5
+  /** Si true, también muestra entradas terminales (scheduled / dropped). */
+  includeHistorical?: boolean
 }
 
 export async function listWaitlist(
@@ -362,14 +374,21 @@ export async function listWaitlist(
     .order('added_at', { ascending: true })
 
   if (filters.status) {
-    // Filtro explícito (incluye consultar estados terminales para auditoría).
     query = query.eq('status', filters.status)
-  } else {
+  } else if (!filters.includeHistorical) {
     // Default: solo entradas ACTIVAS (waiting + contacted). Las terminales
     // (scheduled / dropped) se ocultan porque su registro vivo ya está en
     // familias/niños o ya fue descartado.
     query = query.in('status', ['waiting', 'contacted'])
   }
+
+  if (filters.phaseCode) {
+    query = query.eq('current_phase_code', filters.phaseCode)
+  } else if (filters.phaseGroup) {
+    // Phase codes empiezan por `{group}_` — ej. '2_3_observacion_escolar'.
+    query = query.like('current_phase_code', `${filters.phaseGroup}_%`)
+  }
+
   if (filters.serviceType) query = query.eq('requested_service_type', filters.serviceType)
 
   const { data } = await query

@@ -94,6 +94,7 @@ export const STATUS_BADGE_CLASSES: Record<AppointmentStatus, string> = {
   late_cancel: 'bg-fm-error/10 text-fm-error',
   rescheduled: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant',
   replacement: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant',
+  cancelled: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant',
 }
 
 /**

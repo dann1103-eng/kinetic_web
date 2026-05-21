@@ -9,12 +9,10 @@ import { TreatmentPlanSection } from '@/components/families/TreatmentPlanSection
 import { MonthlyCyclesSection } from '@/components/families/MonthlyCyclesSection'
 import { ChildDashboardPanel } from '@/components/dashboard/ChildDashboardPanel'
 import { ChildPhotoUploader } from '@/components/families/ChildPhotoUploader'
+import { ChildIntakePipelinePanel } from '@/components/children/ChildIntakePipelinePanel'
+import { listPhaseCatalog } from '@/app/actions/intake-pipeline'
 import { getChildDashboardData } from '@/lib/domain/child-dashboard'
-import {
-  INTAKE_PHASE_LABELS,
-  TREATMENT_STATUS_LABELS,
-  MORNING_PROGRAM_LABELS,
-} from '@/types/db'
+import { MORNING_PROGRAM_LABELS } from '@/types/db'
 import type { Child, MonthlySessionCycle, TreatmentPlan } from '@/types/db'
 import Link from 'next/link'
 
@@ -87,6 +85,29 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
     ? Math.floor((new Date().getTime() - new Date(c.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
     : null
 
+  // Catálogo de sub-fases para el widget de pipeline
+  const phaseCatalog = await listPhaseCatalog()
+
+  // Autores que aparecen en el timeline del niño
+  const { data: staffRaw } = await supabase
+    .from('users')
+    .select('id, full_name')
+    .in('role', [
+      'admin',
+      'directora',
+      'supervisor',
+      'coordinadora_familias',
+      'coordinadora_terapias',
+      'terapista',
+      'maestra',
+      'recepcion',
+      'contable',
+    ])
+  const phaseAuthorsById: Record<string, string> = {}
+  for (const row of (staffRaw ?? []) as { id: string; full_name: string }[]) {
+    phaseAuthorsById[row.id] = row.full_name
+  }
+
   return (
     <div className="flex flex-col min-h-full">
       <TopNav title={c.full_name} backHref={`/familias/${familyId}`} />
@@ -134,20 +155,25 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
           {c.diagnoses_display_text && (
             <p className="text-sm text-fm-primary italic max-w-prose">{c.diagnoses_display_text}</p>
           )}
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            {c.enrolled_program && (
+          {c.enrolled_program && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
               <span className="text-xs px-3 py-1 rounded-full bg-fm-secondary/15 text-fm-secondary font-medium">
                 Programa: {MORNING_PROGRAM_LABELS[c.enrolled_program]}
               </span>
-            )}
-            <span className="text-xs px-3 py-1 rounded-full bg-fm-primary/10 text-fm-primary font-medium">
-              Fase: {INTAKE_PHASE_LABELS[c.intake_phase]}
-            </span>
-            <span className="text-xs px-3 py-1 rounded-full bg-fm-surface-container text-fm-on-surface-variant font-medium">
-              {TREATMENT_STATUS_LABELS[c.treatment_status]}
-            </span>
-          </div>
+            </div>
+          )}
         </header>
+
+        {/* Pipeline de admisión (mig 0121) */}
+        <div className="mt-6">
+          <ChildIntakePipelinePanel
+            childId={childId}
+            childName={c.preferred_name ?? c.full_name}
+            currentPhaseCode={c.current_phase_code}
+            phaseCatalog={phaseCatalog}
+            authorNamesById={phaseAuthorsById}
+          />
+        </div>
 
         {/* Tab navigation */}
         <nav

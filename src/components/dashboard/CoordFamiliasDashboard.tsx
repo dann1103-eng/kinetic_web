@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { INTAKE_PHASE_LABELS } from '@/types/db'
 import type { IntakePhase } from '@/types/db'
 import { QuickLinks } from './MgmtDashboard'
+import { DashboardAlertsBanner } from './DashboardAlertsBanner'
 
 interface Props {
   greeting: string
@@ -47,6 +48,8 @@ export function CoordFamiliasDashboard({
         <h1 className="text-2xl font-bold text-fm-on-surface">{greeting}</h1>
         <p className="text-sm text-fm-on-surface-variant">Captación y seguimiento de familias</p>
       </div>
+
+      <DashboardAlertsBanner />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat label="Activos totales" value={totalActive} tone="info" />

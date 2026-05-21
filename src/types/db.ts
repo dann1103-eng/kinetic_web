@@ -2061,6 +2061,7 @@ export interface Database {
           notes?: string | null
           photo_url?: string | null
           created_by_user_id?: string | null
+          current_phase_code?: string | null
         }
         Update: Partial<Omit<Child, 'id' | 'created_at'>>
         Relationships: []
@@ -2235,8 +2236,73 @@ export interface Database {
           dropped_at?: string | null
           dropped_reason?: string | null
           scheduled_child_id?: string | null
+          current_phase_code?: string | null
         }
         Update: Partial<Omit<WaitlistEntry, 'id' | 'added_at'>>
+        Relationships: []
+      }
+      intake_phase_catalog: {
+        Row: AsRow<IntakePhaseCatalogEntry>
+        Insert: Omit<IntakePhaseCatalogEntry, 'created_at'> & { created_at?: string }
+        Update: Partial<Omit<IntakePhaseCatalogEntry, 'code' | 'created_at'>>
+        Relationships: []
+      }
+      child_phase_history: {
+        Row: AsRow<ChildPhaseHistoryEntry>
+        Insert: {
+          id?: string
+          child_id?: string | null
+          waitlist_entry_id?: string | null
+          from_phase_code?: string | null
+          to_phase_code: string
+          notes?: string | null
+          changed_by_user_id?: string | null
+          changed_at?: string
+        }
+        Update: Partial<Omit<ChildPhaseHistoryEntry, 'id' | 'changed_at'>>
+        Relationships: []
+      }
+      child_discharge_records: {
+        Row: AsRow<ChildDischargeRecord>
+        Insert: {
+          id?: string
+          child_id: string
+          discharge_type: DischargeType
+          discharge_date?: string
+          child_snapshot_json?: DischargeChildSnapshot
+          therapies_snapshot_json?: DischargeTherapySnapshot[]
+          total_sessions_attended?: number | null
+          attendance_rate_pct?: number | null
+          total_replacements?: number | null
+          objectives_achieved?: string | null
+          recommendations?: string | null
+          follow_up_plan?: string | null
+          discharge_reason?: string | null
+          signed_by_therapist_id?: string | null
+          signed_by_therapist_name?: string | null
+          signed_by_therapist_at?: string | null
+          signed_by_directora_id?: string | null
+          signed_by_directora_name?: string | null
+          signed_by_directora_at?: string | null
+          status?: DischargeStatus
+          pdf_generated_at?: string | null
+          created_by_user_id?: string | null
+        }
+        Update: Partial<Omit<ChildDischargeRecord, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      dashboard_alerts: {
+        Row: AsRow<DashboardAlert>
+        Insert: {
+          id?: string
+          alert_type: DashboardAlertType
+          child_id?: string | null
+          message: string
+          visible_to_roles?: string[]
+          expires_at: string
+          created_by_user_id?: string | null
+        }
+        Update: Partial<Omit<DashboardAlert, 'id' | 'created_at'>>
         Relationships: []
       }
       treatment_plans: {
@@ -2883,6 +2949,7 @@ export type AppointmentStatus =
   | 'late_cancel'
   | 'rescheduled'
   | 'replacement'
+  | 'cancelled'
 
 export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
   scheduled: 'Programada',
@@ -2892,6 +2959,7 @@ export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
   late_cancel: 'Cancelación tardía',
   rescheduled: 'Reagendada',
   replacement: 'Reposición',
+  cancelled: 'Cancelada',
 }
 
 export interface Appointment {
@@ -2982,6 +3050,8 @@ export interface WaitlistEntry {
   dropped_reason: string | null
   scheduled_child_id: string | null
   updated_at: string
+  /** Pipeline 0121: sub-fase actual del catálogo intake_phase_catalog. */
+  current_phase_code: string | null
 }
 
 export interface VirtualMeeting {
@@ -3030,6 +3100,127 @@ export interface Child {
   created_at: string
   created_by_user_id: string | null
   updated_at: string
+  /** Pipeline 0121: sub-fase actual del catálogo intake_phase_catalog. */
+  current_phase_code: string | null
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Pipeline de admisión (mig 0121) — catálogo + history + discharge + alerts
+// ──────────────────────────────────────────────────────────────────────────
+
+export type PhaseGroupNumber = 1 | 2 | 3 | 4 | 5
+
+export interface IntakePhaseCatalogEntry {
+  code: string
+  group_number: PhaseGroupNumber
+  group_name: string
+  sub_order: number
+  label: string
+  description: string | null
+  is_optional: boolean
+  is_waitlist_visible: boolean
+  is_terminal: boolean
+  creates_child: boolean
+  cancels_future_appointments: boolean
+  active: boolean
+  sort_order: number
+  created_at: string
+}
+
+export const PHASE_GROUP_LABELS: Record<PhaseGroupNumber, string> = {
+  1: 'Primer contacto',
+  2: 'Proceso de Admisión',
+  3: 'Inicio Terapéutico',
+  4: 'Seguimiento',
+  5: 'Cierre',
+}
+
+/** Paleta por grupo para chips, stepper y banners. */
+export const PHASE_GROUP_COLORS: Record<
+  PhaseGroupNumber,
+  { bg: string; text: string; ring: string }
+> = {
+  1: { bg: 'bg-purple-500/15', text: 'text-purple-700', ring: 'ring-purple-500/30' },
+  2: { bg: 'bg-blue-500/15',   text: 'text-blue-700',   ring: 'ring-blue-500/30'   },
+  3: { bg: 'bg-emerald-500/15', text: 'text-emerald-700', ring: 'ring-emerald-500/30' },
+  4: { bg: 'bg-amber-500/15',  text: 'text-amber-800',  ring: 'ring-amber-500/30'  },
+  5: { bg: 'bg-slate-500/15',  text: 'text-slate-700',  ring: 'ring-slate-500/30'  },
+}
+
+export interface ChildPhaseHistoryEntry {
+  id: string
+  child_id: string | null
+  waitlist_entry_id: string | null
+  from_phase_code: string | null
+  to_phase_code: string
+  notes: string | null
+  changed_by_user_id: string | null
+  changed_at: string
+}
+
+export type DischargeType = 'alta' | 'retiro'
+export type DischargeStatus = 'draft' | 'signed' | 'sent_to_family'
+
+export const DISCHARGE_TYPE_LABELS: Record<DischargeType, string> = {
+  alta: 'Alta Terapéutica',
+  retiro: 'Retirado',
+}
+
+export interface DischargeChildSnapshot {
+  full_name: string
+  preferred_name: string | null
+  birth_date: string | null
+  gender: 'M' | 'F' | 'other' | null
+  enrollment_started_at: string | null
+  diagnoses_display_text: string | null
+}
+
+export interface DischargeTherapySnapshot {
+  service_type: string
+  label: string
+  started_at: string | null
+  ended_at: string | null
+  total_sessions: number | null
+}
+
+export interface ChildDischargeRecord {
+  id: string
+  child_id: string
+  discharge_type: DischargeType
+  discharge_date: string
+  child_snapshot_json: DischargeChildSnapshot
+  therapies_snapshot_json: DischargeTherapySnapshot[]
+  total_sessions_attended: number | null
+  attendance_rate_pct: number | null
+  total_replacements: number | null
+  objectives_achieved: string | null
+  recommendations: string | null
+  follow_up_plan: string | null
+  discharge_reason: string | null
+  signed_by_therapist_id: string | null
+  signed_by_therapist_name: string | null
+  signed_by_therapist_at: string | null
+  signed_by_directora_id: string | null
+  signed_by_directora_name: string | null
+  signed_by_directora_at: string | null
+  status: DischargeStatus
+  pdf_generated_at: string | null
+  created_by_user_id: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type DashboardAlertType = 'discharge' | 'dropout' | 'phase_milestone'
+
+export interface DashboardAlert {
+  id: string
+  alert_type: DashboardAlertType
+  child_id: string | null
+  message: string
+  visible_to_roles: string[]
+  expires_at: string
+  created_at: string
+  created_by_user_id: string | null
 }
 
 // ── Fase 3-A+D ────────────────────────────────────────────────────────────────

@@ -108,3 +108,41 @@ SELECT 'mig_0120_submit_session_report_morning' AS check_name,
 FROM pg_proc p
 JOIN pg_namespace n ON p.pronamespace = n.oid
 WHERE n.nspname = 'public' AND p.proname = 'submit_session_report';
+
+-- ── 0121: pipeline completo de admisión ─────────────────────────────
+SELECT 'mig_0121_intake_phase_catalog' AS check_name, COUNT(*)::int AS applied
+FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name = 'intake_phase_catalog';
+
+SELECT 'mig_0121_catalog_seed_count' AS check_name,
+       (CASE WHEN COUNT(*) = 17 THEN 1 ELSE 0 END)::int AS applied
+FROM intake_phase_catalog;
+
+SELECT 'mig_0121_waitlist_current_phase_code' AS check_name, COUNT(*)::int AS applied
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'waitlist_entries'
+  AND column_name = 'current_phase_code';
+
+SELECT 'mig_0121_children_current_phase_code' AS check_name, COUNT(*)::int AS applied
+FROM information_schema.columns
+WHERE table_schema = 'public'
+  AND table_name = 'children'
+  AND column_name = 'current_phase_code';
+
+SELECT 'mig_0121_child_phase_history' AS check_name, COUNT(*)::int AS applied
+FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name = 'child_phase_history';
+
+SELECT 'mig_0121_child_discharge_records' AS check_name, COUNT(*)::int AS applied
+FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name = 'child_discharge_records';
+
+SELECT 'mig_0121_dashboard_alerts' AS check_name, COUNT(*)::int AS applied
+FROM information_schema.tables
+WHERE table_schema = 'public' AND table_name = 'dashboard_alerts';
+
+SELECT 'mig_0121_sync_legacy_phase_trigger' AS check_name, COUNT(*)::int AS applied
+FROM pg_trigger t
+JOIN pg_class c ON c.oid = t.tgrelid
+WHERE c.relname = 'children' AND t.tgname = 'children_sync_legacy_phase';

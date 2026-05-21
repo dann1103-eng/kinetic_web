@@ -8,6 +8,7 @@ import { ExpenseTrendSparkline } from './widgets/ExpenseTrendSparkline'
 import { CalendarHeatmap } from './widgets/CalendarHeatmap'
 import { TopTherapists } from './widgets/TopTherapists'
 import { AtRiskChildren } from './widgets/AtRiskChildren'
+import { DashboardAlertsBanner } from './DashboardAlertsBanner'
 
 interface Props {
   data: MgmtDashboardData
@@ -51,6 +52,10 @@ export function MgmtDashboard({
           alertas y estado de los expedientes activos.
         </p>
       </header>
+
+      <div className="mb-8">
+        <DashboardAlertsBanner />
+      </div>
 
       <div className="grid grid-cols-12 gap-8 lg:gap-12 items-start">
         {/* ─── Rail izquierdo: KPIs + Alertas ───────────────────────────── */}

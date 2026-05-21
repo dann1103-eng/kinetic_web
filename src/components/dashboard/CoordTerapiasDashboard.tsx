@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { CoordTerapiasDashboardData } from '@/lib/domain/global-dashboard'
 import { QuickLinks } from './MgmtDashboard'
+import { DashboardAlertsBanner } from './DashboardAlertsBanner'
 
 interface Props {
   data: CoordTerapiasDashboardData
@@ -14,6 +15,8 @@ export function CoordTerapiasDashboard({ data, greeting }: Props) {
         <h1 className="text-2xl font-bold text-fm-on-surface">{greeting}</h1>
         <p className="text-sm text-fm-on-surface-variant">Coordinación de terapias</p>
       </div>
+
+      <DashboardAlertsBanner />
 
       {/* KPIs operativos */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

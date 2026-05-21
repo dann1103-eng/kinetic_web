@@ -3,7 +3,11 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { SERVICE_TYPE_LABELS, type WaitlistEntry } from '@/types/db'
+import {
+  SERVICE_TYPE_LABELS,
+  type IntakePhaseCatalogEntry,
+  type WaitlistEntry,
+} from '@/types/db'
 import { daysSinceAdded } from '@/lib/domain/waitlist-alerts'
 import {
   markContacted,
@@ -12,13 +16,18 @@ import {
   reopenEntry,
   revertScheduledToContacted,
 } from '@/app/actions/waitlist'
+import { advanceWaitlistPhase } from '@/app/actions/intake-pipeline'
 import { TransformWaitlistModal } from './TransformWaitlistModal'
+import { PhaseChip } from '@/components/pipeline/PhaseChip'
+import { PhaseAdvanceMenu } from '@/components/pipeline/PhaseAdvanceMenu'
 
 interface Props {
   entries: WaitlistEntry[]
   therapistsById: Record<string, string>
   /** Mapa de child_id → family_id, para link directo a ficha desde entradas scheduled. */
   familyIdByChildId?: Record<string, string>
+  /** Catálogo de sub-fases para el dropdown de avance. */
+  phaseCatalog: IntakePhaseCatalogEntry[]
 }
 
 const PRIORITY_TONE: Record<number, { label: string; bg: string; text: string }> = {
@@ -27,12 +36,6 @@ const PRIORITY_TONE: Record<number, { label: string; bg: string; text: string }>
   2: { label: 'Urgente', bg: 'bg-rose-100', text: 'text-rose-900' },
 }
 
-const STATUS_TONE: Record<string, { label: string; bg: string; text: string }> = {
-  waiting: { label: 'En espera', bg: 'bg-blue-100', text: 'text-blue-900' },
-  contacted: { label: 'Contactada', bg: 'bg-amber-100', text: 'text-amber-900' },
-  scheduled: { label: 'Agendada', bg: 'bg-emerald-100', text: 'text-emerald-900' },
-  dropped: { label: 'Descartada', bg: 'bg-fm-surface-container', text: 'text-fm-on-surface-variant' },
-}
 
 function calcAge(birthdate: string | null): string {
   if (!birthdate) return '—'
@@ -51,13 +54,33 @@ function calcAge(birthdate: string | null): string {
   return `${years}a`
 }
 
-export function WaitlistTable({ entries, therapistsById, familyIdByChildId }: Props) {
+export function WaitlistTable({
+  entries,
+  therapistsById,
+  familyIdByChildId,
+  phaseCatalog,
+}: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<WaitlistEntry | null>(null)
   const [dropReason, setDropReason] = useState('')
   const [transformTarget, setTransformTarget] = useState<WaitlistEntry | null>(null)
+
+  const catalogByCode: Record<string, IntakePhaseCatalogEntry> = {}
+  for (const p of phaseCatalog) catalogByCode[p.code] = p
+
+  function handleAdvanceTo(entryId: string, toCode: string) {
+    setError(null)
+    startTransition(async () => {
+      const res = await advanceWaitlistPhase(entryId, toCode)
+      if (!res.ok) {
+        setError(res.error)
+      } else {
+        router.refresh()
+      }
+    })
+  }
 
   function handleContacted(id: string) {
     setError(null)
@@ -144,7 +167,7 @@ export function WaitlistTable({ entries, therapistsById, familyIdByChildId }: Pr
           <tbody>
             {entries.map((e) => {
               const priority = PRIORITY_TONE[e.priority] ?? PRIORITY_TONE[0]
-              const status = STATUS_TONE[e.status]
+              const phase = e.current_phase_code ? catalogByCode[e.current_phase_code] : null
               const days = daysSinceAdded(e.added_at)
               const preferredTherapist = e.preferred_therapist_id
                 ? therapistsById[e.preferred_therapist_id]
@@ -209,11 +232,7 @@ export function WaitlistTable({ entries, therapistsById, familyIdByChildId }: Pr
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-1 rounded-full ${status.bg} ${status.text}`}
-                    >
-                      {status.label}
-                    </span>
+                    <PhaseChip phase={phase} fallback="(sin fase)" />
                     {e.status === 'dropped' && e.dropped_reason && (
                       <p className="text-[11px] text-fm-on-surface-variant italic mt-1 max-w-[160px]">
                         {e.dropped_reason}
@@ -225,110 +244,88 @@ export function WaitlistTable({ entries, therapistsById, familyIdByChildId }: Pr
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex flex-col gap-1 items-end">
-                      {e.status === 'waiting' && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleContacted(e.id)}
-                            className="text-xs font-semibold text-fm-primary hover:underline disabled:opacity-50"
-                          >
-                            Contactada
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => setTransformTarget(e)}
-                            className="text-xs font-semibold text-emerald-700 hover:underline disabled:opacity-50"
-                          >
-                            Convertir a familia
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => setDropTarget(e)}
-                            className="text-xs text-fm-error hover:underline disabled:opacity-50"
-                          >
-                            Descartar
-                          </button>
-                        </>
+                      {/* Link a ficha si ya fue inscrito y existe child */}
+                      {e.scheduled_child_id && familyIdByChildId?.[e.scheduled_child_id] && (
+                        <Link
+                          href={`/familias/${familyIdByChildId[e.scheduled_child_id]}/children/${e.scheduled_child_id}`}
+                          className="text-xs font-semibold text-fm-primary hover:underline"
+                        >
+                          Ver ficha del niño
+                        </Link>
                       )}
+
+                      {/* Avanzar a otra sub-fase del pipeline */}
+                      {e.status !== 'dropped' && (
+                        <PhaseAdvanceMenu
+                          catalog={phaseCatalog}
+                          currentCode={e.current_phase_code}
+                          onlyWaitlistVisible
+                          disabled={isPending}
+                          onAdvance={(toCode) => handleAdvanceTo(e.id, toCode)}
+                        />
+                      )}
+
+                      {/* Convertir manualmente (admin override, formulario completo) */}
+                      {(e.status === 'waiting' || e.status === 'contacted') && (
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => setTransformTarget(e)}
+                          className="text-xs font-semibold text-emerald-700 hover:underline disabled:opacity-50"
+                          title="Crear familia + niño con formulario completo"
+                        >
+                          Convertir a familia
+                        </button>
+                      )}
+
+                      {/* Marcar agendada (legacy compatibility) */}
                       {e.status === 'contacted' && (
-                        <>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => setTransformTarget(e)}
-                            className="text-xs font-semibold text-emerald-700 hover:underline disabled:opacity-50"
-                          >
-                            Convertir a familia
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleScheduledManual(e.id)}
-                            className="text-xs text-fm-on-surface-variant hover:underline disabled:opacity-50"
-                            title="Marcar como agendada sin crear familia (la familia ya existe)"
-                          >
-                            Marcar agendada
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleReopen(e.id)}
-                            className="text-xs text-fm-on-surface-variant hover:underline disabled:opacity-50"
-                          >
-                            Volver a espera
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => setDropTarget(e)}
-                            className="text-xs text-fm-error hover:underline disabled:opacity-50"
-                          >
-                            Descartar
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => handleScheduledManual(e.id)}
+                          className="text-xs text-fm-on-surface-variant hover:underline disabled:opacity-50"
+                          title="Marcar como agendada sin crear familia"
+                        >
+                          Marcar agendada
+                        </button>
                       )}
+
+                      {/* Contactar rápido */}
+                      {e.status === 'waiting' && (
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => handleContacted(e.id)}
+                          className="text-xs text-fm-primary hover:underline disabled:opacity-50"
+                        >
+                          Marcar contactada
+                        </button>
+                      )}
+
+                      {/* Volver atrás scheduled → contactada */}
                       {e.status === 'scheduled' && (
-                        <>
-                          {(() => {
-                            const childId = e.scheduled_child_id
-                            const familyId = childId ? familyIdByChildId?.[childId] : undefined
-                            if (childId && familyId) {
-                              return (
-                                <Link
-                                  href={`/familias/${familyId}/children/${childId}`}
-                                  className="text-xs font-semibold text-fm-primary hover:underline"
-                                >
-                                  Ver ficha del niño
-                                </Link>
-                              )
-                            }
-                            return (
-                              <span className="text-[10px] italic text-amber-700 max-w-[140px] text-right">
-                                Sin link al niño. Marcala como contactada y volvé a convertir.
-                              </span>
-                            )
-                          })()}
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => handleRevertScheduled(e.id)}
-                            className="text-xs text-fm-on-surface-variant hover:underline disabled:opacity-50"
-                            title="Limpia el link al niño y vuelve la entrada a 'contactada'. La familia y el niño NO se borran."
-                          >
-                            Volver a contactada
-                          </button>
-                          <button
-                            type="button"
-                            disabled={isPending}
-                            onClick={() => setDropTarget(e)}
-                            className="text-xs text-fm-error hover:underline disabled:opacity-50"
-                          >
-                            Descartar
-                          </button>
-                        </>
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => handleRevertScheduled(e.id)}
+                          className="text-xs text-fm-on-surface-variant hover:underline disabled:opacity-50"
+                          title="Limpia el link al niño y vuelve la entrada a 'contactada'."
+                        >
+                          Volver a contactada
+                        </button>
+                      )}
+
+                      {/* Descartar / reabrir */}
+                      {e.status !== 'dropped' && (
+                        <button
+                          type="button"
+                          disabled={isPending}
+                          onClick={() => setDropTarget(e)}
+                          className="text-xs text-fm-error hover:underline disabled:opacity-50"
+                        >
+                          Descartar
+                        </button>
                       )}
                       {e.status === 'dropped' && (
                         <button
