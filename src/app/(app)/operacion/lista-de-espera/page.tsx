@@ -12,7 +12,7 @@ import {
   type ServiceType,
   type WaitlistStatus,
 } from '@/types/db'
-import { WaitlistTable } from '@/components/operacion/WaitlistTable'
+import { WaitlistViewSwitcher } from '@/components/operacion/WaitlistViewSwitcher'
 import { NewWaitlistEntryButton } from '@/components/operacion/NewWaitlistEntryButton'
 
 export const dynamic = 'force-dynamic'
@@ -208,7 +208,7 @@ export default async function ListaDeEsperaPage({ searchParams }: PageProps) {
         </div>
       </div>
 
-      <WaitlistTable
+      <WaitlistViewSwitcher
         entries={entries}
         therapistsById={therapistsById}
         familyIdByChildId={familyIdByChildId}
