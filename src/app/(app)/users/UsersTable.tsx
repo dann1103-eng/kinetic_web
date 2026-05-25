@@ -18,14 +18,14 @@ import {
 // Catálogo completo (incluye legacy para resolver chips de users existentes).
 const STAFF_ROLES: { value: UserRole; label: string; chip: string }[] = [
   { value: 'admin',                 label: 'Admin',               chip: 'bg-fm-primary/10 text-fm-primary' },
-  { value: 'directora',             label: 'Directora',           chip: 'bg-rose-100 text-rose-700' },
-  { value: 'supervisor',            label: 'Supervisor',          chip: 'bg-purple-100 text-purple-700' },
-  { value: 'coordinadora_familias', label: 'Coord. Familias',     chip: 'bg-amber-100 text-amber-800' },
-  { value: 'coordinadora_terapias', label: 'Coord. Terapias',     chip: 'bg-amber-100 text-amber-800' },
-  { value: 'terapista',             label: 'Terapista',           chip: 'bg-sky-100 text-sky-700' },
-  { value: 'maestra',               label: 'Maestra',             chip: 'bg-emerald-100 text-emerald-700' },
-  { value: 'recepcion',             label: 'Recepción',           chip: 'bg-zinc-100 text-zinc-700' },
-  { value: 'contable',              label: 'Contable',            chip: 'bg-zinc-100 text-zinc-700' },
+  { value: 'directora',             label: 'Directora',           chip: 'bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300' },
+  { value: 'supervisor',            label: 'Supervisor',          chip: 'bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300' },
+  { value: 'coordinadora_familias', label: 'Coord. Familias',     chip: 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200' },
+  { value: 'coordinadora_terapias', label: 'Coord. Terapias',     chip: 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200' },
+  { value: 'terapista',             label: 'Terapista',           chip: 'bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300' },
+  { value: 'maestra',               label: 'Maestra',             chip: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300' },
+  { value: 'recepcion',             label: 'Recepción',           chip: 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300' },
+  { value: 'contable',              label: 'Contable',            chip: 'bg-zinc-100 dark:bg-zinc-800/60 text-zinc-700 dark:text-zinc-300' },
   { value: 'operator',              label: 'Operador (legacy)',   chip: 'bg-fm-on-surface-variant/10 text-fm-on-surface-variant' },
 ]
 

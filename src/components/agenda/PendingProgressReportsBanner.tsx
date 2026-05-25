@@ -27,8 +27,8 @@ const STATUS_LABEL: Record<ActiveTherapyReportStatus, string> = {
 }
 
 const STATUS_CHIP: Record<ActiveTherapyReportStatus, string> = {
-  none: 'bg-amber-200 text-amber-900',
-  draft: 'bg-amber-200 text-amber-900',
+  none: 'bg-amber-200 text-amber-900 dark:text-amber-100',
+  draft: 'bg-amber-200 text-amber-900 dark:text-amber-100',
   rejected: 'bg-rose-200 text-rose-900',
   submitted: 'bg-blue-200 text-blue-900',
   approved: 'bg-emerald-200 text-emerald-900',
@@ -50,16 +50,16 @@ export function PendingProgressReportsBanner({ summary, familyIdByChild }: Props
   if (pending.length === 0) return null // sin pendientes → no banner
 
   return (
-    <section className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 mb-4">
+    <section className="rounded-2xl border border-amber-300/60 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-950/40 p-4 mb-4">
       <div className="flex items-start gap-3">
-        <span className="material-symbols-outlined text-amber-700 mt-0.5">assignment_late</span>
+        <span className="material-symbols-outlined text-amber-700 dark:text-amber-300 mt-0.5">assignment_late</span>
         <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-semibold text-amber-900">
+          <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
             {pending.length === 1
               ? 'Tenés 1 informe de avances pendiente este cuatrimestre.'
               : `Tenés ${pending.length} informes de avances pendientes este cuatrimestre.`}
           </h2>
-          <p className="text-xs text-amber-800/80 mt-0.5">
+          <p className="text-xs text-amber-800/80 dark:text-amber-200/80 mt-0.5">
             De {summary.length} terapia{summary.length === 1 ? '' : 's'} activa{summary.length === 1 ? '' : 's'} este cuatrimestre.
             Cada terapia activa necesita su informe cuatrimestral.
           </p>
@@ -72,16 +72,16 @@ export function PendingProgressReportsBanner({ summary, familyIdByChild }: Props
               }`
               return (
                 <li key={`${item.childId}|${item.serviceType}`} className="flex items-center gap-2">
-                  <span className="text-amber-700 text-xs">•</span>
+                  <span className="text-amber-700 dark:text-amber-300 text-xs">•</span>
                   {familyId ? (
                     <Link
                       href={`/familias/${familyId}/children/${item.childId}`}
-                      className="text-sm text-amber-900 hover:underline"
+                      className="text-sm text-amber-900 dark:text-amber-100 hover:underline"
                     >
                       {label}
                     </Link>
                   ) : (
-                    <span className="text-sm text-amber-900">{label}</span>
+                    <span className="text-sm text-amber-900 dark:text-amber-100">{label}</span>
                   )}
                 </li>
               )
@@ -92,7 +92,7 @@ export function PendingProgressReportsBanner({ summary, familyIdByChild }: Props
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="mt-3 text-xs font-medium text-amber-900 hover:underline inline-flex items-center gap-1"
+            className="mt-3 text-xs font-medium text-amber-900 dark:text-amber-100 hover:underline inline-flex items-center gap-1"
           >
             <span className="material-symbols-outlined text-base transition-transform" style={{ transform: expanded ? 'rotate(180deg)' : 'rotate(0)' }}>
               expand_more
@@ -103,9 +103,9 @@ export function PendingProgressReportsBanner({ summary, familyIdByChild }: Props
           </button>
 
           {expanded && (
-            <div className="mt-3 rounded-xl border border-amber-200 bg-white/60 overflow-hidden">
+            <div className="mt-3 rounded-xl border border-amber-200 dark:border-amber-800/40 bg-white/60 dark:bg-fm-surface-container/40 overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="text-[10px] uppercase tracking-wider text-amber-800/70 bg-amber-100/50">
+                <thead className="text-[10px] uppercase tracking-wider text-amber-800/70 dark:text-amber-200/70 bg-amber-100/50 dark:bg-amber-900/30">
                   <tr>
                     <th className="text-left font-semibold px-3 py-1.5">Niño/a</th>
                     <th className="text-left font-semibold px-3 py-1.5">Terapia</th>
@@ -119,9 +119,9 @@ export function PendingProgressReportsBanner({ summary, familyIdByChild }: Props
                     return (
                       <tr
                         key={`${s.childId}|${s.serviceType}`}
-                        className="border-t border-amber-100"
+                        className="border-t border-amber-100 dark:border-amber-900/40"
                       >
-                        <td className="px-3 py-1.5 text-amber-900">
+                        <td className="px-3 py-1.5 text-amber-900 dark:text-amber-100">
                           {familyId ? (
                             <Link
                               href={`/familias/${familyId}/children/${s.childId}`}
@@ -133,7 +133,7 @@ export function PendingProgressReportsBanner({ summary, familyIdByChild }: Props
                             s.childName
                           )}
                         </td>
-                        <td className="px-3 py-1.5 text-amber-900">{label}</td>
+                        <td className="px-3 py-1.5 text-amber-900 dark:text-amber-100">{label}</td>
                         <td className="px-3 py-1.5">
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${STATUS_CHIP[s.reportStatus]}`}
@@ -146,7 +146,7 @@ export function PendingProgressReportsBanner({ summary, familyIdByChild }: Props
                   })}
                 </tbody>
               </table>
-              <p className="text-[10px] text-amber-800/70 px-3 py-2 bg-amber-50 border-t border-amber-100">
+              <p className="text-[10px] text-amber-800/70 dark:text-amber-200/70 px-3 py-2 bg-amber-50 dark:bg-amber-950/40 border-t border-amber-100 dark:border-amber-900/40">
                 Pendientes: <b>{pending.length}</b> · Ya cubiertos (en revisión, aprobados o enviados a familia): <b>{summary.length - pending.length}</b>.
               </p>
             </div>

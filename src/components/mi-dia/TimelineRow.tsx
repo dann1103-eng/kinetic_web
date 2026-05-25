@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { useTheme } from 'next-themes'
 import type { Appointment } from '@/types/db'
 
 type AppointmentWithChild = Appointment & {
@@ -62,15 +64,21 @@ export function TimelineRow({
     apptsByHour[h].push(a)
   }
 
+  // El backgroundColor inline necesita responder al tema actual — usamos
+  // next-themes en lugar de variantes Tailwind porque los colores vienen de
+  // un array dinámico (no se pueden expresar con clases estáticas).
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const bg = mounted && resolvedTheme === 'dark' ? palette.dark : palette.light
+
   return (
     <div
       className="rounded-[32px] p-6 flex items-stretch gap-6 sm:gap-8 min-h-[180px] text-fm-on-surface"
-      style={{
-        backgroundColor: palette.light,
-        // Fall back to the same color for dark mode via inline style; theme override handled by CSS var fallback:
-      }}
+      style={{ backgroundColor: bg }}
       data-row-color-light={palette.light}
       data-row-color-dark={palette.dark}
+      suppressHydrationWarning
     >
       <div className="w-20 sm:w-24 shrink-0">
         <div className="text-sm font-medium opacity-70 capitalize">{weekday}</div>

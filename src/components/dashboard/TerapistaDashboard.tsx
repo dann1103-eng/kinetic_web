@@ -92,9 +92,9 @@ function Stat({
   href?: string
 }) {
   const colors = {
-    ok: 'bg-emerald-50 border-emerald-200 text-emerald-900',
-    info: 'bg-blue-50 border-blue-200 text-blue-900',
-    warn: 'bg-amber-50 border-amber-200 text-amber-900',
+    ok:   'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/40 text-emerald-900 dark:text-emerald-100',
+    info: 'bg-blue-50    dark:bg-blue-950/40    border-blue-200    dark:border-blue-800/40    text-blue-900    dark:text-blue-100',
+    warn: 'bg-amber-50   dark:bg-amber-950/40   border-amber-200   dark:border-amber-800/40   text-amber-900   dark:text-amber-100',
   }[tone]
   const inner = (
     <div className={`rounded-xl border p-4 ${colors} ${href ? 'hover:shadow-md cursor-pointer' : ''}`}>

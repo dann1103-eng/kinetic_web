@@ -34,16 +34,16 @@ export function PendingAbsencesBanner({ items, familyIdByChild }: Props) {
   if (items.length === 0) return null
 
   return (
-    <section className="rounded-2xl border border-amber-300/60 bg-amber-50 p-4 mb-4">
+    <section className="rounded-2xl border border-amber-300/60 dark:border-amber-700/40 bg-amber-50 dark:bg-amber-950/40 p-4 mb-4">
       <div className="flex items-start gap-3">
-        <span className="material-symbols-outlined text-amber-700 mt-0.5">event_busy</span>
+        <span className="material-symbols-outlined text-amber-700 dark:text-amber-300 mt-0.5">event_busy</span>
         <div className="flex-1 min-w-0">
-          <h2 className="text-sm font-semibold text-amber-900">
+          <h2 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
             {items.length === 1
               ? 'Hay 1 inasistencia de tus alumnos pendiente de reponer.'
               : `Hay ${items.length} inasistencias de tus alumnos pendientes de reponer.`}
           </h2>
-          <p className="text-xs text-amber-800/80 mt-0.5">
+          <p className="text-xs text-amber-800/80 dark:text-amber-200/80 mt-0.5">
             La directora coordina las reposiciones desde{' '}
             <Link href="/aprobaciones" className="font-medium underline">
               Aprobaciones
@@ -54,7 +54,7 @@ export function PendingAbsencesBanner({ items, familyIdByChild }: Props) {
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="mt-2 text-xs font-medium text-amber-900 hover:underline inline-flex items-center gap-1"
+            className="mt-2 text-xs font-medium text-amber-900 dark:text-amber-100 hover:underline inline-flex items-center gap-1"
           >
             <span
               className="material-symbols-outlined text-base transition-transform"
@@ -77,9 +77,9 @@ export function PendingAbsencesBanner({ items, familyIdByChild }: Props) {
                 return (
                   <li
                     key={it.absenceId}
-                    className="flex items-start gap-2 text-sm text-amber-900"
+                    className="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-100"
                   >
-                    <span className="text-amber-700 mt-1 text-xs">•</span>
+                    <span className="text-amber-700 dark:text-amber-300 mt-1 text-xs">•</span>
                     <div className="flex-1">
                       {familyId ? (
                         <Link
@@ -91,8 +91,8 @@ export function PendingAbsencesBanner({ items, familyIdByChild }: Props) {
                       ) : (
                         <span className="font-medium">{it.childName}</span>
                       )}
-                      <span className="text-amber-800/80"> · {serviceLabel}</span>
-                      <p className="text-[11px] text-amber-800/70">
+                      <span className="text-amber-800/80 dark:text-amber-200/80"> · {serviceLabel}</span>
+                      <p className="text-[11px] text-amber-800/70 dark:text-amber-200/70">
                         Falló el {formatDateTime(it.originalStartsAt)}
                         {' · '}
                         {remaining <= 0

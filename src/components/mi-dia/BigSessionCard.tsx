@@ -97,17 +97,17 @@ export function BigSessionCard({
   }
 
   const isPrimary = variant === 'primary'
+  // Cards de mi-día — paleta Kinetic teal en lugar del fm-secondary-container
+  // (que se rendía como naranja-marrón en dark mode).
   const cardClass = isPrimary
-    ? 'bg-fm-secondary-container text-fm-on-secondary-container'
-    : 'bg-fm-surface-variant text-fm-on-surface'
-  const subtleClass = isPrimary
-    ? 'text-fm-on-secondary-container/70'
-    : 'text-fm-on-surface-variant'
+    ? 'bg-fm-primary/10 dark:bg-fm-primary/15 text-fm-on-surface ring-1 ring-fm-primary/30'
+    : 'bg-fm-surface-container text-fm-on-surface ring-1 ring-fm-outline-variant/30'
+  const subtleClass = 'text-fm-on-surface-variant'
   const pillClass = isPrimary
-    ? 'bg-fm-on-secondary-container/10 text-fm-on-secondary-container'
+    ? 'bg-fm-primary/15 text-fm-primary'
     : 'bg-fm-on-surface/5 text-fm-on-surface-variant'
   const avatarClass = isPrimary
-    ? 'bg-fm-on-secondary-container/15 text-fm-on-secondary-container'
+    ? 'bg-fm-primary/20 text-fm-primary'
     : 'bg-fm-on-surface/10 text-fm-on-surface'
 
   const reposTag =
@@ -189,7 +189,7 @@ export function BigSessionCard({
             <button
               onClick={() => setShowAbsenceModal(true)}
               disabled={isPending || absencePending}
-              className="px-4 py-2.5 rounded-2xl bg-amber-500/20 text-amber-900 dark:text-amber-100 text-xs font-semibold disabled:opacity-50 hover:bg-amber-500/30 transition-colors"
+              className="px-4 py-2.5 rounded-2xl bg-amber-500/20 dark:bg-amber-500/25 text-amber-900 dark:text-amber-100 text-xs font-semibold disabled:opacity-50 hover:bg-amber-500/30 dark:hover:bg-amber-500/35 transition-colors"
             >
               Inasistencia
             </button>
@@ -211,7 +211,7 @@ export function BigSessionCard({
             <button
               onClick={() => setShowAbsenceModal(true)}
               disabled={isPending || absencePending}
-              className="px-4 py-2.5 rounded-2xl bg-amber-500/20 text-amber-900 dark:text-amber-100 text-xs font-semibold disabled:opacity-50 hover:bg-amber-500/30 transition-colors"
+              className="px-4 py-2.5 rounded-2xl bg-amber-500/20 dark:bg-amber-500/25 text-amber-900 dark:text-amber-100 text-xs font-semibold disabled:opacity-50 hover:bg-amber-500/30 dark:hover:bg-amber-500/35 transition-colors"
             >
               Inasistencia
             </button>
