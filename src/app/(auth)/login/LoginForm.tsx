@@ -148,8 +148,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full h-11 font-semibold text-white rounded-xl mt-2"
-              style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)' }}
+              className="w-full h-11 font-semibold text-white rounded-xl mt-2 bg-fm-primary hover:bg-fm-primary/90 transition-colors"
             >
               {loading ? 'Ingresando...' : 'Ingresar'}
             </Button>

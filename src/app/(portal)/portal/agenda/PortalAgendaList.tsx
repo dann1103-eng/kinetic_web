@@ -114,6 +114,16 @@ export function PortalAgendaList({ appointments, childrenList: childrenProp, the
                             }`}>
                               {appt.modality === 'virtual' ? 'virtual' : 'presencial'}
                             </span>
+                            {appt.status === 'replacement' && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-fm-tertiary text-white font-semibold uppercase tracking-wider">
+                                Reposición
+                              </span>
+                            )}
+                            {appt.status === 'rescheduled' && (
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-fm-on-surface-variant/70 text-white font-semibold uppercase tracking-wider">
+                                Reagendada
+                              </span>
+                            )}
                             {therapist && (
                               <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-kp-primary-container/15 text-kp-primary px-2 py-0.5 rounded-full">
                                 <span className="material-symbols-outlined text-[12px]">person</span>

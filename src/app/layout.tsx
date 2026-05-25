@@ -23,7 +23,7 @@ export async function generateMetadata(): Promise<Metadata> {
     const supabase = await createClient()
     const { data } = await supabase
       .from('app_settings')
-      .select('value')
+      .select('value, updated_at')
       .eq('key', 'agency_logo_url')
       .maybeSingle()
     agencyLogoUrl = data?.value ?? null
@@ -31,6 +31,8 @@ export async function generateMetadata(): Promise<Metadata> {
     /* si falla el fetch (build sin env), usar fallback */
   }
 
+  // Cache-bust: aseguramos que el URL del logo cambie cada vez que se actualiza
+  // (uploadAgencyLogo ya añade ?v=timestamp; acá garantizamos el comportamiento).
   const iconUrl = agencyLogoUrl ?? '/icons/icon-192.png'
   const appleIconUrl = agencyLogoUrl ?? '/icons/apple-touch-icon.png'
 
@@ -44,7 +46,13 @@ export async function generateMetadata(): Promise<Metadata> {
       title: 'Kinetic',
     },
     icons: {
-      icon: iconUrl,
+      // Múltiples sizes para que el browser elija; cada entry usa la MISMA URL
+      // pero browsers cachean por (rel + sizes), así que múltiples entries fuerzan
+      // re-fetch cuando el URL cambia.
+      icon: [
+        { url: iconUrl, sizes: '32x32', type: 'image/png' },
+        { url: iconUrl, sizes: '192x192', type: 'image/png' },
+      ],
       shortcut: iconUrl,
       apple: appleIconUrl,
     },

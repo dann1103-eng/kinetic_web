@@ -110,8 +110,18 @@ export function BigSessionCard({
     ? 'bg-fm-on-secondary-container/15 text-fm-on-secondary-container'
     : 'bg-fm-on-surface/10 text-fm-on-surface'
 
+  const reposTag =
+    appointment.status === 'replacement' ? { label: 'Reposición', cls: 'bg-fm-tertiary text-white' }
+    : appointment.status === 'rescheduled' ? { label: 'Reagendada', cls: 'bg-fm-on-surface-variant/70 text-white' }
+    : null
+
   return (
     <div className={`relative overflow-hidden rounded-[40px] p-8 ${cardClass}`}>
+      {reposTag && (
+        <span className={`absolute top-4 right-4 text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-full ${reposTag.cls}`}>
+          {reposTag.label}
+        </span>
+      )}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h3 className="text-2xl sm:text-[28px] font-bold leading-tight max-w-[260px] truncate">
@@ -172,7 +182,7 @@ export function BigSessionCard({
             <button
               onClick={handleStart}
               disabled={isPending || absencePending}
-              className="flex-1 min-w-[140px] py-2.5 rounded-2xl bg-green-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-green-700 transition-colors"
+              className="flex-1 min-w-[140px] py-2.5 rounded-2xl bg-fm-primary text-white text-sm font-semibold disabled:opacity-50 hover:bg-fm-primary/90 transition-colors"
             >
               {isPending ? 'Iniciando…' : 'Iniciar sesión'}
             </button>

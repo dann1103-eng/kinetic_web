@@ -15,10 +15,12 @@ interface TimelineRowProps {
   colorIndex: number
 }
 
+// Paleta inspirada en los colores Kinetic: teal #00675c y rojo #b31b25.
+// Variaciones suaves para distinguir días consecutivos sin perder identidad visual.
 const ROW_COLORS = [
-  { light: '#d3c9e8', dark: '#3a2f55' }, // lavanda
-  { light: '#e9b5b5', dark: '#5a3030' }, // rosa
-  { light: '#9ecfc7', dark: '#1f4a44' }, // menta
+  { light: '#cfe5e1', dark: '#1c3a36' }, // teal claro (Kinetic primario)
+  { light: '#f3d2d4', dark: '#4a1f23' }, // rojo coral suave (Kinetic acento)
+  { light: '#dfe8e3', dark: '#283832' }, // verde-gris (terciario neutro)
 ]
 
 function getHourBuckets(appts: AppointmentWithChild[]): number[] {

@@ -133,6 +133,17 @@ export interface KineticEventDatum extends RBCEvent {
   subtitle?: string
   /** Marcadores opcionales — render como puntito a la izquierda. */
   pills?: Array<{ label: string; tone?: 'primary' | 'tertiary' | 'error' }>
+  /**
+   * Tag pequeño que se muestra como pill en la esquina del evento del calendario.
+   * Útil para señalar "Reposición" o "Reagendada".
+   */
+  tag?: { label: string; tone?: 'replacement' | 'rescheduled' | 'absence' } | null
+}
+
+const TAG_TONE_CLASSES: Record<NonNullable<NonNullable<KineticEventDatum['tag']>['tone']>, string> = {
+  replacement: 'bg-fm-tertiary text-white',
+  rescheduled: 'bg-fm-on-surface-variant/70 text-white',
+  absence:     'bg-fm-error text-white',
 }
 
 function formatTimeShort(d: Date): string {
@@ -146,11 +157,20 @@ function formatTimeShort(d: Date): string {
 function KineticEventBlock({ event }: EventProps<KineticEventDatum>) {
   const palette = paletteFor(event.colorKey)
   const timeRange = `${formatTimeShort(event.start)} – ${formatTimeShort(event.end)}`
+  const tagTone = event.tag?.tone ?? 'replacement'
   return (
     <div
       className={`group relative h-full w-full rounded-[10px] ring-1 ring-inset px-2 py-1.5 overflow-hidden cursor-pointer transition-shadow hover:shadow-md ${palette.bg} ${palette.ring} ${palette.text}`}
     >
-      <div className="text-[11px] font-semibold leading-tight line-clamp-2">
+      {event.tag && (
+        <span
+          className={`absolute top-1 right-1 text-[8px] leading-none uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-full shadow-sm ${TAG_TONE_CLASSES[tagTone]}`}
+          title={event.tag.label}
+        >
+          {event.tag.label}
+        </span>
+      )}
+      <div className="text-[11px] font-semibold leading-tight line-clamp-2 pr-12">
         {event.title}
       </div>
       {event.subtitle && (
@@ -166,14 +186,22 @@ function KineticEventBlock({ event }: EventProps<KineticEventDatum>) {
 /** Event renderer — versión "strip" para month view (1 línea). */
 function KineticEventStrip({ event }: EventProps<KineticEventDatum>) {
   const palette = paletteFor(event.colorKey)
+  const tagTone = event.tag?.tone ?? 'replacement'
   return (
     <div
       className={`flex items-center gap-1.5 w-full px-1.5 py-0.5 rounded-md cursor-pointer ${palette.bg} ${palette.text}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${palette.accent}`} aria-hidden="true" />
-      <span className="text-[10px] font-medium leading-tight truncate">
+      <span className="text-[10px] font-medium leading-tight truncate flex-1">
         {formatTimeShort(event.start)} · {event.title}
       </span>
+      {event.tag && (
+        <span
+          className={`text-[8px] leading-none uppercase tracking-wider font-bold px-1 py-0.5 rounded-full shrink-0 ${TAG_TONE_CLASSES[tagTone]}`}
+        >
+          {event.tag.label}
+        </span>
+      )}
     </div>
   )
 }

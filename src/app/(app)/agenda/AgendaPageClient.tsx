@@ -87,6 +87,11 @@ export function AgendaPageClient({
       const title = isTherapy ? childLabel : EVENT_TYPE_LABELS[a.event_type]
       const subtitle = isTherapy ? therapistLabel : childLabel
       const colorKey = isTherapy ? a.service_type ?? a.event_type : a.event_type
+      // Tag visible para citas reposición / reagendadas / inasistencia
+      let tag: { label: string; tone: 'replacement' | 'rescheduled' | 'absence' } | null = null
+      if (a.status === 'replacement') tag = { label: 'Reposición', tone: 'replacement' }
+      else if (a.status === 'rescheduled') tag = { label: 'Reagendada', tone: 'rescheduled' }
+      else if (a.status === 'no_show' || a.status === 'late_cancel') tag = { label: 'Inasistencia', tone: 'absence' }
       return {
         id: a.id,
         title,
@@ -94,6 +99,7 @@ export function AgendaPageClient({
         start: new Date(a.starts_at),
         end: new Date(a.ends_at),
         colorKey,
+        tag,
         appointment: a,
       }
     })
