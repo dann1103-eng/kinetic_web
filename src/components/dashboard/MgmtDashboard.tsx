@@ -187,7 +187,7 @@ function KpiBlock({
 }) {
   const toneClass =
     tone === 'warn'
-      ? 'border-amber-200 bg-amber-50/50'
+      ? 'border-amber-200 dark:border-amber-800/40 bg-amber-50/50 dark:bg-amber-950/30'
       : 'border-fm-outline-variant/20 bg-fm-surface-container-lowest'
   const inner = (
     <div

@@ -62,7 +62,7 @@ export function AbsenceRescheduleList({ rows: initial, therapists }: Props) {
           <select
             value={filterTherapistId}
             onChange={(e) => setFilterTherapistId(e.target.value)}
-            className="rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1 text-xs"
+            className="rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-2 py-1 text-xs"
           >
             <option value="">Todos los terapistas</option>
             {therapistsInRows.map((t) => (

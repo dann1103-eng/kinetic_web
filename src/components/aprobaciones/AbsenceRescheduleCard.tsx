@@ -158,27 +158,27 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-amber-300/60 bg-amber-50/60 p-4 space-y-3">
+    <div className="rounded-2xl border border-amber-300/60 dark:border-amber-700/40 bg-amber-50/60 dark:bg-amber-950/30 p-4 space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-800">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-amber-800 dark:text-amber-200">
             Inasistencia · {row.originalAppointment?.starts_at ? formatDateTime(row.originalAppointment.starts_at) : 'fecha desconocida'}
           </p>
-          <h3 className="text-base font-semibold text-amber-900 mt-0.5">
+          <h3 className="text-base font-semibold text-amber-900 dark:text-amber-100 mt-0.5">
             {childName} · {serviceLabel}
           </h3>
-          <p className="text-xs text-amber-800/80">
+          <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
             Terapista original: {therapistName}
           </p>
           {row.absence.reason && (
-            <p className="text-xs text-amber-900 mt-1 italic">
+            <p className="text-xs text-amber-900 dark:text-amber-100 mt-1 italic">
               Motivo: &ldquo;{row.absence.reason}&rdquo;
             </p>
           )}
         </div>
         {expired && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-rose-200 px-2 py-0.5 text-[11px] font-semibold text-rose-900">
+          <span className="inline-flex items-center gap-1 rounded-full bg-rose-200 dark:bg-rose-900/40 px-2 py-0.5 text-[11px] font-semibold text-rose-900 dark:text-rose-200">
             <span className="material-symbols-outlined text-sm">timer_off</span>
             Vencida ({daysOld} días)
           </span>
