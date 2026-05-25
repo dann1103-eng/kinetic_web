@@ -6,6 +6,7 @@ Ejecuta estos 3 archivos en orden en **SQL Editor** de Supabase Studio.
 |---|---|---|
 | `01_base_fm.sql` | ~4,400 | Schema base heredado de FM CRM (users, clients, pipeline, billing legacy, inbox, review, calendar, portal). |
 | `02_kinetic_schema.sql` | ~6,200 | Schema Kinetic propiamente (families, children, appointments, treatment_plans, progress_reports, waitlist, payroll, expenses, pipeline). |
+| `04_create_users.sql` | ~150 | Crea 12 usuarios (staff + portal padres) con password inicial `Kinetic2026!`. |
 | `03_seed_demo.sql` | ~1,300 | Seed opcional de 22 familias / niños / citas / planillas para tener data demo. |
 
 ## Procedimiento
