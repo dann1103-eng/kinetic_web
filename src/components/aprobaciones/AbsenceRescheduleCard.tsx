@@ -228,7 +228,7 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
                 <select
                   value={therapistId}
                   onChange={(e) => setTherapistId(e.target.value)}
-                  className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
+                  className="w-full rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-2 py-1.5 text-sm"
                 >
                   <option value="">— Elegir —</option>
                   {therapists.map((t) => (
@@ -246,7 +246,7 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
                 max={240}
                 value={durationMin}
                 onChange={(e) => setDurationMin(Number(e.target.value))}
-                className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
+                className="w-full rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-2 py-1.5 text-sm tabular-nums"
               />
             </Field>
           </div>
@@ -283,7 +283,7 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
                       className={`rounded-md border px-2 py-1 text-xs transition ${
                         selected
                           ? 'border-fm-primary bg-fm-primary text-white'
-                          : 'border-fm-outline-variant/40 bg-white hover:bg-fm-primary/10'
+                          : 'border-fm-outline-variant/40 bg-fm-background text-fm-on-surface hover:bg-fm-primary/10'
                       }`}
                     >
                       {formatDateTime(s.starts_at)}
@@ -318,14 +318,14 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
                 type="datetime-local"
                 value={startsLocal}
                 onChange={(e) => setStartsLocal(e.target.value)}
-                className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
+                className="w-full rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-2 py-1.5 text-sm"
               />
             </Field>
             <Field label="Modalidad">
               <select
                 value={modality}
                 onChange={(e) => setModality(e.target.value as 'presencial' | 'virtual')}
-                className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
+                className="w-full rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-2 py-1.5 text-sm"
               >
                 <option value="presencial">Presencial</option>
                 <option value="virtual">Virtual</option>
@@ -338,7 +338,7 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             placeholder="Notas opcionales para el terapista…"
-            className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+            className="w-full rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-3 py-2 text-sm"
           />
           {error && <p className="text-xs text-red-700">{error}</p>}
           <div className="flex justify-end gap-2">
@@ -369,7 +369,7 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
             onChange={(e) => setWaiveReason(e.target.value)}
             rows={3}
             placeholder="Motivo (mín. 5 caracteres). Ej: cancelación con causa válida, niño dado de alta, etc."
-            className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+            className="w-full rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-3 py-2 text-sm"
           />
           {error && <p className="text-xs text-red-700">{error}</p>}
           <div className="flex justify-end gap-2">

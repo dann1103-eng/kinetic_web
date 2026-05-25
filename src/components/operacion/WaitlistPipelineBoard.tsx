@@ -240,7 +240,7 @@ export function WaitlistPipelineBoard({
               onChange={(e) => setDropReason(e.target.value)}
               rows={3}
               placeholder="Ej: se fue a otra clínica, no contesta, etc."
-              className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+              className="w-full rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-3 py-2 text-sm"
             />
             {error && (
               <p className="text-xs text-fm-error">{error}</p>

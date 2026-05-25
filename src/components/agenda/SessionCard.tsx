@@ -190,7 +190,7 @@ export function SessionCard({ appointment, session, report, onNoteClick, onRepor
               onChange={(e) => setAbsenceReason(e.target.value)}
               rows={3}
               placeholder="Motivo (opcional): ej. enfermo, padre avisó tarde…"
-              className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-3 py-2 text-sm"
             />
             {absenceError && (
               <p className="text-xs text-red-700">{absenceError}</p>

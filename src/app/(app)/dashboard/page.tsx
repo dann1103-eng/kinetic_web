@@ -33,7 +33,9 @@ const KINETIC_COORD_FAMILIAS = ['coordinadora_familias']
 const FM_LEGACY_ROLES = ['operator', 'supervisor']
 
 function greetingFor(name: string): string {
-  const hour = new Date().getHours()
+  // El centro opera en El Salvador (GMT-6, sin DST). El servidor puede estar
+  // en UTC, así que convertimos antes de leer la hora.
+  const hour = toZonedTime(new Date(), 'America/El_Salvador').getHours()
   const period = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches'
   const firstName = name.split(' ')[0] ?? 'Hola'
   return `${period}, ${firstName}`

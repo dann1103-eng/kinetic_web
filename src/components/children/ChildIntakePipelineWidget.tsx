@@ -261,7 +261,7 @@ export function ChildIntakePipelineWidget({
                 onChange={(e) => setConfirmNotes(e.target.value)}
                 rows={3}
                 placeholder="Ej: la familia pidió pausa por viaje familiar."
-                className="w-full rounded-md border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+                className="w-full rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-3 py-2 text-sm"
               />
             </div>
 
