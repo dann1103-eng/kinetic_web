@@ -13,6 +13,8 @@ interface Props {
   avatarUrl: string | null
   canWork: boolean
   canBilling: boolean
+  /** URL del logo de Kinetic (de app_settings.agency_logo_url). Si null, se muestra ícono Material. */
+  agencyLogoUrl: string | null
 }
 
 const ALL_NAV_ITEMS = [
@@ -31,15 +33,47 @@ export function KineticPortalShell({
   avatarUrl,
   canWork,
   canBilling,
+  agencyLogoUrl,
 }: Props) {
   const pathname = usePathname()
   const { resolvedTheme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const [logoError, setLogoError] = useState(false)
   useEffect(() => setMounted(true), [])
 
   const firstName = userName.split(' ')[0]
   const initials = userName.slice(0, 2).toUpperCase()
   const isDark = mounted && resolvedTheme === 'dark'
+  const showLogo = agencyLogoUrl && !logoError
+
+  // Marca del portal: si hay logo de la agencia, lo mostramos. Sino, ícono Material como fallback.
+  function renderBrandMark(size: 'sm' | 'md') {
+    const box = size === 'sm' ? 'w-9 h-9' : 'w-10 h-10'
+    const icon = size === 'sm' ? 'text-[20px]' : 'text-[22px]'
+    return (
+      <div
+        className={cn(
+          'rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden',
+          box,
+          showLogo ? 'bg-white border border-fm-outline-variant/30' : 'bg-kp-primary-container/30',
+        )}
+      >
+        {showLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={agencyLogoUrl!}
+            alt="Kinetic"
+            className="w-full h-full object-contain p-0.5"
+            onError={() => setLogoError(true)}
+          />
+        ) : (
+          <span className={cn('material-symbols-outlined text-kp-primary', icon)}>
+            health_and_safety
+          </span>
+        )}
+      </div>
+    )
+  }
 
   const navItems = ALL_NAV_ITEMS.filter((item) => {
     if (item.requiresWork && !canWork) return false
@@ -116,10 +150,8 @@ export function KineticPortalShell({
 
         {/* Brand mark — Kinetic Portal · Pediatric Care */}
         <div className="px-6 pt-8 pb-6 flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-kp-primary-container/30 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <span className="material-symbols-outlined text-kp-primary text-[22px]">
-              health_and_safety
-            </span>
+          <div className="mt-0.5">
+            {renderBrandMark('md')}
           </div>
           <div className="leading-tight">
             <p className="text-[20px] font-black text-fm-on-surface tracking-tight">Kinetic</p>

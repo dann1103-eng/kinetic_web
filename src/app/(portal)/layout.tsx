@@ -45,17 +45,25 @@ export default async function PortalLayout({ children }: { children: React.React
       redirect(FAMILY_HOME)
     }
 
-    // Cargar permisos reales del usuario familiar.
+    // Cargar permisos reales del usuario familiar + logo de la agencia.
     const supabaseFamily = await createClient()
-    const { data: familyUserRow } = await supabaseFamily
-      .from('family_users')
-      .select('can_billing, can_work')
-      .eq('user_id', ctx.appUser.id)
-      .maybeSingle()
+    const [{ data: familyUserRow }, { data: logoRow }] = await Promise.all([
+      supabaseFamily
+        .from('family_users')
+        .select('can_billing, can_work')
+        .eq('user_id', ctx.appUser.id)
+        .maybeSingle(),
+      supabaseFamily
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'agency_logo_url')
+        .maybeSingle(),
+    ])
     const familyPerms = {
       can_billing: familyUserRow?.can_billing ?? false,
       can_work: familyUserRow?.can_work ?? true,
     }
+    const agencyLogoUrl = (logoRow?.value as string | null) ?? null
 
     return (
       <UserProvider
@@ -68,6 +76,7 @@ export default async function PortalLayout({ children }: { children: React.React
           avatarUrl={ctx.appUser.avatar_url ?? null}
           canWork={familyPerms.can_work}
           canBilling={familyPerms.can_billing}
+          agencyLogoUrl={agencyLogoUrl}
         >
           {children}
         </KineticPortalShell>
