@@ -97,7 +97,7 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
         </div>
 
         {/* Form card */}
-        <div className="bg-white/85 dark:bg-fm-surface-container/95 backdrop-blur-xl rounded-2xl shadow-xl border border-white/40 dark:border-fm-outline-variant/30 p-8">
+        <div className="bg-white/85 backdrop-blur-xl rounded-2xl shadow-xl border border-white/40 p-8">
           <h2 className="text-lg font-semibold text-fm-on-surface mb-1">Iniciar sesión</h2>
           <p className="text-sm text-fm-on-surface-variant mb-6">
             Accede con tu cuenta de Kinetic.
