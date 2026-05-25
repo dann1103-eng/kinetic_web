@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { ChildDashboardCalendar } from '@/components/dashboard/ChildDashboardCalendar'
+import { getChildDashboardData } from '@/lib/domain/child-dashboard'
 import { userCanViewChild } from '@/lib/domain/my-children'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type {
@@ -121,19 +122,8 @@ export default async function MisNinosChildPage({ params }: PageProps) {
 
   const isBlueKids = c.enrolled_program === 'blue_kids'
 
-  // Para el calendario, cargamos los appointments de los últimos 30d + próximos 60d
-  const nowMs = new Date().getTime()
-  const calendarStart = new Date(nowMs - 30 * 24 * 60 * 60 * 1000).toISOString()
-  const calendarEnd = new Date(nowMs + 60 * 24 * 60 * 60 * 1000).toISOString()
-  const { data: calendarApptsRaw } = await supabase
-    .from('appointments')
-    .select('*')
-    .eq('child_id', childId)
-    .gte('starts_at', calendarStart)
-    .lte('starts_at', calendarEnd)
-    .order('starts_at', { ascending: true })
-
-  const calendarAppts = (calendarApptsRaw ?? []) as Appointment[]
+  // Datos para el calendario — usa el mismo helper que el child profile main.
+  const dashboardData = await getChildDashboardData(supabase, childId)
   const displayName = c.preferred_name ?? c.full_name
   const age = formatAge(c.birth_date)
 
@@ -195,7 +185,11 @@ export default async function MisNinosChildPage({ params }: PageProps) {
           <h2 className="text-sm font-bold uppercase tracking-wider text-fm-on-surface-variant px-2 mb-3">
             Calendario
           </h2>
-          <ChildDashboardCalendar appointments={calendarAppts} />
+          <ChildDashboardCalendar
+            attendance={dashboardData.attendance}
+            upcoming={dashboardData.upcoming}
+            periodMonth={dashboardData.period_month}
+          />
         </section>
 
         {/* Próximas + Últimas sesiones */}
@@ -256,7 +250,7 @@ export default async function MisNinosChildPage({ params }: PageProps) {
                   >
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-fm-on-surface truncate">
-                        {SERVICE_TYPE_LABELS[r.service_type] ?? r.service_type}
+                        {SERVICE_TYPE_LABELS[r.service_type as keyof typeof SERVICE_TYPE_LABELS] ?? r.service_type}
                       </p>
                       <p className="text-xs text-fm-on-surface-variant">
                         Período: {formatDate(r.period_starts)} – {formatDate(r.period_ends)}

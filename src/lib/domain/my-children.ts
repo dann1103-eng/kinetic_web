@@ -84,10 +84,10 @@ export async function listMyChildren(
 
   // Filtrar fases terminales (5_*) — no mostrar niños dados de alta o retirados
   const activeChildren = childrenRaw.filter((c) => {
-    const code = (c as { current_phase_code: string | null }).current_phase_code
+    const code = (c as unknown as { current_phase_code: string | null }).current_phase_code
     return !code || !code.startsWith('5_')
   })
-  const activeIds = activeChildren.map((c) => (c as { id: string }).id)
+  const activeIds = activeChildren.map((c) => (c as unknown as { id: string }).id)
 
   if (activeIds.length === 0) return []
 
@@ -132,7 +132,7 @@ export async function listMyChildren(
 
   // ── 5. Combinar ─────────────────────────────────────────────────────────
   return activeChildren.map((c) => {
-    const childId = (c as { id: string }).id
+    const childId = (c as unknown as { id: string }).id
     const childAppts = apptsByChild.get(childId) ?? []
 
     const nextAppt =
@@ -150,7 +150,7 @@ export async function listMyChildren(
     }
 
     return {
-      child: c as MyChildCard['child'],
+      child: c as unknown as MyChildCard['child'],
       nextAppointment: nextAppt
         ? {
             id: nextAppt.id,
