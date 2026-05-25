@@ -202,12 +202,14 @@ export function SessionReportModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-lg flex flex-col gap-0 p-0 overflow-hidden">
+        <DialogHeader className="px-4 pt-4 pb-3 shrink-0">
           <DialogTitle>Reporte de sesión — {childName}</DialogTitle>
           <DialogDescription>Estado: {STATUS_LABEL[report.status]}</DialogDescription>
         </DialogHeader>
 
+        {/* Body scrollable — header y footer quedan fijos */}
+        <div className="flex-1 overflow-y-auto px-4 space-y-4">
         {report.status === 'rejected' && report.rejection_reason && (
           <div className="rounded-xl border border-fm-error/40 bg-fm-error/10 p-3 text-sm text-fm-error">
             <p className="font-semibold">Motivo del rechazo:</p>
@@ -313,7 +315,7 @@ export function SessionReportModal({
         )}
 
         {/* Adjuntos extra de la sesión (tareas, imágenes, etc.) — mig 0119 */}
-        <div className="border-t border-fm-outline-variant/15 pt-3">
+        <div className="border-t border-fm-outline-variant/15 pt-3 pb-4">
           <ChildAttachmentManagerLazy
             childId={report.child_id}
             link={{ sessionReportId: report.id }}
@@ -322,8 +324,9 @@ export function SessionReportModal({
             allowedKinds={['tarea', 'imagen', 'evaluacion', 'otro']}
           />
         </div>
-
-        <div className="-mx-4 -mb-4 flex flex-wrap items-center gap-2 rounded-b-xl border-t bg-muted/30 p-4">
+        </div>
+        {/* Footer fijo */}
+        <div className="flex flex-wrap items-center gap-2 rounded-b-xl border-t bg-muted/30 p-4 shrink-0">
           {/* Eliminar borrador — solo visible cuando el reporte es draft */}
           {report.status === 'draft' && (
             <button
