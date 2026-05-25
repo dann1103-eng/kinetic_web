@@ -10,11 +10,15 @@ export const dynamic = 'force-dynamic'
 
 const ALLOWED_TO_CREATE = ['admin', 'supervisor', 'directora', 'coordinadora_familias']
 
+// Terapistas y maestras NO ven el listado de familias — son redirigidas a /mis-ninos.
+const REDIRECT_TO_MY_KIDS = ['terapista', 'maestra']
+
 export default async function FamiliasPage() {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
 
   const role = ctx.appUser.role
+  if (REDIRECT_TO_MY_KIDS.includes(role)) redirect('/mis-ninos')
   const canCreate = ALLOWED_TO_CREATE.includes(role)
 
   const supabase = await createClient()

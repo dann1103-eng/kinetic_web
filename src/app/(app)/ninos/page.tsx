@@ -8,6 +8,8 @@ import { listPhaseCatalog } from '@/app/actions/intake-pipeline'
 
 export const dynamic = 'force-dynamic'
 
+// Terapistas y maestras NO ven el listado completo de niños — tienen su
+// propia ruta /mis-ninos con solo los niños bajo su atención.
 const ALLOWED_ROLES = [
   'admin',
   'directora',
@@ -15,9 +17,8 @@ const ALLOWED_ROLES = [
   'coordinadora_familias',
   'recepcion',
   'contable',
-  'terapista',
-  'maestra',
 ]
+const REDIRECT_TO_MY_KIDS = ['terapista', 'maestra']
 
 export default async function NinosPage({
   searchParams,
@@ -26,6 +27,7 @@ export default async function NinosPage({
 }) {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
+  if (REDIRECT_TO_MY_KIDS.includes(ctx.appUser.role)) redirect('/mis-ninos')
   if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
 
   const { month } = await searchParams

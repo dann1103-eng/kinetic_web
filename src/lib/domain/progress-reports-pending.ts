@@ -103,9 +103,11 @@ export async function summarizeActiveTherapiesForTherapist(
   const childIds = Array.from(new Set(Array.from(pairs.values()).map((p) => p.childId)))
 
   // Q2. Solo niños activos = en terapia (3.3) o en seguimiento (4.x).
+  // EXCLUYE niños del programa matutino BlueKids — no requieren informes
+  // cuatrimestrales individuales por terapia (es un programa grupal matutino).
   const { data: childrenRaw } = await supabase
     .from('children')
-    .select('id, full_name, preferred_name, current_phase_code')
+    .select('id, full_name, preferred_name, current_phase_code, enrolled_program')
     .in('id', childIds)
 
   const activeChildById = new Map<string, { full_name: string; preferred_name: string | null }>()
@@ -114,11 +116,13 @@ export async function summarizeActiveTherapiesForTherapist(
     full_name: string
     preferred_name: string | null
     current_phase_code: string | null
+    enrolled_program: string | null
   }>) {
     const isActive =
       c.current_phase_code === '3_3_activo_en_terapias' ||
       (c.current_phase_code?.startsWith('4_') ?? false)
-    if (isActive) {
+    const isBlueKids = c.enrolled_program === 'blue_kids'
+    if (isActive && !isBlueKids) {
       activeChildById.set(c.id, { full_name: c.full_name, preferred_name: c.preferred_name })
     }
   }

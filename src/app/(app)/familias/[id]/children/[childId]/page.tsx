@@ -24,6 +24,8 @@ const MGMT_ROLES_CYCLES = [
   'recepcion',
   'contable',
 ]
+// Terapistas y maestras tienen su propia vista restringida en /mis-ninos/[childId].
+const REDIRECT_TO_MY_KIDS = ['terapista', 'maestra']
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +40,9 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
   const tab: 'resumen' | 'dashboard' = tabParam === 'dashboard' ? 'dashboard' : 'resumen'
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
+  if (REDIRECT_TO_MY_KIDS.includes(ctx.appUser.role)) {
+    redirect(`/mis-ninos/${childId}`)
+  }
 
   const supabase = await createClient()
   const { data: child, error } = await supabase
