@@ -105,7 +105,7 @@ export async function uploadProgressReportFile(
   if (!report) return { ok: false, error: 'Informe no encontrado.' }
 
   const isAuthor = report.authored_by_user_id === auth.id
-  const isAdmin = ['admin', 'directora'].includes(auth.role)
+  const isAdmin = ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias'].includes(auth.role)
   if (!isAuthor && !isAdmin) {
     return { ok: false, error: 'Solo el autor o un admin pueden subir el archivo.' }
   }
@@ -163,7 +163,7 @@ export async function removeProgressReportFile(
   if (!report) return { ok: false, error: 'Informe no encontrado.' }
 
   const isAuthor = report.authored_by_user_id === auth.id
-  const isAdmin = ['admin', 'directora'].includes(auth.role)
+  const isAdmin = ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias'].includes(auth.role)
   if (!isAuthor && !isAdmin) {
     return { ok: false, error: 'Sin permisos.' }
   }
@@ -217,7 +217,7 @@ export async function uploadSessionReportFile(
   if (!report) return { ok: false, error: 'Reporte no encontrado.' }
 
   const isAuthor = report.therapist_id === auth.id
-  const isAdmin = ['admin', 'directora'].includes(auth.role)
+  const isAdmin = ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias'].includes(auth.role)
   if (!isAuthor && !isAdmin) {
     return { ok: false, error: 'Solo el terapista autor o un admin pueden subir el archivo.' }
   }
@@ -278,7 +278,7 @@ export async function removeSessionReportFile(
   if (!report) return { ok: false, error: 'Reporte no encontrado.' }
 
   const isAuthor = report.therapist_id === auth.id
-  const isAdmin = ['admin', 'directora'].includes(auth.role)
+  const isAdmin = ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias'].includes(auth.role)
   if (!isAuthor && !isAdmin) return { ok: false, error: 'Sin permisos.' }
 
   if (report.file_url) {

@@ -20,6 +20,9 @@ import {
 } from '@/app/actions/report-files'
 import type { SessionReport } from '@/types/db'
 import { ChildAttachmentManagerLazy } from '@/components/shared/ChildAttachmentManagerLazy'
+import { useUser } from '@/contexts/UserContext'
+
+const SUPER_EDITOR_ROLES = ['admin', 'coordinadora_familias', 'coordinadora_terapias']
 
 interface SessionReportModalProps {
   open: boolean
@@ -67,7 +70,14 @@ export function SessionReportModal({
   const [error, setError] = useState<string | null>(null)
   const [savedHint, setSavedHint] = useState(false)
 
-  const isEditable = report.status === 'draft' || report.status === 'rejected'
+  const currentUser = useUser()
+  const isSuperEditor = SUPER_EDITOR_ROLES.includes(currentUser.role)
+  // Editable si está en borrador / rechazado (flujo normal) o si el usuario
+  // actual es admin / coordinadora (puede modificar cualquier reporte).
+  const isEditable =
+    report.status === 'draft' || report.status === 'rejected' || isSuperEditor
+  // Eliminar: el autor solo en borrador; admin/coordinadoras en cualquier estado.
+  const canDelete = report.status === 'draft' || isSuperEditor
 
   const switchMode = (next: Mode) => {
     if (next === mode) return
@@ -327,8 +337,8 @@ export function SessionReportModal({
         </div>
         {/* Footer fijo */}
         <div className="flex flex-wrap items-center gap-2 rounded-b-xl border-t bg-muted/30 p-4 shrink-0">
-          {/* Eliminar borrador — solo visible cuando el reporte es draft */}
-          {report.status === 'draft' && (
+          {/* Eliminar: autor solo en borrador, admin/coordinadoras siempre */}
+          {canDelete && (
             <button
               type="button"
               onClick={handleDelete}
@@ -355,17 +365,26 @@ export function SessionReportModal({
                     disabled={isPending}
                     className="px-4 py-2 rounded-xl text-sm font-medium border border-fm-outline-variant/40 text-fm-on-surface hover:bg-fm-surface-container disabled:opacity-50 transition-colors"
                   >
-                    {isPending ? 'Guardando…' : 'Guardar borrador'}
+                    {isPending
+                      ? 'Guardando…'
+                      : report.status === 'draft' || report.status === 'rejected'
+                        ? 'Guardar borrador'
+                        : 'Guardar cambios'}
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={handleSubmit}
-                  disabled={isPending || isUploading}
-                  className="px-4 py-2 rounded-xl text-sm font-semibold bg-fm-primary text-white hover:bg-fm-primary/90 disabled:opacity-50 transition-colors"
-                >
-                  {isPending ? 'Enviando…' : 'Enviar a aprobación'}
-                </button>
+                {/* Enviar a aprobación: solo cuando el reporte está en borrador/rechazado.
+                    En otros estados (approved, sent_to_family) el super editor solo guarda
+                    cambios sin volver a disparar el flujo de aprobación. */}
+                {(report.status === 'draft' || report.status === 'rejected') && (
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={isPending || isUploading}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold bg-fm-primary text-white hover:bg-fm-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {isPending ? 'Enviando…' : 'Enviar a aprobación'}
+                  </button>
+                )}
               </>
             )}
           </div>

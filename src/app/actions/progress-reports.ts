@@ -6,6 +6,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { ProgressReport, ProgressReportData } from '@/types/db'
 
+/**
+ * Roles con poder para editar/eliminar informes en CUALQUIER estado
+ * (no solo borrador). Bypassean RLS via admin client.
+ */
+const REPORT_SUPER_EDITORS = ['admin', 'coordinadora_familias', 'coordinadora_terapias']
+
 /** Respeta impersonación. */
 async function getActor() {
   const supabase = await createClient()
@@ -91,7 +97,11 @@ export async function updateProgressReportDraft(
   reportId: string,
   input: UpdateProgressReportDraftInput,
 ): Promise<{ ok: true; report: ProgressReport } | { ok: false; error: string }> {
-  const { supabase } = await getActor()
+  const { supabase, user } = await getActor()
+
+  // Admin / coordinadoras pueden editar en CUALQUIER estado
+  const isSuperEditor = REPORT_SUPER_EDITORS.includes(user.role)
+  const client = isSuperEditor ? createAdminClient() : supabase
 
   const patch: Partial<Omit<ProgressReport, 'id' | 'created_at'>> = {
     data_json: input.data,
@@ -101,7 +111,7 @@ export async function updateProgressReportDraft(
   if (input.periodStarts) patch.period_starts = input.periodStarts
   if (input.periodEnds) patch.period_ends = input.periodEnds
 
-  const { data, error } = await supabase
+  const { data, error } = await client
     .from('progress_reports')
     .update(patch)
     .eq('id', reportId)
@@ -113,6 +123,8 @@ export async function updateProgressReportDraft(
   }
 
   revalidatePath(`/familias/${(data as ProgressReport).child_id}`)
+  revalidatePath('/aprobaciones')
+  revalidatePath('/portal/agenda-digital')
   return { ok: true, report: data as ProgressReport }
 }
 
@@ -124,13 +136,20 @@ export async function updateProgressReportNotes(
   reportId: string,
   notes: string | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { supabase } = await getActor()
+  const { supabase, user } = await getActor()
 
-  const { error } = await supabase
+  // Super editors pueden modificar notas en cualquier status; el autor solo en draft/rejected.
+  const isSuperEditor = REPORT_SUPER_EDITORS.includes(user.role)
+  const client = isSuperEditor ? createAdminClient() : supabase
+
+  const query = client
     .from('progress_reports')
     .update({ family_notes: notes?.trim() || null })
     .eq('id', reportId)
-    .in('status', ['draft', 'rejected'])
+
+  const { error } = isSuperEditor
+    ? await query
+    : await query.in('status', ['draft', 'rejected'])
 
   if (error) {
     return { ok: false, error: error.message }
@@ -255,9 +274,13 @@ export async function rejectProgressReport(
 }
 
 /**
- * Elimina un informe de avances en borrador (status='draft').
- * Borra el archivo del bucket si existía.
- * Solo puede hacerlo el autor (terapista) o un admin/directora.
+ * Elimina un informe de avances.
+ *
+ * Permisos:
+ *   • Autor (terapista): solo si status='draft'
+ *   • Admin / coordinadora_familias / coordinadora_terapias: cualquier status
+ *
+ * Borra también el archivo del bucket si existía.
  */
 export async function deleteProgressReport(
   reportId: string,
@@ -271,14 +294,17 @@ export async function deleteProgressReport(
     .maybeSingle()
 
   if (!report) return { ok: false, error: 'Informe no encontrado.' }
-  if (report.status !== 'draft') {
-    return { ok: false, error: 'Solo se pueden eliminar informes en borrador.' }
-  }
 
   const isAuthor = (report as { authored_by_user_id: string | null }).authored_by_user_id === user.id
-  const isAdmin = ['admin', 'directora'].includes(user.role)
-  if (!isAuthor && !isAdmin) {
-    return { ok: false, error: 'Sin permisos para eliminar este informe.' }
+  const isSuperEditor = REPORT_SUPER_EDITORS.includes(user.role)
+
+  if (!isSuperEditor) {
+    if (!isAuthor) {
+      return { ok: false, error: 'Sin permisos para eliminar este informe.' }
+    }
+    if (report.status !== 'draft') {
+      return { ok: false, error: 'Solo se pueden eliminar informes en borrador.' }
+    }
   }
 
   const admin = createAdminClient()

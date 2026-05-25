@@ -26,6 +26,9 @@ interface Props {
   canApprove: boolean
   /** Si true, el usuario es el autor (terapista). */
   isAuthor: boolean
+  /** Si true, el usuario es admin / coordinadora_familias / coordinadora_terapias —
+      puede modificar y eliminar informes en CUALQUIER estado. */
+  canSuperEdit: boolean
   /** href para volver al perfil del niño */
   backHref: string
 }
@@ -53,6 +56,7 @@ export function ProgressReportFileUploader({
   authorName,
   canApprove,
   isAuthor,
+  canSuperEdit,
   backHref,
 }: Props) {
   const router = useRouter()
@@ -69,8 +73,13 @@ export function ProgressReportFileUploader({
   const [notesDirty, setNotesDirty] = useState(false)
   const [isSavingNotes, startSaveNotes] = useTransition()
 
+  // Editable si: el autor (en borrador/rechazado), o admin/coordinadora (siempre)
   const isEditable =
-    isAuthor && (report.status === 'draft' || report.status === 'rejected')
+    (isAuthor && (report.status === 'draft' || report.status === 'rejected')) ||
+    canSuperEdit
+  // Eliminar: el autor solo en borrador; admin/coordinadoras siempre
+  const canDelete =
+    (isAuthor && report.status === 'draft') || canSuperEdit
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
@@ -370,8 +379,8 @@ export function ProgressReportFileUploader({
         >
           ← Volver al expediente
         </Link>
-        {/* Eliminar — solo disponible en borrador */}
-        {isAuthor && report.status === 'draft' && (
+        {/* Eliminar: autor solo en borrador, admin/coordinadoras siempre */}
+        {canDelete && (
           <button
             type="button"
             onClick={handleDelete}

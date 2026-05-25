@@ -6,6 +6,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { SessionReport } from '@/types/db'
 
+/**
+ * Roles con poder para editar/eliminar reportes en CUALQUIER estado
+ * (no solo borrador). Bypassean RLS via admin client.
+ */
+const REPORT_SUPER_EDITORS = ['admin', 'coordinadora_familias', 'coordinadora_terapias']
+
 /** Respeta impersonación. */
 async function getActor() {
   const supabase = await createClient()
@@ -88,9 +94,14 @@ export async function updateSessionReportDraft(
   reportId: string,
   fields: SessionReportDraftInput,
 ): Promise<{ ok: true; report: SessionReport } | { ok: false; error: string }> {
-  const { supabase } = await getActor()
+  const { supabase, user } = await getActor()
 
-  const { data, error } = await supabase
+  // Admin / coordinadoras pueden editar reportes en CUALQUIER estado
+  // (incl. approved / sent_to_family). Usan admin client para bypasear RLS.
+  const isSuperEditor = REPORT_SUPER_EDITORS.includes(user.role)
+  const client = isSuperEditor ? createAdminClient() : supabase
+
+  const { data, error } = await client
     .from('session_reports')
     .update({
       actividades: fields.actividades,
@@ -113,6 +124,8 @@ export async function updateSessionReportDraft(
   }
 
   revalidatePath('/mi-dia')
+  revalidatePath('/aprobaciones')
+  revalidatePath('/portal/agenda-digital')
   return { ok: true, report: data as SessionReport }
 }
 
@@ -211,9 +224,13 @@ export async function rejectSessionReport(
 }
 
 /**
- * Elimina un reporte de sesión en borrador (status='draft').
- * Borra el archivo del bucket si existía.
- * Solo puede hacerlo el terapista autor o un admin/directora.
+ * Elimina un reporte de sesión.
+ *
+ * Permisos:
+ *   • Autor (terapista): solo si status='draft'
+ *   • Admin / coordinadora_familias / coordinadora_terapias: cualquier status
+ *
+ * Borra también el archivo del bucket si existía.
  */
 export async function deleteSessionReport(
   reportId: string,
@@ -227,14 +244,17 @@ export async function deleteSessionReport(
     .maybeSingle()
 
   if (!report) return { ok: false, error: 'Reporte no encontrado.' }
-  if (report.status !== 'draft') {
-    return { ok: false, error: 'Solo se pueden eliminar reportes en borrador.' }
-  }
 
   const isAuthor = (report as { therapist_id: string | null }).therapist_id === user.id
-  const isAdmin = ['admin', 'directora'].includes(user.role)
-  if (!isAuthor && !isAdmin) {
-    return { ok: false, error: 'Sin permisos para eliminar este reporte.' }
+  const isSuperEditor = REPORT_SUPER_EDITORS.includes(user.role)
+
+  if (!isSuperEditor) {
+    if (!isAuthor) {
+      return { ok: false, error: 'Sin permisos para eliminar este reporte.' }
+    }
+    if (report.status !== 'draft') {
+      return { ok: false, error: 'Solo se pueden eliminar reportes en borrador.' }
+    }
   }
 
   const admin = createAdminClient()

@@ -13,6 +13,7 @@ interface PageProps {
 }
 
 const APPROVER_ROLES = ['admin', 'directora']
+const SUPER_EDITOR_ROLES = ['admin', 'coordinadora_familias', 'coordinadora_terapias']
 
 export default async function ProgressReportEditPage({ params }: PageProps) {
   const { id: familyId, childId, reportId } = await params
@@ -55,6 +56,7 @@ export default async function ProgressReportEditPage({ params }: PageProps) {
 
   const childName = child.preferred_name ?? child.full_name
   const canApprove = APPROVER_ROLES.includes(ctx.appUser.role)
+  const canSuperEdit = SUPER_EDITOR_ROLES.includes(ctx.appUser.role)
   const isAuthor = report.authored_by_user_id === ctx.appUser.id
 
   return (
@@ -71,6 +73,7 @@ export default async function ProgressReportEditPage({ params }: PageProps) {
           authorName={authorName}
           canApprove={canApprove}
           isAuthor={isAuthor}
+          canSuperEdit={canSuperEdit}
           backHref={`/familias/${familyId}/children/${childId}`}
         />
       </div>
