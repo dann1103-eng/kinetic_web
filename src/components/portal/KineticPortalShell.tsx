@@ -148,17 +148,12 @@ export function KineticPortalShell({
       {/* ── Desktop sidebar (hidden below md) ── */}
       <aside className="hidden md:flex fixed top-0 left-0 h-full w-64 bg-fm-surface/95 backdrop-blur-sm border-r border-fm-outline-variant/30 flex-col z-50">
 
-        {/* Brand mark — Kinetic Portal · Pediatric Care */}
-        <div className="px-6 pt-8 pb-6 flex items-start gap-3">
-          <div className="mt-0.5">
-            {renderBrandMark('md')}
-          </div>
+        {/* Brand mark — Kinetic Portal */}
+        <div className="px-6 pt-8 pb-6 flex items-center gap-3">
+          {renderBrandMark('md')}
           <div className="leading-tight">
             <p className="text-[20px] font-black text-fm-on-surface tracking-tight">Kinetic</p>
             <p className="text-[16px] font-bold text-kp-primary tracking-tight -mt-0.5">Portal</p>
-            <p className="text-[10px] font-semibold tracking-[0.08em] text-fm-on-surface-variant uppercase mt-1">
-              Pediatric Care
-            </p>
           </div>
         </div>
 
@@ -188,13 +183,6 @@ export function KineticPortalShell({
 
         {/* Bottom actions */}
         <div className="px-3 pb-8 flex flex-col gap-1">
-          <button
-            type="button"
-            className="flex items-center gap-3 px-4 py-2.5 rounded-2xl text-[14px] font-semibold text-fm-on-surface-variant hover:bg-fm-surface-container-high transition-colors w-full text-left"
-          >
-            <span className="material-symbols-outlined text-[20px]">help_outline</span>
-            Ayuda
-          </button>
           {/* form POST en vez de <Link>: si fuera Link, Next.js prefetchea el
               href en el render → /auth/signout se ejecuta solo y limpia las
               cookies sin que el usuario haga click. */}
