@@ -56,6 +56,12 @@ export const KINETIC_EVENT_PALETTES: Record<
   blue_kids: { bg: 'bg-blue-100/85', ring: 'ring-blue-300/70', text: 'text-blue-950', accent: 'bg-blue-400' },
   alim_deglu: { bg: 'bg-lime-100/85', ring: 'ring-lime-300/70', text: 'text-lime-950', accent: 'bg-lime-400' },
   destreza_manual_pre_escritura: { bg: 'bg-yellow-100/85', ring: 'ring-yellow-300/70', text: 'text-yellow-950', accent: 'bg-yellow-400' },
+  // Terapias especialidad (Excel 2026)
+  ils_escucha: { bg: 'bg-purple-100/85', ring: 'ring-purple-300/70', text: 'text-purple-950', accent: 'bg-purple-400' },
+  refuerzo_academico: { bg: 'bg-pink-100/85', ring: 'ring-pink-300/70', text: 'text-pink-950', accent: 'bg-pink-400' },
+  concentracion_atencion: { bg: 'bg-blue-100/85', ring: 'ring-blue-300/70', text: 'text-blue-950', accent: 'bg-blue-400' },
+  comunicacion_regulacion: { bg: 'bg-rose-100/85', ring: 'ring-rose-300/70', text: 'text-rose-950', accent: 'bg-rose-400' },
+  estimulacion_juego: { bg: 'bg-emerald-100/85', ring: 'ring-emerald-300/70', text: 'text-emerald-950', accent: 'bg-emerald-400' },
   // Tipos de evento no-terapia
   evaluacion: { bg: 'bg-fm-secondary/15', ring: 'ring-fm-secondary/40', text: 'text-fm-on-surface', accent: 'bg-fm-secondary' },
   entrevista_antecedentes: { bg: 'bg-fm-tertiary/10', ring: 'ring-fm-tertiary/30', text: 'text-fm-on-surface', accent: 'bg-fm-tertiary' },

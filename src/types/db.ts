@@ -2845,6 +2845,11 @@ export type ServiceType =
   | 'blue_kids'
   | 'alim_deglu'
   | 'destreza_manual_pre_escritura'
+  | 'ils_escucha'
+  | 'refuerzo_academico'
+  | 'concentracion_atencion'
+  | 'comunicacion_regulacion'
+  | 'estimulacion_juego'
   | 'otra'
 
 export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
@@ -2861,6 +2866,11 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   blue_kids: 'BlueKids',
   alim_deglu: 'Alimentación y deglución',
   destreza_manual_pre_escritura: 'Destreza manual y pre-escritura',
+  ils_escucha: 'iLs (Escucha Atenta)',
+  refuerzo_academico: 'Refuerzo Académico (Forbrain)',
+  concentracion_atencion: 'Concentración y Atención',
+  comunicacion_regulacion: 'Comunicación y Regulación Emocional',
+  estimulacion_juego: 'Estimulación de Juego y Lenguaje',
   otra: 'Otra',
 }
 
@@ -2879,6 +2889,11 @@ export const SERVICE_TYPE_SHORT_LABELS: Record<ServiceType, string> = {
   blue_kids: 'BK',
   alim_deglu: 'Alim',
   destreza_manual_pre_escritura: 'Dest',
+  ils_escucha: 'iLs',
+  refuerzo_academico: 'Forb',
+  concentracion_atencion: 'Aten',
+  comunicacion_regulacion: 'CRE',
+  estimulacion_juego: 'EJL',
   otra: 'Otra',
 }
 
@@ -2901,6 +2916,11 @@ export const SERVICE_TYPE_CHIP_CLASSES: Record<ServiceType, string> = {
   blue_kids: 'bg-blue-100 text-blue-800 border-blue-200',
   alim_deglu: 'bg-lime-100 text-lime-800 border-lime-200',
   destreza_manual_pre_escritura: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  ils_escucha: 'bg-purple-100 text-purple-800 border-purple-200',
+  refuerzo_academico: 'bg-pink-100 text-pink-800 border-pink-200',
+  concentracion_atencion: 'bg-blue-100 text-blue-800 border-blue-200',
+  comunicacion_regulacion: 'bg-rose-100 text-rose-800 border-rose-200',
+  estimulacion_juego: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   otra: 'bg-zinc-100 text-zinc-700 border-zinc-200',
 }
 
