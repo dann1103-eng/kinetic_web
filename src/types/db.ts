@@ -3619,6 +3619,7 @@ export type ServiceCategory =
   | 'evaluacion'
   | 'evaluacion_dx_tea'
   | 'evaluacion_psicologica'
+  | 'terapia_individual'
 
 export const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
   matricula: 'Matrícula',
@@ -3630,10 +3631,12 @@ export const SERVICE_CATEGORY_LABELS: Record<ServiceCategory, string> = {
   evaluacion: 'Evaluaciones',
   evaluacion_dx_tea: 'Evaluaciones DX TEA',
   evaluacion_psicologica: 'Evaluaciones psicológicas',
+  terapia_individual: 'Terapia individual',
 }
 
 /** Orden estable para mostrar las categorías en UI. */
 export const SERVICE_CATEGORY_ORDER: ServiceCategory[] = [
+  'terapia_individual',
   'matricula',
   'mensualidad',
   'material_didactico',
@@ -3652,9 +3655,19 @@ export interface ServiceCatalogItem {
   name: string
   description: string | null
   unit_price_usd: number
+  /**
+   * Precio descontado para niños en programa matutino (BK / Learning Kids / Aula).
+   * NULL = no aplica descuento.
+   */
+  unit_price_bk_usd: number | null
   duration_minutes: number | null
   morning_program: MorningProgram | null
   days_per_week: number | null
+  /**
+   * Enlace con el enum ServiceType para que el TreatmentPlanEditor pueda
+   * jalar el precio automáticamente cuando el usuario elige el tipo de terapia.
+   */
+  service_type: ServiceType | null
   proration_group: string | null
   applies_from_month: number | null
   applies_to_month: number | null

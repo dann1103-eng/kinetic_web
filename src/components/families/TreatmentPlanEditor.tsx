@@ -11,6 +11,8 @@ import {
 import type {
   DayOfWeek,
   DiscountKind,
+  MorningProgram,
+  ServiceCatalogItem,
   ServiceType,
   SlotFrequency,
   TreatmentPlan,
@@ -31,6 +33,16 @@ interface Props {
   existing: TreatmentPlan | null
   therapists: TherapistOption[]
   onClose: () => void
+  /**
+   * Items del service_catalog en categoría 'terapia_individual'.
+   * Permiten heredar el precio automáticamente al seleccionar el tipo de terapia.
+   */
+  therapyCatalog?: ServiceCatalogItem[]
+  /**
+   * Si el niño está inscrito en programa matutino (BK/LK/Aula), se aplica
+   * automáticamente el unit_price_bk_usd del catálogo cuando se carga la fila.
+   */
+  enrolledProgram?: MorningProgram | null
 }
 
 const SERVICE_OPTIONS = Object.entries(SERVICE_TYPE_LABELS) as [ServiceType, string][]
@@ -51,7 +63,33 @@ function emptySlot(): TreatmentPlanScheduleSlot {
   }
 }
 
-export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: Props) {
+/**
+ * Devuelve el precio sugerido del catálogo para un service_type dado, aplicando
+ * el descuento BK si el niño está en programa matutino. Si no hay match en el
+ * catálogo, devuelve null y la fila mantiene su precio actual.
+ */
+function lookupCatalogPrice(
+  catalog: ServiceCatalogItem[] | undefined,
+  service: ServiceType,
+  enrolledProgram: MorningProgram | null | undefined,
+): number | null {
+  if (!catalog || catalog.length === 0) return null
+  const item = catalog.find((c) => c.service_type === service && c.active)
+  if (!item) return null
+  if (enrolledProgram && item.unit_price_bk_usd != null) {
+    return Number(item.unit_price_bk_usd)
+  }
+  return Number(item.unit_price_usd)
+}
+
+export function TreatmentPlanEditor({
+  childId,
+  existing,
+  therapists,
+  onClose,
+  therapyCatalog,
+  enrolledProgram,
+}: Props) {
   const router = useRouter()
   const [primaryTherapistId, setPrimaryTherapistId] = useState<string>(
     existing?.primary_therapist_id ?? '',
@@ -135,7 +173,34 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
   }, [therapies, slots])
 
   function patchTherapy(idx: number, patch: Partial<TreatmentPlanTherapyEntry>) {
-    setTherapies((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)))
+    setTherapies((prev) =>
+      prev.map((t, i) => {
+        if (i !== idx) return t
+        const next = { ...t, ...patch }
+        // Si cambió el service_type, intentamos heredar el precio del catálogo.
+        // Solo sobreescribimos cuando el precio actual es 0 o el default ($20),
+        // para no pisar overrides manuales del usuario.
+        if (patch.service && patch.service !== t.service) {
+          const catalogPrice = lookupCatalogPrice(therapyCatalog, patch.service, enrolledProgram)
+          if (catalogPrice !== null && (t.unit_cost_usd === 0 || t.unit_cost_usd === 20)) {
+            next.unit_cost_usd = catalogPrice
+          }
+        }
+        return next
+      }),
+    )
+  }
+
+  /** Sobreescribe el precio de una fila con el sugerido del catálogo. */
+  function applyCatalogPrice(idx: number) {
+    setTherapies((prev) =>
+      prev.map((t, i) => {
+        if (i !== idx) return t
+        const price = lookupCatalogPrice(therapyCatalog, t.service, enrolledProgram)
+        if (price === null) return t
+        return { ...t, unit_cost_usd: price }
+      }),
+    )
   }
   function patchSlot(idx: number, patch: Partial<TreatmentPlanScheduleSlot>) {
     setSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)))
@@ -277,17 +342,29 @@ export function TreatmentPlanEditor({ childId, existing, therapists, onClose }: 
                     placeholder="ses/mes"
                     className="rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
                   />
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={t.unit_cost_usd}
-                    onChange={(e) =>
-                      patchTherapy(idx, { unit_cost_usd: Number(e.target.value) })
-                    }
-                    placeholder="$ unit"
-                    className="rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
-                  />
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={t.unit_cost_usd}
+                      onChange={(e) =>
+                        patchTherapy(idx, { unit_cost_usd: Number(e.target.value) })
+                      }
+                      placeholder="$ unit"
+                      className="flex-1 rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-2 py-1.5 text-sm tabular-nums"
+                    />
+                    {therapyCatalog && lookupCatalogPrice(therapyCatalog, t.service, enrolledProgram) !== null && (
+                      <button
+                        type="button"
+                        onClick={() => applyCatalogPrice(idx)}
+                        title={`Aplicar precio del catálogo${enrolledProgram ? ' (con descuento BK)' : ''}`}
+                        className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-fm-primary/40 bg-fm-primary/5 text-fm-primary hover:bg-fm-primary/15 transition-colors"
+                      >
+                        ${lookupCatalogPrice(therapyCatalog, t.service, enrolledProgram)?.toFixed(2)}
+                      </button>
+                    )}
+                  </div>
                   <label className="flex items-center gap-1 text-xs">
                     <input
                       type="checkbox"

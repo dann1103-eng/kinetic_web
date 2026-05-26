@@ -63,10 +63,11 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
   let plan: TreatmentPlan | null = null
   let therapists: { id: string; full_name: string; role: string }[] = []
   let cycles: MonthlySessionCycle[] = []
+  let therapyCatalog: import('@/types/db').ServiceCatalogItem[] = []
   let dashboardData: Awaited<ReturnType<typeof getChildDashboardData>> | null = null
 
   if (tab === 'resumen') {
-    const [{ data: planRaw }, { data: therapistsRaw }, { data: cyclesRaw }] = await Promise.all([
+    const [{ data: planRaw }, { data: therapistsRaw }, { data: cyclesRaw }, { data: catalogRaw }] = await Promise.all([
       supabase.from('treatment_plans').select('*').eq('child_id', childId).maybeSingle(),
       supabase
         .from('users')
@@ -78,10 +79,17 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
         .select('*')
         .eq('child_id', childId)
         .order('period_month', { ascending: false }),
+      supabase
+        .from('service_catalog')
+        .select('*')
+        .eq('category', 'terapia_individual')
+        .eq('active', true)
+        .order('sort_order'),
     ])
     plan = (planRaw as TreatmentPlan | null) ?? null
     therapists = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
     cycles = (cyclesRaw ?? []) as MonthlySessionCycle[]
+    therapyCatalog = (catalogRaw ?? []) as import('@/types/db').ServiceCatalogItem[]
   } else {
     dashboardData = await getChildDashboardData(supabase, childId)
   }
@@ -277,6 +285,8 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 plan={plan}
                 therapists={therapists}
                 canEdit={canEditPlan}
+                therapyCatalog={therapyCatalog}
+                enrolledProgram={c.enrolled_program}
               />
               <MonthlyCyclesSection
                 childId={childId}

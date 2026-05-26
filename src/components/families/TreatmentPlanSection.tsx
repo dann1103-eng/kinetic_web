@@ -26,6 +26,10 @@ interface Props {
   plan: TreatmentPlan | null
   therapists: TherapistOption[]
   canEdit: boolean
+  /** Items del catálogo en categoría 'terapia_individual' — para auto-precio. */
+  therapyCatalog?: import('@/types/db').ServiceCatalogItem[]
+  /** Programa matutino del niño (BK/LK/Aula) — activa precio descontado. */
+  enrolledProgram?: import('@/types/db').MorningProgram | null
 }
 
 const DAY_ORDER: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
@@ -35,7 +39,14 @@ function fmtMoney(n: number | null | undefined): string {
   return `$${n.toFixed(2)}`
 }
 
-export function TreatmentPlanSection({ childId, plan, therapists, canEdit }: Props) {
+export function TreatmentPlanSection({
+  childId,
+  plan,
+  therapists,
+  canEdit,
+  therapyCatalog,
+  enrolledProgram,
+}: Props) {
   const [showEditor, setShowEditor] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
 
@@ -83,6 +94,8 @@ export function TreatmentPlanSection({ childId, plan, therapists, canEdit }: Pro
           existing={plan}
           therapists={therapists}
           onClose={() => setShowEditor(false)}
+          therapyCatalog={therapyCatalog}
+          enrolledProgram={enrolledProgram}
         />
       )}
 
