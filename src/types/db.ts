@@ -2843,6 +2843,8 @@ export type ServiceType =
   | 'funciones_ejecutivas'
   | 'conductual'
   | 'blue_kids'
+  | 'learning_kids'
+  | 'aula_educativa'
   | 'alim_deglu'
   | 'destreza_manual_pre_escritura'
   | 'ils_escucha'
@@ -2864,6 +2866,8 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   funciones_ejecutivas: 'Funciones ejecutivas',
   conductual: 'Conductual',
   blue_kids: 'BlueKids',
+  learning_kids: 'LearningKids',
+  aula_educativa: 'Aula Educativa',
   alim_deglu: 'Alimentación y deglución',
   destreza_manual_pre_escritura: 'Destreza manual y pre-escritura',
   ils_escucha: 'iLs (Escucha Atenta)',
@@ -2887,6 +2891,8 @@ export const SERVICE_TYPE_SHORT_LABELS: Record<ServiceType, string> = {
   funciones_ejecutivas: 'FE',
   conductual: 'Cond',
   blue_kids: 'BK',
+  learning_kids: 'LK',
+  aula_educativa: 'AE',
   alim_deglu: 'Alim',
   destreza_manual_pre_escritura: 'Dest',
   ils_escucha: 'iLs',
@@ -2914,6 +2920,8 @@ export const SERVICE_TYPE_CHIP_CLASSES: Record<ServiceType, string> = {
   funciones_ejecutivas: 'bg-cyan-100 text-cyan-800 border-cyan-200',
   conductual: 'bg-rose-100 text-rose-800 border-rose-200',
   blue_kids: 'bg-blue-100 text-blue-800 border-blue-200',
+  learning_kids: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+  aula_educativa: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   alim_deglu: 'bg-lime-100 text-lime-800 border-lime-200',
   destreza_manual_pre_escritura: 'bg-yellow-100 text-yellow-800 border-yellow-200',
   ils_escucha: 'bg-purple-100 text-purple-800 border-purple-200',

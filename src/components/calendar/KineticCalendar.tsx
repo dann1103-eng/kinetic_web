@@ -54,6 +54,8 @@ export const KINETIC_EVENT_PALETTES: Record<
   funciones_ejecutivas: { bg: 'bg-cyan-100/85', ring: 'ring-cyan-300/70', text: 'text-cyan-950', accent: 'bg-cyan-400' },
   conductual: { bg: 'bg-rose-100/85', ring: 'ring-rose-300/70', text: 'text-rose-950', accent: 'bg-rose-400' },
   blue_kids: { bg: 'bg-blue-100/85', ring: 'ring-blue-300/70', text: 'text-blue-950', accent: 'bg-blue-400' },
+  learning_kids: { bg: 'bg-indigo-100/85', ring: 'ring-indigo-300/70', text: 'text-indigo-950', accent: 'bg-indigo-400' },
+  aula_educativa: { bg: 'bg-emerald-100/85', ring: 'ring-emerald-300/70', text: 'text-emerald-950', accent: 'bg-emerald-400' },
   alim_deglu: { bg: 'bg-lime-100/85', ring: 'ring-lime-300/70', text: 'text-lime-950', accent: 'bg-lime-400' },
   destreza_manual_pre_escritura: { bg: 'bg-yellow-100/85', ring: 'ring-yellow-300/70', text: 'text-yellow-950', accent: 'bg-yellow-400' },
   // Terapias especialidad (Excel 2026)

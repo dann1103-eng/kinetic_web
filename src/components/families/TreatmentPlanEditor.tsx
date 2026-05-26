@@ -98,11 +98,29 @@ export function TreatmentPlanEditor({
   const [startsAt, setStartsAt] = useState<string>(existing?.starts_at ?? '')
   const [ageAtStart, setAgeAtStart] = useState(existing?.age_at_start_text ?? '')
   const [observations, setObservations] = useState(existing?.observations ?? '')
-  const [therapies, setTherapies] = useState<TreatmentPlanTherapyEntry[]>(
-    existing?.therapies_json && existing.therapies_json.length > 0
-      ? existing.therapies_json
-      : [emptyTherapy()],
-  )
+  const [therapies, setTherapies] = useState<TreatmentPlanTherapyEntry[]>(() => {
+    // Plan existente: cargar tal cual
+    if (existing?.therapies_json && existing.therapies_json.length > 0) {
+      return existing.therapies_json
+    }
+    // Plan nuevo: si el niño está inscrito en programa matutino,
+    // pre-cargar esa línea automáticamente para no obligar a buscarla.
+    if (enrolledProgram) {
+      // ServiceType incluye blue_kids / learning_kids / aula_educativa a partir
+      // de la migración 0132. Cast directo porque MorningProgram es un subset.
+      const programService = enrolledProgram as ServiceType
+      const catalogPrice = lookupCatalogPrice(therapyCatalog, programService, enrolledProgram)
+      return [
+        {
+          service: programService,
+          active: true,
+          sessions_per_month: 1,
+          unit_cost_usd: catalogPrice ?? 250, // fallback al precio común
+        },
+      ]
+    }
+    return [emptyTherapy()]
+  })
   const [slots, setSlots] = useState<TreatmentPlanScheduleSlot[]>(
     existing?.schedule_pattern_json ?? [],
   )
