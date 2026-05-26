@@ -6,6 +6,7 @@ import { ChildSessionReportsHistory } from '@/components/agenda/ChildSessionRepo
 import { ChildProgressReportsHistory } from '@/components/agenda/ChildProgressReportsHistory'
 import { NewProgressReportButton } from '@/components/agenda/NewProgressReportButton'
 import { TreatmentPlanSection } from '@/components/families/TreatmentPlanSection'
+import { AdHocInvoiceTrigger } from '@/components/billing/AdHocInvoiceTrigger'
 import { MonthlyCyclesSection } from '@/components/families/MonthlyCyclesSection'
 import { ChildDashboardPanel } from '@/components/dashboard/ChildDashboardPanel'
 import { ChildPhotoUploader } from '@/components/families/ChildPhotoUploader'
@@ -63,6 +64,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
   let plan: TreatmentPlan | null = null
   let therapists: { id: string; full_name: string; role: string }[] = []
   let cycles: MonthlySessionCycle[] = []
+  let fullCatalog: import('@/types/db').ServiceCatalogItem[] = []
   let therapyCatalog: import('@/types/db').ServiceCatalogItem[] = []
   let dashboardData: Awaited<ReturnType<typeof getChildDashboardData>> | null = null
 
@@ -82,14 +84,14 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
       supabase
         .from('service_catalog')
         .select('*')
-        .eq('category', 'terapia_individual')
         .eq('active', true)
         .order('sort_order'),
     ])
     plan = (planRaw as TreatmentPlan | null) ?? null
     therapists = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
     cycles = (cyclesRaw ?? []) as MonthlySessionCycle[]
-    therapyCatalog = (catalogRaw ?? []) as import('@/types/db').ServiceCatalogItem[]
+    fullCatalog = (catalogRaw ?? []) as import('@/types/db').ServiceCatalogItem[]
+    therapyCatalog = fullCatalog.filter((item) => item.category === 'terapia_individual')
   } else {
     dashboardData = await getChildDashboardData(supabase, childId)
   }
@@ -294,6 +296,27 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 cycles={cycles}
                 canManage={canManageCycles}
               />
+
+              {/* Facturación ad-hoc (matrículas, materiales, evaluaciones, etc.) */}
+              {canManageCycles && fullCatalog.length > 0 && (
+                <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5 flex items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-fm-on-surface flex items-center gap-2">
+                      <span className="material-symbols-outlined text-lg text-fm-primary">receipt_long</span>
+                      Facturación adicional
+                    </h2>
+                    <p className="text-xs text-fm-on-surface-variant mt-1">
+                      Crear factura por matrícula, materiales, uniformes, evaluaciones o pruebas psicológicas.
+                    </p>
+                  </div>
+                  <AdHocInvoiceTrigger
+                    childId={childId}
+                    childName={c.preferred_name ?? c.full_name}
+                    enrolledProgram={c.enrolled_program}
+                    catalog={fullCatalog}
+                  />
+                </div>
+              )}
 
               {/* Histórico de actividad */}
               <div className="space-y-6 pt-2">
