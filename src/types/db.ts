@@ -2082,6 +2082,7 @@ export interface Database {
           notification_sent_24h?: boolean
           notification_sent_1h?: boolean
           notes?: string | null
+          custom_event_label?: string | null
           created_by_user_id?: string | null
         }
         Update: Partial<Omit<Appointment, 'id' | 'created_at'>>
@@ -2809,19 +2810,25 @@ export interface ReferralSource {
 
 export type EventType =
   | 'terapia'
-  | 'entrevista_directora'
+  | 'entrevista_antecedentes'
+  | 'entrevista_conocimiento'
   | 'reunion_padres'
   | 'reunion_colegio'
   | 'evaluacion'
+  | 'entrega_avances'
   | 'programa_matutino'
+  | 'otro'
 
 export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   terapia: 'Terapia',
-  entrevista_directora: 'Entrevista con Directora',
+  entrevista_antecedentes: 'Entrevista de antecedentes',
+  entrevista_conocimiento: 'Entrevista de conocimiento',
   reunion_padres: 'Reunión con padres',
   reunion_colegio: 'Reunión con colegio',
   evaluacion: 'Evaluación',
+  entrega_avances: 'Entrega de avances',
   programa_matutino: 'Programa matutino',
+  otro: 'Otro',
 }
 
 export type ServiceType =
@@ -2937,6 +2944,8 @@ export interface Appointment {
   notification_sent_24h: boolean
   notification_sent_1h: boolean
   notes: string | null
+  /** Solo se usa cuando event_type='otro'. Etiqueta libre que aparece en el calendario. */
+  custom_event_label: string | null
   created_by_user_id: string | null
   created_at: string
   updated_at: string

@@ -23,6 +23,8 @@ interface CreateAppointmentInput {
   starts_at: string
   ends_at: string
   notes?: string | null
+  /** Solo cuando event_type='otro' — etiqueta libre. */
+  custom_event_label?: string | null
   /** Si true, salta validación de cierre institucional (solo admin). */
   force?: boolean
 }
@@ -42,6 +44,11 @@ export async function createAppointment(
   if (input.event_type === 'terapia') {
     if (!input.service_type) return { ok: false, error: 'Las terapias requieren tipo de servicio' }
     if (!input.therapist_id) return { ok: false, error: 'Las terapias requieren terapista asignado' }
+  }
+  if (input.event_type === 'otro') {
+    if (!input.custom_event_label || input.custom_event_label.trim().length === 0) {
+      return { ok: false, error: 'Para el tipo "Otro" hay que poner un nombre del evento' }
+    }
   }
   if (new Date(input.ends_at).getTime() <= new Date(input.starts_at).getTime()) {
     return { ok: false, error: 'La hora de fin debe ser posterior a la de inicio' }
@@ -119,6 +126,10 @@ export async function createAppointment(
       starts_at: input.starts_at,
       ends_at: input.ends_at,
       notes: input.notes?.trim() || null,
+      custom_event_label:
+        input.event_type === 'otro' && input.custom_event_label
+          ? input.custom_event_label.trim()
+          : null,
       created_by_user_id: ctx.appUser.id,
     })
     .select('id')
@@ -133,7 +144,7 @@ export async function createAppointment(
 
 export async function updateAppointment(
   appointmentId: string,
-  patch: Partial<Pick<Appointment, 'starts_at' | 'ends_at' | 'modality' | 'service_type' | 'therapist_id' | 'notes' | 'event_type'>>,
+  patch: Partial<Pick<Appointment, 'starts_at' | 'ends_at' | 'modality' | 'service_type' | 'therapist_id' | 'notes' | 'event_type' | 'custom_event_label'>>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }

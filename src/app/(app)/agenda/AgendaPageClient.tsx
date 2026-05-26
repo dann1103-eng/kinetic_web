@@ -84,7 +84,12 @@ export function AgendaPageClient({
       const childLabel = child?.full_name ?? 'Niño/a'
       const therapistLabel = therapist?.full_name ?? '—'
       const isTherapy = a.event_type === 'terapia'
-      const title = isTherapy ? childLabel : EVENT_TYPE_LABELS[a.event_type]
+      // Si event_type='otro' y hay custom_event_label, usar ese en lugar de "Otro"
+      const eventLabel =
+        a.event_type === 'otro' && a.custom_event_label
+          ? a.custom_event_label
+          : EVENT_TYPE_LABELS[a.event_type]
+      const title = isTherapy ? childLabel : eventLabel
       const subtitle = isTherapy ? therapistLabel : childLabel
       const colorKey = isTherapy ? a.service_type ?? a.event_type : a.event_type
       // Tag visible para citas reposición / reagendadas / inasistencia

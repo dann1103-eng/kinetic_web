@@ -85,6 +85,9 @@ export function AppointmentForm({
       : defaultDurationMinutes(eventType),
   )
   const [notes, setNotes] = useState<string>(existingAppointment?.notes ?? '')
+  const [customEventLabel, setCustomEventLabel] = useState<string>(
+    existingAppointment?.custom_event_label ?? '',
+  )
 
   // Validación inline: cierre institucional
   const closureWarning = useMemo(() => {
@@ -109,6 +112,13 @@ export function AppointmentForm({
     setError(null)
     setSubmitting(true)
 
+    // Validación: si event_type='otro', el label personalizado es requerido
+    if (eventType === 'otro' && customEventLabel.trim().length === 0) {
+      setError('Para el tipo "Otro" hay que escribir un nombre del evento.')
+      setSubmitting(false)
+      return
+    }
+
     const startsIso = new Date(startsAt).toISOString()
     const endsIso = new Date(new Date(startsAt).getTime() + durationMin * 60_000).toISOString()
 
@@ -129,6 +139,7 @@ export function AppointmentForm({
           therapist_id: eventType === 'terapia' ? therapistId : (therapistId || null),
           modality,
           notes: notes || null,
+          custom_event_label: eventType === 'otro' ? customEventLabel.trim() : null,
         })
         if (!res.ok) {
           setError(res.error)
@@ -146,6 +157,7 @@ export function AppointmentForm({
         starts_at: startsIso,
         ends_at: endsIso,
         notes: notes || null,
+        custom_event_label: eventType === 'otro' ? customEventLabel.trim() : null,
         force: !!closureWarning && isAdmin,
       })
       if (!res.ok) {
@@ -252,6 +264,22 @@ export function AppointmentForm({
               </div>
               {isEdit && (
                 <p className="text-[10px] text-fm-on-surface-variant">El tipo no se puede cambiar al editar.</p>
+              )}
+              {eventType === 'otro' && (
+                <div className="mt-2">
+                  <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">
+                    Nombre del evento <span className="text-fm-error">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={customEventLabel}
+                    onChange={(e) => setCustomEventLabel(e.target.value)}
+                    placeholder="Ej: Capacitación interna, Visita médica, Charla padres…"
+                    maxLength={80}
+                    required
+                    className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
+                  />
+                </div>
               )}
             </fieldset>
 

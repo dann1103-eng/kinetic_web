@@ -58,10 +58,13 @@ export const KINETIC_EVENT_PALETTES: Record<
   destreza_manual_pre_escritura: { bg: 'bg-yellow-100/85', ring: 'ring-yellow-300/70', text: 'text-yellow-950', accent: 'bg-yellow-400' },
   // Tipos de evento no-terapia
   evaluacion: { bg: 'bg-fm-secondary/15', ring: 'ring-fm-secondary/40', text: 'text-fm-on-surface', accent: 'bg-fm-secondary' },
-  entrevista_directora: { bg: 'bg-fm-tertiary/15', ring: 'ring-fm-tertiary/40', text: 'text-fm-on-surface', accent: 'bg-fm-tertiary' },
+  entrevista_antecedentes: { bg: 'bg-fm-tertiary/10', ring: 'ring-fm-tertiary/30', text: 'text-fm-on-surface', accent: 'bg-fm-tertiary' },
+  entrevista_conocimiento: { bg: 'bg-fm-tertiary/15', ring: 'ring-fm-tertiary/40', text: 'text-fm-on-surface', accent: 'bg-fm-tertiary' },
   reunion_padres: { bg: 'bg-fm-tertiary/15', ring: 'ring-fm-tertiary/40', text: 'text-fm-on-surface', accent: 'bg-fm-tertiary' },
   reunion_colegio: { bg: 'bg-fm-on-surface-variant/10', ring: 'ring-fm-on-surface-variant/30', text: 'text-fm-on-surface', accent: 'bg-fm-on-surface-variant' },
+  entrega_avances: { bg: 'bg-fm-primary/10', ring: 'ring-fm-primary/30', text: 'text-fm-on-surface', accent: 'bg-fm-primary' },
   programa_matutino: { bg: 'bg-fm-secondary/20', ring: 'ring-fm-secondary/50', text: 'text-fm-on-surface', accent: 'bg-fm-secondary' },
+  otro: { bg: 'bg-fm-surface-container-high', ring: 'ring-fm-outline-variant/40', text: 'text-fm-on-surface', accent: 'bg-fm-on-surface-variant' },
   // Estados especiales
   no_show: { bg: 'bg-fm-error/10', ring: 'ring-fm-error/30', text: 'text-fm-error', accent: 'bg-fm-error' },
   late_cancel: { bg: 'bg-fm-error/8', ring: 'ring-fm-error/25', text: 'text-fm-error', accent: 'bg-fm-error' },

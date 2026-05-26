@@ -105,7 +105,9 @@ export function PortalAgendaList({ appointments, childrenList: childrenProp, the
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-fm-surface-container text-fm-on-surface-variant">
                               {appt.event_type === 'terapia' && appt.service_type
                                 ? SERVICE_TYPE_LABELS[appt.service_type]
-                                : EVENT_TYPE_LABELS[appt.event_type]}
+                                : appt.event_type === 'otro' && appt.custom_event_label
+                                  ? appt.custom_event_label
+                                  : EVENT_TYPE_LABELS[appt.event_type]}
                             </span>
                             <span className={`text-[10px] px-2 py-0.5 rounded-full ${
                               appt.modality === 'virtual'

@@ -14,12 +14,16 @@ export function defaultDurationMinutes(eventType: EventType): number {
       return 30
     case 'evaluacion':
       return 60
-    case 'entrevista_directora':
+    case 'entrevista_antecedentes':
+    case 'entrevista_conocimiento':
     case 'reunion_padres':
     case 'reunion_colegio':
+    case 'entrega_avances':
       return 60
     case 'programa_matutino':
       return 240 // 4h, jornada matutina completa
+    case 'otro':
+      return 60
   }
 }
 
@@ -104,10 +108,13 @@ export const STATUS_BADGE_CLASSES: Record<AppointmentStatus, string> = {
 export const EVENT_TYPE_COLORS: Record<EventType, { bg: string; text: string; border: string }> = {
   terapia: { bg: 'bg-fm-primary/15', text: 'text-fm-primary', border: 'border-fm-primary/30' },
   evaluacion: { bg: 'bg-fm-secondary/20', text: 'text-fm-secondary', border: 'border-fm-secondary/40' },
-  entrevista_directora: { bg: 'bg-fm-tertiary/15', text: 'text-fm-tertiary', border: 'border-fm-tertiary/30' },
+  entrevista_antecedentes: { bg: 'bg-fm-tertiary/15', text: 'text-fm-tertiary', border: 'border-fm-tertiary/30' },
+  entrevista_conocimiento: { bg: 'bg-fm-tertiary/15', text: 'text-fm-tertiary', border: 'border-fm-tertiary/30' },
   reunion_padres: { bg: 'bg-fm-tertiary/15', text: 'text-fm-tertiary', border: 'border-fm-tertiary/30' },
   reunion_colegio: { bg: 'bg-fm-on-surface-variant/15', text: 'text-fm-on-surface-variant', border: 'border-fm-on-surface-variant/30' },
+  entrega_avances: { bg: 'bg-fm-primary/10', text: 'text-fm-primary', border: 'border-fm-primary/30' },
   programa_matutino: { bg: 'bg-fm-secondary/15', text: 'text-fm-secondary', border: 'border-fm-secondary/30' },
+  otro: { bg: 'bg-fm-surface-container-high', text: 'text-fm-on-surface', border: 'border-fm-outline-variant/40' },
 }
 
 /** Cálculo de "minutos hasta una cita" para mostrar/ocultar el botón "Unirse". */
