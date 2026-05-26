@@ -1,10 +1,17 @@
 import { createClient } from '@/lib/supabase/server'
+import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { SessionReport, SessionReportStatus } from '@/types/db'
 import { ReportFileDownloadButton } from './ReportFileDownloadButton'
+import { EditSessionReportButton } from './EditSessionReportButton'
 
 interface ChildSessionReportsHistoryProps {
   childId: string
+  /** Nombre legible del niño/a — para el título del modal cuando se edita. */
+  childName: string
 }
+
+/** Roles con permiso de editar cualquier reporte sin importar estado. */
+const SUPER_EDITOR_ROLES = ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias']
 
 const STATUS_LABEL: Record<SessionReportStatus, string> = {
   draft: 'Borrador',
@@ -26,8 +33,12 @@ const STATUS_BADGE: Record<SessionReportStatus, string> = {
  * Server component: lista todos los reportes de sesión del niño (todos los estados).
  * RLS gatea: staff ve todos; familia ve solo sent_to_family + visible_to_family.
  */
-export async function ChildSessionReportsHistory({ childId }: ChildSessionReportsHistoryProps) {
+export async function ChildSessionReportsHistory({ childId, childName }: ChildSessionReportsHistoryProps) {
   const supabase = await createClient()
+  const ctx = await getEffectiveUser()
+  const userId = ctx?.appUser.id ?? null
+  const role = ctx?.appUser.role ?? ''
+  const isSuperEditor = SUPER_EDITOR_ROLES.includes(role)
 
   const { data: reportsRaw } = await supabase
     .from('session_reports')
@@ -117,6 +128,21 @@ export async function ChildSessionReportsHistory({ childId }: ChildSessionReport
                 </p>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Botón "Llenar/Editar/Corregir" para reportes pendientes —
+                    visible para autor (si draft/rejected) o super editores siempre */}
+                {(() => {
+                  const isAuthor = report.therapist_id === userId
+                  const isPending = report.status === 'draft' || report.status === 'rejected'
+                  const canEdit = (isAuthor && isPending) || isSuperEditor
+                  if (!canEdit) return null
+                  return (
+                    <EditSessionReportButton
+                      report={report}
+                      childName={childName}
+                      pending={isPending}
+                    />
+                  )
+                })()}
                 <span
                   className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_BADGE[report.status]}`}
                 >

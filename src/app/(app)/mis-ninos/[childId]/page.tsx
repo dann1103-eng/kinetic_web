@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { ChildDashboardCalendar } from '@/components/dashboard/ChildDashboardCalendar'
+import { ChildSessionReportsHistory } from '@/components/agenda/ChildSessionReportsHistory'
 import { getChildDashboardData } from '@/lib/domain/child-dashboard'
 import { userCanViewChild } from '@/lib/domain/my-children'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
@@ -12,7 +13,6 @@ import type {
   Appointment,
   TreatmentPlan,
   ProgressReport,
-  SessionReport,
 } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -72,14 +72,14 @@ export default async function MisNinosChildPage({ params }: PageProps) {
   const allowed = await userCanViewChild(supabase, ctx.appUser.id, ctx.appUser.role, childId)
   if (!allowed) notFound()
 
-  // Cargar todos los datos en paralelo
+  // Cargar todos los datos en paralelo (session_reports los carga el
+  // componente ChildSessionReportsHistory por su cuenta)
   const [
     { data: child },
     { data: plan },
     { data: futureAppts },
     { data: pastAppts },
     { data: progressReports },
-    { data: sessionReports },
   ] = await Promise.all([
     supabase.from('children').select('*').eq('id', childId).maybeSingle(),
     supabase
@@ -108,12 +108,6 @@ export default async function MisNinosChildPage({ params }: PageProps) {
       .select('*')
       .eq('child_id', childId)
       .order('period_starts', { ascending: false })
-      .limit(8),
-    supabase
-      .from('session_reports')
-      .select('*')
-      .eq('child_id', childId)
-      .order('created_at', { ascending: false })
       .limit(8),
   ])
 
@@ -266,38 +260,20 @@ export default async function MisNinosChildPage({ params }: PageProps) {
           )}
         </section>
 
-        {/* Reportes de sesión */}
+        {/* Reportes de sesión — con botón de "Llenar" / "Editar" para pendientes */}
         <section className="rounded-3xl border border-fm-outline-variant/30 bg-fm-surface-container-lowest p-5">
           <h2 className="text-sm font-bold uppercase tracking-wider text-fm-on-surface-variant mb-3">
-            Reportes de sesión recientes
+            Reportes de sesión
           </h2>
-          {!sessionReports || sessionReports.length === 0 ? (
-            <p className="text-sm text-fm-on-surface-variant italic">
-              {isBlueKids
-                ? 'BlueKids es programa matutino — no siempre se llenan reportes individuales.'
-                : 'Aún no hay reportes registrados.'}
+          {isBlueKids && (
+            <p className="text-xs text-fm-on-surface-variant italic mb-3">
+              BlueKids es programa matutino — no siempre se llenan reportes individuales.
             </p>
-          ) : (
-            <ul className="space-y-2">
-              {(sessionReports as SessionReport[]).map((sr) => (
-                <li key={sr.id} className="rounded-xl border border-fm-outline-variant/20 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-fm-on-surface-variant">
-                      {sr.created_at ? formatDate(sr.created_at) : '—'}
-                    </p>
-                    <span className={`shrink-0 text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded-full ${sessionStatusClass(sr.status)}`}>
-                      {sessionStatusLabel(sr.status)}
-                    </span>
-                  </div>
-                  {sr.actividades && (
-                    <p className="text-sm text-fm-on-surface mt-1 line-clamp-2">
-                      {sr.actividades}
-                    </p>
-                  )}
-                </li>
-              ))}
-            </ul>
           )}
+          <ChildSessionReportsHistory
+            childId={childId}
+            childName={displayName}
+          />
         </section>
       </div>
     </div>
@@ -411,16 +387,3 @@ function reportStatusClass(status: ProgressReport['status']): string {
   }
 }
 
-function sessionStatusClass(status: SessionReport['status']): string {
-  switch (status) {
-    case 'draft': return 'bg-fm-surface-container text-fm-on-surface-variant'
-    case 'submitted': return 'bg-blue-100 text-blue-900'
-    case 'approved': return 'bg-emerald-100 text-emerald-900'
-    case 'sent_to_family': return 'bg-emerald-100 text-emerald-900'
-    case 'rejected': return 'bg-rose-100 text-rose-900'
-  }
-}
-
-function sessionStatusLabel(status: SessionReport['status']): string {
-  return REPORT_STATUS_LABEL[status]
-}

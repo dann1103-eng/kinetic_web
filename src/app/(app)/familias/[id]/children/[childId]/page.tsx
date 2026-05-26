@@ -338,7 +338,10 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                   <h2 className="text-base font-medium tracking-tight text-fm-on-surface">
                     Reportes de sesión
                   </h2>
-                  <ChildSessionReportsHistory childId={childId} />
+                  <ChildSessionReportsHistory
+                    childId={childId}
+                    childName={c.preferred_name ?? c.full_name}
+                  />
                 </div>
               </div>
             </main>
