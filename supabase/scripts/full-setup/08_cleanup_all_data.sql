@@ -107,14 +107,21 @@ WHERE id IN (
 -- Limpieza de cualquier orphan en public.users
 DELETE FROM public.users WHERE role IN ('family', 'client');
 
--- ── 13. Storage cleanup: borrar adjuntos de reports-files ────────────────
--- (Los objetos del bucket no se borran solos cuando se borra la fila de
---  child_attachments / session_reports / progress_reports porque están en
---  storage.objects, una tabla aparte.)
-DELETE FROM storage.objects
-WHERE bucket_id = 'reports-files';
-
--- (Conserva agency-assets — ahí vive el logo de Kinetic)
+-- ── 13. Storage cleanup ──────────────────────────────────────────────────
+-- IMPORTANTE: Supabase bloquea el DELETE directo en storage.objects con un
+-- trigger de protección (storage.protect_delete()). Para borrar los archivos
+-- físicos del bucket reports-files hay 2 opciones:
+--
+-- A) Desde Supabase Dashboard → Storage → reports-files:
+--    Click en cada carpeta (progress/ y session/) → seleccionar todo →
+--    Delete. Esto borra los archivos sin tocar la base.
+--
+-- B) Desde un Node script con service role (más rápido si hay muchos):
+--    const { data } = await admin.storage.from('reports-files').list('', { limit: 1000 })
+--    const paths = data.map(f => f.name)
+--    await admin.storage.from('reports-files').remove(paths)
+--
+-- (Conserva el bucket agency-assets — ahí vive el logo de Kinetic.)
 
 COMMIT;
 
