@@ -32,6 +32,17 @@ export function useDialogA11y(opts: {
   const { open, onClose, ref, closeOnEscape = true, autoFocus = true } = opts
   const triggerRef = useRef<HTMLElement | null>(null)
 
+  // BUG FIX: `onClose` casi siempre es una arrow function nueva en cada render
+  // del padre. Antes incluíamos onClose en el dep array del useEffect de
+  // setup → el efecto se re-ejecutaba en cada render → re-aplicaba autoFocus
+  // → cuando el usuario escribía en un input, el focus saltaba al primer
+  // elemento focuseable (el botón X). Solución: guardamos onClose en una ref
+  // y leemos siempre el último valor desde el handler, sin pasarlo como dep.
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
   // Restore focus on close
   useEffect(() => {
     if (open) {
@@ -43,6 +54,8 @@ export function useDialogA11y(opts: {
   }, [open])
 
   // Auto-focus + scroll lock + escape + tab trap
+  // IMPORTANTE: las deps son SOLO [open, ref, closeOnEscape, autoFocus] —
+  // onClose NO va acá para no re-ejecutar el efecto en cada render del padre.
   useEffect(() => {
     if (!open || !ref.current) return
     const dialog = ref.current
@@ -60,7 +73,7 @@ export function useDialogA11y(opts: {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (closeOnEscape && e.key === 'Escape') {
         e.stopPropagation()
-        onClose()
+        onCloseRef.current()
         return
       }
       if (e.key !== 'Tab') return
@@ -90,5 +103,5 @@ export function useDialogA11y(opts: {
       document.removeEventListener('keydown', handleKeyDown)
       document.body.style.overflow = prevOverflow
     }
-  }, [open, ref, onClose, closeOnEscape, autoFocus])
+  }, [open, ref, closeOnEscape, autoFocus])
 }
