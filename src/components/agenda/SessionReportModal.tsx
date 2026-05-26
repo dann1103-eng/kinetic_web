@@ -96,6 +96,13 @@ export function SessionReportModal({
     const f = e.target.files?.[0]
     if (!f) return
     setError(null)
+    const MAX_BYTES = 14 * 1024 * 1024
+    if (f.size > MAX_BYTES) {
+      const mb = (f.size / 1024 / 1024).toFixed(1)
+      setError(`El archivo es muy grande (${mb} MB). Máximo 14 MB.`)
+      e.target.value = ''
+      return
+    }
     setUploading(true)
     try {
       const formData = new FormData()
@@ -492,7 +499,7 @@ function FileUploader({
                   Reemplazar
                   <input
                     type="file"
-                    accept=".pdf,.doc,.docx,.xls,.xlsx,image/png,image/jpeg,image/webp"
+                    accept=".pdf,.doc,.docx,.xls,.xlsx,.heic,.heif,image/png,image/jpeg,image/webp,image/heic,image/heif,image/*"
                     onChange={onSelectFile}
                     disabled={isUploading}
                     className="hidden"

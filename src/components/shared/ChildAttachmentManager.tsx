@@ -86,6 +86,17 @@ export function ChildAttachmentManager({
     if (!file) return
     setError(null)
 
+    // Validación client-side: feedback inmediato antes de subir.
+    // El límite real es 15 MB en server, pero el límite de Server Action body
+    // es 25 MB (config en next.config.ts). 14 MB nos deja margen para FormData overhead.
+    const MAX_BYTES = 14 * 1024 * 1024
+    if (file.size > MAX_BYTES) {
+      const mb = (file.size / 1024 / 1024).toFixed(1)
+      setError(`El archivo es muy grande (${mb} MB). Máximo 14 MB. Reducí la calidad de la foto o usá un PDF más liviano.`)
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
+
     const formData = new FormData()
     formData.set('file', file)
     formData.set('childId', childId)
@@ -248,7 +259,7 @@ export function ChildAttachmentManager({
               className="hidden"
               onChange={handleFileChange}
               disabled={isPending}
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.heic,.heif,image/*"
             />
             <span
               className="material-symbols-outlined"

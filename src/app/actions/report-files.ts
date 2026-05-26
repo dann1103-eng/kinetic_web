@@ -13,8 +13,11 @@ const ALLOWED_MIME_TYPES = [
   'image/png',
   'image/jpeg',
   'image/webp',
+  // Formatos default de cámara iPhone (iOS) — se aceptan tal cual.
+  'image/heic',
+  'image/heif',
 ]
-const MAX_BYTES = 10 * 1024 * 1024 // 10 MB
+const MAX_BYTES = 15 * 1024 * 1024 // 15 MB (fotos de iPhone HEIC ~5MB, JPEG ~10MB)
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
