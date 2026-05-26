@@ -57,10 +57,15 @@ export function PhaseAdvanceMenu({
     return () => document.removeEventListener('mousedown', onDown)
   }, [open])
 
-  // Cerrar al hacer scroll (el portal queda flotante si no)
+  // Cerrar al hacer scroll de la página (el portal queda flotante si no).
+  // IGNORA el scroll INTERNO del propio dropdown — sino el usuario no puede
+  // navegar las opciones cuando la lista es más alta que el viewport.
   useEffect(() => {
     if (!open) return
-    function onScroll() { setOpen(false) }
+    function onScroll(e: Event) {
+      if (dropRef.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
     window.addEventListener('scroll', onScroll, true)
     return () => window.removeEventListener('scroll', onScroll, true)
   }, [open])
