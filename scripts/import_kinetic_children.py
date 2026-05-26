@@ -111,17 +111,76 @@ def sql_str(v) -> str:
     return f"'{cleaned}'"
 
 
+SPANISH_MONTHS = {
+    'ene': 1, 'enero': 1, 'jan': 1,
+    'feb': 2, 'febr': 2, 'febrero': 2,
+    'mar': 3, 'marz': 3, 'marzo': 3,
+    'abr': 4, 'abri': 4, 'abril': 4, 'apr': 4,
+    'may': 5, 'mayo': 5,
+    'jun': 6, 'juni': 6, 'junio': 6,
+    'jul': 7, 'juli': 7, 'julio': 7,
+    'ago': 8, 'agos': 8, 'agosto': 8, 'aug': 8,
+    'sep': 9, 'sept': 9, 'septiembre': 9, 'set': 9,
+    'oct': 10, 'octu': 10, 'octubre': 10,
+    'nov': 11, 'novi': 11, 'noviembre': 11,
+    'dic': 12, 'dici': 12, 'diciembre': 12, 'dec': 12,
+}
+
+
+def parse_loose_date(txt: str) -> dt.date | None:
+    """
+    Intenta parsear strings de fecha en formatos sueltos del Excel:
+      '29-01/19', '18/01-25', '01/sep/2018', '12-sep-2018', '13/sep/14',
+      '17/abri/2017', '25/marz/2020', 'BK 22/02/2024, ...'
+    Devuelve None si no encuentra una fecha válida.
+    """
+    if not txt:
+        return None
+    # Si el texto tiene una fecha embebida (BK 22/02/2024 ...), buscarla.
+    m = re.search(r'(\d{1,2})[\-/](\d{1,2})[\-/](\d{2,4})', txt)
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if y < 100: y += 2000
+        try:
+            return dt.date(y, mo, d)
+        except ValueError:
+            pass
+    # Buscar DD-MES-YYYY o DD/MES/YYYY (mes en texto español)
+    m = re.search(r'(\d{1,2})[\-/]([A-Za-zñ]+)[\-/](\d{2,4})', txt)
+    if m:
+        d = int(m.group(1))
+        mo_txt = m.group(2).lower().rstrip('.')
+        y = int(m.group(3))
+        if y < 100: y += 2000
+        mo = SPANISH_MONTHS.get(mo_txt)
+        if not mo:
+            # Probar prefijos
+            for k, v in SPANISH_MONTHS.items():
+                if mo_txt.startswith(k):
+                    mo = v
+                    break
+        if mo:
+            try:
+                return dt.date(y, mo, d)
+            except ValueError:
+                pass
+    return None
+
+
 def sql_date(v) -> str:
-    """Convierte a fecha SQL — devuelve NULL si vacío."""
+    """Convierte a fecha SQL — devuelve NULL si vacío o no parseable."""
     if v is None or (isinstance(v, float) and pd.isna(v)):
         return 'NULL'
     if isinstance(v, (dt.datetime, dt.date)):
         return f"'{v.strftime('%Y-%m-%d')}'"
-    # Try to parse
     txt = str(v).strip()
     if not txt:
         return 'NULL'
-    return f"'{txt}'"  # let postgres parse
+    parsed = parse_loose_date(txt)
+    if parsed:
+        return f"'{parsed.strftime('%Y-%m-%d')}'"
+    # No se pudo parsear — NULL en lugar de un literal inválido
+    return 'NULL'
 
 
 def sql_bool(v) -> str:

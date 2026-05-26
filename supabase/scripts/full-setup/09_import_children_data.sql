@@ -17,7 +17,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '85984dbe-f36c-4b16-ac51-83657e7c0875',
+  '417aeee2-b79e-4650-abf4-09d881b8b328',
   'Sara Esmeralda Chávez de Alvarenga', NULL, '7253-04-96',
   'Julios Antonio Alvarenga', '2229-5441',
   NULL, '7137-7725',
@@ -33,7 +33,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'be17e0a5-3f5b-491c-bee8-867359beb112', '85984dbe-f36c-4b16-ac51-83657e7c0875',
+  '4494cc37-956e-48ac-b027-231091d63f53', '417aeee2-b79e-4650-abf4-09d881b8b328',
   'Aaron Esmith Alvarenga Chávez',
   '2014-12-15',
   NULL,
@@ -44,7 +44,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS · Programa Excel: BLUE KIDS' WHERE id = 'be17e0a5-3f5b-491c-bee8-867359beb112';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS · Programa Excel: BLUE KIDS' WHERE id = '4494cc37-956e-48ac-b027-231091d63f53';
 
 -- Excel row 26 — Ángel Daniel Ayala Navas (BLUE KIDS 1)
 INSERT INTO public.families (
@@ -53,7 +53,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'ddb0bc62-2710-43b6-91f2-6ec4503c1b17',
+  '5849a508-12d1-4c2c-aa0d-cb86e4288836',
   'Karen Daniela Navas', 'Karendimitra@hotmail.com', '7285-0396',
   'Gonzalo Ernesto Ayala', '7203-4305',
   'Bailarina', NULL,
@@ -69,7 +69,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'd4677e83-cf42-4c6d-988c-14cca7def53c', 'ddb0bc62-2710-43b6-91f2-6ec4503c1b17',
+  '69d0f507-202d-4a1c-8e34-ef4d28040d00', '5849a508-12d1-4c2c-aa0d-cb86e4288836',
   'Ángel Daniel Ayala Navas',
   '2022-08-20',
   'Sospecha TEA',
@@ -80,7 +80,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 3 años' WHERE id = 'd4677e83-cf42-4c6d-988c-14cca7def53c';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 3 años' WHERE id = '69d0f507-202d-4a1c-8e34-ef4d28040d00';
 
 -- Excel row 27 — Lionel Xavier Ayala Clavel (BLUE KIDS 1)
 INSERT INTO public.families (
@@ -89,7 +89,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'da501e84-2266-4800-bfb7-be7f4cf349ba',
+  '69667231-9ab5-453a-bfe3-8937f16d389b',
   'Julia Roxana Clavel Martínez', 'rclavel20128g@mail.com', '2519-2389',
   'Jesús Xavier Ayala Tarez', 'Luz de Maria Torres de Ayala  tel: 6205-6913 Abuela de Lionel',
   'Soyapango', '73262213',
@@ -105,7 +105,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '083f6b56-da26-489e-b6a0-bace8477f22a', 'da501e84-2266-4800-bfb7-be7f4cf349ba',
+  '30dd53c7-900e-4d80-b2d7-bf1715bc9121', '69667231-9ab5-453a-bfe3-8937f16d389b',
   'Lionel Xavier Ayala Clavel',
   '2020-04-18',
   'TEA',
@@ -116,7 +116,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 6 años' WHERE id = '083f6b56-da26-489e-b6a0-bace8477f22a';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 6 años' WHERE id = '30dd53c7-900e-4d80-b2d7-bf1715bc9121';
 
 -- Excel row 28 — Daniel André Campos Línares (BLUE KIDS 1)
 INSERT INTO public.families (
@@ -125,7 +125,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '386d511f-aee6-4f49-94b7-39271a56dcb4',
+  '2d93fcf2-72f6-4752-8dc1-4b7849f66dae',
   'Mónica Alejandra Linares', 'mónicalinares898@gmail.com', '7995-0005',
   'José Alberto Campos López', '7691-7728',
   'Comunicadora', NULL,
@@ -141,7 +141,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'a6e1135c-991a-413f-8595-fd0fe63a16b5', '386d511f-aee6-4f49-94b7-39271a56dcb4',
+  '8e3d2859-990d-411a-b23c-7c0b273d58df', '2d93fcf2-72f6-4752-8dc1-4b7849f66dae',
   'Daniel André Campos Línares',
   '2023-03-17',
   'TEA',
@@ -152,7 +152,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 3 años' WHERE id = 'a6e1135c-991a-413f-8595-fd0fe63a16b5';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 3 años' WHERE id = '8e3d2859-990d-411a-b23c-7c0b273d58df';
 
 -- Excel row 29 — Josué René Claros Saca (BLUE KIDS 1)
 INSERT INTO public.families (
@@ -161,7 +161,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '467313c1-2e63-4bf8-bb94-122167af1003',
+  '312b6c9e-c659-4d9b-953b-3a3f8f06eef7',
   'Estela de Claros', 'vitirix@hotmail.com', '2593-7300',
   'Josué Claros', NULL,
   'FGR', '7071-9153 // 2529-3698',
@@ -177,7 +177,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'a16c0d46-37e7-4cc8-afb2-6e32d0503edf', '467313c1-2e63-4bf8-bb94-122167af1003',
+  '55875f13-408b-4a27-9f0e-cc87d3f7e05d', '312b6c9e-c659-4d9b-953b-3a3f8f06eef7',
   'Josué René Claros Saca',
   '2021-01-23',
   'TEA',
@@ -188,7 +188,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 5 años' WHERE id = 'a16c0d46-37e7-4cc8-afb2-6e32d0503edf';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 5 años' WHERE id = '55875f13-408b-4a27-9f0e-cc87d3f7e05d';
 
 -- Excel row 30 — Gabriel Adriano Guerrero Antognelle (BLUE KIDS 1)
 INSERT INTO public.families (
@@ -197,7 +197,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'a42437e1-e572-4e55-abbc-35331c032086',
+  'e00c882a-fb45-4d4b-af06-bd8a394be7c0',
   'Karla Sabrina de Guerrero', 'sabrina.antognelli@gmail.com', '7877-9490',
   'Aldo Moises Guerrero', '2513-5640',
   'Banco Cuscatlán', NULL,
@@ -213,7 +213,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'bc2c9ec0-6bd9-4bb9-93ed-0f871fdfedca', 'a42437e1-e572-4e55-abbc-35331c032086',
+  'eff8de6e-7aba-4832-8140-6cec46bc8ee2', 'e00c882a-fb45-4d4b-af06-bd8a394be7c0',
   'Gabriel Adriano Guerrero Antognelle',
   '2021-10-25',
   NULL,
@@ -224,7 +224,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 4 años' WHERE id = 'bc2c9ec0-6bd9-4bb9-93ed-0f871fdfedca';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 4 años' WHERE id = 'eff8de6e-7aba-4832-8140-6cec46bc8ee2';
 
 -- Excel row 31 — Emilio Misael Leonel Martinez (BLUE KIDS 1)
 INSERT INTO public.families (
@@ -233,7 +233,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '894f08f5-fa55-4adb-b9f0-75cf214d210d',
+  '2de3be38-4167-44c4-a698-017d7f2f0d1f',
   'María Estefanía Martínez', 'tobarestefania@gmail.com', '2563-8830',
   'Eli Misael Leonel', NULL,
   'Equisele, S.A de C.V', '7679-2334',
@@ -249,7 +249,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'b4fd2625-181f-4860-8d7b-f61873a5858a', '894f08f5-fa55-4adb-b9f0-75cf214d210d',
+  'fbef4398-3c44-4934-943b-f9e23bc6d04c', '2de3be38-4167-44c4-a698-017d7f2f0d1f',
   'Emilio Misael Leonel Martinez',
   '2020-06-23',
   'TEA',
@@ -260,7 +260,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 5 años' WHERE id = 'b4fd2625-181f-4860-8d7b-f61873a5858a';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 5 años' WHERE id = 'fbef4398-3c44-4934-943b-f9e23bc6d04c';
 
 -- Excel row 32 — Monica Lucía Zelaya Ruiz (BLUE KIDS 1)
 INSERT INTO public.families (
@@ -269,7 +269,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '5681b190-383a-4c49-9c8a-0fdb40ea1256',
+  '5c7a5d39-acc5-4a94-8f76-51253a70f737',
   'Carolina Ruiz', NULL, NULL,
   'Reymundo  Antonio Zelaya', NULL,
   NULL, '7797-7699',
@@ -285,7 +285,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '0d2038fb-3384-41c2-8f54-d1109f45456e', '5681b190-383a-4c49-9c8a-0fdb40ea1256',
+  '16622c24-5548-4209-924a-64dd3566ceff', '5c7a5d39-acc5-4a94-8f76-51253a70f737',
   'Monica Lucía Zelaya Ruiz',
   '2020-05-13',
   'TEA',
@@ -296,7 +296,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 6 años' WHERE id = '0d2038fb-3384-41c2-8f54-d1109f45456e';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 1 · Programa Excel: BLUE KIDS 1 · Edad al importar: 6 años' WHERE id = '16622c24-5548-4209-924a-64dd3566ceff';
 
 -- Excel row 36 — Manuel Alessandro Aguilar Alferez (BLUE KIDS 2)
 INSERT INTO public.families (
@@ -305,7 +305,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '50ddf893-f0ef-4f61-985f-a4e9f48d7a2a',
+  '4c39aeef-b224-4615-a5e8-3eaa89f5408f',
   'Roxana Elvira Alferez Quezada', 'roxna_alferez2611@gmail.com', '7170-4640',
   'Manuel Antonio Aguilar Alfaro', '7170-4640',
   'Focus', '7253-7038',
@@ -321,7 +321,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'bb136140-aacc-4fb4-b9ac-7c3bcb98ba79', '50ddf893-f0ef-4f61-985f-a4e9f48d7a2a',
+  '4258eaef-7c51-4bac-9cf5-071fcdc91899', '4c39aeef-b224-4615-a5e8-3eaa89f5408f',
   'Manuel Alessandro Aguilar Alferez',
   '2016-11-26',
   'TEA',
@@ -332,7 +332,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 8 años' WHERE id = 'bb136140-aacc-4fb4-b9ac-7c3bcb98ba79';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 8 años' WHERE id = '4258eaef-7c51-4bac-9cf5-071fcdc91899';
 
 -- Excel row 37 — Juan Pablo Caceres Hernández (BLUE KIDS 2)
 INSERT INTO public.families (
@@ -341,7 +341,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '26067cd7-e21e-4197-883b-446c20ce8d90',
+  'e834afaf-7a3c-4f6d-b395-990b32a4e1de',
   'Lizza Maria Hernández', 'lizzadecaceres@gmail.com', '23673000',
   'Mario Angel Cáceres Rodas', '2233-7906',
   'Liceo Castilla', '7940-6049             23062724',
@@ -357,7 +357,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '6f8153be-0d40-420f-9f1f-4f387477cb5f', '26067cd7-e21e-4197-883b-446c20ce8d90',
+  '40ee3f9b-585e-4a0f-8fdc-ed4121793913', 'e834afaf-7a3c-4f6d-b395-990b32a4e1de',
   'Juan Pablo Caceres Hernández',
   '2013-01-11',
   'TEA',
@@ -368,7 +368,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 12 años' WHERE id = '6f8153be-0d40-420f-9f1f-4f387477cb5f';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 12 años' WHERE id = '40ee3f9b-585e-4a0f-8fdc-ed4121793913';
 
 -- Excel row 38 — José Andrés Funes Alvarenga (BLUE KIDS 2)
 INSERT INTO public.families (
@@ -377,7 +377,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '0f1e4ca9-ac00-4d74-8990-2f7d1d23bfbf',
+  '63f8d545-93e3-427c-bef4-0e2f834a4de5',
   'Melissa Inés Alvarenga Velásquez', 'mely.alve@gmail.com', '6420-5762',
   'José Leonardo Funes Ayala', '2456-1062 oficina',
   'Ing Indust....FISDL', '2278-7319 casa 2133-1362 oficina',
@@ -393,7 +393,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '6d64355f-3207-48a9-984e-e67169278516', '0f1e4ca9-ac00-4d74-8990-2f7d1d23bfbf',
+  'bbcca6cd-7eb2-4c23-9a09-1c3219c083eb', '63f8d545-93e3-427c-bef4-0e2f834a4de5',
   'José Andrés Funes Alvarenga',
   '2014-08-13',
   'TEA',
@@ -404,7 +404,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 11 años' WHERE id = '6d64355f-3207-48a9-984e-e67169278516';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 11 años' WHERE id = 'bbcca6cd-7eb2-4c23-9a09-1c3219c083eb';
 
 -- Excel row 39 — Kylian Alessandro Henriquez Navarro (BLUE KIDS 2)
 INSERT INTO public.families (
@@ -413,7 +413,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '2e8a0016-e25c-4f7f-8f4e-5d52ed3d6102',
+  '509a50c8-00ea-4490-aac2-692231b1726e',
   'Sonia del Carmen Navarro de Henriquez', 'snavarro9@gmail.com', NULL,
   'Manuel de Jesús Henrríquez', NULL,
   NULL, '7013-7756',
@@ -429,7 +429,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '50dc538d-91f5-4181-864d-1846cc9fc25c', '2e8a0016-e25c-4f7f-8f4e-5d52ed3d6102',
+  '7cb5da59-4307-4bde-ab80-1cbad2eda083', '509a50c8-00ea-4490-aac2-692231b1726e',
   'Kylian Alessandro Henriquez Navarro',
   '2020-01-07',
   'TEA',
@@ -440,7 +440,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 5 años' WHERE id = '50dc538d-91f5-4181-864d-1846cc9fc25c';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 5 años' WHERE id = '7cb5da59-4307-4bde-ab80-1cbad2eda083';
 
 -- Excel row 40 — Enrique Merari Montoya (BLUE KIDS 2)
 INSERT INTO public.families (
@@ -449,7 +449,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '3a6946c3-9735-486c-9607-73ac3b56bda1',
+  '3565af92-1032-4177-b55c-10e1a54cc220',
   'Claudia Susana Montoya', 'claudiamontoya_23@hotmail.com', '7602-6129',
   'Manuel Enrique Montoya Perez', NULL,
   'Tool Solutions S.A de C.V', NULL,
@@ -465,7 +465,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '2922dae5-89db-44bf-b564-3192c2c824c9', '3a6946c3-9735-486c-9607-73ac3b56bda1',
+  'e78a3549-5766-466f-99f6-4dc1ff9237d4', '3565af92-1032-4177-b55c-10e1a54cc220',
   'Enrique Merari Montoya',
   '2017-03-28',
   'TEA',
@@ -476,7 +476,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 8 años' WHERE id = '2922dae5-89db-44bf-b564-3192c2c824c9';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 8 años' WHERE id = 'e78a3549-5766-466f-99f6-4dc1ff9237d4';
 
 -- Excel row 41 — Fernando Alejandro Tejada Llanes (BLUE KIDS 2)
 INSERT INTO public.families (
@@ -485,7 +485,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'e37fd160-0afc-4775-8556-521925022c10',
+  'fc6eb36c-9388-4032-8bd9-3b4b37af1a16',
   'Cindie Alejandra Llanes', 'cindie458@hotmail.com', '2273-6964',
   'Rolando Carlos Tejada Escamilla', '2289-5632',
   'Foundever SYKES', '75649229',
@@ -501,7 +501,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '22713d6d-8ae1-4cd2-aa68-1219ba91847d', 'e37fd160-0afc-4775-8556-521925022c10',
+  '2f52a02f-1068-4ee0-b1a7-558ef18d71df', 'fc6eb36c-9388-4032-8bd9-3b4b37af1a16',
   'Fernando Alejandro Tejada Llanes',
   '2014-05-09',
   'TEA',
@@ -512,7 +512,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2' WHERE id = '22713d6d-8ae1-4cd2-aa68-1219ba91847d';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2' WHERE id = '2f52a02f-1068-4ee0-b1a7-558ef18d71df';
 
 -- Excel row 42 — Andrés Isaías Molina Molina (BLUE KIDS 2)
 INSERT INTO public.families (
@@ -521,7 +521,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '19c21d2c-c436-498e-9d22-ec4f83016327',
+  '22b2c1c2-3944-41e2-8e4d-55b4aa247498',
   'Fátima Alexandra Molina', 'fatimamolina0708@gmail.com', NULL,
   'José Osvaldo Molina Larin', NULL,
   'Ama de casa', '7724-1564',
@@ -537,7 +537,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '5b3cd6a3-cafc-45cc-b399-c9320a1216f3', '19c21d2c-c436-498e-9d22-ec4f83016327',
+  '04c4c8a6-9b3b-48f6-b026-7bc3e67b480b', '22b2c1c2-3944-41e2-8e4d-55b4aa247498',
   'Andrés Isaías Molina Molina',
   '2018-01-18',
   'TEA',
@@ -548,7 +548,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 7 años' WHERE id = '5b3cd6a3-cafc-45cc-b399-c9320a1216f3';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 2 · Programa Excel: BLUE KIDS 2 · Edad al importar: 7 años' WHERE id = '04c4c8a6-9b3b-48f6-b026-7bc3e67b480b';
 
 -- Excel row 45 — Mathias Carranza Pineda (BLUE KIDS 3)
 INSERT INTO public.families (
@@ -557,7 +557,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '462bdb64-7718-4c64-ac73-953ef556a282',
+  '57c5b576-61e4-43b3-a773-2d1760384b43',
   'Lissette Pineda', 'Lisspineda@hotmail.com', '2280-0495',
   'Carlos Carranza', NULL,
   NULL, '7969-1718',
@@ -573,7 +573,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '6742d46f-9502-494c-983d-14c8a1791f9a', '462bdb64-7718-4c64-ac73-953ef556a282',
+  '908e08de-9ae2-4fd4-9492-502fc6e40d36', '57c5b576-61e4-43b3-a773-2d1760384b43',
   'Mathias Carranza Pineda',
   '2018-11-02',
   'TEA',
@@ -584,7 +584,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 7 años' WHERE id = '6742d46f-9502-494c-983d-14c8a1791f9a';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 7 años' WHERE id = '908e08de-9ae2-4fd4-9492-502fc6e40d36';
 
 -- Excel row 46 — Marco Andrés Iraheta Palma (BLUE KIDS 3)
 INSERT INTO public.families (
@@ -593,7 +593,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '467e5a32-1772-4871-be0d-83b304865f8e',
+  '4140a75e-ef5d-40ab-9052-adf93575c6f7',
   'Xiomara Palma', 'xiomarapalma2789@gmail.com', NULL,
   'Marco Iraheta', NULL,
   'Ministerio de Obras Publicas', '7538-7485',
@@ -609,7 +609,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'f9c7959b-dfa9-4516-9e52-4121a306f497', '467e5a32-1772-4871-be0d-83b304865f8e',
+  '00d28bf2-d7be-46a7-8317-77d8e389b2ce', '4140a75e-ef5d-40ab-9052-adf93575c6f7',
   'Marco Andrés Iraheta Palma',
   '2016-09-01',
   'TEA',
@@ -620,7 +620,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 9 años' WHERE id = 'f9c7959b-dfa9-4516-9e52-4121a306f497';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 9 años' WHERE id = '00d28bf2-d7be-46a7-8317-77d8e389b2ce';
 
 -- Excel row 47 — Jhonatan Isaias Galvez Ulloa (BLUE KIDS 3)
 INSERT INTO public.families (
@@ -629,7 +629,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '38480aa3-ed67-4032-b5fb-55f4485372f4',
+  '2ef94e56-6149-4d61-ac5b-67006e8feb69',
   'Ismara López Ulloa', NULL, NULL,
   'Erick Arnoldo Galvez', NULL,
   'Apoya en casa', '72293493',
@@ -645,7 +645,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '2d357ce5-6468-4998-bfd2-6d007cc21baa', '38480aa3-ed67-4032-b5fb-55f4485372f4',
+  '297ef86c-88ac-467c-94e4-4ccdaa3f397c', '2ef94e56-6149-4d61-ac5b-67006e8feb69',
   'Jhonatan Isaias Galvez Ulloa',
   '2015-02-13',
   'TEA',
@@ -656,7 +656,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 10 años' WHERE id = '2d357ce5-6468-4998-bfd2-6d007cc21baa';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 10 años' WHERE id = '297ef86c-88ac-467c-94e4-4ccdaa3f397c';
 
 -- Excel row 48 — Esteban Francisco Romero Velásquez (BLUE KIDS 3)
 INSERT INTO public.families (
@@ -665,7 +665,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'd75f43f2-e363-4b25-a671-1bda7f67c528',
+  '9902aeb3-fca4-48dd-97e5-ac6f4eaeef7c',
   'Kenia Velásquez de Romero', 'kenyavel@hotmail.com', '2319-0104',
   'Marvin Stanley Romero Arias', '2319-0109',
   'Swisstex El Salvador, S.A. de C.V.', '7748-8683                   2288-0173',
@@ -681,7 +681,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '386e9826-7794-461f-8ebc-2b64ab9ab9b6', 'd75f43f2-e363-4b25-a671-1bda7f67c528',
+  '281dc7b6-e307-4c42-902b-f7a361f64ac0', '9902aeb3-fca4-48dd-97e5-ac6f4eaeef7c',
   'Esteban Francisco Romero Velásquez',
   '2015-12-01',
   'TEA',
@@ -692,7 +692,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 9 años' WHERE id = '386e9826-7794-461f-8ebc-2b64ab9ab9b6';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 9 años' WHERE id = '281dc7b6-e307-4c42-902b-f7a361f64ac0';
 
 -- Excel row 49 — Carlos René Quintanilla Díaz (BLUE KIDS 3)
 INSERT INTO public.families (
@@ -701,7 +701,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'c9f2755c-8f6d-4e95-9294-1082b1fa1788',
+  '7c908bd3-360c-4f8e-874f-801b2852bf39',
   'Ana Graciela Diaz de Quintanilla', 'grace_22die@hotmail,.com', NULL,
   'Carlos Neftali Quintanilla H.', NULL,
   NULL, '7115-4780',
@@ -717,7 +717,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '434596a4-585e-49d4-9f20-e9af4bebf14c', 'c9f2755c-8f6d-4e95-9294-1082b1fa1788',
+  'a62e168c-ab8b-48d1-8b7a-3294b999265c', '7c908bd3-360c-4f8e-874f-801b2852bf39',
   'Carlos René Quintanilla Díaz',
   '2014-10-25',
   'TEA',
@@ -728,7 +728,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 10 años' WHERE id = '434596a4-585e-49d4-9f20-e9af4bebf14c';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 10 años' WHERE id = 'a62e168c-ab8b-48d1-8b7a-3294b999265c';
 
 -- Excel row 50 — Franco Alejandro Rivera Roverso (BLUE KIDS 3)
 INSERT INTO public.families (
@@ -737,7 +737,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '1e84f2f3-c553-45b6-ba7d-70d30b0b4eaa',
+  '52d17b1d-8dab-464d-bdf6-4c7c266de76b',
   'Maria de los Angeles Roverso', 'mariaroverso26@gmail.com', '7627 0513',
   'Fredy Edgardo Rivera', '--',
   'Ria de Centro America', 'Abuela, 7080 9707',
@@ -753,7 +753,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'ea788e8a-a310-4fa7-8c5c-db8374b67693', '1e84f2f3-c553-45b6-ba7d-70d30b0b4eaa',
+  'a4991661-6147-457e-8d7d-e7f81d12cf3a', '52d17b1d-8dab-464d-bdf6-4c7c266de76b',
   'Franco Alejandro Rivera Roverso',
   '2018-11-09',
   'TEA',
@@ -764,7 +764,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 6 años' WHERE id = 'ea788e8a-a310-4fa7-8c5c-db8374b67693';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 6 años' WHERE id = 'a4991661-6147-457e-8d7d-e7f81d12cf3a';
 
 -- Excel row 51 — Sofía Giselle Fuentes Mulato (BLUE KIDS 3)
 INSERT INTO public.families (
@@ -773,7 +773,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'e5696fe3-286f-4bf8-a18c-4ca363955fd9',
+  '22e9d0b7-efee-4bb7-b2e4-339f20385e1d',
   'Gabriela Mulato', 'gabrielamulato7@gmail.com', '7084-3813',
   'Raúl Alejandro Fuentes', '7484-3813',
   'Vendedor (Panadería)', NULL,
@@ -789,7 +789,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'a9868b8c-0a56-46e9-b65b-e6f799b50237', 'e5696fe3-286f-4bf8-a18c-4ca363955fd9',
+  'bcbd4377-f43a-4ee1-b518-e7b94650bf7f', '22e9d0b7-efee-4bb7-b2e4-339f20385e1d',
   'Sofía Giselle Fuentes Mulato',
   '2018-01-18',
   NULL,
@@ -800,7 +800,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 7 años' WHERE id = 'a9868b8c-0a56-46e9-b65b-e6f799b50237';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 3 · Programa Excel: BLUE KIDS 3 · Edad al importar: 7 años' WHERE id = 'bcbd4377-f43a-4ee1-b518-e7b94650bf7f';
 
 -- Excel row 54 — Danny Elias Alvarenga Herrera (BLUE KIDS 4)
 INSERT INTO public.families (
@@ -809,7 +809,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'e7b61ce6-43cc-47e8-a6fd-b1a145f5ebfa',
+  '3b9bf9a9-f3cd-43e3-9fea-893900ba3e73',
   'Rebeca Carolina Herrera', 'rbk_hrr_mjv@hotmail.com', '7069-3228',
   'Eduardo Danny Alvarenga Campos', '7069-3980',
   'Anway El Salvador', NULL,
@@ -825,7 +825,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'd3ea9a7b-f5bc-4ee6-a382-0098353ffa78', 'e7b61ce6-43cc-47e8-a6fd-b1a145f5ebfa',
+  'd5cccd3f-e277-42f8-9fee-cc81fed944fe', '3b9bf9a9-f3cd-43e3-9fea-893900ba3e73',
   'Danny Elias Alvarenga Herrera',
   '2019-04-12',
   'TEA',
@@ -836,7 +836,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: BLUE KIDS 4 · Edad al importar: 6 años' WHERE id = 'd3ea9a7b-f5bc-4ee6-a382-0098353ffa78';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: BLUE KIDS 4 · Edad al importar: 6 años' WHERE id = 'd5cccd3f-e277-42f8-9fee-cc81fed944fe';
 
 -- Excel row 55 — Eduardo Mateo Galdamez Figueroa (BLUE KIDS 4)
 INSERT INTO public.families (
@@ -845,7 +845,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '9bbd0fd1-ca0b-4f48-aea9-609b095e920b',
+  'b4c92e74-a8b4-4dc3-9eee-8c754874fffd',
   'Sydia Tatiana Figueroa', 'statianafigueroa@gmail.com', '2278-4401            2289-1039',
   'Oscar Eduardo Galdamez Villacorta', '2397-2215/2397-2254',
   'Soc. Importadora y exportadora Ls Nenes', '7143-1428',
@@ -861,7 +861,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'f6b85da6-2434-4c7e-8ddd-645d53dd3b92', '9bbd0fd1-ca0b-4f48-aea9-609b095e920b',
+  '223aad39-2425-4570-a13b-73a60671bfa6', 'b4c92e74-a8b4-4dc3-9eee-8c754874fffd',
   'Eduardo Mateo Galdamez Figueroa',
   '2017-10-13',
   'TEA',
@@ -872,7 +872,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: BLUE KIDS 4 · Edad al importar: 7 años' WHERE id = 'f6b85da6-2434-4c7e-8ddd-645d53dd3b92';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: BLUE KIDS 4 · Edad al importar: 7 años' WHERE id = '223aad39-2425-4570-a13b-73a60671bfa6';
 
 -- Excel row 56 — André Javier García Madrid (BLUE KIDS 4)
 INSERT INTO public.families (
@@ -881,7 +881,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '89ccb25c-7f76-446b-9717-736e9d97ad6f',
+  '6e62a7da-c7af-4bc1-9b5f-016dcb892ada',
   'Jocelyn Guadalupe Madrid Alfaro', 'jocelynmadrid28@gmail.com', '2251-0727',
   '-', '-',
   '7595-9242', '7595-9242',
@@ -897,7 +897,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '0dc1ed1f-2508-43e6-b805-6df161cdaaae', '89ccb25c-7f76-446b-9717-736e9d97ad6f',
+  '4c4bd4d3-d56b-4b9a-a48a-63e227650cd1', '6e62a7da-c7af-4bc1-9b5f-016dcb892ada',
   'André Javier García Madrid',
   '2020-09-10',
   'TEA',
@@ -908,7 +908,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: BLUE KIDS 4 · Edad al importar: 5 años' WHERE id = '0dc1ed1f-2508-43e6-b805-6df161cdaaae';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: BLUE KIDS 4 · Edad al importar: 5 años' WHERE id = '4c4bd4d3-d56b-4b9a-a48a-63e227650cd1';
 
 -- Excel row 57 — Daniel Andrés Pérez Rubio (BLUE KIDS 4)
 INSERT INTO public.families (
@@ -917,7 +917,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '14181da7-69d8-4244-8b8f-4567ba1ebd15',
+  'ea655df4-b9d5-4e77-97fa-15ac277a005d',
   'Deborah Nathalia Rubio', 'debie.nathaliar@gmail.com', '7748-1928',
   'Erick Abel Perez', '2361-0032',
   'Banco de America Central', '2206-4248',
@@ -933,7 +933,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '4260e7ef-f6c5-4209-be7c-3120477d8d73', '14181da7-69d8-4244-8b8f-4567ba1ebd15',
+  'c703ace7-4a9c-4759-88bd-1a98f935d588', 'ea655df4-b9d5-4e77-97fa-15ac277a005d',
   'Daniel Andrés Pérez Rubio',
   '2020-05-18',
   'TEA',
@@ -944,7 +944,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: BLUE KIDS 4 · Edad al importar: 5 años' WHERE id = '4260e7ef-f6c5-4209-be7c-3120477d8d73';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: BLUE KIDS 4 · Edad al importar: 5 años' WHERE id = 'c703ace7-4a9c-4759-88bd-1a98f935d588';
 
 -- Excel row 58 — Mattheo Recinos Mendez (BLUE KIDS 4)
 INSERT INTO public.families (
@@ -953,7 +953,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'a2b82e21-ab2b-4866-b54f-62a3b2469bd8',
+  '842431e4-943a-4a74-b328-7ba81f5df097',
   'Idalia Beatriz Méndez Sandoval', 'idaliadez@outlook.es', 'Mario tío 7968-7628',
   'Walter Vicente Recinos Lemus', '7862-6044',
   'Universidad Don Bosco', '6166-6946',
@@ -969,7 +969,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'cf3388c8-82e2-473a-8faf-8fafe93d8396', 'a2b82e21-ab2b-4866-b54f-62a3b2469bd8',
+  '64e8a30b-ad84-4ad2-bc56-95dfaf06a2de', '842431e4-943a-4a74-b328-7ba81f5df097',
   'Mattheo Recinos Mendez',
   '2020-09-26',
   'TEA',
@@ -980,7 +980,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = 'cf3388c8-82e2-473a-8faf-8fafe93d8396';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = '64e8a30b-ad84-4ad2-bc56-95dfaf06a2de';
 
 -- Excel row 59 — Víctor André Melgar Rousseau (BLUE KIDS 4)
 INSERT INTO public.families (
@@ -989,7 +989,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'e8d2611c-20a7-4c9f-a564-c5d791c1b53e',
+  'f11c8160-08ec-4616-8233-383ae5a354c0',
   'Katia Alejandra Rousseau', 'rousseau1502@gmail.com', '7234-8047',
   'Víctor Manuel Melgar', '7888-3576',
   'Alejandra Beauty Loung', NULL,
@@ -1005,7 +1005,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '542d0eab-0a84-435d-a0bd-aad73883710d', 'e8d2611c-20a7-4c9f-a564-c5d791c1b53e',
+  'a4088c4b-7363-43af-bc18-1c90f3d34f6b', 'f11c8160-08ec-4616-8233-383ae5a354c0',
   'Víctor André Melgar Rousseau',
   '2020-07-23',
   'Sospecha TEA',
@@ -1016,7 +1016,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = '542d0eab-0a84-435d-a0bd-aad73883710d';
+UPDATE public.children SET notes = 'Sección Excel: BLUE KIDS 4 · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = 'a4088c4b-7363-43af-bc18-1c90f3d34f6b';
 
 -- Excel row 65 — Elián Carlos Hidalgo López (LEARNING KIDS)
 INSERT INTO public.families (
@@ -1025,7 +1025,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'eee11b2b-cc3c-47b1-a5cf-22a1bcae1433',
+  '2b588afb-5a8f-46d0-8497-c310f1c704de',
   'Karolyn López de Hidalgo', 'karoliin.lomontz@gmail.com', '6146-4788',
   'Carlos Antonio Hidalgo', '7064-3437',
   'Ama de Casa', NULL,
@@ -1041,7 +1041,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '36244bbd-a35d-443c-81a2-ffb497eb33bd', 'eee11b2b-cc3c-47b1-a5cf-22a1bcae1433',
+  '0fcf3a70-5441-4842-875b-eed0de5e9c15', '2b588afb-5a8f-46d0-8497-c310f1c704de',
   'Elián Carlos Hidalgo López',
   '2020-10-24',
   'TDAH. + R.G Neuro.',
@@ -1052,7 +1052,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: LEARNING KIDS · Programa Excel: LEARNING KIDS · Edad al importar: 5 años' WHERE id = '36244bbd-a35d-443c-81a2-ffb497eb33bd';
+UPDATE public.children SET notes = 'Sección Excel: LEARNING KIDS · Programa Excel: LEARNING KIDS · Edad al importar: 5 años' WHERE id = '0fcf3a70-5441-4842-875b-eed0de5e9c15';
 
 -- Excel row 66 — Fiorella Carolina Fuentes Hernández (LEARNING KIDS)
 INSERT INTO public.families (
@@ -1061,7 +1061,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'd76c771b-882e-460f-b5ab-c2ddadeae30d',
+  'ca9f5f6f-381d-48df-945c-8588629ef8a6',
   'Carolina de Fuentes', NULL, '7118-2753',
   'Oscar Fuentes', '7833-0483',
   'Empleada', NULL,
@@ -1077,7 +1077,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '5fd2c9fd-aa12-4d72-8328-7e8912c2865b', 'd76c771b-882e-460f-b5ab-c2ddadeae30d',
+  '23a464ba-d40e-4185-9720-0c95b53c0589', 'ca9f5f6f-381d-48df-945c-8588629ef8a6',
   'Fiorella Carolina Fuentes Hernández',
   '2019-10-07',
   'TEA',
@@ -1088,7 +1088,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: LEARNING KIDS · Programa Excel: LEARNING KIDS · Edad al importar: 6 años' WHERE id = '5fd2c9fd-aa12-4d72-8328-7e8912c2865b';
+UPDATE public.children SET notes = 'Sección Excel: LEARNING KIDS · Programa Excel: LEARNING KIDS · Edad al importar: 6 años' WHERE id = '23a464ba-d40e-4185-9720-0c95b53c0589';
 
 -- Excel row 67 — Minerva Jazmin Roman Vivas (LEARNING KIDS)
 INSERT INTO public.families (
@@ -1097,7 +1097,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '96b9a612-5070-422c-a9ed-2d318a55acca',
+  '237205b9-0d40-46f0-98b0-e7c6250357bf',
   'Jazmin Vivas', 'jazminvivas@gmail.com', NULL,
   'José Salvador Román Chevez', NULL,
   'Trinidad Menjivar (abuela) 6065-0248', '7866-2064',
@@ -1113,7 +1113,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'cdbd70a9-ddc1-478d-9f72-02210b66dff4', '96b9a612-5070-422c-a9ed-2d318a55acca',
+  'c7cefee8-4882-45a2-b9e0-f061ca90fb28', '237205b9-0d40-46f0-98b0-e7c6250357bf',
   'Minerva Jazmin Roman Vivas',
   '2018-02-09',
   'TEA',
@@ -1124,7 +1124,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: LEARNING KIDS · Programa Excel: LEARNING KIDS · Edad al importar: 8 años' WHERE id = 'cdbd70a9-ddc1-478d-9f72-02210b66dff4';
+UPDATE public.children SET notes = 'Sección Excel: LEARNING KIDS · Programa Excel: LEARNING KIDS · Edad al importar: 8 años' WHERE id = 'c7cefee8-4882-45a2-b9e0-f061ca90fb28';
 
 -- Excel row 68 — Adrian Valentin Vásquez Hernández (LEARNING KIDS)
 INSERT INTO public.families (
@@ -1133,7 +1133,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '367a5166-d67c-4152-8f59-b6c92455647e',
+  'eff3ee89-d891-446a-be60-d1f8154e3009',
   'Marta de Vásquez', 'ceciliahernandez1912@outlook.es', '2520-2919',
   'José Adrian Vasquez', '7989-6099',
   'Pollos Don San Valentín', '7018-1274',
@@ -1149,7 +1149,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'd9b68881-215c-410a-9167-d994192492e2', '367a5166-d67c-4152-8f59-b6c92455647e',
+  '6edf9445-4005-4337-8586-56c7b540c1dd', 'eff3ee89-d891-446a-be60-d1f8154e3009',
   'Adrian Valentin Vásquez Hernández',
   '2017-08-15',
   'Síndrome Down',
@@ -1160,7 +1160,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: LEARNING KIDS · Programa Excel: TERAPIA TARDE · Edad al importar: 8 años' WHERE id = 'd9b68881-215c-410a-9167-d994192492e2';
+UPDATE public.children SET notes = 'Sección Excel: LEARNING KIDS · Programa Excel: TERAPIA TARDE · Edad al importar: 8 años' WHERE id = '6edf9445-4005-4337-8586-56c7b540c1dd';
 
 -- Excel row 74 — Lourdes Adriana Carranza García (AULA EDUCATIVA)
 INSERT INTO public.families (
@@ -1169,7 +1169,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '2f9ebb84-538a-4620-9c47-c81d82ac0c42',
+  '4a2453bd-6265-4cea-bc84-e9ce315235d9',
   'Cristina García', 'mcgarcia_@outlok.com', NULL,
   'Edwin Carranza', NULL,
   'Lancasco Salvadoreño', '7850-2705',
@@ -1185,7 +1185,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '1df7f946-e5db-4662-95c0-6bb827f313f9', '2f9ebb84-538a-4620-9c47-c81d82ac0c42',
+  '8edc65ab-8b86-49fa-8503-349069bb5ddb', '4a2453bd-6265-4cea-bc84-e9ce315235d9',
   'Lourdes Adriana Carranza García',
   '2013-07-29',
   NULL,
@@ -1196,7 +1196,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 12 años' WHERE id = '1df7f946-e5db-4662-95c0-6bb827f313f9';
+UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 12 años' WHERE id = '8edc65ab-8b86-49fa-8503-349069bb5ddb';
 
 -- Excel row 75 — Daniella Belén Cornejo Crúz (AULA EDUCATIVA)
 INSERT INTO public.families (
@@ -1205,7 +1205,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '96a2883e-db37-44b1-a470-e641457c2c7a',
+  '2f02921c-1ce3-4214-b79c-e4ba80d9c3af',
   'Marcela Crúz', 'amcgaldamez@gmail.com', NULL,
   'Arturo Cornejo', NULL,
   'Dr. en medicina', '7101-4339            2340-0107',
@@ -1221,7 +1221,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '6cab7ac2-5e71-4cd8-98b7-6a67833b9749', '96a2883e-db37-44b1-a470-e641457c2c7a',
+  'f1539bc3-a89d-485d-bfb6-3a63e9661ba8', '2f02921c-1ce3-4214-b79c-e4ba80d9c3af',
   'Daniella Belén Cornejo Crúz',
   '2014-02-01',
   NULL,
@@ -1232,7 +1232,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 11 años' WHERE id = '6cab7ac2-5e71-4cd8-98b7-6a67833b9749';
+UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 11 años' WHERE id = 'f1539bc3-a89d-485d-bfb6-3a63e9661ba8';
 
 -- Excel row 76 — Sophia Rebeca Girón Sansivirini (AULA EDUCATIVA)
 INSERT INTO public.families (
@@ -1241,7 +1241,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '680472ee-70d3-44ab-b8fc-1b972d45f8ed',
+  'a50a6a92-f69e-4612-868f-59a8f9cb62d9',
   'Evelyn Arely Sansivirini', 'evsansito0104@hotmail.com', '7105-1093  ABUELA',
   'Erick Francisco Girón Mendoza', '7105-1093  ABUELA',
   'Casa', '62021922               25191641',
@@ -1257,7 +1257,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'd135824f-efca-42d5-903a-0fd739256277', '680472ee-70d3-44ab-b8fc-1b972d45f8ed',
+  '4e3b2a21-2dc5-453e-874a-474865a9bfd7', 'a50a6a92-f69e-4612-868f-59a8f9cb62d9',
   'Sophia Rebeca Girón Sansivirini',
   '2016-06-20',
   NULL,
@@ -1268,7 +1268,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 9 años' WHERE id = 'd135824f-efca-42d5-903a-0fd739256277';
+UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 9 años' WHERE id = '4e3b2a21-2dc5-453e-874a-474865a9bfd7';
 
 -- Excel row 77 — Federico Mendoza Lemus (AULA EDUCATIVA)
 INSERT INTO public.families (
@@ -1277,7 +1277,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'd1cef368-ae57-42eb-be50-08b85f560c71',
+  'bfa45db9-1903-4814-8e93-164a60d393c1',
   'Ana María Lemus de Mendoza', 'amarlem@hotmail.com', 'Sra. Reina 6131-7715 (Transporte)                                 2288-1232',
   'Gerardo Mendoza', NULL,
   'Academia Británica Cuscatleca', '7842-2384',
@@ -1293,7 +1293,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '04f550e6-b971-413a-a250-569418a05a71', 'd1cef368-ae57-42eb-be50-08b85f560c71',
+  '3b300f2a-2695-4e4e-bc3c-e62b25fd2c63', 'bfa45db9-1903-4814-8e93-164a60d393c1',
   'Federico Mendoza Lemus',
   '2006-09-08',
   NULL,
@@ -1304,7 +1304,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 19 años' WHERE id = '04f550e6-b971-413a-a250-569418a05a71';
+UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 19 años' WHERE id = '3b300f2a-2695-4e4e-bc3c-e62b25fd2c63';
 
 -- Excel row 78 — Teresa Natalia Villeda López (AULA EDUCATIVA)
 INSERT INTO public.families (
@@ -1313,7 +1313,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'a101358b-e3d1-4ac3-b9e6-d5612255a579',
+  '09613802-512f-4da9-854f-b1b45d9e62cf',
   'Teresa López de Villeda', 'tslopez19@yahoo.es', NULL,
   'Jose Villeda', NULL,
   'Universidad Matias Delgado', '7841-7041',
@@ -1329,7 +1329,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '03534d49-e471-439c-bc62-08fad3a839b9', 'a101358b-e3d1-4ac3-b9e6-d5612255a579',
+  '5751ce59-c721-4009-ae8b-f8d480a3696d', '09613802-512f-4da9-854f-b1b45d9e62cf',
   'Teresa Natalia Villeda López',
   '2006-07-22',
   NULL,
@@ -1340,7 +1340,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 19 años' WHERE id = '03534d49-e471-439c-bc62-08fad3a839b9';
+UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 19 años' WHERE id = '5751ce59-c721-4009-ae8b-f8d480a3696d';
 
 -- Excel row 79 — Daniela Guadalupe Engelhard Parada (AULA EDUCATIVA)
 INSERT INTO public.families (
@@ -1349,7 +1349,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '95e2aac8-0791-44a6-b2e0-4c7f7e488440',
+  '34385b36-7a38-4c18-a434-f25d7ca0f7c5',
   'Cecilia Parada de Engelhard', 'cepp8@hotmail.com', '2242-3600',
   'Alberto A. Engelhard Bustillo', '2242-3600',
   'EPASS', NULL,
@@ -1365,7 +1365,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'dee96d4d-1198-40f8-aea4-10ff9f098eac', '95e2aac8-0791-44a6-b2e0-4c7f7e488440',
+  '855b1213-9d1f-4ef6-b453-e2dde732a7cb', '34385b36-7a38-4c18-a434-f25d7ca0f7c5',
   'Daniela Guadalupe Engelhard Parada',
   '2003-04-04',
   NULL,
@@ -1376,7 +1376,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 22 años' WHERE id = 'dee96d4d-1198-40f8-aea4-10ff9f098eac';
+UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 22 años' WHERE id = '855b1213-9d1f-4ef6-b453-e2dde732a7cb';
 
 -- Excel row 80 — Sabrina María Risi Morán (AULA EDUCATIVA)
 INSERT INTO public.families (
@@ -1385,7 +1385,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'aa9a6237-4978-42f3-b80a-bf3e4097e152',
+  '4354bee7-3bf7-40b2-853d-be8928a98bbb',
   'Fátima de Risi', 'fatimarisi@hotmail.com', '22633264',
   'Pablo Risi', '22633264',
   'Ama de casa', '7730-9827',
@@ -1401,7 +1401,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'af0b7b69-3422-4727-96ae-3b53db36d1a6', 'aa9a6237-4978-42f3-b80a-bf3e4097e152',
+  '94e8b67f-2623-480a-bdda-8a454ea007cd', '4354bee7-3bf7-40b2-853d-be8928a98bbb',
   'Sabrina María Risi Morán',
   '2009-06-25',
   NULL,
@@ -1412,7 +1412,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 16 años' WHERE id = 'af0b7b69-3422-4727-96ae-3b53db36d1a6';
+UPDATE public.children SET notes = 'Sección Excel: AULA EDUCATIVA · Programa Excel: AULA EDUCATIVA · Edad al importar: 16 años' WHERE id = '94e8b67f-2623-480a-bdda-8a454ea007cd';
 
 -- Excel row 87 — David Emmanuel Orellana Paz (TERAPIAS MATUTINAS)
 INSERT INTO public.families (
@@ -1421,7 +1421,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '85bfa8d6-6c79-45ee-9e38-cf0ed4568a21',
+  '3f568148-4034-452f-935e-c81c0013fa52',
   'Maria de los Ángeles Paz de ORellana', 'dramariapazn20@hotmail.com', '7190-0917',
   'Josúe Isaí Orellana Claros', '7190-0917',
   'Hospital San Francisco Gotera  Morazán', '78191564',
@@ -1437,7 +1437,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '1cb4b5de-207a-4024-879d-3ad5e2db62e1', '85bfa8d6-6c79-45ee-9e38-cf0ed4568a21',
+  'eaf699d4-d609-4660-9069-13ce3f142573', '3f568148-4034-452f-935e-c81c0013fa52',
   'David Emmanuel Orellana Paz',
   '2024-07-25',
   NULL,
@@ -1448,7 +1448,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS MATUTINAS · Programa Excel: EST. H Y L · Edad al importar: 1 año' WHERE id = '1cb4b5de-207a-4024-879d-3ad5e2db62e1';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS MATUTINAS · Programa Excel: EST. H Y L · Edad al importar: 1 año' WHERE id = 'eaf699d4-d609-4660-9069-13ce3f142573';
 
 -- Excel row 88 — Josías Isaí Orellana Paz (TERAPIAS MATUTINAS)
 INSERT INTO public.families (
@@ -1457,7 +1457,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '4ccf015b-b876-4f58-8601-6b47c66e2201',
+  'b7c78648-0a36-452a-95cb-14e71979b00d',
   'Maria de los Ángeles Paz de ORellana', 'dramariapazn20@hotmail.com', '7190-0918',
   'Josúe Isaí Orellana Claros', '7190-0918',
   'Hospital San Francisco Gotera  Morazán', '78191564',
@@ -1473,7 +1473,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '67c59849-7461-40e2-8379-18bb689384b2', '4ccf015b-b876-4f58-8601-6b47c66e2201',
+  'aaa693f4-5feb-4622-8a01-6afa12cd88f7', 'b7c78648-0a36-452a-95cb-14e71979b00d',
   'Josías Isaí Orellana Paz',
   '2024-05-27',
   NULL,
@@ -1488,7 +1488,7 @@ INSERT INTO public.treatment_plans (
   child_id, primary_therapist_id, diagnosis_text, starts_at,
   therapies_json, schedule_pattern_json, monthly_total_usd, active
 ) VALUES (
-  '67c59849-7461-40e2-8379-18bb689384b2', NULL,
+  'aaa693f4-5feb-4622-8a01-6afa12cd88f7', NULL,
   NULL,
   '2026-02-04',
   '[{"service":"lenguaje", "active":true, "sessions_per_month":8, "unit_cost_usd":45, "therapist_id":null}, {"service":"sensorial", "active":true, "sessions_per_month":8, "unit_cost_usd":45, "therapist_id":null}]'::jsonb,
@@ -1496,7 +1496,7 @@ INSERT INTO public.treatment_plans (
   720,
   true
 );
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS MATUTINAS · Programa Excel: THL + Sensorial · Edad al importar: 5 años' WHERE id = '67c59849-7461-40e2-8379-18bb689384b2';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS MATUTINAS · Programa Excel: THL + Sensorial · Edad al importar: 5 años' WHERE id = 'aaa693f4-5feb-4622-8a01-6afa12cd88f7';
 
 -- Excel row 89 — Marcos Joel García Molina (TERAPIAS MATUTINAS)
 INSERT INTO public.families (
@@ -1505,7 +1505,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '896f3e14-8df9-43f3-aee1-d811adaabca9',
+  '167f3efa-7941-4c99-8d49-5832449c4c4c',
   'Odaly Molina Castro', NULL, NULL,
   'Humberto García', NULL,
   'Exportadora Río Grande Kilometro 15 1/2', '7633-6105  / 7321-7696',
@@ -1521,7 +1521,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '090bec67-5972-467c-b1d8-ff0aaffedc85', '896f3e14-8df9-43f3-aee1-d811adaabca9',
+  '8b3b2f22-cafb-41a8-908b-061480fc42ac', '167f3efa-7941-4c99-8d49-5832449c4c4c',
   'Marcos Joel García Molina',
   '2020-07-04',
   NULL,
@@ -1532,7 +1532,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS MATUTINAS · Programa Excel: EST. DE H Y L · Edad al importar: 5 años' WHERE id = '090bec67-5972-467c-b1d8-ff0aaffedc85';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS MATUTINAS · Programa Excel: EST. DE H Y L · Edad al importar: 5 años' WHERE id = '8b3b2f22-cafb-41a8-908b-061480fc42ac';
 
 -- Excel row 97 — Emma Veronica Aguilar Guzmán (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1541,7 +1541,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'e5724c2e-a835-40f3-b25e-92584efa4e2b',
+  '257d9efa-8576-46a0-93bb-48d28c937f4f',
   'Karen Jocelyne Guzmán', 'guzman1998melara@gmail.com', '7467-9666',
   'Adonis Antonio Aguilar Gonzales', NULL,
   'Salón de belleza Antiguo C.', '7467-9666',
@@ -1557,7 +1557,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '71312a06-3664-436b-a273-f4677a46e6fe', 'e5724c2e-a835-40f3-b25e-92584efa4e2b',
+  '8595cdde-2d0c-41bd-9eb4-05e9f18fea31', '257d9efa-8576-46a0-93bb-48d28c937f4f',
   'Emma Veronica Aguilar Guzmán',
   '2018-01-29',
   'TEA',
@@ -1568,7 +1568,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = '71312a06-3664-436b-a273-f4677a46e6fe';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = '8595cdde-2d0c-41bd-9eb4-05e9f18fea31';
 
 -- Excel row 98 — Francella Celeste Argueta Vanegas (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1577,7 +1577,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '300c7e15-00f2-4c78-b08b-8424dd1385b1',
+  '47679477-b85b-4fb9-8b47-46c5322a0607',
   'Veronica Liseth Vanegas de Argueta', 'verovanegasv@gmail.com', '7318-9549',
   'Oswaldo Dagoberto Argueta', '7748-8024',
   'Centro Judicial de Santa Tecla', NULL,
@@ -1593,7 +1593,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'c0e905c5-45ca-4ead-9076-9133d4fade7c', '300c7e15-00f2-4c78-b08b-8424dd1385b1',
+  'a1f5d662-229c-429b-911d-53bb3e0cc5f3', '47679477-b85b-4fb9-8b47-46c5322a0607',
   'Francella Celeste Argueta Vanegas',
   '2018-02-28',
   'PCI',
@@ -1604,7 +1604,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = 'c0e905c5-45ca-4ead-9076-9133d4fade7c';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = 'a1f5d662-229c-429b-911d-53bb3e0cc5f3';
 
 -- Excel row 99 — Lila Franceska Argueta Retana (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1613,7 +1613,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'f6ead44e-e77e-4089-8210-bd9c17801174',
+  'bccb9794-4377-4cfb-bcd2-44954a55f7cf',
   'Johanna Veralisse Retana Argueta', 'johanna.retana01@gmail.com', '7926-7806',
   'Francisco Israel Argueta Soto', '63055852',
   'Raun', NULL,
@@ -1629,7 +1629,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '7398f6ee-a642-429a-9b6a-5607881b8921', 'f6ead44e-e77e-4089-8210-bd9c17801174',
+  '1934a4fc-19e6-4b39-be24-3f78ac81a922', 'bccb9794-4377-4cfb-bcd2-44954a55f7cf',
   'Lila Franceska Argueta Retana',
   '2023-12-04',
   '-',
@@ -1640,7 +1640,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 2 años' WHERE id = '7398f6ee-a642-429a-9b6a-5607881b8921';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 2 años' WHERE id = '1934a4fc-19e6-4b39-be24-3f78ac81a922';
 
 -- Excel row 100 — Mateo Alessandro Alvarenga Cortez (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1649,7 +1649,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '6091d9d4-915e-4ac1-b4df-191443be7c35',
+  '3a61aec1-2bf4-41da-ae18-7cfe34ed2bf5',
   'Andrea Cortez de Alvarenga', 'gal.cortez@outlook.com', '7931-7781',
   'Gustavo Alvarenga', '7901-1929',
   'Las tilapias hotel y restaurante', NULL,
@@ -1665,7 +1665,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '1b294a01-c322-47e6-9b64-81e0d3638ece', '6091d9d4-915e-4ac1-b4df-191443be7c35',
+  'f4641af4-d80a-4f5c-b8af-093d7fa96aeb', '3a61aec1-2bf4-41da-ae18-7cfe34ed2bf5',
   'Mateo Alessandro Alvarenga Cortez',
   '2022-04-05',
   'Sospecha TEA',
@@ -1676,7 +1676,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 3 años' WHERE id = '1b294a01-c322-47e6-9b64-81e0d3638ece';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 3 años' WHERE id = 'f4641af4-d80a-4f5c-b8af-093d7fa96aeb';
 
 -- Excel row 101 — Thiago André Alvarenga Cortez (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1685,7 +1685,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '1ca799c9-b9a3-45c4-9d71-95b7b0500b25',
+  '73f30609-feb0-4d40-bd6f-84b8f5fa2690',
   'Andrea Cortez de Alvarenga', 'gal.cortez@outlook.com', '7931-7781',
   'Gustavo Alvarenga', '7901-1929',
   'Las tilapias hotel y restaurante', NULL,
@@ -1701,7 +1701,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '4e74fea6-b9d5-420b-bf85-94bd91e6cee2', '1ca799c9-b9a3-45c4-9d71-95b7b0500b25',
+  '292bcf34-9a2c-4154-9b9d-91f81d802a7b', '73f30609-feb0-4d40-bd6f-84b8f5fa2690',
   'Thiago André Alvarenga Cortez',
   '2022-04-05',
   'Sospecha TEA',
@@ -1712,7 +1712,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 3 años' WHERE id = '4e74fea6-b9d5-420b-bf85-94bd91e6cee2';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 3 años' WHERE id = '292bcf34-9a2c-4154-9b9d-91f81d802a7b';
 
 -- Excel row 102 — Daniela Alejandra Bermudez Montes (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1721,7 +1721,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '5c90d319-ae52-4b92-bfe6-3c70532ed116',
+  'c4fe4054-21c6-44ab-88ad-5ca858f2aef5',
   'Lissette Margarita Mondes de  Bermudez', 'lissmontes@hotmail.com', '7835-8917',
   'Oscar Alejandro Bermúdez', '7630-9671',
   NULL, NULL,
@@ -1737,9 +1737,9 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'f1b68d38-cf4b-4c1e-b7f7-ea4a221da936', '5c90d319-ae52-4b92-bfe6-3c70532ed116',
+  '905ef6e4-cb49-40e9-8ebe-54bc77140226', 'c4fe4054-21c6-44ab-88ad-5ca858f2aef5',
   'Daniela Alejandra Bermudez Montes',
-  '29-01/19',
+  '2019-01-29',
   NULL,
   'Colegio Maya',
   NULL,
@@ -1748,7 +1748,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7a' WHERE id = 'f1b68d38-cf4b-4c1e-b7f7-ea4a221da936';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7a' WHERE id = '905ef6e4-cb49-40e9-8ebe-54bc77140226';
 
 -- Excel row 103 — Rodrigo José Call Gonzáles (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1757,7 +1757,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'b880ce4a-714b-4f20-9b66-5186f7e3b00c',
+  '610ac9dd-14c2-4137-b831-40bd77e523ab',
   'Lourdes Gonzales', 'alegzz11@gmail.com', '77877891',
   'Rodrigo Call Mena', '74758991',
   'Licda. en negocios', NULL,
@@ -1773,7 +1773,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'a868d595-d0c4-461d-92d9-673425a9ffcb', 'b880ce4a-714b-4f20-9b66-5186f7e3b00c',
+  '947a85e9-b720-4199-86b8-b1373bc80913', '610ac9dd-14c2-4137-b831-40bd77e523ab',
   'Rodrigo José Call Gonzáles',
   '2021-04-10',
   'Problemas THL',
@@ -1784,7 +1784,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = 'a868d595-d0c4-461d-92d9-673425a9ffcb';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = '947a85e9-b720-4199-86b8-b1373bc80913';
 
 -- Excel row 104 — Lukas Carranza Pineda (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1793,7 +1793,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '50659da6-efba-4749-8fb0-45b8255369d4',
+  '9ecb98bc-8e78-4bcd-85e7-db84d55d5a29',
   'Lissette Pineda', 'Lisspineda@hotmail.com', '2280-0495',
   'Carlos Carranza', NULL,
   NULL, '7969-1718',
@@ -1809,7 +1809,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '4bec1e5e-eccb-4ad6-beb1-e676e27f28be', '50659da6-efba-4749-8fb0-45b8255369d4',
+  '7979b3aa-6402-4990-94cc-f071f3544bc8', '9ecb98bc-8e78-4bcd-85e7-db84d55d5a29',
   'Lukas Carranza Pineda',
   '2016-10-25',
   'Problemas Psicológicos',
@@ -1820,7 +1820,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = '4bec1e5e-eccb-4ad6-beb1-e676e27f28be';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = '7979b3aa-6402-4990-94cc-f071f3544bc8';
 
 -- Excel row 105 — Mateo Daniel Cerón Aguilar (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1829,7 +1829,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'df63116d-2374-4a11-b12c-4f27f31c279e',
+  'd9f89dd4-46f7-41ec-8a1d-15b932b059b7',
   'Julia Inés Cerón Aguilar', 'juliainesceronaguilar@yahoo.com', NULL,
   NULL, NULL,
   'TIGO', '7259-3786 Casa 2511-0265',
@@ -1845,7 +1845,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'c33ed51d-5dbd-4d92-84ab-88c5939cc525', 'df63116d-2374-4a11-b12c-4f27f31c279e',
+  '0972d53a-15c3-4c3d-a268-d89f8269dd5b', 'd9f89dd4-46f7-41ec-8a1d-15b932b059b7',
   'Mateo Daniel Cerón Aguilar',
   '2020-05-17',
   'TEA',
@@ -1856,7 +1856,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = 'c33ed51d-5dbd-4d92-84ab-88c5939cc525';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = '0972d53a-15c3-4c3d-a268-d89f8269dd5b';
 
 -- Excel row 106 — Nicolás André Comandarí Escobar (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1865,7 +1865,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '9ef27a87-a357-478e-a731-c55def39569e',
+  '38dbf996-c2a8-4f3d-a6a1-3222a6bbb1ec',
   'Johana Comandarí', 'JoaComandarib@hotmail.com', '7533-7114',
   'David', '-',
   'Slime San Benito', 'Marco Comandari (hermano de Nicolás)7933-0857',
@@ -1881,7 +1881,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '125a47f5-de12-48b9-9c53-208bdaeb38b1', '9ef27a87-a357-478e-a731-c55def39569e',
+  '69986dbe-421f-4df6-9e88-2a842e6ace41', '38dbf996-c2a8-4f3d-a6a1-3222a6bbb1ec',
   'Nicolás André Comandarí Escobar',
   '2020-04-20',
   'TEA',
@@ -1892,7 +1892,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = '125a47f5-de12-48b9-9c53-208bdaeb38b1';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = '69986dbe-421f-4df6-9e88-2a842e6ace41';
 
 -- Excel row 107 — José Alberto Chacón Vasquez (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1901,7 +1901,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '285512d9-96ff-4ff1-bdcb-362c4cf2d46f',
+  'f0857af0-4cea-442d-91d9-6cee7a27f239',
   'Arelis de Chacón', 'vonisu@gmail.com', '7237-1676',
   'José Alberto Chacón', NULL,
   NULL, NULL,
@@ -1917,7 +1917,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'bfb32191-0c7b-4491-b858-2fdc6d07349c', '285512d9-96ff-4ff1-bdcb-362c4cf2d46f',
+  '51821f1e-fbf9-41e5-a9d6-3dc9cb20d5aa', 'f0857af0-4cea-442d-91d9-6cee7a27f239',
   'José Alberto Chacón Vasquez',
   '2018-03-19',
   'TDEA',
@@ -1928,7 +1928,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = 'bfb32191-0c7b-4491-b858-2fdc6d07349c';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = '51821f1e-fbf9-41e5-a9d6-3dc9cb20d5aa';
 
 -- Excel row 108 — Lucas Nicolás Chavarría Abullarade (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1937,7 +1937,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '709c85e0-b317-4e22-a0b4-2bd4d0707d01',
+  'aea07760-ae4c-4a21-8236-6d60b2417084',
   'Salma Gabriela Abullarade de Chavarría', 'salma_ga16hotmail.com', NULL,
   'Juan Carlos Chavarría', NULL,
   'GVM', '7928-6306',
@@ -1953,7 +1953,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '71516871-f258-47a4-b7df-64f8c8ea2b12', '709c85e0-b317-4e22-a0b4-2bd4d0707d01',
+  'b095c55d-b71d-4171-bf3a-4066e7eba9ac', 'aea07760-ae4c-4a21-8236-6d60b2417084',
   'Lucas Nicolás Chavarría Abullarade',
   '2022-02-15',
   'Retraso del Lenguaje',
@@ -1964,7 +1964,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 3 años' WHERE id = '71516871-f258-47a4-b7df-64f8c8ea2b12';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 3 años' WHERE id = 'b095c55d-b71d-4171-bf3a-4066e7eba9ac';
 
 -- Excel row 109 — Sebastián Enmanuel Chinchilla Alvarenga (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -1973,7 +1973,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'ecfeffb0-107d-4d67-ba08-be9228d6b189',
+  '271a37ea-3ac2-4232-81e4-251c7c515f25',
   'Liliana Yamileth Chinchilla', 'liliana.alvarenga@gmail.com', '7877-9542',
   'Jorge Antonio Ochoa', NULL,
   'Plan Internacional', NULL,
@@ -1989,7 +1989,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '39d73012-2f22-4a11-9145-3149abbf8c7a', 'ecfeffb0-107d-4d67-ba08-be9228d6b189',
+  'bed2b5bf-6f25-4d36-aaa5-4a2c76378dd6', '271a37ea-3ac2-4232-81e4-251c7c515f25',
   'Sebastián Enmanuel Chinchilla Alvarenga',
   '2022-05-23',
   'TEA',
@@ -2000,7 +2000,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 3 años' WHERE id = '39d73012-2f22-4a11-9145-3149abbf8c7a';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 3 años' WHERE id = 'bed2b5bf-6f25-4d36-aaa5-4a2c76378dd6';
 
 -- Excel row 110 — Manuel de Jesús Escobar Mejía (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2009,7 +2009,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'ea2e91de-e33b-425c-afdf-19171e45f973',
+  'a6eacaab-f8d7-4544-b4ef-05843dca4ac4',
   'Karla de Escobar', 'kgmejia89@gmail.com', '7696-3956',
   'Manuel de Jesús Escobar', '7855-2281',
   'CNR', NULL,
@@ -2025,7 +2025,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'c23e7b9a-ab67-4f70-9cfd-64104f132a6d', 'ea2e91de-e33b-425c-afdf-19171e45f973',
+  '20cdfc85-6582-4b4c-a183-8cdfac97186b', 'a6eacaab-f8d7-4544-b4ef-05843dca4ac4',
   'Manuel de Jesús Escobar Mejía',
   '2020-09-30',
   NULL,
@@ -2036,7 +2036,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = 'c23e7b9a-ab67-4f70-9cfd-64104f132a6d';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = '20cdfc85-6582-4b4c-a183-8cdfac97186b';
 
 -- Excel row 111 — Matías Elián Flores Zaldívar (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2045,7 +2045,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'f4ba5b82-acc3-4359-9002-2bc538700e8b',
+  '289f4f74-9c7d-4c0a-97c3-116ac648c49e',
   'Susana Carolina Zaldívar', 'sczaldivarflores@gmail.com', '2322-1034',
   'David Enohc Flores', NULL,
   'Telemóvil', '7596-8844',
@@ -2061,7 +2061,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '8b27dc83-0bae-415c-9bb3-154155eea581', 'f4ba5b82-acc3-4359-9002-2bc538700e8b',
+  '8ba234d5-1e6b-432a-92f8-4f7a9c0ecc9b', '289f4f74-9c7d-4c0a-97c3-116ac648c49e',
   'Matías Elián Flores Zaldívar',
   '2020-11-24',
   'Altas Capacidades',
@@ -2072,7 +2072,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = '8b27dc83-0bae-415c-9bb3-154155eea581';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = '8ba234d5-1e6b-432a-92f8-4f7a9c0ecc9b';
 
 -- Excel row 112 — Sofía Flores Morataya (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2081,7 +2081,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '7cf2018a-440d-4a5b-b22b-7b32741dd5be',
+  '30c2c130-b0df-48b9-81c6-3e296973f883',
   'Laura de Flores', 'iamove07@gmail.com', NULL,
   'Roberto Samuel Flores', NULL,
   'Kinetic', '7797-7822',
@@ -2097,7 +2097,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '27a2b85f-2b2a-4cc7-8ed0-658186c51c64', '7cf2018a-440d-4a5b-b22b-7b32741dd5be',
+  '8c6791be-d3af-4a37-ae7b-b74ec29bb83f', '30c2c130-b0df-48b9-81c6-3e296973f883',
   'Sofía Flores Morataya',
   '2016-07-20',
   NULL,
@@ -2108,7 +2108,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = '27a2b85f-2b2a-4cc7-8ed0-658186c51c64';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = '8c6791be-d3af-4a37-ae7b-b74ec29bb83f';
 
 -- Excel row 113 — Roberto Andrés Flores Morataya (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2117,7 +2117,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'e1a59a81-88c2-47b9-94b0-4e4a64fcfeac',
+  'b4ba1318-aa9e-4f65-b265-a2a89f80cd9f',
   'Laura de Flores', 'iamove07@gmail.com', NULL,
   'Carlos Franco', NULL,
   'Kinetic', '7797-7822',
@@ -2133,7 +2133,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '143a4a73-ccf9-4195-976c-6d7c3b5c9e30', 'e1a59a81-88c2-47b9-94b0-4e4a64fcfeac',
+  'c1c378b7-70e3-4ea7-aaa5-9dfc12f2807e', 'b4ba1318-aa9e-4f65-b265-a2a89f80cd9f',
   'Roberto Andrés Flores Morataya',
   '2018-01-04',
   'TDAH',
@@ -2144,7 +2144,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = '143a4a73-ccf9-4195-976c-6d7c3b5c9e30';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = 'c1c378b7-70e3-4ea7-aaa5-9dfc12f2807e';
 
 -- Excel row 114 — Natalia Alexandra Franco Maza (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2153,7 +2153,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '3da871c6-3e45-42a0-a56d-ccf13ac41ed9',
+  'e8229048-04d2-438d-b254-b90169b80dbc',
   'Alexandra Maza', 'dra.ale.maza@gmail.com', NULL,
   'Carlos Franco', NULL,
   'HNZ(Dermatóloga)', '7150-6215',
@@ -2169,7 +2169,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '579dc321-fea8-4721-ad96-b54bb0c41844', '3da871c6-3e45-42a0-a56d-ccf13ac41ed9',
+  'f096212f-18c7-4b5b-baae-1dc5cdbc6844', 'e8229048-04d2-438d-b254-b90169b80dbc',
   'Natalia Alexandra Franco Maza',
   '2019-04-29',
   NULL,
@@ -2180,7 +2180,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = '579dc321-fea8-4721-ad96-b54bb0c41844';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = 'f096212f-18c7-4b5b-baae-1dc5cdbc6844';
 
 -- Excel row 115 — Andrés Benjamín Guzmán Rodríguez (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2189,7 +2189,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '4a281a20-3551-441b-8ccb-c22c5d6ac6f2',
+  '810d1686-3157-43e7-8b95-a5878ab4d357',
   'Yanira Marisol Rodríguez de Guzmán', 'maryjrr1993@gmail.com', '2281-2495',
   'José Mario Guzmán Cañas', '7638-7231',
   'Optómetra', '6983-2583',
@@ -2205,7 +2205,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'c0add54e-add0-43f3-8c4d-d1b591572ee4', '4a281a20-3551-441b-8ccb-c22c5d6ac6f2',
+  '02430296-f1e9-4b86-b912-10b286493451', '810d1686-3157-43e7-8b95-a5878ab4d357',
   'Andrés Benjamín Guzmán Rodríguez',
   '2019-04-07',
   'TEA',
@@ -2216,7 +2216,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = 'c0add54e-add0-43f3-8c4d-d1b591572ee4';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = '02430296-f1e9-4b86-b912-10b286493451';
 
 -- Excel row 116 — Xochitl Valentina Henriquez Navarro (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2225,7 +2225,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '0288c22f-ce74-44b0-ac2f-e33e67f32acb',
+  '47ccd4c1-87be-4041-9c65-f91952516f4d',
   'Sonia Navarro de Henriquez', 'Snavarro9@gmail.com', NULL,
   'Manuel de Jesús Henriquez', NULL,
   'Ama de casa', '7013-7756',
@@ -2241,7 +2241,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'eb6a32ea-e73a-4851-9924-7dd9c52b66a2', '0288c22f-ce74-44b0-ac2f-e33e67f32acb',
+  '6f0222c2-36da-4fe2-8c63-7dac1c84ebb1', '47ccd4c1-87be-4041-9c65-f91952516f4d',
   'Xochitl Valentina Henriquez Navarro',
   '2018-08-31',
   NULL,
@@ -2252,7 +2252,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = 'eb6a32ea-e73a-4851-9924-7dd9c52b66a2';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = '6f0222c2-36da-4fe2-8c63-7dac1c84ebb1';
 
 -- Excel row 117 — Angel Andrés Hernández Pineda (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2261,7 +2261,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '95175e6a-61a1-49be-8ec2-8df7d788696b',
+  '35ee005f-794c-4a13-bdd5-d9f48dff85a3',
   'Lourdes de Hernández', 'leupalome93@gmail.com', '6116-1022',
   'Hector David Hernández Monge', '7153-5303',
   'ADMON', NULL,
@@ -2277,7 +2277,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'd93bf1b0-d3cc-4378-96ba-51a457d7a5d6', '95175e6a-61a1-49be-8ec2-8df7d788696b',
+  'd482d9c7-c75c-4b06-9105-f1372fd3f47b', '35ee005f-794c-4a13-bdd5-d9f48dff85a3',
   'Angel Andrés Hernández Pineda',
   '2018-09-06',
   NULL,
@@ -2288,7 +2288,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = 'd93bf1b0-d3cc-4378-96ba-51a457d7a5d6';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = 'd482d9c7-c75c-4b06-9105-f1372fd3f47b';
 
 -- Excel row 118 — Leonardo José Infantozzi Villeda (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2297,7 +2297,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'a08d8f17-27d1-4d34-b99d-4f3ceb1211f2',
+  '01f60efb-d9cc-4379-a3cc-4ea5c1d03be9',
   'Victoria Villeda', 'vicksvilleda@gmail.com', '6978-8233',
   'Giampero Infantozzi', '6821-8352',
   NULL, NULL,
@@ -2313,7 +2313,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'a28167c6-1f6b-49be-9cca-b5235a6926bb', 'a08d8f17-27d1-4d34-b99d-4f3ceb1211f2',
+  'e74d0bd1-b330-4f19-9b93-4c22e082d2ba', '01f60efb-d9cc-4379-a3cc-4ea5c1d03be9',
   'Leonardo José Infantozzi Villeda',
   '2020-06-11',
   NULL,
@@ -2324,7 +2324,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = 'a28167c6-1f6b-49be-9cca-b5235a6926bb';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = 'e74d0bd1-b330-4f19-9b93-4c22e082d2ba';
 
 -- Excel row 119 — Diego Antonio Lozano Rivera (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2333,7 +2333,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '649e2512-69cd-4878-aa31-0b3ff8826652',
+  'dc07d679-3188-4c02-b852-bbdc87243771',
   'Karla Erika Lizeth Rivera de Lozano', 'erikalozano.krea@gmail.com', NULL,
   'Gustavo Arnoldo Lozano Melara', NULL,
   'Profesional Independiente', '7856-3800',
@@ -2349,7 +2349,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '2712c616-ae09-497d-a305-8b82765c8475', '649e2512-69cd-4878-aa31-0b3ff8826652',
+  '1bdebbaf-c6e3-4740-bdf2-3299ca9ea294', 'dc07d679-3188-4c02-b852-bbdc87243771',
   'Diego Antonio Lozano Rivera',
   '2019-12-12',
   'TEA',
@@ -2360,7 +2360,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = '2712c616-ae09-497d-a305-8b82765c8475';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = '1bdebbaf-c6e3-4740-bdf2-3299ca9ea294';
 
 -- Excel row 120 — Bella Lozano Rivera (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2369,7 +2369,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'b372a4ee-1a7a-4c29-9cb8-d82c616c03e9',
+  'b56b88fc-4824-4aa7-b460-330bc011dae0',
   'Erika de Lozano', 'erickalozano.Krea@gmail.com', '7856-3800',
   'Gustavo Lozano', '7850-3453',
   'Profesional Independiente', '2273-5436',
@@ -2385,7 +2385,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '74867667-d576-483b-b963-4538e4298daf', 'b372a4ee-1a7a-4c29-9cb8-d82c616c03e9',
+  '88162947-5197-43f9-bd40-0ec02dfb51cc', 'b56b88fc-4824-4aa7-b460-330bc011dae0',
   'Bella Lozano Rivera',
   '2018-02-24',
   'Problemas Conductuales',
@@ -2396,7 +2396,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = '74867667-d576-483b-b963-4538e4298daf';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = '88162947-5197-43f9-bd40-0ec02dfb51cc';
 
 -- Excel row 121 — David Ernesto Matamoros Ramírez (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2405,7 +2405,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'e517e2a0-1a8c-44e1-b084-b850a1552dea',
+  '9107d590-d712-4671-b950-fe377079ccd7',
   'Griselda María Ramírez', 'grisma2910@gmail.com', '7140-0112',
   'David Ernesto Matamoros Bonilla', '7160-7718',
   'Latid Fertility Center', NULL,
@@ -2421,7 +2421,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '937bfd1d-4665-4b7e-98d8-e7e73990a585', 'e517e2a0-1a8c-44e1-b084-b850a1552dea',
+  '4d757062-aef5-4894-8eb7-255cec73a77a', '9107d590-d712-4671-b950-fe377079ccd7',
   'David Ernesto Matamoros Ramírez',
   '2022-11-07',
   NULL,
@@ -2432,7 +2432,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 3 años' WHERE id = '937bfd1d-4665-4b7e-98d8-e7e73990a585';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 3 años' WHERE id = '4d757062-aef5-4894-8eb7-255cec73a77a';
 
 -- Excel row 122 — Javier Enrique Morales Montoya (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2441,7 +2441,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '06e3e16f-e071-439f-99b8-ca124fbb986c',
+  '670ef016-02d3-484d-8cca-da2d6df4a371',
   'Stephanie Vanessa Montoya de Morales', 'svmontoya@gmail.com', '7736-4405',
   'Manuel Eduardo Morales Montoya', '7605-5821',
   'Unilever', NULL,
@@ -2457,7 +2457,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '519f2cdf-b07e-44a3-8989-f02609a82d5f', '06e3e16f-e071-439f-99b8-ca124fbb986c',
+  'deaeee78-0574-4139-8d20-c612e783c437', '670ef016-02d3-484d-8cca-da2d6df4a371',
   'Javier Enrique Morales Montoya',
   '2016-09-27',
   NULL,
@@ -2468,7 +2468,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = '519f2cdf-b07e-44a3-8989-f02609a82d5f';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = 'deaeee78-0574-4139-8d20-c612e783c437';
 
 -- Excel row 123 — Derek Miguel Ortiz Bonilla (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2477,7 +2477,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'ee7a6b0f-23ed-4560-b616-540557dd46d6',
+  '05223e9b-a959-4448-bd2c-e8c3ec054f4a',
   'Yuris Maricela Bonilla de Ortiz', 'yuris.bonilla1006@gmail.com', '7468-7105',
   'Carlos Miguel Ortiz Gónzalez', 'Abuela Sra. Maria Angela Gonzalez tel: 7101-0073',
   'Banco Abank, S.A.', NULL,
@@ -2493,7 +2493,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'd6d3b152-ba70-4582-86dc-f75bf7a7fe44', 'ee7a6b0f-23ed-4560-b616-540557dd46d6',
+  '9ae9da81-59ef-47b1-a464-88cd31c5386a', '05223e9b-a959-4448-bd2c-e8c3ec054f4a',
   'Derek Miguel Ortiz Bonilla',
   '2020-11-30',
   NULL,
@@ -2504,7 +2504,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = 'd6d3b152-ba70-4582-86dc-f75bf7a7fe44';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = '9ae9da81-59ef-47b1-a464-88cd31c5386a';
 
 -- Excel row 124 — Sailhy Antonella Parada Arevalo (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2513,7 +2513,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'a627c000-10ae-4441-a526-4519b07fdd75',
+  '2a697c4e-1e5b-46ea-a23e-37887796ca62',
   'Xiomara Griselda Areválo', 'Fparada71@gmail.com', '7947-6545',
   'Manuel Francis Parada Sorto', NULL,
   'Alcaldía Municipal de Armenia', '2511-0130',
@@ -2529,7 +2529,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '690b67fe-4ab2-431d-9978-bfaf9b48ae0f', 'a627c000-10ae-4441-a526-4519b07fdd75',
+  'f03be25c-3e16-4478-ad29-8350d2f5abad', '2a697c4e-1e5b-46ea-a23e-37887796ca62',
   'Sailhy Antonella Parada Arevalo',
   '2019-05-23',
   'TEA (Convulsivo)',
@@ -2540,7 +2540,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = '690b67fe-4ab2-431d-9978-bfaf9b48ae0f';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = 'f03be25c-3e16-4478-ad29-8350d2f5abad';
 
 -- Excel row 125 — Eugenia Beatriz Peralta Alvarenga (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2549,7 +2549,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '700440b6-d1e1-478d-b735-f7d790ccd568',
+  '7afadb64-def8-4dd2-a55c-44b7db1e92de',
   'Marta  Marcela Alvarenga', 'mmalvarenga86@gmail.com', '7894-2545',
   'Luis Roberto Peralta Murcia', '7859-3534',
   'SUCESS', NULL,
@@ -2565,7 +2565,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'cbc6399a-4af5-42a3-9fa3-4dd4ce7dd608', '700440b6-d1e1-478d-b735-f7d790ccd568',
+  'e253115a-4d27-4f91-91b8-42fe5cb966ba', '7afadb64-def8-4dd2-a55c-44b7db1e92de',
   'Eugenia Beatriz Peralta Alvarenga',
   '2020-06-15',
   'Difiucltades Sensoriales',
@@ -2576,7 +2576,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = 'cbc6399a-4af5-42a3-9fa3-4dd4ce7dd608';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = 'e253115a-4d27-4f91-91b8-42fe5cb966ba';
 
 -- Excel row 126 — Andrés Pecorini Villafranco (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2585,7 +2585,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '0816956e-8935-4f9f-885b-ff9c103fae23',
+  '32ae9b8d-d837-479c-9c4c-b9738941a52b',
   'Meybelin Villafranco', 'meybelin.villafranco@gmail.com', NULL,
   'Eduardo Pecorini', NULL,
   NULL, '6300-9471',
@@ -2601,7 +2601,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'e2629604-7b59-4cfb-b737-0ca5037736fe', '0816956e-8935-4f9f-885b-ff9c103fae23',
+  'c04a8b55-c090-40ef-884c-032ae5edd90c', '32ae9b8d-d837-479c-9c4c-b9738941a52b',
   'Andrés Pecorini Villafranco',
   '2017-05-22',
   'TEA',
@@ -2612,7 +2612,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 8 años' WHERE id = 'e2629604-7b59-4cfb-b737-0ca5037736fe';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 8 años' WHERE id = 'c04a8b55-c090-40ef-884c-032ae5edd90c';
 
 -- Excel row 127 — José Luis Padilla Santamaria (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2621,7 +2621,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '57b15844-bdef-4517-810c-20578a27b245',
+  '6803834d-9e45-44a3-ae41-2657144c3218',
   'Sara Elena Santamaria', 'saraelensl2@gmail.com', 'Abuela Guadalupe Lobo 7815-2889',
   'Luis Adán F. Padilla', NULL,
   'CEPA', '7815-2818',
@@ -2637,7 +2637,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'f248a490-54e5-42bb-919d-d0ffa1020a89', '57b15844-bdef-4517-810c-20578a27b245',
+  'd61c86e3-51d3-4b01-bd5a-d80f7b1c4cb2', '6803834d-9e45-44a3-ae41-2657144c3218',
   'José Luis Padilla Santamaria',
   '2019-02-07',
   '-',
@@ -2648,7 +2648,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = 'f248a490-54e5-42bb-919d-d0ffa1020a89';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = 'd61c86e3-51d3-4b01-bd5a-d80f7b1c4cb2';
 
 -- Excel row 128 — Felipe Andrés Pérez García (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2657,7 +2657,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '68b554e8-476d-49fe-82b5-869fbb603937',
+  'c7c839c0-746b-43e6-a944-35db6614d416',
   'Alejandra Estefanni García de Pérez', 'alejandra.gpérez09@gmail.com', '7887-9500',
   'José Gustavo Pérez Calderón', '7591-2221',
   'Print Xpress', NULL,
@@ -2673,7 +2673,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '4946ae0e-5796-4c34-ae71-27641fd144e5', '68b554e8-476d-49fe-82b5-869fbb603937',
+  '9fa986b5-eb87-4da5-8c5d-8f1f44dd10ca', 'c7c839c0-746b-43e6-a944-35db6614d416',
   'Felipe Andrés Pérez García',
   '2022-01-17',
   '-',
@@ -2684,7 +2684,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4a' WHERE id = '4946ae0e-5796-4c34-ae71-27641fd144e5';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4a' WHERE id = '9fa986b5-eb87-4da5-8c5d-8f1f44dd10ca';
 
 -- Excel row 129 — Kelly Víctoria Pocasangre Meza (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2693,7 +2693,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'bb0cdd33-fa74-4492-a0ff-b560e94de277',
+  'b531fd36-1dd3-4da5-8baa-3bdbccacd8bd',
   'Kelly Elizabeth Meza', 'meza.kelly@gmail.com', '7854-1343',
   'Carlos  Osmin Pocasangre', '7641-4567',
   'Bambu', NULL,
@@ -2709,7 +2709,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '55c4d0cd-0ff0-47ad-9bd6-84180ca31b0f', 'bb0cdd33-fa74-4492-a0ff-b560e94de277',
+  'dd8df7fb-e3e1-4d72-912f-14648f8d34d6', 'b531fd36-1dd3-4da5-8baa-3bdbccacd8bd',
   'Kelly Víctoria Pocasangre Meza',
   '2021-10-06',
   '-',
@@ -2720,7 +2720,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = '55c4d0cd-0ff0-47ad-9bd6-84180ca31b0f';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = 'dd8df7fb-e3e1-4d72-912f-14648f8d34d6';
 
 -- Excel row 130 — Mathias Leandro Pérez Ledezma (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2729,7 +2729,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'c20d89e0-e25e-455a-8201-5acf50b2c4f1',
+  'ba50067a-abdb-416c-b6e7-0236a321eb6f',
   'Karla Marielos Ledezma Alvarado', 'karla.ledezma1806@gmail.com', '6421-1149',
   'Carlos Vladimir Perez Chicas', '7039-2098',
   'Negocio propio', '2510-3016',
@@ -2745,7 +2745,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '42ebc24a-9be5-47f5-87dc-cd535189f66b', 'c20d89e0-e25e-455a-8201-5acf50b2c4f1',
+  '20a3ab7f-d1ec-4ab3-b192-f92e15c779b1', 'ba50067a-abdb-416c-b6e7-0236a321eb6f',
   'Mathias Leandro Pérez Ledezma',
   '2019-04-29',
   'TEA',
@@ -2756,7 +2756,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = '42ebc24a-9be5-47f5-87dc-cd535189f66b';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 7 años' WHERE id = '20a3ab7f-d1ec-4ab3-b192-f92e15c779b1';
 
 -- Excel row 131 — Madeline Susabeth Ramírez Melara (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2765,7 +2765,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'fd590f7c-50ce-4332-a65a-4caeb75c6533',
+  'b3d4afab-7474-42ba-a43a-ae5c8dd62291',
   'Liliana Susabeth Ramírez', 'susabeth2009@hotmail.com', '77490475',
   'Guillermo Alberto Ramírez', NULL,
   'ISS', NULL,
@@ -2781,7 +2781,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '6546a957-7112-4b03-b7cd-64d49cd63a93', 'fd590f7c-50ce-4332-a65a-4caeb75c6533',
+  'a93d9f88-b035-42b0-9483-2ba6d3f1d85b', 'b3d4afab-7474-42ba-a43a-ae5c8dd62291',
   'Madeline Susabeth Ramírez Melara',
   '2025-04-10',
   'TEA',
@@ -2792,7 +2792,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = '6546a957-7112-4b03-b7cd-64d49cd63a93';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = 'a93d9f88-b035-42b0-9483-2ba6d3f1d85b';
 
 -- Excel row 132 — Josías Saúl Rodriguez (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2801,7 +2801,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'd968b9d4-4e81-426f-b029-a5af2ce96f8f',
+  'c2444336-44af-4dc9-b0e6-a1a6becccf67',
   'Yanira Marisol Rodríguez de Guzmán', 'maryjrr1993@gmail.com', '2281-2495',
   'Saúl Neris Marroquin Maravilla', '7670-0598',
   'Optómetra', '6983-2583',
@@ -2817,7 +2817,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '371596b3-9fcd-4bc8-9c92-491068501005', 'd968b9d4-4e81-426f-b029-a5af2ce96f8f',
+  '7a14fd33-850b-4d2c-8d5c-3263665f757b', 'c2444336-44af-4dc9-b0e6-a1a6becccf67',
   'Josías Saúl Rodriguez',
   '2014-10-13',
   NULL,
@@ -2828,7 +2828,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 10 años' WHERE id = '371596b3-9fcd-4bc8-9c92-491068501005';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 10 años' WHERE id = '7a14fd33-850b-4d2c-8d5c-3263665f757b';
 
 -- Excel row 133 — Elián André Reales Menjivar (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2837,7 +2837,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '2e325f54-f53e-43e6-bdab-41ddf1581784',
+  'd84c4bbb-5d8c-4c6c-92c3-93257dbcefd2',
   'Selenia Menjivar', 'Bettyna.she@gmail.com', '7055-5686',
   NULL, NULL,
   'Bettyna Boutique', NULL,
@@ -2853,7 +2853,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '72e33af5-50d5-4e10-9cd6-09383fe9b818', '2e325f54-f53e-43e6-bdab-41ddf1581784',
+  'bc12350a-f3da-4e2d-a2ec-929d0c9c40bd', 'd84c4bbb-5d8c-4c6c-92c3-93257dbcefd2',
   'Elián André Reales Menjivar',
   '2016-08-31',
   'TEA',
@@ -2864,7 +2864,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = '72e33af5-50d5-4e10-9cd6-09383fe9b818';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = 'bc12350a-f3da-4e2d-a2ec-929d0c9c40bd';
 
 -- Excel row 134 — Diego Alejandro Ruiz Arteaga (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2873,7 +2873,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'f9516e15-18c9-40a8-b25b-ffd41261bf95',
+  '62773a65-fe82-40ca-ae6b-c4bd6d4767c6',
   'Fátima Georgina Arteaga', 'fatimaarteaga@gmail.com', '7657-4803',
   'Fernando Miguel Ruiz', NULL,
   'TMC, Agencia  Gigital', NULL,
@@ -2889,7 +2889,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '0b8a950f-224c-4232-9bf5-f65b1425af30', 'f9516e15-18c9-40a8-b25b-ffd41261bf95',
+  '4c0481d1-d8bc-4d1a-a028-f18efcf91f8b', '62773a65-fe82-40ca-ae6b-c4bd6d4767c6',
   'Diego Alejandro Ruiz Arteaga',
   '2022-06-03',
   'Sospecha TEA',
@@ -2900,7 +2900,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE' WHERE id = '0b8a950f-224c-4232-9bf5-f65b1425af30';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE' WHERE id = '4c0481d1-d8bc-4d1a-a028-f18efcf91f8b';
 
 -- Excel row 135 — Rodrigo Nicolas Santos Acevedo (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2909,7 +2909,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '0e8df8b8-faf9-4fd1-90d6-c975fd8adc3f',
+  '1eb6fe3b-8e8b-4c86-8504-8208083320e6',
   'Florence Patricia Acevedo', 'florencesantosa@gmail.com', '7499-8761',
   'Rodrigo Andrés Santos Díaz', '7897-4693',
   'Multimoney', NULL,
@@ -2925,7 +2925,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '63cef229-519a-4475-a60c-1cc9d1a40e09', '0e8df8b8-faf9-4fd1-90d6-c975fd8adc3f',
+  '40c77931-1a28-40e0-84bd-4761609a6cf4', '1eb6fe3b-8e8b-4c86-8504-8208083320e6',
   'Rodrigo Nicolas Santos Acevedo',
   '2017-08-11',
   '-',
@@ -2936,7 +2936,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 8 años' WHERE id = '63cef229-519a-4475-a60c-1cc9d1a40e09';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 8 años' WHERE id = '40c77931-1a28-40e0-84bd-4761609a6cf4';
 
 -- Excel row 136 — Ariel Giuliana Santos Chicas (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2945,7 +2945,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '3386499f-d0eb-4bb2-afba-ca0bad458a0d',
+  '172029d4-cc10-4f07-933e-857305565a4d',
   'Ulmis Maydel Chicas', 'ulmis10@gmail.com', '7654-5145',
   'Brigham Emerito Santos', '7166-8877',
   'ama de Casa', NULL,
@@ -2961,7 +2961,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '42e56186-2600-457a-a26b-3061781a7fbf', '3386499f-d0eb-4bb2-afba-ca0bad458a0d',
+  '2a5c8bc5-68e0-4cca-b31e-1b73a07108b0', '172029d4-cc10-4f07-933e-857305565a4d',
   'Ariel Giuliana Santos Chicas',
   '2014-09-08',
   'TEA',
@@ -2972,7 +2972,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 11 años' WHERE id = '42e56186-2600-457a-a26b-3061781a7fbf';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 11 años' WHERE id = '2a5c8bc5-68e0-4cca-b31e-1b73a07108b0';
 
 -- Excel row 137 — Andre Luciano Santos Chicas (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -2981,7 +2981,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '15f82c92-4901-4989-b846-8399b7b99ec2',
+  '9a35e27b-e15b-4337-8864-182fe59f1076',
   'Ulmis Maydel Chicas', 'ulmis10@gmail.com', '7654-5145',
   'Brigham Emerito Santos', '7166-8877',
   'ama de Casa', NULL,
@@ -2997,7 +2997,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '0a21428f-b820-410b-8f60-a222e9ea945e', '15f82c92-4901-4989-b846-8399b7b99ec2',
+  '0a237a98-49db-4559-a1ca-b7fc47795639', '9a35e27b-e15b-4337-8864-182fe59f1076',
   'Andre Luciano Santos Chicas',
   '2014-08-01',
   'TEA',
@@ -3008,7 +3008,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 14 años' WHERE id = '0a21428f-b820-410b-8f60-a222e9ea945e';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 14 años' WHERE id = '0a237a98-49db-4559-a1ca-b7fc47795639';
 
 -- Excel row 138 — Brigham Alessadnro Santos Chicas (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -3017,7 +3017,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '815aaac6-2f71-46c7-ba76-6b7f6873ce2b',
+  'f9e76b64-f210-4a03-b774-4547be527eb0',
   'Ulmis Maydel Chicas', 'ulmis10@gmail.com', '7654-5145',
   'Brigham Emerito Santos', '7166-8877',
   'ama de Casa', NULL,
@@ -3033,7 +3033,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '9ad7fede-9d3a-4233-8480-f084826da7ab', '815aaac6-2f71-46c7-ba76-6b7f6873ce2b',
+  '646a9af9-33e7-41c5-b8d4-7a435d383354', 'f9e76b64-f210-4a03-b774-4547be527eb0',
   'Brigham Alessadnro Santos Chicas',
   '2010-02-21',
   'TEA',
@@ -3044,7 +3044,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 15 años' WHERE id = '9ad7fede-9d3a-4233-8480-f084826da7ab';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 15 años' WHERE id = '646a9af9-33e7-41c5-b8d4-7a435d383354';
 
 -- Excel row 139 — Jesús Alejandro Sánchez Elías (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -3053,7 +3053,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '8cef046c-2805-4425-ab0b-60227c2559a3',
+  '863ea285-3bb6-4c42-bdf5-878a3354fe13',
   'Ingrid Marilyn Elías Rivera', 'ingrideliasr@gmail.com', '6117-1041',
   'Jesús Roberto Sánchez', '7988-8968',
   'Call Center', NULL,
@@ -3069,7 +3069,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'd52787f5-6c13-4daa-8661-e63d1a5ec83f', '8cef046c-2805-4425-ab0b-60227c2559a3',
+  'af4d61ab-96e6-45fb-bd63-1b7f2f6010a4', '863ea285-3bb6-4c42-bdf5-878a3354fe13',
   'Jesús Alejandro Sánchez Elías',
   '2017-11-24',
   'TEA',
@@ -3080,7 +3080,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = 'd52787f5-6c13-4daa-8661-e63d1a5ec83f';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 6 años' WHERE id = 'af4d61ab-96e6-45fb-bd63-1b7f2f6010a4';
 
 -- Excel row 140 — Fiorella Camila Sánchez Salazar (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -3089,7 +3089,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '893a9e45-8067-42c4-a15e-d3df04e077bc',
+  '4943b31d-3ec3-4596-94ce-f0b15710d332',
   'Maria Elena Salazar', 'mariaelenasalazar04@gmail.com', '2228-2319',
   'Julio Amilcar Sánchez', NULL,
   NULL, '7594-8091',
@@ -3105,7 +3105,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'd8c7c17a-e35a-4265-afa5-ec2010a4aa0d', '893a9e45-8067-42c4-a15e-d3df04e077bc',
+  '4d67eb54-160a-4925-88fe-e3e9b7c329a4', '4943b31d-3ec3-4596-94ce-f0b15710d332',
   'Fiorella Camila Sánchez Salazar',
   '2016-04-12',
   'TEA',
@@ -3116,7 +3116,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = 'd8c7c17a-e35a-4265-afa5-ec2010a4aa0d';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = '4d67eb54-160a-4925-88fe-e3e9b7c329a4';
 
 -- Excel row 141 — Ana Sofía Sorto Estévez (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -3125,7 +3125,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'a82e23e5-d09f-4923-8016-79a3673a2b13',
+  '31034385-7666-4d88-b98b-24135386ae5d',
   'Dircia  Margarita Estevez de Sorto', 'dircia_estevez@yahoo.com', '7987-9707',
   'José Israel Sorto Ortiz', '7987-9616',
   'Admon. de Empresas', NULL,
@@ -3141,7 +3141,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '798adc7c-b2ae-4c62-aa2e-f5597d2798be', 'a82e23e5-d09f-4923-8016-79a3673a2b13',
+  'fe671507-7f58-4cb2-ae4d-6b4387d8c836', '31034385-7666-4d88-b98b-24135386ae5d',
   'Ana Sofía Sorto Estévez',
   '2017-02-08',
   'TEA',
@@ -3152,7 +3152,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = '798adc7c-b2ae-4c62-aa2e-f5597d2798be';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 9 años' WHERE id = 'fe671507-7f58-4cb2-ae4d-6b4387d8c836';
 
 -- Excel row 142 — Carlos Emiliano Sanchez Calderón (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -3161,7 +3161,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '015fb73a-0108-4eda-8ff5-79519a19f237',
+  'ecb62eeb-4e9b-453c-a5b2-7a79b301a6e4',
   'Karla Maria Calderón', 'Karlacalderonson@gmail.com', '7403 9468',
   'Carlos Roberto Sánchez', NULL,
   'Uno Renta Car S. A de C.V', NULL,
@@ -3177,7 +3177,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '247f3e0e-58a5-4321-9dfc-8b00b32757d4', '015fb73a-0108-4eda-8ff5-79519a19f237',
+  '13c39922-c820-4a4e-8e2a-6a2b92718e93', 'ecb62eeb-4e9b-453c-a5b2-7a79b301a6e4',
   'Carlos Emiliano Sanchez Calderón',
   '2020-02-11',
   NULL,
@@ -3188,7 +3188,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = '247f3e0e-58a5-4321-9dfc-8b00b32757d4';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 5 años' WHERE id = '13c39922-c820-4a4e-8e2a-6a2b92718e93';
 
 -- Excel row 143 — Emily Montserrat Urrutia Urrutia (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -3197,7 +3197,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'ea091ab4-319f-47d2-ba8f-f552aecefb26',
+  '7390303f-7274-47cb-9533-45bb1ce33915',
   'Gregory Elizabeth de Urrutia', 'eli_portillo@yahoo.com', '6013-2427',
   'José Luis Urrutia', '6013-2427',
   'Abogado', NULL,
@@ -3213,7 +3213,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'b71e7329-c258-4dc3-ac50-022ec92f8239', 'ea091ab4-319f-47d2-ba8f-f552aecefb26',
+  '3f15c2e5-76e7-4b8f-9388-65a56fb4e9b4', '7390303f-7274-47cb-9533-45bb1ce33915',
   'Emily Montserrat Urrutia Urrutia',
   '2021-08-31',
   NULL,
@@ -3224,7 +3224,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = 'b71e7329-c258-4dc3-ac50-022ec92f8239';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = '3f15c2e5-76e7-4b8f-9388-65a56fb4e9b4';
 
 -- Excel row 144 — Lucas Alfredo Urías Iraheta (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -3233,7 +3233,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'ba9a7934-7031-473e-a0d8-50c3c5c76faa',
+  '67062a2e-c73a-44dd-a9a6-22117745e35d',
   'Sonaya Malbina Iraheta', NULL, '7854-1145',
   'Carlos Norberto Urías', '7854-1145',
   'Etesal', NULL,
@@ -3249,7 +3249,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '1bf67bc3-d933-46bd-9550-e2db916b1934', 'ba9a7934-7031-473e-a0d8-50c3c5c76faa',
+  '69ece010-5dcf-4c76-a6b8-4ab8cd8f5d3c', '67062a2e-c73a-44dd-a9a6-22117745e35d',
   'Lucas Alfredo Urías Iraheta',
   '2020-04-09',
   'Baja Visión',
@@ -3260,7 +3260,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = '1bf67bc3-d933-46bd-9550-e2db916b1934';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = '69ece010-5dcf-4c76-a6b8-4ab8cd8f5d3c';
 
 -- Excel row 145 — Adrian Vargas Paz (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -3269,7 +3269,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '1cdf6c61-1f83-413e-9a16-2a32bd3227c4',
+  'd815cbf1-fb45-4227-84b3-817216f0ceac',
   'Ana Marcela Paz Marin', 'ann_marce01@hotmail.com', NULL,
   'José María Vargas Torrico', NULL,
   'Hotel Sheraton', '7870-4605',
@@ -3285,7 +3285,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '21c69f59-3fab-4633-980e-aeeb110d1fe1', '1cdf6c61-1f83-413e-9a16-2a32bd3227c4',
+  'd5cd462a-86f3-4d37-8870-bbad76da392f', 'd815cbf1-fb45-4227-84b3-817216f0ceac',
   'Adrian Vargas Paz',
   '2021-03-08',
   'Sospecha TEA',
@@ -3296,7 +3296,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = '21c69f59-3fab-4633-980e-aeeb110d1fe1';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 4 años' WHERE id = 'd5cd462a-86f3-4d37-8870-bbad76da392f';
 
 -- Excel row 146 — Adrian Valentin Vásquez Hernández (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -3305,7 +3305,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '8cc82e29-8a26-424e-8d36-f757a641b6b9',
+  '83408545-48a0-4dbf-b1d4-1dc3599c86fa',
   'Marta de Vásquez', 'ceciliahernandez1912@outlook.es', '2520-2919',
   'José Adrian Vasquez', '7989-6099',
   'Pollos Don San Valentín', '7018-1274',
@@ -3321,7 +3321,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'e1abe7dc-92e9-4264-874a-9c18fde87bfa', '8cc82e29-8a26-424e-8d36-f757a641b6b9',
+  '61073645-0418-49b6-ad64-37b1e4b6983f', '83408545-48a0-4dbf-b1d4-1dc3599c86fa',
   'Adrian Valentin Vásquez Hernández',
   '2017-08-15',
   'Síndrome Down',
@@ -3332,7 +3332,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 8 años' WHERE id = 'e1abe7dc-92e9-4264-874a-9c18fde87bfa';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 8 años' WHERE id = '61073645-0418-49b6-ad64-37b1e4b6983f';
 
 -- Excel row 147 — Anika Zablah Massis (TERAPIAS VESPERTINAS)
 INSERT INTO public.families (
@@ -3341,7 +3341,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '5a63c90f-c089-4fe5-bd73-f8a4f579a321',
+  '96838945-ee3e-4019-8b88-298f7923764a',
   'Ana  Lucia Massis', 'luciamassisb@hotmail.com', '7850-2704',
   'Alfonso Zablah', '7850-2704',
   'Ama de casa', '7744-5479',
@@ -3357,7 +3357,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '831da0e3-08aa-4e43-9635-e3cca55feee4', '5a63c90f-c089-4fe5-bd73-f8a4f579a321',
+  '2967da96-2447-4577-8f62-3cc333ba6a7d', '96838945-ee3e-4019-8b88-298f7923764a',
   'Anika Zablah Massis',
   '2023-06-29',
   'Dificultades Sensoriales',
@@ -3368,7 +3368,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 2 años' WHERE id = '831da0e3-08aa-4e43-9635-e3cca55feee4';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS VESPERTINAS · Programa Excel: TERAPIA TARDE · Edad al importar: 2 años' WHERE id = '2967da96-2447-4577-8f62-3cc333ba6a7d';
 
 -- Excel row 152 — Levi Manuel Alfaro Paniagua (PROGRAMA ADAPTATIVO)
 INSERT INTO public.families (
@@ -3377,7 +3377,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'c6440d91-4d7a-4adf-acc4-efe6e3b717f5',
+  '58ce2640-b327-48d4-80d5-54eaa6bc29b9',
   'Elsy de Alfaro', 'victor_2788@hotmail.com', NULL,
   'Víctor Manuel Alfaro', NULL,
   'Ama de Casa', '7989-0970',
@@ -3393,7 +3393,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '7c4cd972-1202-47fc-9327-40580c79ee93', 'c6440d91-4d7a-4adf-acc4-efe6e3b717f5',
+  '85307446-4fe4-4eea-9e03-6f12fa31ba8e', '58ce2640-b327-48d4-80d5-54eaa6bc29b9',
   'Levi Manuel Alfaro Paniagua',
   '2018-11-15',
   'TEA',
@@ -3404,7 +3404,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: PROGRAMA ADAPTATIVO · Programa Excel: Programa adaptativo · Edad al importar: 6 años' WHERE id = '7c4cd972-1202-47fc-9327-40580c79ee93';
+UPDATE public.children SET notes = 'Sección Excel: PROGRAMA ADAPTATIVO · Programa Excel: Programa adaptativo · Edad al importar: 6 años' WHERE id = '85307446-4fe4-4eea-9e03-6f12fa31ba8e';
 
 -- Excel row 153 — Kylian Alessandro Henriquez Navarro (PROGRAMA ADAPTATIVO)
 INSERT INTO public.families (
@@ -3413,7 +3413,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'cc50d581-9fbf-424d-a93a-1933ef460891',
+  'c52c5d89-e33b-4915-be97-4d37c464436c',
   'Sonia del Carmen Navarro de Henriquez', 'snavarro9@gmail.com', NULL,
   'Manuel de Jesús Henrríquez', NULL,
   NULL, '7013-7756',
@@ -3429,7 +3429,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '780b9d31-63ac-4e7b-8e76-3ffc3020b7f9', 'cc50d581-9fbf-424d-a93a-1933ef460891',
+  'c2d5b597-37d6-4019-b56c-841b78ba20c5', 'c52c5d89-e33b-4915-be97-4d37c464436c',
   'Kylian Alessandro Henriquez Navarro',
   '2020-01-07',
   'TEA',
@@ -3440,7 +3440,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: PROGRAMA ADAPTATIVO · Programa Excel: Programa adaptativo · Edad al importar: 5 años' WHERE id = '780b9d31-63ac-4e7b-8e76-3ffc3020b7f9';
+UPDATE public.children SET notes = 'Sección Excel: PROGRAMA ADAPTATIVO · Programa Excel: Programa adaptativo · Edad al importar: 5 años' WHERE id = 'c2d5b597-37d6-4019-b56c-841b78ba20c5';
 
 -- Excel row 160 — Lila Franceska Argueta Retana (TERAPIAS SABADOS)
 INSERT INTO public.families (
@@ -3449,7 +3449,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '8780c454-7f4f-4025-9762-8d5f5c50403b',
+  '77fbfd6d-2ac7-4cc6-b29c-befd3f8d3541',
   'Johanna Veralisse Retana Argueta', 'johanna.retana01@gmail.com', '7926-7806',
   'Francisco Israel Argueta Soto', '63055852',
   'Raun', NULL,
@@ -3465,7 +3465,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '5868233f-9e5b-40d2-a9ab-9f61537f692c', '8780c454-7f4f-4025-9762-8d5f5c50403b',
+  'e787243d-fe21-4622-993c-cddcf36aa620', '77fbfd6d-2ac7-4cc6-b29c-befd3f8d3541',
   'Lila Franceska Argueta Retana',
   '2023-12-04',
   '-',
@@ -3476,7 +3476,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 2 años' WHERE id = '5868233f-9e5b-40d2-a9ab-9f61537f692c';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 2 años' WHERE id = 'e787243d-fe21-4622-993c-cddcf36aa620';
 
 -- Excel row 161 — José Alessandro Castro Mejía (TERAPIAS SABADOS)
 INSERT INTO public.families (
@@ -3485,7 +3485,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '122a8b62-b1bc-43d2-8d43-f8cb449cdae1',
+  '26561003-0e47-432a-8cbb-9fde7584a48d',
   'Laura Maria Mejia', 'dore.castro@hotmail.com', '7030-7498',
   'Doré Francisco Castro Portillo', '7030-7498',
   'SISA', NULL,
@@ -3501,7 +3501,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'd2b3a631-54de-4e52-b83d-f27ec1fa680f', '122a8b62-b1bc-43d2-8d43-f8cb449cdae1',
+  'ee92c815-b474-41e1-adc3-473c65ab4d3c', '26561003-0e47-432a-8cbb-9fde7584a48d',
   'José Alessandro Castro Mejía',
   '2012-07-01',
   'Problemas Conductuales',
@@ -3512,7 +3512,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 13 años' WHERE id = 'd2b3a631-54de-4e52-b83d-f27ec1fa680f';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 13 años' WHERE id = 'ee92c815-b474-41e1-adc3-473c65ab4d3c';
 
 -- Excel row 162 — Jorge Ramón Del Cid García (TERAPIAS SABADOS)
 INSERT INTO public.families (
@@ -3521,7 +3521,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'fb15975d-36bf-4ad1-8c7f-737fcc03fbf2',
+  '0eec0b12-04ac-4093-a94f-5785bb42897f',
   'Jenny Carolina García Del Cid', 'jennygarcía11@hotmail.com', '22641000',
   'Jorge Alberto Del Cid', NULL,
   'Academia Cristiana Internacional', '7318-6793',
@@ -3537,7 +3537,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'c0b3a688-4ca9-44c4-830f-8f74eab235e1', 'fb15975d-36bf-4ad1-8c7f-737fcc03fbf2',
+  '9d519ca2-3014-42ee-8a0f-cce2a5b34189', '0eec0b12-04ac-4093-a94f-5785bb42897f',
   'Jorge Ramón Del Cid García',
   '2023-04-26',
   'TEA',
@@ -3548,7 +3548,7 @@ INSERT INTO public.children (
   false
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 2 años' WHERE id = 'c0b3a688-4ca9-44c4-830f-8f74eab235e1';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 2 años' WHERE id = '9d519ca2-3014-42ee-8a0f-cce2a5b34189';
 
 -- Excel row 163 — Andrés Benjamín Guzmán Rodríguez (TERAPIAS SABADOS)
 INSERT INTO public.families (
@@ -3557,7 +3557,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'fa8759ea-76a6-44ac-8157-2a0ff962a238',
+  '025beea8-6b00-4d95-88b0-69e6be402303',
   'Yanira Marisol Rodríguez de Guzmán', 'maryjrr1993@gmail.com', '2281-2495',
   'José Mario Guzmán Cañas', '7638-7231',
   'Optómetra', '6983-2583',
@@ -3573,7 +3573,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '4a61f242-2e07-4fec-91c4-95cb17699d7a', 'fa8759ea-76a6-44ac-8157-2a0ff962a238',
+  '07811c1c-806a-44c6-a465-104b7b3e525b', '025beea8-6b00-4d95-88b0-69e6be402303',
   'Andrés Benjamín Guzmán Rodríguez',
   '2019-04-07',
   'TEA',
@@ -3584,7 +3584,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 6 años' WHERE id = '4a61f242-2e07-4fec-91c4-95cb17699d7a';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 6 años' WHERE id = '07811c1c-806a-44c6-a465-104b7b3e525b';
 
 -- Excel row 164 — Eva Mariel Kessels Bolaños (TERAPIAS SABADOS)
 INSERT INTO public.families (
@@ -3593,7 +3593,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'c4f36fbe-3bcc-48ff-b855-99fb4032645d',
+  '133e8ac9-328b-4a8d-97cd-cd72407b9088',
   'Luisa Maria Bolaños de Kessels', 'luimab2@gmail.com', '7399-2224',
   'Mario Edmundo Kessels Vargas', '7885-6301',
   'Stitch Santa Ana', NULL,
@@ -3609,7 +3609,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'ae8b05e4-eb9a-4387-b249-ebdb7077176c', 'c4f36fbe-3bcc-48ff-b855-99fb4032645d',
+  '740e3b9d-7f5a-4ec4-856a-1918cebc81ff', '133e8ac9-328b-4a8d-97cd-cd72407b9088',
   'Eva Mariel Kessels Bolaños',
   '2015-09-21',
   '-',
@@ -3620,7 +3620,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 10a' WHERE id = 'ae8b05e4-eb9a-4387-b249-ebdb7077176c';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 10a' WHERE id = '740e3b9d-7f5a-4ec4-856a-1918cebc81ff';
 
 -- Excel row 165 — Oliver Oswaldo Morán Granillo (TERAPIAS SABADOS)
 INSERT INTO public.families (
@@ -3629,7 +3629,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '0ad15162-55af-4651-b691-3315accffe99',
+  '3cade043-145b-4337-9175-4bb6285bb679',
   'Ivette Granillo de Morán', 'ivigat512@hotmail.com', '7127-9031',
   'Ever Morán Ortiz', '7885-8248',
   'H. de Diágnostico', '25422097',
@@ -3645,7 +3645,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '3a6395ba-430f-41d6-93a1-384f3710c03a', '0ad15162-55af-4651-b691-3315accffe99',
+  'ed24e5c7-33a8-426e-8c01-03d26607e0bc', '3cade043-145b-4337-9175-4bb6285bb679',
   'Oliver Oswaldo Morán Granillo',
   '2017-08-07',
   NULL,
@@ -3656,7 +3656,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 8 años' WHERE id = '3a6395ba-430f-41d6-93a1-384f3710c03a';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 8 años' WHERE id = 'ed24e5c7-33a8-426e-8c01-03d26607e0bc';
 
 -- Excel row 166 — Ian Matteo Molina Peréz (TERAPIAS SABADOS)
 INSERT INTO public.families (
@@ -3665,7 +3665,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '1b631c94-e3b7-4ea3-8856-3cff8d1fc398',
+  'a8e7e4d9-60d6-4526-8555-6c9ad68c642c',
   'Carmen María Peréz de León', 'marycarmen.doc@hotmail.com', '7601-2997',
   'Miguel Antonio Molina Flores', '7530-4328',
   'Universidad Alberto Masferrer', '2231-9623',
@@ -3681,7 +3681,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'c3f20d34-10cc-4ebc-a1d1-c82ab0aed79c', '1b631c94-e3b7-4ea3-8856-3cff8d1fc398',
+  '2fe1b332-0207-4cf1-ae54-09a63ec5739a', 'a8e7e4d9-60d6-4526-8555-6c9ad68c642c',
   'Ian Matteo Molina Peréz',
   '2020-11-04',
   'Dificultades Sensoriales',
@@ -3692,7 +3692,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 4 años' WHERE id = 'c3f20d34-10cc-4ebc-a1d1-c82ab0aed79c';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 4 años' WHERE id = '2fe1b332-0207-4cf1-ae54-09a63ec5739a';
 
 -- Excel row 167 — José Luis Padilla Santamaria (TERAPIAS SABADOS)
 INSERT INTO public.families (
@@ -3701,7 +3701,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  '276e3e3b-187d-4b89-ba9d-a52f577d0991',
+  '074639bc-f0c4-4f12-9c33-8feb7303dd86',
   'Sara Elena Santamaria', 'saraelensl2@gmail.com', NULL,
   'Luis Adán F. Padilla', NULL,
   'CEPA', '7815-2818',
@@ -3717,7 +3717,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '0f5ea8de-7fa6-4433-9a2b-2da3dedb72a9', '276e3e3b-187d-4b89-ba9d-a52f577d0991',
+  '5e29e5a5-378b-4ea6-af08-4a9eba686c16', '074639bc-f0c4-4f12-9c33-8feb7303dd86',
   'José Luis Padilla Santamaria',
   '2019-02-07',
   NULL,
@@ -3728,7 +3728,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 6 años' WHERE id = '0f5ea8de-7fa6-4433-9a2b-2da3dedb72a9';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 6 años' WHERE id = '5e29e5a5-378b-4ea6-af08-4a9eba686c16';
 
 -- Excel row 168 — Ariella Xaneri Ramirez Funes (TERAPIAS SABADOS)
 INSERT INTO public.families (
@@ -3737,7 +3737,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'c02b5eb9-393c-4ddc-a305-c990f2adcf04',
+  '52cf3d27-211e-46fd-bc85-1c2aef7b6f17',
   'Diana Beatriz  Funes Oyuela', 'diabea22@gmail.com', '7840-0166',
   'William Ernesto Ramírez Quintanilla', '7012-4146',
   'Tec. en Ing. Electronica', NULL,
@@ -3753,7 +3753,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  '0c6eccc3-5e08-4a68-be56-b035fc2c2291', 'c02b5eb9-393c-4ddc-a305-c990f2adcf04',
+  'a1fa385e-803b-4afc-82cd-6227db28c2dd', '52cf3d27-211e-46fd-bc85-1c2aef7b6f17',
   'Ariella Xaneri Ramirez Funes',
   '2022-12-05',
   '.',
@@ -3764,7 +3764,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 3 años' WHERE id = '0c6eccc3-5e08-4a68-be56-b035fc2c2291';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 3 años' WHERE id = 'a1fa385e-803b-4afc-82cd-6227db28c2dd';
 
 -- Excel row 169 — Gustavo Alejandro Siguenza Pérez (TERAPIAS SABADOS)
 INSERT INTO public.families (
@@ -3773,7 +3773,7 @@ INSERT INTO public.families (
   mom_workplace, mom_work_phone, dad_workplace, dad_work_phone,
   pediatrician_name, pediatrician_phone, status
 ) VALUES (
-  'b3dfef72-751b-4de9-ab3b-8643997cfff3',
+  '575cafa1-fb97-4f3e-b07a-0e2f5f70f900',
   'Julia Guadalupe Pérez de Siguenza', 'juliaperez89@hotmail.com', '2522-5097',
   'Josue Moises Siguenza Juarez', '7102-0148',
   'Dirección Nacional de medicamentos', '7163-1929',
@@ -3789,7 +3789,7 @@ INSERT INTO public.children (
   current_phase_code, current_phase_changed_at,
   photo_consent
 ) VALUES (
-  'b47edd43-5c04-4dc2-ad42-570d71a653cf', 'b3dfef72-751b-4de9-ab3b-8643997cfff3',
+  '6808d2da-b25b-49ae-81ac-8dcd2c0cbb06', '575cafa1-fb97-4f3e-b07a-0e2f5f70f900',
   'Gustavo Alejandro Siguenza Pérez',
   '2020-06-15',
   'TEA',
@@ -3800,7 +3800,7 @@ INSERT INTO public.children (
   true
 );
 
-UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 5 años' WHERE id = 'b47edd43-5c04-4dc2-ad42-570d71a653cf';
+UPDATE public.children SET notes = 'Sección Excel: TERAPIAS SABADOS · Programa Excel: TERAPIA SABADO · Edad al importar: 5 años' WHERE id = '6808d2da-b25b-49ae-81ac-8dcd2c0cbb06';
 
 COMMIT;
 
