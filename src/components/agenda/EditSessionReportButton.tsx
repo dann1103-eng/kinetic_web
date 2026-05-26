@@ -25,8 +25,15 @@ export function EditSessionReportButton({ report: initialReport, childName, pend
   const [open, setOpen] = useState(false)
   const [report, setReport] = useState(initialReport)
 
-  const isUrgent = pending || report.status === 'rejected'
-  const label = report.status === 'draft' ? 'Llenar reporte' : report.status === 'rejected' ? 'Corregir' : 'Editar'
+  // `pending` ya viene calculado por el padre: incluye draft/rejected SOLO si el
+  // niño no está en programa matutino (donde los reportes son opcionales).
+  const isUrgent = pending
+  const label =
+    report.status === 'draft'
+      ? pending ? 'Llenar reporte' : 'Llenar (opcional)'
+      : report.status === 'rejected'
+        ? 'Corregir'
+        : 'Editar'
 
   return (
     <>

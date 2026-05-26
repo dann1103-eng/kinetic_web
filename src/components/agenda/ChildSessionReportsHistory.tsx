@@ -40,14 +40,24 @@ export async function ChildSessionReportsHistory({ childId, childName }: ChildSe
   const role = ctx?.appUser.role ?? ''
   const isSuperEditor = SUPER_EDITOR_ROLES.includes(role)
 
-  const { data: reportsRaw } = await supabase
-    .from('session_reports')
-    .select('*')
-    .eq('child_id', childId)
-    .order('created_at', { ascending: false })
-    .limit(50)
+  // Para niños inscritos en programa matutino (BK / Learning Kids / Aula),
+  // los reportes son OPCIONALES — no mostramos chip rojo de urgencia.
+  const [{ data: reportsRaw }, { data: childRaw }] = await Promise.all([
+    supabase
+      .from('session_reports')
+      .select('*')
+      .eq('child_id', childId)
+      .order('created_at', { ascending: false })
+      .limit(50),
+    supabase
+      .from('children')
+      .select('enrolled_program')
+      .eq('id', childId)
+      .maybeSingle(),
+  ])
 
   const reports = (reportsRaw ?? []) as SessionReport[]
+  const isMorningProgram = !!(childRaw as { enrolled_program: string | null } | null)?.enrolled_program
 
   // Cargar nombres de terapistas y fechas de citas
   const therapistIds = Array.from(
@@ -135,11 +145,12 @@ export async function ChildSessionReportsHistory({ childId, childName }: ChildSe
                   const isPending = report.status === 'draft' || report.status === 'rejected'
                   const canEdit = (isAuthor && isPending) || isSuperEditor
                   if (!canEdit) return null
+                  // Niños matutinos: reportes opcionales → no marcar como urgente
                   return (
                     <EditSessionReportButton
                       report={report}
                       childName={childName}
-                      pending={isPending}
+                      pending={isPending && !isMorningProgram}
                     />
                   )
                 })()}

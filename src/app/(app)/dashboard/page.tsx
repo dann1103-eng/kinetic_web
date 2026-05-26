@@ -145,11 +145,14 @@ export default async function DashboardPage({
         .select('id', { count: 'exact', head: true })
         .eq('authored_by_user_id', userId)
         .in('status', ['draft', 'rejected']),
+      // Excluye niños en programa matutino (BK / Learning Kids / Aula) —
+      // para ellos los reportes son opcionales y no se cuentan como pendientes.
       supabase
         .from('session_reports')
-        .select('id', { count: 'exact', head: true })
+        .select('id, children!inner(enrolled_program)', { count: 'exact', head: true })
         .eq('therapist_id', userId)
-        .in('status', ['draft', 'rejected']),
+        .in('status', ['draft', 'rejected'])
+        .is('children.enrolled_program', null),
     ])
     return (
       <div className="flex flex-col min-h-full">
