@@ -248,6 +248,16 @@ WITH checks AS (
   SELECT 41, 'mig_0137_slot_dates_single_overload',
          (SELECT (CASE WHEN COUNT(*)=1 THEN 1 ELSE 0 END)::int
           FROM pg_proc WHERE proname='_kn_slot_dates_in_month')
+  UNION ALL
+  -- ── 0138 (planilla por terapia: contract_type + is_extra) ─────────
+  SELECT 42, 'mig_0138_contract_type_por_terapias',
+         (SELECT (CASE WHEN COUNT(*)=0 THEN 1 ELSE 0 END)::int
+          FROM public.users WHERE contract_type = 'por_hora')
+  UNION ALL
+  SELECT 43, 'mig_0138_appointments_is_extra',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='appointments'
+            AND column_name='is_extra')
 )
 SELECT
   check_name,

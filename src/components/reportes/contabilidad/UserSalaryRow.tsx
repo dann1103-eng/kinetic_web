@@ -103,12 +103,12 @@ export function UserSalaryRow({ user }: Props) {
                 onChange={(v) => setContract(v as PayrollContractType)}
                 options={[
                   { value: 'mensual_fijo', label: 'Mensual fijo' },
-                  { value: 'por_hora', label: 'Por hora' },
+                  { value: 'por_terapias', label: 'Por terapias' },
                   { value: 'sin_contrato', label: 'Sin contrato' },
                 ]}
               />
               <FieldNumber label="Salario mensual (USD)" value={monthly} onChange={setMonthly} step="0.01" />
-              <FieldNumber label="Tarifa por hora (USD)" value={hourly} onChange={setHourly} step="0.01" />
+              <FieldNumber label="Tarifa por hora (USD, opcional)" value={hourly} onChange={setHourly} step="0.01" />
               <FieldText label="DUI" value={dui} onChange={setDui} placeholder="00000000-0" />
               <FieldText label="Nº ISSS" value={isssNum} onChange={setIsssNum} />
               <FieldText label="Nº AFP" value={afpNum} onChange={setAfpNum} />

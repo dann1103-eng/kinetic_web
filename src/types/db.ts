@@ -2082,6 +2082,7 @@ export interface Database {
           notification_sent_24h?: boolean
           notification_sent_1h?: boolean
           notes?: string | null
+          is_extra?: boolean
           custom_event_label?: string | null
           created_by_user_id?: string | null
         }
@@ -2975,6 +2976,8 @@ export interface Appointment {
   notification_sent_24h: boolean
   notification_sent_1h: boolean
   notes: string | null
+  /** Terapia extra (cobertura / adicional). Para mensual_fijo se paga aparte. */
+  is_extra: boolean
   /** Solo se usa cuando event_type='otro'. Etiqueta libre que aparece en el calendario. */
   custom_event_label: string | null
   created_by_user_id: string | null
@@ -3714,11 +3717,11 @@ export interface ServiceCatalogItem {
 // Kinetic — Fase 8: Planillas (mig 0117)
 // =============================================================================
 
-export type PayrollContractType = 'mensual_fijo' | 'por_hora' | 'sin_contrato'
+export type PayrollContractType = 'mensual_fijo' | 'por_terapias' | 'sin_contrato'
 
 export const CONTRACT_TYPE_LABELS: Record<PayrollContractType, string> = {
   mensual_fijo: 'Mensual fijo',
-  por_hora: 'Por hora',
+  por_terapias: 'Por terapias',
   sin_contrato: 'Sin contrato (no entra en planilla)',
 }
 

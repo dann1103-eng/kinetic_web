@@ -88,6 +88,7 @@ export function AppointmentForm({
   const [customEventLabel, setCustomEventLabel] = useState<string>(
     existingAppointment?.custom_event_label ?? '',
   )
+  const [isExtra, setIsExtra] = useState<boolean>(existingAppointment?.is_extra ?? false)
 
   // Validación inline: cierre institucional
   const closureWarning = useMemo(() => {
@@ -140,6 +141,7 @@ export function AppointmentForm({
           modality,
           notes: notes || null,
           custom_event_label: eventType === 'otro' ? customEventLabel.trim() : null,
+          is_extra: eventType === 'terapia' ? isExtra : false,
         })
         if (!res.ok) {
           setError(res.error)
@@ -158,6 +160,7 @@ export function AppointmentForm({
         ends_at: endsIso,
         notes: notes || null,
         custom_event_label: eventType === 'otro' ? customEventLabel.trim() : null,
+        is_extra: eventType === 'terapia' ? isExtra : false,
         force: !!closureWarning && isAdmin,
       })
       if (!res.ok) {
@@ -339,6 +342,18 @@ export function AppointmentForm({
                     </select>
                   </div>
                 </div>
+                <label className="flex items-center gap-2 text-xs text-fm-on-surface cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isExtra}
+                    onChange={(e) => setIsExtra(e.target.checked)}
+                    className="rounded border-fm-surface-container-high"
+                  />
+                  Terapia extra (cobertura / adicional)
+                  <span className="text-[10px] text-fm-on-surface-variant">
+                    — se paga aparte a terapistas de salario fijo
+                  </span>
+                </label>
               </fieldset>
             )}
 

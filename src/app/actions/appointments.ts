@@ -25,6 +25,8 @@ interface CreateAppointmentInput {
   notes?: string | null
   /** Solo cuando event_type='otro' — etiqueta libre. */
   custom_event_label?: string | null
+  /** Terapia extra (cobertura / adicional) — para pago aparte a mensual_fijo. */
+  is_extra?: boolean
   /** Si true, salta validación de cierre institucional (solo admin). */
   force?: boolean
 }
@@ -130,6 +132,7 @@ export async function createAppointment(
         input.event_type === 'otro' && input.custom_event_label
           ? input.custom_event_label.trim()
           : null,
+      is_extra: input.is_extra ?? false,
       created_by_user_id: ctx.appUser.id,
     })
     .select('id')
@@ -144,7 +147,7 @@ export async function createAppointment(
 
 export async function updateAppointment(
   appointmentId: string,
-  patch: Partial<Pick<Appointment, 'starts_at' | 'ends_at' | 'modality' | 'service_type' | 'therapist_id' | 'notes' | 'event_type' | 'custom_event_label'>>,
+  patch: Partial<Pick<Appointment, 'starts_at' | 'ends_at' | 'modality' | 'service_type' | 'therapist_id' | 'notes' | 'event_type' | 'custom_event_label' | 'is_extra'>>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }

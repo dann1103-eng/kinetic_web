@@ -5,7 +5,8 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import { calculatePayroll } from '@/lib/domain/payroll/calculation'
+import { calculatePayroll, round2 } from '@/lib/domain/payroll/calculation'
+import { fromZonedTime } from 'date-fns-tz'
 import type {
   PayrollFiscalConfig,
   PayrollItem,
@@ -94,7 +95,7 @@ export interface UpdateUserSalaryInput {
   userId: string
   monthlySalaryUsd: number | null
   hourlyRateUsd: number | null
-  contractType: 'mensual_fijo' | 'por_hora' | 'sin_contrato'
+  contractType: 'mensual_fijo' | 'por_terapias' | 'sin_contrato'
   dui: string | null
   isssNumber: string | null
   afpNumber: string | null
@@ -181,11 +182,63 @@ export async function createPayrollRun(input: {
     .neq('role', 'client')
     .neq('role', 'family')
 
+  // ── Pago por terapia: costo por service_type + terapias completadas del mes
+  // Mapa service_type → costo (catálogo de costos, F3).
+  const { data: catalogRaw } = await admin
+    .from('service_catalog')
+    .select('service_type, cost_usd')
+    .eq('category', 'terapia_individual')
+    .eq('active', true)
+  const costByService = new Map<string, number>()
+  for (const c of catalogRaw ?? []) {
+    if (c.service_type) costByService.set(c.service_type, Number(c.cost_usd ?? 0))
+  }
+
+  // Citas de terapia COMPLETADAS del mes, por terapista (con service_type + is_extra).
+  const periodStartISO = fromZonedTime(
+    new Date(input.year, input.month - 1, 1, 0, 0, 0),
+    'America/El_Salvador',
+  ).toISOString()
+  const periodEndISO = fromZonedTime(
+    new Date(input.year, input.month, 1, 0, 0, 0),
+    'America/El_Salvador',
+  ).toISOString()
+  const empIds = (empleados ?? []).map((u) => u.id)
+  const { data: apptsRaw } = empIds.length
+    ? await admin
+        .from('appointments')
+        .select('therapist_id, service_type, is_extra, status')
+        .eq('event_type', 'terapia')
+        .eq('status', 'completed')
+        .in('therapist_id', empIds)
+        .gte('starts_at', periodStartISO)
+        .lt('starts_at', periodEndISO)
+    : { data: [] as { therapist_id: string | null; service_type: string | null; is_extra: boolean; status: string }[] }
+
+  // Acumular por terapista: pago de TODAS las completadas y de las EXTRA.
+  const allTherapyPay = new Map<string, number>()
+  const extraTherapyPay = new Map<string, number>()
+  for (const a of apptsRaw ?? []) {
+    if (!a.therapist_id) continue
+    const cost = costByService.get(a.service_type ?? '') ?? 0
+    allTherapyPay.set(a.therapist_id, (allTherapyPay.get(a.therapist_id) ?? 0) + cost)
+    if (a.is_extra) {
+      extraTherapyPay.set(a.therapist_id, (extraTherapyPay.get(a.therapist_id) ?? 0) + cost)
+    }
+  }
+
   const items = (empleados ?? []).map((u) => {
+    // por_terapias: la base es el pago por TODAS las terapias completadas.
+    // mensual_fijo: salario fijo + terapias EXTRA (cobertura) como bono gravable.
     const baseSalary = u.contract_type === 'mensual_fijo'
       ? Number(u.monthly_salary_usd ?? 0)
+      : u.contract_type === 'por_terapias'
+        ? round2(allTherapyPay.get(u.id) ?? 0)
+        : 0
+    const bonus = u.contract_type === 'mensual_fijo'
+      ? round2(extraTherapyPay.get(u.id) ?? 0)
       : 0
-    const calc = calculatePayroll({ baseSalaryUsd: baseSalary }, config)
+    const calc = calculatePayroll({ baseSalaryUsd: baseSalary, bonusUsd: bonus }, config)
     return {
       payroll_run_id: created.id,
       user_id: u.id,
@@ -194,7 +247,7 @@ export async function createPayrollRun(input: {
       extra_hours: 0,
       extra_hours_rate_usd: u.hourly_rate_usd ?? null,
       extra_hours_amount_usd: 0,
-      bonus_usd: 0,
+      bonus_usd: calc.bonusUsd,
       other_deductions_usd: 0,
       gross_total_usd: calc.grossTotalUsd,
       isss_employee_usd: calc.isssEmployeeUsd,
