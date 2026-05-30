@@ -179,6 +179,14 @@ const adminGroupItems: NavItem[] = [
     ),
   },
   {
+    href: '/catalogos',
+    label: 'Catálogos',
+    allowedRoles: ['admin', 'contable', 'recepcion'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>sell</span>
+    ),
+  },
+  {
     href: '/billing',
     label: 'Facturación',
     allowedRoles: ['admin', 'directora', 'recepcion'],

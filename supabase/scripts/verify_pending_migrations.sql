@@ -217,6 +217,18 @@ WITH checks AS (
           FROM pg_proc
           WHERE proname='confirm_monthly_payment_and_generate'
             AND prosrc ILIKE '%v_therapist_map%')
+  UNION ALL
+  -- ── 0135 (catálogo de costos + escritura admin/contable/recepción) ─
+  SELECT 36, 'mig_0135_service_catalog_cost_usd',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='service_catalog'
+            AND column_name='cost_usd')
+  UNION ALL
+  SELECT 37, 'mig_0135_service_catalog_mgmt_write',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_policies
+          WHERE schemaname='public' AND tablename='service_catalog'
+            AND policyname='service_catalog_mgmt_write')
 )
 SELECT
   check_name,

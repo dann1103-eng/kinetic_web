@@ -6,11 +6,14 @@ import type {
   ServiceCatalogItem,
   ServiceCategory,
   MorningProgram,
+  ServiceType,
 } from '@/types/db'
 
 type ActionResult<T = void> =
   | ({ ok: true } & (T extends void ? object : { data: T }))
   | { ok: false; error: string }
+
+const CATALOG_MANAGER_ROLES = ['admin', 'contable', 'recepcion']
 
 async function requireAdmin(): Promise<{ error: string } | { userId: string }> {
   const supabase = await createClient()
@@ -25,8 +28,8 @@ async function requireAdmin(): Promise<{ error: string } | { userId: string }> {
     .eq('id', user.id)
     .single()
 
-  if (appUser?.role !== 'admin') {
-    return { error: 'Solo administradores pueden editar el catálogo de tarifas.' }
+  if (!appUser?.role || !CATALOG_MANAGER_ROLES.includes(appUser.role)) {
+    return { error: 'Solo admin, contable o recepción pueden editar los catálogos.' }
   }
   return { userId: user.id }
 }
@@ -37,6 +40,12 @@ export interface ServiceCatalogInput {
   name: string
   description?: string | null
   unit_price_usd: number
+  /** Precio descontado para programa matutino (BK / Learning Kids / Aula). */
+  unit_price_bk_usd?: number | null
+  /** Costo interno por terapia (pago a terapista). */
+  cost_usd?: number | null
+  /** Enlace al enum ServiceType (terapias individuales). */
+  service_type?: ServiceType | null
   duration_minutes?: number | null
   morning_program?: MorningProgram | null
   days_per_week?: number | null
@@ -106,6 +115,9 @@ export async function createServiceCatalogItem(
       name: input.name.trim(),
       description: input.description ?? null,
       unit_price_usd: input.unit_price_usd,
+      unit_price_bk_usd: input.unit_price_bk_usd ?? null,
+      cost_usd: input.cost_usd ?? null,
+      service_type: input.service_type ?? null,
       duration_minutes: input.duration_minutes ?? null,
       morning_program: input.morning_program ?? null,
       days_per_week: input.days_per_week ?? null,
@@ -126,7 +138,7 @@ export async function createServiceCatalogItem(
     return { ok: false, error: error.message }
   }
 
-  revalidatePath('/admin/tarifas')
+  revalidatePath('/catalogos')
   revalidatePath('/billing/invoices/nueva')
   return { ok: true, data: data as ServiceCatalogItem }
 }
@@ -155,7 +167,7 @@ export async function updateServiceCatalogItem(
 
   if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/admin/tarifas')
+  revalidatePath('/catalogos')
   revalidatePath('/billing/invoices/nueva')
   return { ok: true, data: data as ServiceCatalogItem }
 }
@@ -175,7 +187,7 @@ export async function setServiceCatalogActive(
 
   if (error) return { ok: false, error: error.message }
 
-  revalidatePath('/admin/tarifas')
+  revalidatePath('/catalogos')
   revalidatePath('/billing/invoices/nueva')
   return { ok: true }
 }

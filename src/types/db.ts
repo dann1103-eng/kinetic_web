@@ -2398,6 +2398,9 @@ export interface Database {
           name: string
           description?: string | null
           unit_price_usd: number
+          unit_price_bk_usd?: number | null
+          cost_usd?: number | null
+          service_type?: ServiceType | null
           duration_minutes?: number | null
           morning_program?: MorningProgram | null
           days_per_week?: number | null
@@ -3674,6 +3677,11 @@ export interface ServiceCatalogItem {
    * NULL = no aplica descuento.
    */
   unit_price_bk_usd: number | null
+  /**
+   * Costo interno por sesión/terapia (lo que se le paga a la terapista).
+   * Alimenta la planilla 'por_terapias' y las terapias extra. NULL = sin costo.
+   */
+  cost_usd: number | null
   duration_minutes: number | null
   morning_program: MorningProgram | null
   days_per_week: number | null
