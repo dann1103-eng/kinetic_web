@@ -174,6 +174,36 @@ WITH checks AS (
           FROM information_schema.columns
           WHERE table_schema='public' AND table_name='children'
             AND column_name IN ('current_phase_changed_at','current_phase_notes'))
+  UNION ALL
+  -- ── 0133 (contable puede crear/editar planes de tratamiento) ──────
+  SELECT 30, 'mig_0133_treatment_plans_contable_insert',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_policies
+          WHERE schemaname='public' AND tablename='treatment_plans'
+            AND policyname='tp insert mgmt'
+            AND with_check ILIKE '%contable%')
+  UNION ALL
+  SELECT 31, 'mig_0133_treatment_plans_contable_update',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_policies
+          WHERE schemaname='public' AND tablename='treatment_plans'
+            AND policyname='tp update mgmt'
+            AND qual ILIKE '%contable%')
+  UNION ALL
+  -- ── 0119 (recepción ve toda la contabilidad — RLS) ────────────────
+  SELECT 32, 'mig_0119_general_expenses_recepcion',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_policies
+          WHERE schemaname='public' AND tablename='general_expenses'
+            AND policyname='general_expenses_select'
+            AND qual ILIKE '%recepcion%')
+  UNION ALL
+  SELECT 33, 'mig_0119_payroll_runs_recepcion',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_policies
+          WHERE schemaname='public' AND tablename='payroll_runs'
+            AND policyname='payroll_runs_select'
+            AND qual ILIKE '%recepcion%')
 )
 SELECT
   check_name,
