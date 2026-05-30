@@ -4,9 +4,11 @@ import { useState, useMemo, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
   EVENT_TYPE_LABELS,
+  SERVICE_TYPE_LABELS,
   type Appointment,
   type Child,
   type EventType,
+  type ServiceType,
   type InstitutionalClosure,
 } from '@/types/db'
 import { findClosureAffecting } from '@/lib/domain/appointment'
@@ -58,7 +60,9 @@ export function AgendaPageClient({
     isTherapist ? currentUserId : therapistIdFromUrl,
   )
   const [filterEventTypes, setFilterEventTypes] = useState<Set<EventType>>(new Set())
+  const [filterServiceTypes, setFilterServiceTypes] = useState<Set<ServiceType>>(new Set())
   const [filterVirtualOnly, setFilterVirtualOnly] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   // Modal
   const [modalOpen, setModalOpen] = useState(false)
@@ -72,6 +76,10 @@ export function AgendaPageClient({
     const filtered = initialAppointments.filter((a) => {
       if (filterTherapistId && a.therapist_id !== filterTherapistId) return false
       if (filterEventTypes.size > 0 && !filterEventTypes.has(a.event_type)) return false
+      if (filterServiceTypes.size > 0) {
+        // Filtro por tipo de terapia: solo aplica a citas con service_type.
+        if (!a.service_type || !filterServiceTypes.has(a.service_type)) return false
+      }
       if (filterVirtualOnly && a.modality !== 'virtual') return false
       // Ocultar canceladas/reagendadas en la vista
       if (a.status === 'rescheduled') return false
@@ -108,7 +116,28 @@ export function AgendaPageClient({
         appointment: a,
       }
     })
-  }, [initialAppointments, filterTherapistId, filterEventTypes, filterVirtualOnly, childrenProp, therapists])
+  }, [initialAppointments, filterTherapistId, filterEventTypes, filterServiceTypes, filterVirtualOnly, childrenProp, therapists])
+
+  // Exportar PDF de las citas actualmente visibles (respeta filtros).
+  const handleExportPdf = useCallback(() => {
+    setExporting(true)
+    try {
+      const params = new URLSearchParams()
+      const ids = events.map((e) => e.appointment.id)
+      if (ids.length === 0) {
+        window.alert('No hay citas que exportar con los filtros actuales.')
+        return
+      }
+      params.set('ids', ids.join(','))
+      if (filterTherapistId) {
+        const t = therapists.find((x) => x.id === filterTherapistId)
+        if (t) params.set('therapist', t.full_name)
+      }
+      window.open(`/api/agenda/pdf?${params.toString()}`, '_blank')
+    } finally {
+      setExporting(false)
+    }
+  }, [events, filterTherapistId, therapists])
 
   const handleSelectSlot = useCallback(
     ({ start }: { start: Date; end: Date }) => {
@@ -207,6 +236,50 @@ export function AgendaPageClient({
         </div>
 
         <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant">
+              Tipo de terapia
+            </h3>
+            {filterServiceTypes.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterServiceTypes(new Set())}
+                className="text-[10px] text-fm-primary hover:underline"
+              >
+                Limpiar
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar por tipo de terapia">
+            {(Object.entries(SERVICE_TYPE_LABELS) as [ServiceType, string][]).map(([code, label]) => {
+              const active = filterServiceTypes.has(code)
+              return (
+                <button
+                  key={code}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() =>
+                    setFilterServiceTypes((prev) => {
+                      const next = new Set(prev)
+                      if (next.has(code)) next.delete(code)
+                      else next.add(code)
+                      return next
+                    })
+                  }
+                  className={`text-[10px] min-h-[32px] px-2.5 py-1 rounded-full border transition-colors ${
+                    active
+                      ? 'bg-fm-primary/10 border-fm-primary text-fm-primary'
+                      : 'bg-fm-surface-container-lowest border-fm-surface-container-high text-fm-on-surface-variant hover:border-fm-primary/40'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div>
           <label className="flex items-center gap-2 text-xs text-fm-on-surface cursor-pointer">
             <input
               type="checkbox"
@@ -219,7 +292,7 @@ export function AgendaPageClient({
         </div>
 
         {canSchedule && (
-          <div className="pt-3 border-t border-fm-outline-variant/15">
+          <div className="pt-3 border-t border-fm-outline-variant/15 space-y-2">
             <button
               type="button"
               onClick={() => {
@@ -229,6 +302,15 @@ export function AgendaPageClient({
               className="w-full inline-flex items-center justify-center min-h-[44px] gap-2 px-4 py-2 rounded-xl text-sm font-medium bg-fm-primary text-fm-on-primary hover:bg-fm-primary-dim transition-colors"
             >
               + Nueva cita
+            </button>
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              disabled={exporting || events.length === 0}
+              className="w-full inline-flex items-center justify-center min-h-[44px] gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-fm-primary/40 text-fm-primary hover:bg-fm-primary/5 transition-colors disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-base">picture_as_pdf</span>
+              Exportar PDF
             </button>
           </div>
         )}

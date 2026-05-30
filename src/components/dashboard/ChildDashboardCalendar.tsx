@@ -36,6 +36,8 @@ interface Props {
   attendance: AttendanceCell[]
   upcoming: UpcomingAppointment[]
   periodMonth: string
+  /** Nombre del niño/a — usado como título al exportar el calendario a PDF. */
+  childName?: string
 }
 
 interface ChildEvent extends KineticEventDatum {
@@ -74,7 +76,7 @@ function serviceLabel(s: string | null | undefined): string {
 
 const VIEWS: View[] = ['month', 'week', 'day']
 
-export function ChildDashboardCalendar({ attendance, upcoming, periodMonth }: Props) {
+export function ChildDashboardCalendar({ attendance, upcoming, periodMonth, childName }: Props) {
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState<Date>(() => new Date(`${periodMonth}T12:00:00`))
 
@@ -118,15 +120,38 @@ export function ChildDashboardCalendar({ attendance, upcoming, periodMonth }: Pr
 
   const label = formatCalendarLabel(view, date)
 
+  function handleExportPdf() {
+    const ids = events.map((e) => e.id)
+    if (ids.length === 0) {
+      window.alert('No hay citas que exportar.')
+      return
+    }
+    const params = new URLSearchParams()
+    params.set('ids', ids.join(','))
+    if (childName) params.set('child', childName)
+    window.open(`/api/agenda/pdf?${params.toString()}`, '_blank')
+  }
+
   return (
     <div className="space-y-3">
-      <KineticToolbar
-        label={label}
-        view={view}
-        views={VIEWS}
-        onView={setView}
-        onNavigate={(action) => setDate(navigateCalendarDate(view, date, action))}
-      />
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <KineticToolbar
+          label={label}
+          view={view}
+          views={VIEWS}
+          onView={setView}
+          onNavigate={(action) => setDate(navigateCalendarDate(view, date, action))}
+        />
+        <button
+          type="button"
+          onClick={handleExportPdf}
+          disabled={events.length === 0}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-fm-primary/40 text-fm-primary hover:bg-fm-primary/5 transition-colors disabled:opacity-50"
+        >
+          <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+          Exportar PDF
+        </button>
+      </div>
 
       {view === 'month' ? (
         <KineticMonthGrid<ChildEvent> events={events} date={date} />

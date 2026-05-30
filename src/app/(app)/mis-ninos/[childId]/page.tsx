@@ -183,6 +183,7 @@ export default async function MisNinosChildPage({ params }: PageProps) {
             attendance={dashboardData.attendance}
             upcoming={dashboardData.upcoming}
             periodMonth={dashboardData.period_month}
+            childName={c.full_name}
           />
         </section>
 

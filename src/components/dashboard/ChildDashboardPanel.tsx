@@ -9,6 +9,8 @@ interface Props {
   /** Para el link "Ver agenda completa". */
   familyId: string
   childId: string
+  /** Nombre del niño/a — usado al exportar el calendario a PDF. */
+  childName?: string
 }
 
 function formatDateTime(iso: string): string {
@@ -36,7 +38,7 @@ function serviceLabel(s: ServiceType | string | null): string {
   return SERVICE_TYPE_LABELS[s as ServiceType] ?? String(s)
 }
 
-export function ChildDashboardPanel({ data, familyId, childId }: Props) {
+export function ChildDashboardPanel({ data, familyId, childId, childName }: Props) {
   const { kpis, attendance, upcoming, last_completed, period_month } = data
   const hasPendingReplace = kpis.noShowPendingReplace > 0
   const next = upcoming[0] ?? null
@@ -64,6 +66,7 @@ export function ChildDashboardPanel({ data, familyId, childId }: Props) {
             attendance={attendance}
             upcoming={upcoming}
             periodMonth={period_month}
+            childName={childName}
           />
         </section>
 

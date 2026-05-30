@@ -212,6 +212,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
             data={dashboardData}
             familyId={familyId}
             childId={childId}
+            childName={c.full_name}
           />
         )}
 
