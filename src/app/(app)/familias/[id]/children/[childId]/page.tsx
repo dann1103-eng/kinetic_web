@@ -17,7 +17,7 @@ import { MORNING_PROGRAM_LABELS } from '@/types/db'
 import type { Child, MonthlySessionCycle, TreatmentPlan } from '@/types/db'
 import Link from 'next/link'
 
-const MGMT_ROLES_PLAN = ['admin', 'directora', 'coordinadora_terapias']
+const MGMT_ROLES_PLAN = ['admin', 'directora', 'coordinadora_terapias', 'contable']
 const MGMT_ROLES_CYCLES = [
   'admin',
   'directora',

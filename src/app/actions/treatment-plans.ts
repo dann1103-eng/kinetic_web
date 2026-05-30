@@ -15,7 +15,7 @@ import type {
 import { SERVICE_TYPE_LABELS, DAY_OF_WEEK_LABELS } from '@/types/db'
 import { applyDiscount, validateDiscount } from '@/lib/domain/discounts'
 
-const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias'] as const
+const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'contable'] as const
 
 async function getActor() {
   const supabase = await createClient()
