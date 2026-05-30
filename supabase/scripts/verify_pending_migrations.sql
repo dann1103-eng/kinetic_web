@@ -243,6 +243,11 @@ WITH checks AS (
   UNION ALL
   SELECT 40, 'mig_0136_mark_cycle_paid_rpc',
          (SELECT COUNT(*)::int FROM pg_proc WHERE proname='mark_monthly_cycle_paid')
+  UNION ALL
+  -- ── 0137 (fix sobrecarga ambigua _kn_slot_dates_in_month) ─────────
+  SELECT 41, 'mig_0137_slot_dates_single_overload',
+         (SELECT (CASE WHEN COUNT(*)=1 THEN 1 ELSE 0 END)::int
+          FROM pg_proc WHERE proname='_kn_slot_dates_in_month')
 )
 SELECT
   check_name,
