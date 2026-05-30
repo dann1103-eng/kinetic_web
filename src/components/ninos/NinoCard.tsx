@@ -4,6 +4,7 @@ import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type { IntakePhaseCatalogEntry, ServiceType } from '@/types/db'
 import type { NinoCardData } from '@/lib/domain/ninos-dashboard'
 import { isChildInActiveTreatment, phaseByCode } from '@/lib/domain/intake-pipeline'
+import { effectiveGraceDate, paymentTagInfo } from '@/lib/domain/billing/late-fee'
 
 function ageText(birthDate: string | null): string {
   if (!birthDate) return ''
@@ -43,6 +44,14 @@ export function NinoCard({ data, phaseCatalog }: Props) {
   const phase = phaseByCode(child.current_phase_code, phaseCatalog)
   const isActive = isChildInActiveTreatment(child.current_phase_code)
 
+  // Tag de pago: días restantes / atraso del ciclo más reciente.
+  const todaySV = new Date().toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' })
+  const payTag = paymentTagInfo(
+    lastCycle ? effectiveGraceDate(lastCycle.due_date, lastCycle.grace_extended_to) : null,
+    lastCycle?.payment_status === 'paid',
+    todaySV,
+  )
+
   return (
     <Link
       href={`/familias/${child.family_id}/children/${child.id}`}
@@ -69,6 +78,29 @@ export function NinoCard({ data, phaseCatalog }: Props) {
             {!isActive && phase && (
               <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
                 {phase.is_terminal ? 'Cerrado' : 'No activo'}
+              </span>
+            )}
+            {payTag.state === 'overdue' && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-fm-error/15 text-fm-error font-semibold">
+                {payTag.daysOverdue} {payTag.daysOverdue === 1 ? 'día' : 'días'} de atraso
+              </span>
+            )}
+            {payTag.state === 'due' && (
+              <span
+                className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+                  payTag.daysRemaining <= 2
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-fm-surface-container text-fm-on-surface-variant'
+                }`}
+              >
+                {payTag.daysRemaining === 0
+                  ? 'Vence hoy'
+                  : `Faltan ${payTag.daysRemaining} ${payTag.daysRemaining === 1 ? 'día' : 'días'}`}
+              </span>
+            )}
+            {payTag.state === 'paid' && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">
+                Al día
               </span>
             )}
           </div>

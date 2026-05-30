@@ -229,6 +229,20 @@ WITH checks AS (
           FROM pg_policies
           WHERE schemaname='public' AND tablename='service_catalog'
             AND policyname='service_catalog_mgmt_write')
+  UNION ALL
+  -- ── 0136 (ciclo con vencimiento + recargo por mora) ───────────────
+  SELECT 38, 'mig_0136_cycle_payment_status',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='monthly_session_cycles'
+            AND column_name='payment_status')
+  UNION ALL
+  SELECT 39, 'mig_0136_cycle_due_date',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='monthly_session_cycles'
+            AND column_name IN ('due_date','grace_extended_to','surcharge_amount_usd'))
+  UNION ALL
+  SELECT 40, 'mig_0136_mark_cycle_paid_rpc',
+         (SELECT COUNT(*)::int FROM pg_proc WHERE proname='mark_monthly_cycle_paid')
 )
 SELECT
   check_name,

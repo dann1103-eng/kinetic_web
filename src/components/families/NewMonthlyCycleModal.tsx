@@ -66,13 +66,6 @@ interface PricedTherapy {
   unit_cost_usd: number
 }
 
-const PAYMENT_METHODS: { value: 'cash' | 'transfer' | 'card' | 'other'; label: string }[] = [
-  { value: 'cash', label: 'Efectivo' },
-  { value: 'transfer', label: 'Transferencia' },
-  { value: 'card', label: 'Tarjeta' },
-  { value: 'other', label: 'Otro' },
-]
-
 /** Default: el próximo mes (1ro). Devuelve 'YYYY-MM'. */
 function defaultPeriodMonth(): string {
   const now = new Date()
@@ -144,17 +137,11 @@ export function NewMonthlyCycleModal({
     kind: discountKind,
     value: discountValue,
   })
-  const [paymentAmount, setPaymentAmount] = useState<number>(computedTotal)
-  // Auto-sync paymentAmount cuando cambia el descuento, salvo que el user ya lo haya editado manualmente.
-  const [paymentTouched, setPaymentTouched] = useState(false)
+  // Fecha límite de pago (periodo de gracia). Default: día 5 del mes del ciclo.
+  const [graceDate, setGraceDate] = useState<string>(`${periodMonth}-05`)
   useEffect(() => {
-    if (!paymentTouched) setPaymentAmount(computedTotal)
-  }, [computedTotal, paymentTouched])
-
-  const [paymentMethod, setPaymentMethod] = useState<
-    'cash' | 'transfer' | 'card' | 'other'
-  >('cash')
-  const [paymentReference, setPaymentReference] = useState('')
+    setGraceDate(`${periodMonth}-05`)
+  }, [periodMonth])
   const [notes, setNotes] = useState('')
 
   const [dryRun, setDryRun] = useState<MonthlyCandidatesResult | null>(null)
@@ -226,17 +213,17 @@ export function NewMonthlyCycleModal({
       const res = await confirmMonthlyPaymentAndGenerate({
         childId,
         periodMonth,
-        paymentAmountUsd: paymentAmount,
-        paymentMethod,
-        paymentReference: paymentReference.trim() || null,
+        paymentAmountUsd: computedTotal,
         notes: notes.trim() || null,
         // Si el usuario movió fechas, mandar el override; si no, dejar que el RPC re-compute.
         appointmentsOverride: hasEdits ? editedCandidates : undefined,
         discountKind,
         discountValue,
         discountReason: discountReason.trim() || null,
-        // Precios finales por terapia (editados al cobrar) — sobreescriben el snapshot.
+        // Precios finales por terapia — sobreescriben el snapshot del plan.
         pricedTherapies: priced,
+        // Fecha límite de pago (gracia).
+        dueDate: graceDate,
       })
       if (!res.ok) {
         setConfirmError(res.error)
@@ -250,7 +237,6 @@ export function NewMonthlyCycleModal({
     !!dryRun &&
     !periodAlreadyUsed &&
     dryRun.summary.conflict_count === 0 &&
-    paymentAmount >= 0 &&
     !isConfirming
 
   return (
@@ -258,7 +244,7 @@ export function NewMonthlyCycleModal({
       <div className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-2xl my-8 flex flex-col max-h-[calc(100vh-4rem)]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-fm-outline-variant/20">
           <h2 className="text-lg font-semibold text-fm-on-surface">
-            Marcar pago de ciclo mensual
+            Generar ciclo del mes
           </h2>
           <button
             type="button"
@@ -285,50 +271,18 @@ export function NewMonthlyCycleModal({
                 </p>
               )}
             </Field>
-            <Field label="Monto pagado (USD)">
+            <Field label="Fecha límite de pago (gracia)">
               <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={paymentAmount}
-                onChange={(e) => {
-                  setPaymentTouched(true)
-                  setPaymentAmount(Number(e.target.value))
-                }}
-                className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm tabular-nums"
-              />
-              {Math.abs(paymentAmount - computedTotal) > 0.01 && (
-                <p className="mt-1 text-[11px] text-amber-700">
-                  Total esperado con descuento: ${computedTotal.toFixed(2)}.
-                  {paymentAmount < computedTotal
-                    ? ' Pago parcial.'
-                    : ' Pago superior al esperado.'}
-                </p>
-              )}
-            </Field>
-            <Field label="Método de pago">
-              <select
-                value={paymentMethod}
-                onChange={(e) =>
-                  setPaymentMethod(e.target.value as typeof paymentMethod)
-                }
-                className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
-              >
-                {PAYMENT_METHODS.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Referencia (recibo, n° transferencia)">
-              <input
-                type="text"
-                value={paymentReference}
-                onChange={(e) => setPaymentReference(e.target.value)}
-                placeholder="opcional"
+                type="date"
+                value={graceDate}
+                onChange={(e) => setGraceDate(e.target.value)}
                 className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
               />
+              <p className="mt-1 text-[11px] text-fm-on-surface-variant">
+                Total del ciclo: <b>${computedTotal.toFixed(2)}</b>. Pasada esta fecha se
+                cobra 5% de recargo por cada 5 días de atraso. El pago se registra
+                después con &ldquo;Marcar pagado&rdquo;.
+              </p>
             </Field>
           </div>
 
@@ -387,14 +341,8 @@ export function NewMonthlyCycleModal({
             kind={discountKind}
             value={discountValue}
             reason={discountReason}
-            onChangeKind={(k) => {
-              setDiscountKind(k)
-              setPaymentTouched(false)
-            }}
-            onChangeValue={(v) => {
-              setDiscountValue(v)
-              setPaymentTouched(false)
-            }}
+            onChangeKind={(k) => setDiscountKind(k)}
+            onChangeValue={(v) => setDiscountValue(v)}
             onChangeReason={setDiscountReason}
             disabled={isConfirming}
           />
@@ -551,7 +499,7 @@ export function NewMonthlyCycleModal({
             disabled={!canConfirm}
             className="px-4 py-2 text-sm rounded-lg bg-fm-primary text-white font-medium hover:opacity-90 disabled:opacity-60"
           >
-            {isConfirming ? 'Generando…' : 'Confirmar pago y generar'}
+            {isConfirming ? 'Generando…' : 'Generar ciclo'}
           </button>
         </div>
       </div>

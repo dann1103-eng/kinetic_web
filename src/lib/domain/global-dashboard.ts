@@ -226,8 +226,8 @@ export async function getCoordTerapiasDashboardData(
     .order('full_name')
   const childIds = (activeChildren ?? []).map((c) => c.id)
 
-  let childrenWithoutPlan: { id: string; full_name: string; family_id: string }[] = []
-  let childrenWithoutTherapist: { id: string; full_name: string; family_id: string }[] = []
+  const childrenWithoutPlan: { id: string; full_name: string; family_id: string }[] = []
+  const childrenWithoutTherapist: { id: string; full_name: string; family_id: string }[] = []
 
   if (childIds.length > 0) {
     const { data: plansRaw } = await supabase
@@ -313,7 +313,8 @@ export async function getRecepcionDashboardData(
   const recentCycles = recent.map((c) => ({
     id: c.id,
     period_month: c.period_month,
-    paid_at: c.paid_at,
+    // Filtrado por rango de paid_at arriba ⇒ nunca null acá.
+    paid_at: c.paid_at ?? '',
     payment_amount_usd: Number(c.payment_amount_usd ?? 0),
     payment_method: c.payment_method,
     child: childMap.get(c.child_id) ?? null,

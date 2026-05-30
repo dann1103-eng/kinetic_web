@@ -3567,7 +3567,8 @@ export interface MonthlySessionCycle {
   /** Primer día del mes en SV (date 'YYYY-MM-01'). */
   period_month: string
   treatment_plan_snapshot: TreatmentPlan | Record<string, unknown>
-  paid_at: string
+  /** Fecha de pago REAL. null = pendiente de pago (factura emitida). */
+  paid_at: string | null
   paid_by_user_id: string | null
   payment_method: string | null
   payment_reference: string | null
@@ -3576,6 +3577,15 @@ export interface MonthlySessionCycle {
   appointments_generated_at: string | null
   appointments_generated_count: number
   status: MonthlySessionCycleStatus
+  /** Estado de pago: 'pending' (factura emitida sin pagar) | 'paid'. */
+  payment_status: 'pending' | 'paid'
+  /** Fecha límite de pago (periodo de gracia). Default día 5 del mes. */
+  due_date: string | null
+  /** Prórroga manual del vencimiento (recargo se mide contra esta fecha). */
+  grace_extended_to: string | null
+  grace_extension_reason: string | null
+  /** Recargo por mora aplicado al pagar (USD). */
+  surcharge_amount_usd: number
   cancel_reason: string | null
   cancelled_at: string | null
   cancelled_by_user_id: string | null

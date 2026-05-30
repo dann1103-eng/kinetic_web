@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { NewMonthlyCycleModal } from './NewMonthlyCycleModal'
-import { cancelMonthlyCycle } from '@/app/actions/monthly-cycles'
+import { cancelMonthlyCycle, markMonthlyCyclePaid } from '@/app/actions/monthly-cycles'
 import {
   MONTHLY_CYCLE_STATUS_LABELS,
 } from '@/types/db'
@@ -58,6 +58,43 @@ export function MonthlyCyclesSection({
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [isCancelling, startCancel] = useTransition()
 
+  // Marcar pagado
+  const [payingId, setPayingId] = useState<string | null>(null)
+  const [payMethod, setPayMethod] = useState<'cash' | 'transfer' | 'card' | 'other'>('cash')
+  const [payReference, setPayReference] = useState('')
+  const [payDate, setPayDate] = useState<string>('')
+  const [payError, setPayError] = useState<string | null>(null)
+  const [isPaying, startPay] = useTransition()
+
+  function openPay(id: string) {
+    setPayError(null)
+    setPayMethod('cash')
+    setPayReference('')
+    // Hoy en zona SV (fecha de pago por defecto).
+    setPayDate(new Date().toLocaleDateString('en-CA', { timeZone: 'America/El_Salvador' }))
+    setPayingId(id)
+  }
+
+  function handlePay() {
+    if (!payingId) return
+    setPayError(null)
+    startPay(async () => {
+      const res = await markMonthlyCyclePaid({
+        cycleId: payingId,
+        paymentMethod: payMethod,
+        paymentReference: payReference.trim() || null,
+        paidAt: payDate ? new Date(`${payDate}T12:00:00`).toISOString() : undefined,
+      })
+      if (!res.ok) {
+        setPayError(res.error)
+        return
+      }
+      setCycles((prev) => prev.map((c) => (c.id === payingId ? res.cycle : c)))
+      setPayingId(null)
+      router.refresh()
+    })
+  }
+
   function handleCancel() {
     if (!cancellingId) return
     setCancelError(null)
@@ -92,10 +129,10 @@ export function MonthlyCyclesSection({
                 ? 'Primero hay que crear el plan de tratamiento'
                 : !plan.primary_therapist_id
                   ? 'El plan no tiene terapista principal asignada'
-                  : 'Marcar pago de un mes'
+                  : 'Generar el ciclo del mes (factura pendiente)'
             }
           >
-            + Marcar pago de mes
+            + Generar ciclo
           </button>
         )}
       </div>
@@ -113,9 +150,9 @@ export function MonthlyCyclesSection({
               <tr>
                 <th className="text-left px-3 py-1.5 font-semibold">Mes</th>
                 <th className="text-left px-3 py-1.5 font-semibold">Estado</th>
-                <th className="text-right px-3 py-1.5 font-semibold">Pagado</th>
+                <th className="text-right px-3 py-1.5 font-semibold">Vence / Pagado</th>
                 <th className="text-right px-3 py-1.5 font-semibold">Citas</th>
-                <th className="text-right px-3 py-1.5 font-semibold">Pago</th>
+                <th className="text-right px-3 py-1.5 font-semibold">Monto</th>
                 <th />
               </tr>
             </thead>
@@ -126,18 +163,51 @@ export function MonthlyCyclesSection({
                     {formatPeriod(c.period_month)}
                   </td>
                   <td className="px-3 py-1.5">
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_CHIP[c.status]}`}>
-                      {MONTHLY_CYCLE_STATUS_LABELS[c.status]}
-                    </span>
+                    <div className="flex flex-col gap-0.5 items-start">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_CHIP[c.status]}`}>
+                        {MONTHLY_CYCLE_STATUS_LABELS[c.status]}
+                      </span>
+                      {c.status !== 'cancelled' && (
+                        <span
+                          className={`text-[10px] px-2 py-0.5 rounded-full ${
+                            c.payment_status === 'paid'
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-amber-100 text-amber-800'
+                          }`}
+                        >
+                          {c.payment_status === 'paid' ? 'Pagado' : 'Pendiente'}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="text-right px-3 py-1.5 tabular-nums text-fm-on-surface-variant">
-                    {new Date(c.paid_at).toLocaleDateString('es-SV')}
+                    {c.payment_status === 'paid'
+                      ? c.paid_at
+                        ? new Date(c.paid_at).toLocaleDateString('es-SV')
+                        : '—'
+                      : (() => {
+                          const due = c.grace_extended_to ?? c.due_date
+                          if (!due) return '—'
+                          const overdue =
+                            new Date(`${due.slice(0, 10)}T23:59:59`).getTime() < new Date().getTime()
+                          return (
+                            <span className={overdue ? 'text-fm-error font-medium' : ''}>
+                              vence {new Date(`${due.slice(0, 10)}T12:00:00`).toLocaleDateString('es-SV')}
+                              {c.grace_extended_to && <span title="Gracia prorrogada"> *</span>}
+                            </span>
+                          )
+                        })()}
                   </td>
                   <td className="text-right px-3 py-1.5 tabular-nums">
                     {c.appointments_generated_count}
                   </td>
                   <td className="text-right px-3 py-1.5 tabular-nums font-medium">
                     <div>{formatMoney(c.payment_amount_usd)}</div>
+                    {c.surcharge_amount_usd > 0 && (
+                      <div className="text-[10px] font-medium text-fm-error mt-0.5">
+                        incl. recargo {formatMoney(c.surcharge_amount_usd)}
+                      </div>
+                    )}
                     {c.discount_kind && c.discount_kind !== 'none' && c.discount_value > 0 && (
                       <div className="text-[10px] font-medium text-emerald-700 mt-0.5">
                         {c.discount_kind === 'percent'
@@ -166,6 +236,15 @@ export function MonthlyCyclesSection({
                         >
                           Factura
                         </Link>
+                      )}
+                      {c.status === 'generated' && c.payment_status === 'pending' && canManage && (
+                        <button
+                          type="button"
+                          onClick={() => openPay(c.id)}
+                          className="text-xs font-semibold text-emerald-700 hover:underline"
+                        >
+                          Marcar pagado
+                        </button>
                       )}
                       {c.status === 'generated' && canManage && (
                         <button
@@ -199,6 +278,71 @@ export function MonthlyCyclesSection({
             router.refresh()
           }}
         />
+      )}
+
+      {payingId && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="text-base font-semibold text-fm-on-surface">Marcar ciclo como pagado</h3>
+            <p className="text-xs text-fm-on-surface-variant">
+              Si el pago es posterior a la fecha de gracia, el sistema agrega
+              automáticamente el recargo por mora (5% por cada 5 días).
+            </p>
+            <div className="space-y-2">
+              <label className="block text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
+                Fecha de pago
+              </label>
+              <input
+                type="date"
+                value={payDate}
+                onChange={(e) => setPayDate(e.target.value)}
+                className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+              />
+              <label className="block text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
+                Método
+              </label>
+              <select
+                value={payMethod}
+                onChange={(e) => setPayMethod(e.target.value as typeof payMethod)}
+                className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+              >
+                <option value="cash">Efectivo</option>
+                <option value="transfer">Transferencia</option>
+                <option value="card">Tarjeta</option>
+                <option value="other">Otro</option>
+              </select>
+              <label className="block text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
+                Referencia (opcional)
+              </label>
+              <input
+                type="text"
+                value={payReference}
+                onChange={(e) => setPayReference(e.target.value)}
+                placeholder="recibo, n° transferencia"
+                className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+              />
+            </div>
+            {payError && <p className="text-xs text-red-700">{payError}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPayingId(null)}
+                disabled={isPaying}
+                className="px-3 py-1.5 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handlePay}
+                disabled={isPaying}
+                className="px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-60"
+              >
+                {isPaying ? 'Guardando…' : 'Confirmar pago'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {cancellingId && (

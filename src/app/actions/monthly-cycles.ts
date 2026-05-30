@@ -109,6 +109,11 @@ export interface ConfirmMonthlyPaymentInput {
    * del snapshot del plan en el ciclo, para que la factura use estos montos.
    */
   pricedTherapies?: { service: string; sessions_per_month: number; unit_cost_usd: number }[]
+  /**
+   * Fecha límite de pago (periodo de gracia) 'YYYY-MM-DD'. Si no se manda,
+   * el RPC usa el día 5 del mes.
+   */
+  dueDate?: string | null
 }
 
 export async function confirmMonthlyPaymentAndGenerate(
@@ -143,6 +148,7 @@ export async function confirmMonthlyPaymentAndGenerate(
     p_paid_at: input.paidAt ?? new Date().toISOString(),
     p_notes: input.notes ?? null,
     p_appointments_override: input.appointmentsOverride ?? null,
+    p_due_date: input.dueDate ?? null,
   })
 
   if (error) {
@@ -207,6 +213,19 @@ export async function confirmMonthlyPaymentAndGenerate(
         unit_cost_usd: priceBy.has(t.service) ? priceBy.get(t.service)! : (t.unit_cost_usd ?? 0),
       }))
       updatePayload.treatment_plan_snapshot = { ...snapshot, therapies_json: therapies }
+
+      // Monto esperado del ciclo (pendiente) = subtotal priced − descuento.
+      const subtotal = input.pricedTherapies.reduce(
+        (sum, p) => sum + p.sessions_per_month * p.unit_cost_usd,
+        0,
+      )
+      let expected = subtotal
+      if (discountKind === 'percent' && discountValue > 0) {
+        expected = subtotal * (1 - discountValue / 100)
+      } else if (discountKind === 'fixed' && discountValue > 0) {
+        expected = Math.max(0, subtotal - discountValue)
+      }
+      updatePayload.payment_amount_usd = Math.round(expected * 100) / 100
     }
 
     if (Object.keys(updatePayload).length > 0) {
@@ -233,6 +252,78 @@ export async function confirmMonthlyPaymentAndGenerate(
   revalidatePath('/familias')
   revalidatePath('/agenda')
   return { ok: true, cycle }
+}
+
+// ── Marcar ciclo como pagado (mgmt) — aplica recargo por mora ───────────────
+
+export interface MarkCyclePaidInput {
+  cycleId: string
+  paymentMethod?: 'cash' | 'transfer' | 'card' | 'other'
+  paymentReference?: string | null
+  paidAt?: string // ISO; default = ahora
+}
+
+export async function markMonthlyCyclePaid(
+  input: MarkCyclePaidInput,
+): Promise<{ ok: true; cycle: MonthlySessionCycle } | { ok: false; error: string }> {
+  const { supabase, user } = await getActor()
+  if (!isMgmt(user.role)) {
+    return { ok: false, error: 'Solo admin/directora/coord/recepción/contable.' }
+  }
+
+  const { data, error } = await supabase.rpc('mark_monthly_cycle_paid', {
+    p_cycle_id: input.cycleId,
+    p_payment_method: input.paymentMethod ?? 'cash',
+    p_payment_reference: input.paymentReference ?? null,
+    p_paid_at: input.paidAt ?? new Date().toISOString(),
+  })
+
+  if (error) {
+    const msg = error.message ?? ''
+    if (msg.includes('not_authorized')) return { ok: false, error: 'No autorizado.' }
+    if (msg.includes('cycle_not_found')) return { ok: false, error: 'Ciclo no encontrado.' }
+    if (msg.includes('cycle_cancelled')) return { ok: false, error: 'El ciclo está anulado.' }
+    if (msg.includes('cycle_already_paid')) return { ok: false, error: 'El ciclo ya está pagado.' }
+    return { ok: false, error: error.message ?? 'Error al marcar el pago.' }
+  }
+
+  revalidatePath('/familias')
+  revalidatePath('/ninos')
+  return { ok: true, cycle: data as MonthlySessionCycle }
+}
+
+// ── Prorrogar el periodo de gracia de un ciclo (mgmt) ───────────────────────
+
+export async function extendMonthlyCycleGrace(
+  cycleId: string,
+  newDate: string, // 'YYYY-MM-DD'
+  reason: string,
+): Promise<{ ok: true; cycle: MonthlySessionCycle } | { ok: false; error: string }> {
+  const { supabase, user } = await getActor()
+  if (!isMgmt(user.role)) {
+    return { ok: false, error: 'Solo admin/directora/coord/recepción/contable.' }
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) {
+    return { ok: false, error: 'Fecha inválida (esperado YYYY-MM-DD).' }
+  }
+  if (!reason || reason.trim().length < 3) {
+    return { ok: false, error: 'Indicá una justificación para la prórroga.' }
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('monthly_session_cycles')
+    .update({ grace_extended_to: newDate, grace_extension_reason: reason.trim() })
+    .eq('id', cycleId)
+    .eq('payment_status', 'pending')
+    .select('*')
+    .single()
+
+  if (error) return { ok: false, error: error.message ?? 'Error al prorrogar la gracia.' }
+
+  revalidatePath('/familias')
+  revalidatePath('/ninos')
+  return { ok: true, cycle: data as MonthlySessionCycle }
 }
 
 // ── Anular un ciclo (admin/directora) ──────────────────────────────────────
