@@ -20,13 +20,14 @@ import type {
   TermAndCondition,
 } from '@/types/db'
 import { createInvoice } from './invoices'
+import { isBillingManager } from '@/lib/auth/billing-access'
 
 async function requireQuoteAccess() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' as const }
   const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
-  const allowed = appUser?.role === 'admin' || (appUser?.can_quote ?? false)
+  const allowed = isBillingManager(appUser?.role) || (appUser?.can_quote ?? false)
   if (!allowed) return { error: 'Sin permiso para gestionar cotizaciones' as const }
   return { userId: user.id }
 }

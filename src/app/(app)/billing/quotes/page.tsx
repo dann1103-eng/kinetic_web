@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { TopNav } from '@/components/layout/TopNav'
 import { QuoteStatusBadge } from '@/components/billing/StatusBadge'
 import { formatCurrency } from '@/lib/domain/invoices'
+import { isBillingManager } from '@/lib/auth/billing-access'
 import type { QuoteStatus, ClientFiscalSnapshot } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -23,7 +24,7 @@ export default async function QuotesListPage({
   const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
   const role = appUser?.role
   const canQuote = appUser?.can_quote ?? false
-  if (role !== 'admin' && !canQuote) redirect('/')
+  if (!isBillingManager(role) && !canQuote) redirect('/')
 
   let query = supabase
     .from('quotes')

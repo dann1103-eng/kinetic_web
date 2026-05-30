@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { TopNav } from '@/components/layout/TopNav'
 import { InvoiceStatusBadge } from '@/components/billing/StatusBadge'
 import { formatCurrency } from '@/lib/domain/invoices'
+import { isBillingManager } from '@/lib/auth/billing-access'
 import type { InvoiceStatus, ClientFiscalSnapshot } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -27,7 +28,7 @@ export default async function InvoicesListPage({
   if (!user) redirect('/login')
   const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
   const role = appUser?.role
-  if (role !== 'admin') redirect('/')
+  if (!isBillingManager(role)) redirect('/')
 
   let query = supabase
     .from('invoices')

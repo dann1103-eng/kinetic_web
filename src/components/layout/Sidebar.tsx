@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import { UserAvatar } from '@/components/ui/UserAvatar'
@@ -165,7 +165,7 @@ const adminGroupItems: NavItem[] = [
   {
     href: '/operacion/capacidad-terapistas',
     label: 'Capacidad equipo',
-    allowedRoles: ['admin', 'directora', 'coordinadora_terapias'],
+    allowedRoles: ['admin', 'directora', 'coordinadora_terapias', 'recepcion'],
     icon: (
       <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>monitoring</span>
     ),
@@ -181,7 +181,7 @@ const adminGroupItems: NavItem[] = [
   {
     href: '/billing',
     label: 'Facturación',
-    allowedRoles: ['admin', 'directora'],
+    allowedRoles: ['admin', 'directora', 'recepcion'],
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
@@ -217,14 +217,14 @@ export function SidebarContent({
   })
   const showAdminGroup = visibleAdminItems.length > 0
 
-  // Auto-open admin group if a child route is active
-  const adminGroupDefault = visibleAdminItems.some((item) => pathname.startsWith(item.href))
-  const [adminGroupOpen, setAdminGroupOpen] = useState(adminGroupDefault)
-
-  useEffect(() => {
-    const isActive = visibleAdminItems.some((item) => pathname.startsWith(item.href))
-    if (isActive) setAdminGroupOpen(true)
-  }, [pathname, visibleAdminItems])
+  // Auto-open admin group if a child route is active (estado derivado, no efecto).
+  const adminRouteActive = useMemo(
+    () => visibleAdminItems.some((item) => pathname.startsWith(item.href)),
+    [pathname, visibleAdminItems],
+  )
+  // Permite abrir/cerrar manualmente; se resetea implícitamente con adminRouteActive.
+  const [adminGroupManualOpen, setAdminGroupManualOpen] = useState(false)
+  const adminGroupOpen = adminRouteActive || adminGroupManualOpen
 
   // Filter top-level items by role
   const visibleTopItems = topNavItems.filter((item) => {
@@ -305,7 +305,7 @@ export function SidebarContent({
             <div className="my-2 border-t border-fm-outline-variant/15" />
 
             <button
-              onClick={() => setAdminGroupOpen((v) => !v)}
+              onClick={() => setAdminGroupManualOpen((v) => !v)}
               className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-bold uppercase tracking-wider text-fm-on-surface-variant hover:bg-fm-background transition-colors"
             >
               <span className={cn(

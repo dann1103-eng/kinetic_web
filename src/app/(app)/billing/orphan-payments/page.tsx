@@ -6,6 +6,7 @@ import { OrphanAssignForm } from '@/components/billing/OrphanAssignForm'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { N1coPaymentEvent } from '@/types/db'
+import { isBillingManager } from '@/lib/auth/billing-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,7 +15,7 @@ export default async function OrphanPaymentsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
   const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
-  if (appUser?.role !== 'admin') redirect('/')
+  if (!isBillingManager(appUser?.role)) redirect('/')
 
   // Eventos huérfanos: SuccessPayment / SubscriptionPayment sin matched_invoice_id
   const { data: rows } = await supabase

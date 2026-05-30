@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isBillingManager } from '@/lib/auth/billing-access'
 import {
   buildClientSnapshot,
   buildEmitterSnapshot,
@@ -30,7 +31,9 @@ async function requireAdmin() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'No autenticado' as const }
   const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
-  if (appUser?.role !== 'admin') return { error: 'Solo admins pueden gestionar facturas' as const }
+  if (!isBillingManager(appUser?.role)) {
+    return { error: 'Solo admin o recepción pueden gestionar facturas' as const }
+  }
   return { userId: user.id }
 }
 

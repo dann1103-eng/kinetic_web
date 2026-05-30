@@ -15,6 +15,7 @@ import type {
   Invoice,
 } from '@/types/db'
 import { PAYMENT_METHOD_LABELS } from '@/types/db'
+import { isBillingManager } from '@/lib/auth/billing-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,7 @@ export default async function InvoiceDetailPage({
   if (!user) redirect('/login')
   const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
   const role = appUser?.role
-  if (role !== 'admin') redirect('/')
+  if (!isBillingManager(role)) redirect('/')
 
   const { data: invoiceRow } = await supabase
     .from('invoices')
@@ -50,7 +51,7 @@ export default async function InvoiceDetailPage({
   const clientSnap = invoice.client_snapshot_json as ClientFiscalSnapshot
   const emitterSnap = invoice.emitter_snapshot_json as EmitterSnapshot
 
-  const isAdmin = role === 'admin'
+  const isAdmin = isBillingManager(role)
 
   return (
     <div className="flex flex-col min-h-full">

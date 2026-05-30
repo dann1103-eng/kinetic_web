@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { TopNav } from '@/components/layout/TopNav'
 import { formatCurrency } from '@/lib/domain/invoices'
 import { InvoiceStatusBadge, QuoteStatusBadge } from '@/components/billing/StatusBadge'
+import { isBillingManager } from '@/lib/auth/billing-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,9 +15,10 @@ export default async function BillingDashboardPage() {
   const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
   const role = appUser?.role
   const canQuote = appUser?.can_quote ?? false
-  if (role !== 'admin' && !canQuote) redirect('/')
+  const isManager = isBillingManager(role)
+  if (!isManager && !canQuote) redirect('/')
   // Usuarios con solo can_quote van directo a cotizaciones, no al hub completo
-  if (canQuote && role !== 'admin') redirect('/billing/quotes')
+  if (canQuote && !isManager) redirect('/billing/quotes')
 
   const [
     { count: draftCount },

@@ -15,7 +15,7 @@ import { WeekNavigator } from '@/components/operacion/WeekNavigator'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES = ['admin', 'directora', 'coordinadora_terapias']
+const ALLOWED_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'recepcion']
 
 interface PageProps {
   searchParams: Promise<{ week?: string }>

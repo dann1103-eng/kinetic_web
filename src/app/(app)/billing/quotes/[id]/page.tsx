@@ -12,6 +12,7 @@ import type {
   Quote,
   TermAndCondition,
 } from '@/types/db'
+import { isBillingManager } from '@/lib/auth/billing-access'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +29,7 @@ export default async function QuoteDetailPage({
   const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
   const role = appUser?.role
   const canQuote = appUser?.can_quote ?? false
-  if (role !== 'admin' && !canQuote) redirect('/')
+  if (!isBillingManager(role) && !canQuote) redirect('/')
 
   const { data: quoteRow } = await supabase.from('quotes').select('*').eq('id', id).maybeSingle()
   if (!quoteRow) notFound()
@@ -45,7 +46,7 @@ export default async function QuoteDetailPage({
   const emitterSnap = quote.emitter_snapshot_json as EmitterSnapshot
   const terms = ((quote.terms_snapshot_json ?? []) as TermAndCondition[]).sort((a, b) => a.order - b.order)
 
-  const isAdmin = role === 'admin'
+  const isAdmin = isBillingManager(role)
 
   return (
     <div className="flex flex-col min-h-full">
