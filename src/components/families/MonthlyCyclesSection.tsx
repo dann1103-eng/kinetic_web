@@ -4,7 +4,11 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { NewMonthlyCycleModal } from './NewMonthlyCycleModal'
-import { cancelMonthlyCycle, markMonthlyCyclePaid } from '@/app/actions/monthly-cycles'
+import {
+  cancelMonthlyCycle,
+  markMonthlyCyclePaid,
+  extendMonthlyCycleGrace,
+} from '@/app/actions/monthly-cycles'
 import {
   MONTHLY_CYCLE_STATUS_LABELS,
 } from '@/types/db'
@@ -91,6 +95,35 @@ export function MonthlyCyclesSection({
       }
       setCycles((prev) => prev.map((c) => (c.id === payingId ? res.cycle : c)))
       setPayingId(null)
+      router.refresh()
+    })
+  }
+
+  // Prorrogar gracia
+  const [extendingId, setExtendingId] = useState<string | null>(null)
+  const [extendDate, setExtendDate] = useState<string>('')
+  const [extendReason, setExtendReason] = useState('')
+  const [extendError, setExtendError] = useState<string | null>(null)
+  const [isExtending, startExtend] = useTransition()
+
+  function openExtend(c: MonthlySessionCycle) {
+    setExtendError(null)
+    setExtendReason('')
+    setExtendDate((c.grace_extended_to ?? c.due_date ?? '').slice(0, 10))
+    setExtendingId(c.id)
+  }
+
+  function handleExtend() {
+    if (!extendingId) return
+    setExtendError(null)
+    startExtend(async () => {
+      const res = await extendMonthlyCycleGrace(extendingId, extendDate, extendReason)
+      if (!res.ok) {
+        setExtendError(res.error)
+        return
+      }
+      setCycles((prev) => prev.map((c) => (c.id === extendingId ? res.cycle : c)))
+      setExtendingId(null)
       router.refresh()
     })
   }
@@ -238,13 +271,22 @@ export function MonthlyCyclesSection({
                         </Link>
                       )}
                       {c.status === 'generated' && c.payment_status === 'pending' && canManage && (
-                        <button
-                          type="button"
-                          onClick={() => openPay(c.id)}
-                          className="text-xs font-semibold text-emerald-700 hover:underline"
-                        >
-                          Marcar pagado
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => openPay(c.id)}
+                            className="text-xs font-semibold text-emerald-700 hover:underline"
+                          >
+                            Marcar pagado
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openExtend(c)}
+                            className="text-xs text-fm-on-surface-variant hover:underline"
+                          >
+                            Prorrogar gracia
+                          </button>
+                        </>
                       )}
                       {c.status === 'generated' && canManage && (
                         <button
@@ -278,6 +320,58 @@ export function MonthlyCyclesSection({
             router.refresh()
           }}
         />
+      )}
+
+      {extendingId && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="text-base font-semibold text-fm-on-surface">Prorrogar periodo de gracia</h3>
+            <p className="text-xs text-fm-on-surface-variant">
+              Mové la fecha límite de pago. El recargo por mora se medirá contra esta
+              nueva fecha. Requiere una justificación.
+            </p>
+            <div className="space-y-2">
+              <label className="block text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
+                Nueva fecha límite
+              </label>
+              <input
+                type="date"
+                value={extendDate}
+                onChange={(e) => setExtendDate(e.target.value)}
+                className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+              />
+              <label className="block text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
+                Justificación
+              </label>
+              <textarea
+                value={extendReason}
+                onChange={(e) => setExtendReason(e.target.value)}
+                rows={2}
+                placeholder="Motivo de la prórroga"
+                className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+              />
+            </div>
+            {extendError && <p className="text-xs text-red-700">{extendError}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setExtendingId(null)}
+                disabled={isExtending}
+                className="px-3 py-1.5 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleExtend}
+                disabled={isExtending}
+                className="px-3 py-1.5 text-sm rounded-lg bg-fm-primary text-white font-medium hover:opacity-90 disabled:opacity-60"
+              >
+                {isExtending ? 'Guardando…' : 'Prorrogar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {payingId && (
