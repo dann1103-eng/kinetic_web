@@ -81,7 +81,8 @@ export async function dryRunMonthlyGeneration(
     if (msg.includes('plan_has_no_primary_therapist')) {
       return { ok: false, error: 'El plan no tiene terapista principal asignada.' }
     }
-    return { ok: false, error: 'Error al calcular el ciclo.' }
+    // Surface real para diagnóstico (ej. función desactualizada / columna faltante).
+    return { ok: false, error: `Error al calcular el ciclo: ${msg || 'desconocido'}` }
   }
 
   return { ok: true, result: data as MonthlyCandidatesResult }
