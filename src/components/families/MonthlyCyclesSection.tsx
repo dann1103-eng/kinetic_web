@@ -8,13 +8,22 @@ import { cancelMonthlyCycle } from '@/app/actions/monthly-cycles'
 import {
   MONTHLY_CYCLE_STATUS_LABELS,
 } from '@/types/db'
-import type { MonthlySessionCycle, TreatmentPlan } from '@/types/db'
+import type {
+  MonthlySessionCycle,
+  TreatmentPlan,
+  ServiceCatalogItem,
+  MorningProgram,
+} from '@/types/db'
 
 interface Props {
   childId: string
   plan: TreatmentPlan | null
   cycles: MonthlySessionCycle[]
   canManage: boolean
+  /** Catálogo de terapias individuales — para precargar precios al cobrar. */
+  therapyCatalog?: ServiceCatalogItem[]
+  /** Programa matutino del niño — activa precio BK precargado. */
+  enrolledProgram?: MorningProgram | null
 }
 
 const STATUS_CHIP: Record<MonthlySessionCycle['status'], string> = {
@@ -33,7 +42,14 @@ function formatMoney(n: number | null | undefined): string {
   return `$${Number(n).toFixed(2)}`
 }
 
-export function MonthlyCyclesSection({ childId, plan, cycles: initial, canManage }: Props) {
+export function MonthlyCyclesSection({
+  childId,
+  plan,
+  cycles: initial,
+  canManage,
+  therapyCatalog,
+  enrolledProgram,
+}: Props) {
   const router = useRouter()
   const [cycles, setCycles] = useState(initial)
   const [showCreate, setShowCreate] = useState(false)
@@ -173,6 +189,8 @@ export function MonthlyCyclesSection({ childId, plan, cycles: initial, canManage
         <NewMonthlyCycleModal
           childId={childId}
           plan={plan}
+          therapyCatalog={therapyCatalog}
+          enrolledProgram={enrolledProgram}
           existingPeriods={cycles.filter((c) => c.status !== 'cancelled').map((c) => c.period_month)}
           onClose={() => setShowCreate(false)}
           onCreated={(cycle) => {

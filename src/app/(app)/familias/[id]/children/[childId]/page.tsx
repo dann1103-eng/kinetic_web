@@ -65,7 +65,6 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
   let therapists: { id: string; full_name: string; role: string }[] = []
   let cycles: MonthlySessionCycle[] = []
   let fullCatalog: import('@/types/db').ServiceCatalogItem[] = []
-  let therapyCatalog: import('@/types/db').ServiceCatalogItem[] = []
   let dashboardData: Awaited<ReturnType<typeof getChildDashboardData>> | null = null
 
   if (tab === 'resumen') {
@@ -91,7 +90,6 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
     therapists = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
     cycles = (cyclesRaw ?? []) as MonthlySessionCycle[]
     fullCatalog = (catalogRaw ?? []) as import('@/types/db').ServiceCatalogItem[]
-    therapyCatalog = fullCatalog.filter((item) => item.category === 'terapia_individual')
   } else {
     dashboardData = await getChildDashboardData(supabase, childId)
   }
@@ -287,7 +285,6 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 plan={plan}
                 therapists={therapists}
                 canEdit={canEditPlan}
-                therapyCatalog={therapyCatalog}
                 enrolledProgram={c.enrolled_program}
               />
               <MonthlyCyclesSection
@@ -295,6 +292,8 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 plan={plan}
                 cycles={cycles}
                 canManage={canManageCycles}
+                therapyCatalog={fullCatalog}
+                enrolledProgram={c.enrolled_program}
               />
 
               {/* Facturación ad-hoc (matrículas, materiales, evaluaciones, etc.) */}

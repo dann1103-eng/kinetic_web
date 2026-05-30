@@ -9,7 +9,6 @@ import {
   SLOT_FREQUENCY_LABELS,
 } from '@/types/db'
 import type {
-  ServiceType,
   TreatmentPlan,
   DayOfWeek,
   TreatmentPlanScheduleSlot,
@@ -26,25 +25,17 @@ interface Props {
   plan: TreatmentPlan | null
   therapists: TherapistOption[]
   canEdit: boolean
-  /** Items del catálogo en categoría 'terapia_individual' — para auto-precio. */
-  therapyCatalog?: import('@/types/db').ServiceCatalogItem[]
-  /** Programa matutino del niño (BK/LK/Aula) — activa precio descontado. */
+  /** Programa matutino del niño (BK/LK/Aula) — pre-carga esa terapia en el plan. */
   enrolledProgram?: import('@/types/db').MorningProgram | null
 }
 
 const DAY_ORDER: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
-
-function fmtMoney(n: number | null | undefined): string {
-  if (n === null || n === undefined) return '—'
-  return `$${n.toFixed(2)}`
-}
 
 export function TreatmentPlanSection({
   childId,
   plan,
   therapists,
   canEdit,
-  therapyCatalog,
   enrolledProgram,
 }: Props) {
   const [showEditor, setShowEditor] = useState(false)
@@ -94,7 +85,6 @@ export function TreatmentPlanSection({
           existing={plan}
           therapists={therapists}
           onClose={() => setShowEditor(false)}
-          therapyCatalog={therapyCatalog}
           enrolledProgram={enrolledProgram}
         />
       )}
@@ -133,14 +123,13 @@ function PlanReadOnly({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
         <KV label="Terapista principal" value={therapistName} />
         <KV
           label="Fecha de inicio"
           value={plan.starts_at ? new Date(plan.starts_at).toLocaleDateString('es-SV') : '—'}
         />
         <KV label="Edad al inicio" value={plan.age_at_start_text ?? '—'} />
-        <KV label="Total mensual" value={fmtMoney(plan.monthly_total_usd)} highlight />
       </div>
       {plan.diagnosis_text && (
         <div className="text-sm">
@@ -159,47 +148,41 @@ function PlanReadOnly({
         {therapies.length === 0 ? (
           <p className="text-sm text-fm-on-surface-variant">No hay terapias capturadas.</p>
         ) : (
-          <div className="rounded-xl border border-fm-outline-variant/20 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-fm-surface-container-low text-[10px] uppercase tracking-wide text-fm-on-surface-variant">
-                <tr>
-                  <th className="text-left px-3 py-1.5 font-semibold">Servicio</th>
-                  <th className="text-right px-3 py-1.5 font-semibold">Sesiones/mes</th>
-                  <th className="text-right px-3 py-1.5 font-semibold">Costo unitario</th>
-                  <th className="text-right px-3 py-1.5 font-semibold">Subtotal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {therapies.map((t, i) => (
-                  <tr
-                    key={`${t.service}-${i}`}
-                    className={`border-t border-fm-outline-variant/15 ${
-                      t.active ? '' : 'opacity-50 line-through'
-                    }`}
-                  >
-                    <td className="px-3 py-1.5">
-                      {SERVICE_TYPE_LABELS[t.service] ?? t.service}
-                    </td>
-                    <td className="text-right px-3 py-1.5 tabular-nums">{t.sessions_per_month}</td>
-                    <td className="text-right px-3 py-1.5 tabular-nums">
-                      {fmtMoney(t.unit_cost_usd)}
-                    </td>
-                    <td className="text-right px-3 py-1.5 tabular-nums font-medium">
-                      {fmtMoney(t.sessions_per_month * t.unit_cost_usd)}
-                    </td>
+          <>
+            <div className="rounded-xl border border-fm-outline-variant/20 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-fm-surface-container-low text-[10px] uppercase tracking-wide text-fm-on-surface-variant">
+                  <tr>
+                    <th className="text-left px-3 py-1.5 font-semibold">Servicio</th>
+                    <th className="text-right px-3 py-1.5 font-semibold">Sesiones/mes</th>
                   </tr>
-                ))}
-                <tr className="border-t-2 border-fm-outline-variant/30 bg-fm-surface-container-low/40 font-semibold">
-                  <td colSpan={3} className="px-3 py-1.5 text-right">
-                    Total mensual
-                  </td>
-                  <td className="px-3 py-1.5 text-right tabular-nums">
-                    {fmtMoney(plan.monthly_total_usd)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {therapies.map((t, i) => (
+                    <tr
+                      key={`${t.service}-${i}`}
+                      className={`border-t border-fm-outline-variant/15 ${
+                        t.active ? '' : 'opacity-50 line-through'
+                      }`}
+                    >
+                      <td className="px-3 py-1.5">
+                        {SERVICE_TYPE_LABELS[t.service] ?? t.service}
+                      </td>
+                      <td className="text-right px-3 py-1.5 tabular-nums">{t.sessions_per_month}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-fm-on-surface-variant italic mt-1">
+              Los precios se definen al cobrar cada ciclo mensual.
+            </p>
+            {plan.schedule_pattern_json && plan.schedule_pattern_json.length > 0 && (
+              <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">
+                Para que las citas aparezcan en la agenda, creá el ciclo mensual del niño/a.
+              </p>
+            )}
+          </>
         )}
       </div>
 

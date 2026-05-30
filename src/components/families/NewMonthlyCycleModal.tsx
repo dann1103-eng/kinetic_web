@@ -11,6 +11,8 @@ import type {
   MonthlyCandidateAppointment,
   MonthlyCandidatesResult,
   MonthlySessionCycle,
+  MorningProgram,
+  ServiceCatalogItem,
   ServiceType,
   TreatmentPlan,
 } from '@/types/db'
@@ -21,10 +23,47 @@ import { DraggableCycleCalendar } from './DraggableCycleCalendar'
 interface Props {
   childId: string
   plan: TreatmentPlan
+  /** Catálogo de terapias individuales — para precargar precios estándar. */
+  therapyCatalog?: ServiceCatalogItem[]
+  /** Programa matutino del niño — activa el precio BK precargado. */
+  enrolledProgram?: MorningProgram | null
   /** Períodos ya existentes (no cancelled) para evitar duplicar. */
   existingPeriods: string[]
   onClose: () => void
   onCreated: (cycle: MonthlySessionCycle) => void
+}
+
+/** Precio estándar del catálogo para un service_type (BK-aware). */
+function catalogPriceFor(
+  catalog: ServiceCatalogItem[] | undefined,
+  service: string,
+  enrolledProgram: MorningProgram | null | undefined,
+): number {
+  if (!catalog) return 0
+  // 1) Terapia individual por service_type.
+  const ind = catalog.find(
+    (c) => c.active && c.category === 'terapia_individual' && c.service_type === service,
+  )
+  if (ind) {
+    if (enrolledProgram && ind.unit_price_bk_usd != null) return Number(ind.unit_price_bk_usd)
+    return Number(ind.unit_price_usd)
+  }
+  // 2) Programa matutino (blue_kids / learning_kids / aula_educativa):
+  //    buscar mensualidad de ese programa. Como el plan no guarda días/semana,
+  //    se sugiere el precio del paquete de más días (5d) y la persona ajusta.
+  if (service === 'blue_kids' || service === 'learning_kids' || service === 'aula_educativa') {
+    const mens = catalog
+      .filter((c) => c.active && c.category === 'mensualidad' && c.morning_program === service)
+      .sort((a, b) => (b.days_per_week ?? 0) - (a.days_per_week ?? 0))[0]
+    if (mens) return Number(mens.unit_price_usd)
+  }
+  return 0
+}
+
+interface PricedTherapy {
+  service: string
+  sessions_per_month: number
+  unit_cost_usd: number
 }
 
 const PAYMENT_METHODS: { value: 'cash' | 'transfer' | 'card' | 'other'; label: string }[] = [
@@ -57,18 +96,37 @@ function formatDateTime(iso: string): string {
 export function NewMonthlyCycleModal({
   childId,
   plan,
+  therapyCatalog,
+  enrolledProgram,
   existingPeriods,
   onClose,
   onCreated,
 }: Props) {
-  // Subtotal del plan (antes de cualquier descuento) — sale de therapies_json.
-  const planSubtotal = (plan.therapies_json ?? [])
-    .filter((t) => t.active)
-    .reduce(
-      (s, t) =>
-        s + (t.sessions_per_month || 0) * (t.unit_cost_usd || 0),
-      0,
-    )
+  // Precios por terapia — precargados del CATÁLOGO (no del plan, que ya no
+  // guarda precios). La persona que cobra puede editar cada precio.
+  const [priced, setPriced] = useState<PricedTherapy[]>(() =>
+    (plan.therapies_json ?? [])
+      .filter((t) => t.active)
+      .map((t) => ({
+        service: t.service,
+        sessions_per_month: t.sessions_per_month || 0,
+        // Si el plan trae un precio (>0) lo respetamos; si no, jalamos del catálogo.
+        unit_cost_usd:
+          (t.unit_cost_usd && t.unit_cost_usd > 0)
+            ? t.unit_cost_usd
+            : catalogPriceFor(therapyCatalog, t.service, enrolledProgram),
+      })),
+  )
+
+  function patchPrice(idx: number, unit: number) {
+    setPriced((prev) => prev.map((p, i) => (i === idx ? { ...p, unit_cost_usd: unit } : p)))
+  }
+
+  // Subtotal = suma(sesiones × precio) de las terapias precargadas.
+  const planSubtotal = priced.reduce(
+    (s, t) => s + (t.sessions_per_month || 0) * (t.unit_cost_usd || 0),
+    0,
+  )
 
   const [periodMonth, setPeriodMonth] = useState<string>(defaultPeriodMonth())
   // Descuento del ciclo: default = mismo que el plan, editable.
@@ -177,6 +235,8 @@ export function NewMonthlyCycleModal({
         discountKind,
         discountValue,
         discountReason: discountReason.trim() || null,
+        // Precios finales por terapia (editados al cobrar) — sobreescriben el snapshot.
+        pricedTherapies: priced,
       })
       if (!res.ok) {
         setConfirmError(res.error)
@@ -270,6 +330,56 @@ export function NewMonthlyCycleModal({
                 className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
               />
             </Field>
+          </div>
+
+          {/* Precios por terapia — precargados del catálogo, editables */}
+          <div className="rounded-lg border border-fm-outline-variant/20 overflow-hidden">
+            <div className="px-3 py-2 bg-fm-surface-container-low/40 flex items-center justify-between">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-fm-on-surface-variant">
+                Precios del mes (precargados del catálogo{enrolledProgram ? ' · BK' : ''})
+              </span>
+            </div>
+            {priced.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-fm-on-surface-variant italic">
+                El plan no tiene terapias activas.
+              </p>
+            ) : (
+              <table className="w-full text-sm">
+                <thead className="text-[10px] uppercase tracking-wide text-fm-on-surface-variant">
+                  <tr className="border-t border-fm-outline-variant/15">
+                    <th className="text-left px-3 py-1 font-semibold">Terapia</th>
+                    <th className="text-right px-3 py-1 font-semibold">Ses/mes</th>
+                    <th className="text-right px-3 py-1 font-semibold">Precio unit.</th>
+                    <th className="text-right px-3 py-1 font-semibold">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {priced.map((t, idx) => (
+                    <tr key={`${t.service}-${idx}`} className="border-t border-fm-outline-variant/10">
+                      <td className="px-3 py-1.5">
+                        {SERVICE_TYPE_LABELS[t.service as ServiceType] ?? t.service}
+                      </td>
+                      <td className="text-right px-3 py-1.5 tabular-nums text-fm-on-surface-variant">
+                        {t.sessions_per_month}
+                      </td>
+                      <td className="text-right px-3 py-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={t.unit_cost_usd}
+                          onChange={(e) => patchPrice(idx, Number(e.target.value))}
+                          className="w-20 rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1 text-sm tabular-nums text-right"
+                        />
+                      </td>
+                      <td className="text-right px-3 py-1.5 tabular-nums font-medium">
+                        ${(t.sessions_per_month * t.unit_cost_usd).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
 
           <DiscountFields

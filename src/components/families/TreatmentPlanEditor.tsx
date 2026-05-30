@@ -10,17 +10,13 @@ import {
 } from '@/types/db'
 import type {
   DayOfWeek,
-  DiscountKind,
   MorningProgram,
-  ServiceCatalogItem,
   ServiceType,
   SlotFrequency,
   TreatmentPlan,
   TreatmentPlanScheduleSlot,
   TreatmentPlanTherapyEntry,
 } from '@/types/db'
-import { applyDiscount } from '@/lib/domain/discounts'
-import { DiscountFields } from './DiscountFields'
 
 interface TherapistOption {
   id: string
@@ -34,13 +30,9 @@ interface Props {
   therapists: TherapistOption[]
   onClose: () => void
   /**
-   * Items del service_catalog en categoría 'terapia_individual'.
-   * Permiten heredar el precio automáticamente al seleccionar el tipo de terapia.
-   */
-  therapyCatalog?: ServiceCatalogItem[]
-  /**
-   * Si el niño está inscrito en programa matutino (BK/LK/Aula), se aplica
-   * automáticamente el unit_price_bk_usd del catálogo cuando se carga la fila.
+   * Programa matutino del niño (BK/LK/Aula). Si el plan es nuevo, se pre-carga
+   * esa terapia. Los PRECIOS no se manejan en el plan — se definen al cobrar
+   * el ciclo mensual.
    */
   enrolledProgram?: MorningProgram | null
 }
@@ -49,8 +41,10 @@ const SERVICE_OPTIONS = Object.entries(SERVICE_TYPE_LABELS) as [ServiceType, str
 const DAY_OPTIONS = Object.entries(DAY_OF_WEEK_LABELS) as [DayOfWeek, string][]
 const FREQUENCY_OPTIONS = Object.entries(SLOT_FREQUENCY_LABELS) as [SlotFrequency, string][]
 
+// Los precios (unit_cost_usd) se definen al cobrar el ciclo mensual, no en el
+// plan. Acá quedan en 0 — son solo plantilla de qué terapias + cuántas sesiones.
 function emptyTherapy(): TreatmentPlanTherapyEntry {
-  return { service: 'lenguaje', active: true, sessions_per_month: 4, unit_cost_usd: 20 }
+  return { service: 'lenguaje', active: true, sessions_per_month: 4, unit_cost_usd: 0 }
 }
 
 function emptySlot(): TreatmentPlanScheduleSlot {
@@ -63,31 +57,11 @@ function emptySlot(): TreatmentPlanScheduleSlot {
   }
 }
 
-/**
- * Devuelve el precio sugerido del catálogo para un service_type dado, aplicando
- * el descuento BK si el niño está en programa matutino. Si no hay match en el
- * catálogo, devuelve null y la fila mantiene su precio actual.
- */
-function lookupCatalogPrice(
-  catalog: ServiceCatalogItem[] | undefined,
-  service: ServiceType,
-  enrolledProgram: MorningProgram | null | undefined,
-): number | null {
-  if (!catalog || catalog.length === 0) return null
-  const item = catalog.find((c) => c.service_type === service && c.active)
-  if (!item) return null
-  if (enrolledProgram && item.unit_price_bk_usd != null) {
-    return Number(item.unit_price_bk_usd)
-  }
-  return Number(item.unit_price_usd)
-}
-
 export function TreatmentPlanEditor({
   childId,
   existing,
   therapists,
   onClose,
-  therapyCatalog,
   enrolledProgram,
 }: Props) {
   const router = useRouter()
@@ -109,14 +83,8 @@ export function TreatmentPlanEditor({
       // ServiceType incluye blue_kids / learning_kids / aula_educativa a partir
       // de la migración 0132. Cast directo porque MorningProgram es un subset.
       const programService = enrolledProgram as ServiceType
-      const catalogPrice = lookupCatalogPrice(therapyCatalog, programService, enrolledProgram)
       return [
-        {
-          service: programService,
-          active: true,
-          sessions_per_month: 1,
-          unit_cost_usd: catalogPrice ?? 250, // fallback al precio común
-        },
+        { service: programService, active: true, sessions_per_month: 1, unit_cost_usd: 0 },
       ]
     }
     return [emptyTherapy()]
@@ -124,30 +92,8 @@ export function TreatmentPlanEditor({
   const [slots, setSlots] = useState<TreatmentPlanScheduleSlot[]>(
     existing?.schedule_pattern_json ?? [],
   )
-  const [discountKind, setDiscountKind] = useState<DiscountKind>(
-    existing?.discount_kind ?? 'none',
-  )
-  const [discountValue, setDiscountValue] = useState<number>(
-    Number(existing?.discount_value ?? 0),
-  )
-  const [discountReason, setDiscountReason] = useState<string>(
-    existing?.discount_reason ?? '',
-  )
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-
-  const subtotal = useMemo(
-    () =>
-      therapies
-        .filter((t) => t.active)
-        .reduce((sum, t) => sum + (t.sessions_per_month || 0) * (t.unit_cost_usd || 0), 0),
-    [therapies],
-  )
-  const monthlyTotal = useMemo(
-    () =>
-      applyDiscount(subtotal, { kind: discountKind, value: discountValue }),
-    [subtotal, discountKind, discountValue],
-  )
 
   /**
    * Quota vs patrón: para cada terapia activa, comparamos su `sessions_per_month`
@@ -191,34 +137,7 @@ export function TreatmentPlanEditor({
   }, [therapies, slots])
 
   function patchTherapy(idx: number, patch: Partial<TreatmentPlanTherapyEntry>) {
-    setTherapies((prev) =>
-      prev.map((t, i) => {
-        if (i !== idx) return t
-        const next = { ...t, ...patch }
-        // Si cambió el service_type, intentamos heredar el precio del catálogo.
-        // Solo sobreescribimos cuando el precio actual es 0 o el default ($20),
-        // para no pisar overrides manuales del usuario.
-        if (patch.service && patch.service !== t.service) {
-          const catalogPrice = lookupCatalogPrice(therapyCatalog, patch.service, enrolledProgram)
-          if (catalogPrice !== null && (t.unit_cost_usd === 0 || t.unit_cost_usd === 20)) {
-            next.unit_cost_usd = catalogPrice
-          }
-        }
-        return next
-      }),
-    )
-  }
-
-  /** Sobreescribe el precio de una fila con el sugerido del catálogo. */
-  function applyCatalogPrice(idx: number) {
-    setTherapies((prev) =>
-      prev.map((t, i) => {
-        if (i !== idx) return t
-        const price = lookupCatalogPrice(therapyCatalog, t.service, enrolledProgram)
-        if (price === null) return t
-        return { ...t, unit_cost_usd: price }
-      }),
-    )
+    setTherapies((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)))
   }
   function patchSlot(idx: number, patch: Partial<TreatmentPlanScheduleSlot>) {
     setSlots((prev) => prev.map((s, i) => (i === idx ? { ...s, ...patch } : s)))
@@ -233,12 +152,13 @@ export function TreatmentPlanEditor({
         diagnosisText: diagnosisText.trim() || null,
         startsAt: startsAt || null,
         ageAtStartText: ageAtStart.trim() || null,
-        therapies,
+        // Precios en 0 — se definen al cobrar el ciclo mensual.
+        therapies: therapies.map((t) => ({ ...t, unit_cost_usd: 0 })),
         schedulePattern: slots,
         observations: observations.trim() || null,
-        discountKind,
-        discountValue,
-        discountReason: discountReason.trim() || null,
+        discountKind: 'none',
+        discountValue: 0,
+        discountReason: null,
       })
       if (!res.ok) {
         setError(res.error)
@@ -337,7 +257,7 @@ export function TreatmentPlanEditor({
               {therapies.map((t, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-[1fr_80px_100px_80px_30px] gap-2 items-center bg-fm-surface-container-low/40 rounded-lg p-2"
+                  className="grid grid-cols-[1fr_110px_80px_30px] gap-2 items-center bg-fm-surface-container-low/40 rounded-lg p-2"
                 >
                   <select
                     value={t.service}
@@ -350,39 +270,19 @@ export function TreatmentPlanEditor({
                       </option>
                     ))}
                   </select>
-                  <input
-                    type="number"
-                    min={0}
-                    value={t.sessions_per_month}
-                    onChange={(e) =>
-                      patchTherapy(idx, { sessions_per_month: Number(e.target.value) })
-                    }
-                    placeholder="ses/mes"
-                    className="rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
-                  />
-                  <div className="flex items-center gap-1">
+                  <label className="flex items-center gap-1 text-xs text-fm-on-surface-variant">
                     <input
                       type="number"
                       min={0}
-                      step={0.01}
-                      value={t.unit_cost_usd}
+                      value={t.sessions_per_month}
                       onChange={(e) =>
-                        patchTherapy(idx, { unit_cost_usd: Number(e.target.value) })
+                        patchTherapy(idx, { sessions_per_month: Number(e.target.value) })
                       }
-                      placeholder="$ unit"
-                      className="flex-1 rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-2 py-1.5 text-sm tabular-nums"
+                      placeholder="ses/mes"
+                      className="w-16 rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
                     />
-                    {therapyCatalog && lookupCatalogPrice(therapyCatalog, t.service, enrolledProgram) !== null && (
-                      <button
-                        type="button"
-                        onClick={() => applyCatalogPrice(idx)}
-                        title={`Aplicar precio del catálogo${enrolledProgram ? ' (con descuento BK)' : ''}`}
-                        className="shrink-0 text-[10px] px-1.5 py-0.5 rounded border border-fm-primary/40 bg-fm-primary/5 text-fm-primary hover:bg-fm-primary/15 transition-colors"
-                      >
-                        ${lookupCatalogPrice(therapyCatalog, t.service, enrolledProgram)?.toFixed(2)}
-                      </button>
-                    )}
-                  </div>
+                    ses/mes
+                  </label>
                   <label className="flex items-center gap-1 text-xs">
                     <input
                       type="checkbox"
@@ -403,22 +303,10 @@ export function TreatmentPlanEditor({
               ))}
             </div>
 
+            <p className="text-[11px] text-fm-on-surface-variant italic">
+              Los precios se definen al cobrar el ciclo mensual del niño/a.
+            </p>
           </section>
-
-          <DiscountFields
-            subtotal={subtotal}
-            kind={discountKind}
-            value={discountValue}
-            reason={discountReason}
-            onChangeKind={setDiscountKind}
-            onChangeValue={setDiscountValue}
-            onChangeReason={setDiscountReason}
-            disabled={isPending}
-          />
-
-          <div className="text-right text-base font-semibold text-fm-primary tabular-nums">
-            Total mensual: ${monthlyTotal.toFixed(2)}
-          </div>
 
           {/* Schedule */}
           <section className="space-y-2">

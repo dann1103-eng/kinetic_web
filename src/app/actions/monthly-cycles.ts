@@ -104,6 +104,11 @@ export interface ConfirmMonthlyPaymentInput {
   discountKind?: DiscountKind
   discountValue?: number
   discountReason?: string | null
+  /**
+   * Precios finales por terapia (editados al cobrar). Sobreescriben los precios
+   * del snapshot del plan en el ciclo, para que la factura use estos montos.
+   */
+  pricedTherapies?: { service: string; sessions_per_month: number; unit_cost_usd: number }[]
 }
 
 export async function confirmMonthlyPaymentAndGenerate(
@@ -178,21 +183,42 @@ export async function confirmMonthlyPaymentAndGenerate(
 
   let cycle = data as MonthlySessionCycle
 
-  // Persistir el descuento como snapshot en el cycle row. El RPC no maneja
-  // descuentos (el payment_amount_usd ya viene con el descuento aplicado),
-  // pero guardamos kind/value/reason para que el row tenga la trazabilidad.
-  if (cycle?.id && discountKind !== 'none' && discountValue > 0) {
-    const { data: updated } = await supabase
-      .from('monthly_session_cycles')
-      .update({
-        discount_kind: discountKind,
-        discount_value: discountValue,
-        discount_reason: input.discountReason ?? null,
-      })
-      .eq('id', cycle.id)
-      .select('*')
-      .single()
-    if (updated) cycle = updated as MonthlySessionCycle
+  // Parchar el snapshot del ciclo con los precios editados al cobrar + descuento.
+  // La factura (createInvoiceForCycle) lee precios de treatment_plan_snapshot,
+  // así que actualizamos ahí los unit_cost_usd con lo que la persona definió.
+  if (cycle?.id) {
+    const updatePayload: Record<string, unknown> = {}
+
+    if (discountKind !== 'none' && discountValue > 0) {
+      updatePayload.discount_kind = discountKind
+      updatePayload.discount_value = discountValue
+      updatePayload.discount_reason = input.discountReason ?? null
+    }
+
+    if (input.pricedTherapies && input.pricedTherapies.length > 0) {
+      const priceBy = new Map(
+        input.pricedTherapies.map((p) => [p.service, p.unit_cost_usd]),
+      )
+      const snapshot = (cycle.treatment_plan_snapshot ?? {}) as {
+        therapies_json?: { service: string; unit_cost_usd?: number }[]
+      }
+      const therapies = (snapshot.therapies_json ?? []).map((t) => ({
+        ...t,
+        unit_cost_usd: priceBy.has(t.service) ? priceBy.get(t.service)! : (t.unit_cost_usd ?? 0),
+      }))
+      updatePayload.treatment_plan_snapshot = { ...snapshot, therapies_json: therapies }
+    }
+
+    if (Object.keys(updatePayload).length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: updated } = await (supabase as any)
+        .from('monthly_session_cycles')
+        .update(updatePayload)
+        .eq('id', cycle.id)
+        .select('*')
+        .single()
+      if (updated) cycle = updated as MonthlySessionCycle
+    }
   }
 
   // Auto-generar factura para el ciclo recién creado.
