@@ -10,7 +10,7 @@ import type { PayrollContractType, AfpProvider, UserRole } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES: UserRole[] = ['admin', 'directora', 'contable']
+const ALLOWED_ROLES: UserRole[] = ['admin', 'directora', 'contable', 'recepcion']
 
 const STAFF_ROLES: UserRole[] = [
   'admin',

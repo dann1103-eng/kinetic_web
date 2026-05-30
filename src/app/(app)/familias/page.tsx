@@ -4,6 +4,7 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { FamilyForm } from '@/components/families/FamilyForm'
 import { FamiliesTable } from '@/components/families/FamiliesTable'
+import { compareByLastName } from '@/lib/domain/name-sort'
 import type { Family } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -28,13 +29,15 @@ export default async function FamiliasPage() {
   const { data: families } = await supabase
     .from('families')
     .select('*, children(count)')
-    .order('primary_contact_name')
 
   type FamilyWithChildCount = Family & { children: { count: number }[] }
-  const enriched = ((families ?? []) as unknown as FamilyWithChildCount[]).map((f) => ({
-    ...f,
-    children_count: f.children?.[0]?.count ?? 0,
-  }))
+  const enriched = ((families ?? []) as unknown as FamilyWithChildCount[])
+    .map((f) => ({
+      ...f,
+      children_count: f.children?.[0]?.count ?? 0,
+    }))
+    // Orden alfabético por apellido del contacto principal.
+    .sort((a, b) => compareByLastName(a.primary_contact_name, b.primary_contact_name))
 
   return (
     <div className="flex flex-col min-h-full">

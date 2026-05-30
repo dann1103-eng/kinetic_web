@@ -14,7 +14,7 @@ import type {
   UserRole,
 } from '@/types/db'
 
-const PAYROLL_ROLES: UserRole[] = ['admin', 'directora', 'contable']
+const PAYROLL_ROLES: UserRole[] = ['admin', 'directora', 'contable', 'recepcion']
 
 async function getActor() {
   const supabase = await createClient()

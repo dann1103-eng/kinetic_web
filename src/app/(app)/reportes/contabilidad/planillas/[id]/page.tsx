@@ -11,7 +11,7 @@ import { PAYROLL_RUN_STATUS_LABELS, type UserRole } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES: UserRole[] = ['admin', 'directora', 'contable']
+const ALLOWED_ROLES: UserRole[] = ['admin', 'directora', 'contable', 'recepcion']
 
 const STATUS_TONES: Record<string, { bg: string; text: string }> = {
   draft:     { bg: 'bg-amber-100',  text: 'text-amber-900' },

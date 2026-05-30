@@ -16,7 +16,7 @@ import {
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES: UserRole[] = ['admin', 'directora', 'contable']
+const ALLOWED_ROLES: UserRole[] = ['admin', 'directora', 'contable', 'recepcion']
 
 interface PageProps {
   searchParams: Promise<{

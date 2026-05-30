@@ -6,7 +6,7 @@ import type { PayrollItem, PayrollRun, UserRole } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
-const ADMIN_ROLES: UserRole[] = ['admin', 'directora', 'contable']
+const ADMIN_ROLES: UserRole[] = ['admin', 'directora', 'contable', 'recepcion']
 
 export async function GET(
   _req: Request,

@@ -8,6 +8,7 @@
 import { fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Child, TreatmentPlan, MonthlySessionCycle, Database } from '@/types/db'
+import { compareByLastName } from '@/lib/domain/name-sort'
 
 const TZ = 'America/El_Salvador'
 
@@ -55,9 +56,11 @@ export async function getNinosDashboardData(
   const { data: childrenRaw } = await supabase
     .from('children')
     .select('*')
-    .order('full_name')
 
-  const children = (childrenRaw ?? []) as Child[]
+  // Orden alfabético por apellido (apellido paterno) del nombre completo.
+  const children = ((childrenRaw ?? []) as Child[])
+    .slice()
+    .sort((a, b) => compareByLastName(a.full_name, b.full_name))
   if (children.length === 0) return []
 
   const childIds = children.map((c) => c.id)

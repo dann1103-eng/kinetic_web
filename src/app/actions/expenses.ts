@@ -6,7 +6,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { ExpenseCategory, GeneralExpense, UserRole } from '@/types/db'
 
-const EXPENSE_ROLES: UserRole[] = ['admin', 'directora', 'contable']
+const EXPENSE_ROLES: UserRole[] = ['admin', 'directora', 'contable', 'recepcion']
 
 async function getActor() {
   const supabase = await createClient()
