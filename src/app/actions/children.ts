@@ -174,7 +174,7 @@ export async function updateChild(
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }
 
-  const allowed = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'coordinadora_terapias', 'terapista', 'maestra']
+  const allowed = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'contable', 'recepcion']
   if (!allowed.includes(ctx.appUser.role)) {
     return { ok: false, error: 'Sin permisos' }
   }
@@ -189,7 +189,10 @@ export async function updateChild(
 
   if (error) return { ok: false, error: error.message }
 
-  if (data?.family_id) revalidatePath(`/familias/${data.family_id}`)
+  if (data?.family_id) {
+    revalidatePath(`/familias/${data.family_id}`)
+    revalidatePath(`/familias/${data.family_id}/children/${childId}`)
+  }
   return { ok: true }
 }
 

@@ -54,6 +54,9 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
   const hasSecondary = !!familyTyped.secondary_contact_name
   const hasFiscal = !!familyTyped.fiscal_legal_name
 
+  const CAN_EDIT_CHILD_ROLES = ['admin', 'directora', 'coordinadora_familias', 'contable', 'recepcion']
+  const canEditChild = CAN_EDIT_CHILD_ROLES.includes(ctx.appUser.role)
+
   return (
     <div className="flex flex-col min-h-full">
       <TopNav title={familyTyped.primary_contact_name} backHref="/familias" />
@@ -242,12 +245,12 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
                   </p>
                 </div>
               ) : childrenList.length === 1 ? (
-                <ChildHeroCard familyId={id} child={childrenList[0]} phasesByCode={phasesByCode} />
+                <ChildHeroCard familyId={id} child={childrenList[0]} phasesByCode={phasesByCode} canEdit={canEditChild} />
               ) : (
                 <div className="space-y-3">
-                  <ChildHeroCard familyId={id} child={childrenList[0]} phasesByCode={phasesByCode} />
+                  <ChildHeroCard familyId={id} child={childrenList[0]} phasesByCode={phasesByCode} canEdit={canEditChild} />
                   {childrenList.slice(1).map((child) => (
-                    <ChildRow key={child.id} familyId={id} child={child} phasesByCode={phasesByCode} />
+                    <ChildRow key={child.id} familyId={id} child={child} phasesByCode={phasesByCode} canEdit={canEditChild} />
                   ))}
                 </div>
               )}
@@ -319,21 +322,21 @@ function ChildHeroCard({
   familyId,
   child,
   phasesByCode,
+  canEdit,
 }: {
   familyId: string
   child: Child
   phasesByCode: Record<string, IntakePhaseCatalogEntry>
+  canEdit: boolean
 }) {
   const age = childAgeYears(child.birth_date)
   const phase = child.current_phase_code ? phasesByCode[child.current_phase_code] : null
+  const href = `/familias/${familyId}/children/${child.id}`
 
   return (
-    <Link
-      href={`/familias/${familyId}/children/${child.id}`}
-      className="group block rounded-3xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-6 md:p-8 hover:border-fm-primary/40 hover:shadow-sm transition-all"
-    >
+    <div className="group rounded-3xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-6 md:p-8 hover:border-fm-primary/40 hover:shadow-sm transition-all">
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1.5 min-w-0 flex-1">
+        <Link href={href} className="space-y-1.5 min-w-0 flex-1 block">
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-xl md:text-2xl font-semibold text-fm-on-surface leading-tight">
               {child.full_name}
@@ -354,13 +357,17 @@ function ChildHeroCard({
             {child.school_name && ` · ${child.school_name}`}
             {child.school_grade && ` (${child.school_grade})`}
           </p>
+        </Link>
+        <div className="flex items-center gap-1 shrink-0">
+          {canEdit && <ChildForm initialChild={child} />}
+          <Link
+            href={href}
+            className="inline-flex items-center justify-center min-h-[36px] min-w-[36px] text-fm-on-surface-variant group-hover:text-fm-primary transition-colors"
+            aria-label={`Ver perfil de ${child.full_name}`}
+          >
+            <span className="material-symbols-outlined" aria-hidden="true">arrow_outward</span>
+          </Link>
         </div>
-        <span
-          className="material-symbols-outlined text-fm-on-surface-variant group-hover:text-fm-primary transition-colors"
-          aria-hidden="true"
-        >
-          arrow_outward
-        </span>
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mt-5">
@@ -381,7 +388,7 @@ function ChildHeroCard({
           {child.diagnoses_display_text}
         </p>
       )}
-    </Link>
+    </div>
   )
 }
 
@@ -389,20 +396,20 @@ function ChildRow({
   familyId,
   child,
   phasesByCode,
+  canEdit,
 }: {
   familyId: string
   child: Child
   phasesByCode: Record<string, IntakePhaseCatalogEntry>
+  canEdit: boolean
 }) {
   const age = childAgeYears(child.birth_date)
   const phase = child.current_phase_code ? phasesByCode[child.current_phase_code] : null
+  const href = `/familias/${familyId}/children/${child.id}`
 
   return (
-    <Link
-      href={`/familias/${familyId}/children/${child.id}`}
-      className="group flex items-center gap-4 rounded-2xl border border-fm-outline-variant/15 bg-fm-surface-container-lowest px-5 py-4 hover:border-fm-primary/40 hover:bg-fm-surface-container-low/50 transition-all"
-    >
-      <div className="min-w-0 flex-1">
+    <div className="group flex items-center gap-2 rounded-2xl border border-fm-outline-variant/15 bg-fm-surface-container-lowest px-5 py-4 hover:border-fm-primary/40 hover:bg-fm-surface-container-low/50 transition-all">
+      <Link href={href} className="min-w-0 flex-1 block">
         <div className="flex items-center gap-2 flex-wrap">
           <h3 className="text-sm font-semibold text-fm-on-surface truncate">
             {child.full_name}
@@ -417,7 +424,7 @@ function ChildRow({
           {age !== null ? `${age} años` : 'Sin fecha de nacimiento'}
           {child.school_name && ` · ${child.school_name}`}
         </p>
-      </div>
+      </Link>
       <div className="hidden sm:flex items-center gap-1.5 shrink-0">
         {phase && (
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-fm-primary/10 text-fm-primary">
@@ -425,12 +432,14 @@ function ChildRow({
           </span>
         )}
       </div>
-      <span
-        className="material-symbols-outlined text-fm-on-surface-variant group-hover:text-fm-primary transition-colors shrink-0"
-        aria-hidden="true"
+      {canEdit && <ChildForm initialChild={child} />}
+      <Link
+        href={href}
+        className="inline-flex items-center justify-center min-h-[36px] min-w-[36px] text-fm-on-surface-variant group-hover:text-fm-primary transition-colors shrink-0"
+        aria-label={`Ver perfil de ${child.full_name}`}
       >
-        chevron_right
-      </span>
-    </Link>
+        <span className="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+      </Link>
+    </div>
   )
 }

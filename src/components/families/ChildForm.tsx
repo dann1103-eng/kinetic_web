@@ -2,10 +2,10 @@
 
 import { useId, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createChild } from '@/app/actions/children'
+import { createChild, updateChild } from '@/app/actions/children'
 import { computeChildCodeBase } from '@/lib/domain/child-code'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
-import type { DiagnosisCode, MorningProgram } from '@/types/db'
+import type { Child, DiagnosisCode, MorningProgram } from '@/types/db'
 
 const DIAGNOSIS_OPTIONS: { code: DiagnosisCode; label: string }[] = [
   { code: 'autismo', label: 'Autismo (TEA)' },
@@ -26,11 +26,20 @@ const PROGRAM_OPTIONS: { code: MorningProgram; label: string }[] = [
   { code: 'aula_educativa', label: 'Aula Educativa' },
 ]
 
-interface ChildFormProps {
+interface CreateProps {
   familyId: string
+  initialChild?: never
 }
 
-export function ChildForm({ familyId }: ChildFormProps) {
+interface EditProps {
+  initialChild: Child
+  familyId?: never
+}
+
+type ChildFormProps = CreateProps | EditProps
+
+export function ChildForm({ familyId, initialChild }: ChildFormProps) {
+  const isEdit = !!initialChild
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -45,21 +54,23 @@ export function ChildForm({ familyId }: ChildFormProps) {
   })
 
   const [form, setForm] = useState({
-    full_name: '',
-    preferred_name: '',
-    birth_date: '',
-    gender: '' as '' | 'M' | 'F' | 'other',
-    blood_type: '',
-    allergies_text: '',
-    medications_text: '',
-    preferred_hospital: '',
-    school_name: '',
-    school_grade: '',
-    diagnoses_display_text: '',
-    enrolled_program: '' as '' | MorningProgram,
-    notes: '',
+    full_name: initialChild?.full_name ?? '',
+    preferred_name: initialChild?.preferred_name ?? '',
+    birth_date: initialChild?.birth_date ?? '',
+    gender: (initialChild?.gender ?? '') as '' | 'M' | 'F' | 'other',
+    blood_type: initialChild?.blood_type ?? '',
+    allergies_text: initialChild?.allergies_text ?? '',
+    medications_text: initialChild?.medications_text ?? '',
+    preferred_hospital: initialChild?.preferred_hospital ?? '',
+    school_name: initialChild?.school_name ?? '',
+    school_grade: initialChild?.school_grade ?? '',
+    diagnoses_display_text: initialChild?.diagnoses_display_text ?? '',
+    enrolled_program: (initialChild?.enrolled_program ?? '') as '' | MorningProgram,
+    notes: initialChild?.notes ?? '',
   })
-  const [diagnoses, setDiagnoses] = useState<DiagnosisCode[]>([])
+  const [diagnoses, setDiagnoses] = useState<DiagnosisCode[]>(
+    initialChild?.diagnoses_json ?? []
+  )
 
   const previewCode = form.full_name.trim() ? computeChildCodeBase(form.full_name) : ''
 
@@ -76,44 +87,72 @@ export function ChildForm({ familyId }: ChildFormProps) {
     setError(null)
     setSubmitting(true)
 
-    const res = await createChild({
-      family_id: familyId,
-      full_name: form.full_name,
-      preferred_name: form.preferred_name || null,
-      birth_date: form.birth_date || null,
-      gender: form.gender || null,
-      blood_type: form.blood_type || null,
-      allergies_text: form.allergies_text || null,
-      medications_text: form.medications_text || null,
-      preferred_hospital: form.preferred_hospital || null,
-      school_name: form.school_name || null,
-      school_grade: form.school_grade || null,
-      diagnoses_json: diagnoses,
-      diagnoses_display_text: form.diagnoses_display_text || null,
-      enrolled_program: form.enrolled_program || null,
-      notes: form.notes || null,
-    })
-
-    setSubmitting(false)
-
-    if (!res.ok) {
-      setError(res.error)
-      return
+    if (isEdit) {
+      const res = await updateChild(initialChild.id, {
+        full_name: form.full_name,
+        preferred_name: form.preferred_name || null,
+        birth_date: form.birth_date || null,
+        gender: form.gender || null,
+        blood_type: form.blood_type || null,
+        allergies_text: form.allergies_text || null,
+        medications_text: form.medications_text || null,
+        preferred_hospital: form.preferred_hospital || null,
+        school_name: form.school_name || null,
+        school_grade: form.school_grade || null,
+        diagnoses_json: diagnoses,
+        diagnoses_display_text: form.diagnoses_display_text || null,
+        enrolled_program: form.enrolled_program || null,
+        notes: form.notes || null,
+      })
+      setSubmitting(false)
+      if (!res.ok) { setError(res.error); return }
+      setOpen(false)
+      router.refresh()
+    } else {
+      const res = await createChild({
+        family_id: familyId!,
+        full_name: form.full_name,
+        preferred_name: form.preferred_name || null,
+        birth_date: form.birth_date || null,
+        gender: form.gender || null,
+        blood_type: form.blood_type || null,
+        allergies_text: form.allergies_text || null,
+        medications_text: form.medications_text || null,
+        preferred_hospital: form.preferred_hospital || null,
+        school_name: form.school_name || null,
+        school_grade: form.school_grade || null,
+        diagnoses_json: diagnoses,
+        diagnoses_display_text: form.diagnoses_display_text || null,
+        enrolled_program: form.enrolled_program || null,
+        notes: form.notes || null,
+      })
+      setSubmitting(false)
+      if (!res.ok) { setError(res.error); return }
+      setOpen(false)
+      router.refresh()
     }
-
-    setOpen(false)
-    router.refresh()
   }
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center justify-center min-h-[44px] gap-2 px-3 py-2 rounded-xl text-xs font-medium bg-fm-tertiary text-fm-on-tertiary hover:bg-fm-tertiary-dim transition-colors"
-      >
-        + Registrar niño/a
-      </button>
+      {isEdit ? (
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true) }}
+          title="Editar datos del niño/a"
+          className="inline-flex items-center justify-center min-h-[36px] min-w-[36px] rounded-xl text-fm-on-surface-variant hover:text-fm-primary hover:bg-fm-surface-container transition-colors"
+        >
+          <span className="material-symbols-outlined text-[20px]" aria-hidden="true">edit</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="inline-flex items-center justify-center min-h-[44px] gap-2 px-3 py-2 rounded-xl text-xs font-medium bg-fm-tertiary text-fm-on-tertiary hover:bg-fm-tertiary-dim transition-colors"
+        >
+          + Registrar niño/a
+        </button>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !submitting && setOpen(false)}>
@@ -127,7 +166,9 @@ export function ChildForm({ familyId }: ChildFormProps) {
           >
             <form onSubmit={handleSubmit}>
               <div className="px-6 py-4 border-b border-fm-outline-variant/20 flex items-center justify-between sticky top-0 bg-fm-surface-container-lowest z-10">
-                <h2 id={titleId} className="text-base font-semibold">Registrar niño/a</h2>
+                <h2 id={titleId} className="text-base font-semibold">
+                  {isEdit ? 'Editar niño/a' : 'Registrar niño/a'}
+                </h2>
                 <button
                   type="button"
                   onClick={() => setOpen(false)}
@@ -151,7 +192,7 @@ export function ChildForm({ familyId }: ChildFormProps) {
                       placeholder="Roberto Andrés Flores Morataya"
                       className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
                     />
-                    {previewCode && (
+                    {!isEdit && previewCode && (
                       <p className="text-[10px] text-fm-on-surface-variant mt-1">Código generado: <span className="font-mono font-semibold">{previewCode}</span> (se asignará un sufijo si está tomado)</p>
                     )}
                   </div>
@@ -227,7 +268,7 @@ export function ChildForm({ familyId }: ChildFormProps) {
               <div className="px-6 py-4 border-t border-fm-outline-variant/20 flex items-center justify-end gap-2 sticky bottom-0 bg-fm-surface-container-lowest z-10">
                 <button type="button" onClick={() => setOpen(false)} disabled={submitting} className="min-h-[44px] px-4 py-2 text-sm rounded-xl text-fm-on-surface-variant hover:bg-fm-surface-container">Cancelar</button>
                 <button type="submit" disabled={submitting} className="min-h-[44px] px-4 py-2 text-sm rounded-xl bg-fm-primary text-fm-on-primary hover:bg-fm-primary-dim disabled:opacity-50">
-                  {submitting ? 'Guardando…' : 'Registrar niño/a'}
+                  {submitting ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Registrar niño/a'}
                 </button>
               </div>
             </form>

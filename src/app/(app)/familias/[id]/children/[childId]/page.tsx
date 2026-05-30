@@ -16,8 +16,10 @@ import { getChildDashboardData } from '@/lib/domain/child-dashboard'
 import { MORNING_PROGRAM_LABELS } from '@/types/db'
 import type { Child, MonthlySessionCycle, TreatmentPlan } from '@/types/db'
 import Link from 'next/link'
+import { ChildForm } from '@/components/families/ChildForm'
 
 const MGMT_ROLES_PLAN = ['admin', 'directora', 'coordinadora_terapias', 'contable']
+const CAN_EDIT_CHILD_INFO_ROLES = ['admin', 'directora', 'coordinadora_familias', 'contable', 'recepcion']
 const MGMT_ROLES_CYCLES = [
   'admin',
   'directora',
@@ -57,6 +59,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
   const c = child as Child
 
   // Datos comunes a ambos tabs
+  const canEditChildInfo = CAN_EDIT_CHILD_INFO_ROLES.includes(ctx.appUser.role)
   const canEditPlan = MGMT_ROLES_PLAN.includes(ctx.appUser.role)
   const canManageCycles = MGMT_ROLES_CYCLES.includes(ctx.appUser.role)
 
@@ -135,10 +138,11 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
               photoUrl={c.photo_url ?? null}
               canEdit={canEditPlan || ctx.appUser.role === 'terapista' || ctx.appUser.role === 'maestra'}
             />
-            <div className="flex items-baseline gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-3xl font-semibold tracking-tight text-fm-on-surface">
                 {c.full_name}
               </h1>
+              {canEditChildInfo && <ChildForm initialChild={c} />}
               {c.code && (
                 <span className="text-xs font-mono text-fm-on-surface-variant bg-fm-surface-container px-2 py-0.5 rounded">
                   {c.code}
