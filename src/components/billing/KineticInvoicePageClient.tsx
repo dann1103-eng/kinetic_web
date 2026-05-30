@@ -25,9 +25,13 @@ export interface InvoiceChildOption {
 interface Props {
   childOptions: InvoiceChildOption[]
   catalog: ServiceCatalogItem[]
+  /** 'invoice' (default) o 'quote'. */
+  kind?: 'invoice' | 'quote'
 }
 
-export function KineticInvoicePageClient({ childOptions, catalog }: Props) {
+export function KineticInvoicePageClient({ childOptions, catalog, kind = 'invoice' }: Props) {
+  const isQuote = kind === 'quote'
+  const docLabel = isQuote ? 'cotización' : 'factura'
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [createdInvoiceId, setCreatedInvoiceId] = useState<string | null>(null)
@@ -57,17 +61,19 @@ export function KineticInvoicePageClient({ childOptions, catalog }: Props) {
           <span className="material-symbols-outlined text-fm-primary text-3xl">check_circle</span>
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-fm-on-surface">Factura creada</h2>
+          <h2 className="text-lg font-semibold text-fm-on-surface">
+            {isQuote ? 'Cotización creada' : 'Factura creada'}
+          </h2>
           <p className="text-sm text-fm-on-surface-variant mt-1">
-            Se generó la factura para {selected.full_name}.
+            Se generó la {docLabel} para {selected.full_name}.
           </p>
         </div>
         <div className="flex flex-col gap-2 pt-2">
           <Link
-            href={`/familias/${selected.family_id}/children/${selected.id}`}
+            href={isQuote ? '/billing/quotes' : `/familias/${selected.family_id}/children/${selected.id}`}
             className="px-4 py-2 rounded-xl bg-fm-primary text-white text-sm font-semibold hover:bg-fm-primary/90 transition-colors"
           >
-            Ver ficha del niño/a
+            {isQuote ? 'Ver cotizaciones' : 'Ver ficha del niño/a'}
           </Link>
           <button
             type="button"
@@ -78,7 +84,7 @@ export function KineticInvoicePageClient({ childOptions, catalog }: Props) {
             }}
             className="px-4 py-2 rounded-xl border border-fm-outline-variant/40 text-sm font-medium text-fm-on-surface hover:bg-fm-surface-container transition-colors"
           >
-            Crear otra factura
+            Crear otra {docLabel}
           </button>
         </div>
       </div>
@@ -90,7 +96,7 @@ export function KineticInvoicePageClient({ childOptions, catalog }: Props) {
       {/* Selector de niño */}
       <div className="rounded-2xl border border-fm-outline-variant/30 bg-fm-surface-container-lowest p-5">
         <label className="text-xs font-semibold uppercase tracking-wider text-fm-on-surface-variant">
-          Niño/a a facturar
+          {isQuote ? 'Niño/a a cotizar' : 'Niño/a a facturar'}
         </label>
         {selected ? (
           <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-fm-primary/40 bg-fm-primary/5 px-4 py-3">
@@ -164,6 +170,7 @@ export function KineticInvoicePageClient({ childOptions, catalog }: Props) {
             childId={selected.id}
             enrolledProgram={selected.enrolled_program}
             catalog={catalog}
+            kind={kind}
             onCreated={(id) => setCreatedInvoiceId(id)}
           />
         </div>

@@ -14,7 +14,7 @@
  */
 
 import { useMemo, useState, useTransition } from 'react'
-import { createAdHocInvoice } from '@/app/actions/ad-hoc-invoices'
+import { createAdHocInvoice, createAdHocQuote } from '@/app/actions/ad-hoc-invoices'
 import {
   SERVICE_CATEGORY_LABELS,
   SERVICE_CATEGORY_ORDER,
@@ -36,8 +36,10 @@ interface Props {
   childId: string
   enrolledProgram: MorningProgram | null
   catalog: ServiceCatalogItem[]
-  /** Llamado con el id de la factura creada. */
-  onCreated: (invoiceId: string) => void
+  /** Llamado con el id del documento creado (factura o cotización). */
+  onCreated: (id: string) => void
+  /** 'invoice' (default) crea factura; 'quote' crea cotización. */
+  kind?: 'invoice' | 'quote'
 }
 
 function fmt(n: number): string {
@@ -51,7 +53,9 @@ function effectivePrice(item: ServiceCatalogItem, enrolledProgram: MorningProgra
   return Number(item.unit_price_usd)
 }
 
-export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreated }: Props) {
+export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreated, kind = 'invoice' }: Props) {
+  const isQuote = kind === 'quote'
+  const docLabel = isQuote ? 'cotización' : 'factura'
   const [lines, setLines] = useState<Line[]>([])
   const [filter, setFilter] = useState('')
   const [filterCategory, setFilterCategory] = useState<ServiceCategory | 'all'>('all')
@@ -61,6 +65,7 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
   const [notes, setNotes] = useState('')
   const [applyIva, setApplyIva] = useState(false)
   const [retentionPct, setRetentionPct] = useState(0)
+  const [validUntil, setValidUntil] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -112,10 +117,26 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
   function handleSubmit() {
     setError(null)
     if (lines.length === 0) {
-      setError('Agregá al menos un item a la factura.')
+      setError(`Agregá al menos un item a la ${docLabel}.`)
       return
     }
     startTransition(async () => {
+      if (isQuote) {
+        const res = await createAdHocQuote({
+          child_id: childId,
+          lines,
+          notes: notes.trim() || null,
+          apply_iva: applyIva,
+          retention_rate_pct: retentionPct,
+          valid_until: validUntil || null,
+        })
+        if (!res.ok) {
+          setError(res.error)
+          return
+        }
+        onCreated(res.quote_id)
+        return
+      }
       const res = await createAdHocInvoice({
         child_id: childId,
         lines,
@@ -212,7 +233,7 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
       {/* Columna der: carrito + pago + submit */}
       <div className="md:col-span-2 p-4 flex flex-col gap-3 bg-fm-surface-container-low/30">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-fm-on-surface-variant">
-          Items en esta factura
+          Items en esta {docLabel}
         </h3>
         {lines.length === 0 ? (
           <p className="text-xs text-fm-on-surface-variant italic">
@@ -312,37 +333,54 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
           )}
           <div className="flex justify-between items-center pt-1 mt-1 border-t border-fm-outline-variant/20">
             <span className="text-xs uppercase tracking-wider font-semibold text-fm-on-surface-variant">
-              Total a pagar
+              {isQuote ? 'Total cotizado' : 'Total a pagar'}
             </span>
             <span className="text-xl font-bold tabular-nums text-fm-primary">{fmt(totalAPagar)}</span>
           </div>
         </div>
 
         <div className="space-y-2 pt-2 border-t border-fm-outline-variant/20">
-          <label className="flex items-center gap-2 text-xs cursor-pointer">
-            <input type="checkbox" checked={paymentNow} onChange={(e) => setPaymentNow(e.target.checked)} />
-            Marcar como pagada al crear
-          </label>
-          {paymentNow && (
-            <div className="grid grid-cols-2 gap-2">
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
-                className="text-xs px-2 py-1.5 bg-fm-background border border-fm-surface-container-high rounded"
-              >
-                <option value="cash">Efectivo</option>
-                <option value="transfer">Transferencia</option>
-                <option value="card">Tarjeta</option>
-                <option value="other">Otro</option>
-              </select>
+          {/* Pago — solo facturas (las cotizaciones no se cobran) */}
+          {!isQuote && (
+            <>
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input type="checkbox" checked={paymentNow} onChange={(e) => setPaymentNow(e.target.checked)} />
+                Marcar como pagada al crear
+              </label>
+              {paymentNow && (
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
+                    className="text-xs px-2 py-1.5 bg-fm-background border border-fm-surface-container-high rounded"
+                  >
+                    <option value="cash">Efectivo</option>
+                    <option value="transfer">Transferencia</option>
+                    <option value="card">Tarjeta</option>
+                    <option value="other">Otro</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={paymentReference}
+                    onChange={(e) => setPaymentReference(e.target.value)}
+                    placeholder="Referencia"
+                    className="text-xs px-2 py-1.5 bg-fm-background border border-fm-surface-container-high rounded"
+                  />
+                </div>
+              )}
+            </>
+          )}
+          {/* Válida hasta — solo cotizaciones */}
+          {isQuote && (
+            <label className="flex items-center justify-between gap-2 text-xs">
+              <span className="text-fm-on-surface-variant">Válida hasta</span>
               <input
-                type="text"
-                value={paymentReference}
-                onChange={(e) => setPaymentReference(e.target.value)}
-                placeholder="Referencia"
+                type="date"
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
                 className="text-xs px-2 py-1.5 bg-fm-background border border-fm-surface-container-high rounded"
               />
-            </div>
+            </label>
           )}
           <textarea
             value={notes}
@@ -363,7 +401,7 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
           disabled={isPending || lines.length === 0}
           className="mt-1 w-full px-4 py-2.5 text-sm rounded-xl bg-fm-primary text-white font-semibold disabled:opacity-60 hover:bg-fm-primary/90 transition-colors"
         >
-          {isPending ? 'Creando…' : `Crear factura ${fmt(totalAPagar)}`}
+          {isPending ? 'Creando…' : `Crear ${docLabel} ${fmt(totalAPagar)}`}
         </button>
       </div>
     </div>

@@ -177,3 +177,129 @@ export async function createAdHocInvoice(
   revalidatePath('/portal/facturas')
   return { ok: true, invoice_id: invoiceId }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COTIZACIONES Kinetic — mismo builder, distinta tabla
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface CreateAdHocQuoteInput {
+  child_id: string
+  lines: AdHocInvoiceLine[]
+  notes?: string | null
+  apply_iva?: boolean
+  retention_rate_pct?: number
+  /** Fecha hasta la que la cotización es válida (YYYY-MM-DD). */
+  valid_until?: string | null
+}
+
+export async function createAdHocQuote(
+  input: CreateAdHocQuoteInput,
+): Promise<{ ok: true; quote_id: string } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado.' }
+  if (!ALLOWED_ROLES.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos para cotizar.' }
+  }
+
+  if (!input.child_id) return { ok: false, error: 'Falta el niño.' }
+  if (!input.lines || input.lines.length === 0) {
+    return { ok: false, error: 'Agregá al menos un item a la cotización.' }
+  }
+  for (const line of input.lines) {
+    if (line.quantity < 1) return { ok: false, error: 'Cantidad debe ser ≥ 1.' }
+    if (line.unit_price_usd < 0) return { ok: false, error: 'Precio negativo.' }
+    if (!line.description.trim()) return { ok: false, error: 'Falta descripción en una línea.' }
+  }
+
+  const supabase = await createClient()
+  const { data: child } = await supabase
+    .from('children')
+    .select('id, full_name, code, family_id')
+    .eq('id', input.child_id)
+    .maybeSingle()
+  if (!child) return { ok: false, error: 'Niño/a no encontrado.' }
+
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const subtotal = round2(input.lines.reduce((sum, l) => sum + l.quantity * l.unit_price_usd, 0))
+  const taxRate = input.apply_iva ? IVA_RATE : 0
+  const taxAmount = round2(subtotal * taxRate)
+  const total = round2(subtotal + taxAmount)
+  const retentionPct = Math.max(0, Math.min(100, input.retention_rate_pct ?? 0))
+  const retentionRate = retentionPct / 100
+  const retencionAmount = round2(subtotal * retentionRate)
+  const totalAPagar = round2(total - retencionAmount)
+
+  const admin = createAdminClient()
+
+  // Correlativo de cotización (RPC existente del módulo FM)
+  const { data: numberRow, error: numberErr } = await admin.rpc('next_quote_number')
+  if (numberErr || !numberRow) {
+    return { ok: false, error: 'No se pudo generar el correlativo de la cotización.' }
+  }
+  const quoteNumber = numberRow as unknown as string
+
+  const clientSnapshot = {
+    child_id: child.id,
+    child_full_name: child.full_name,
+    child_code: child.code,
+    family_id: child.family_id,
+  }
+  const emitterSnapshot = {
+    name: 'Kinetic — Centro de Estimulación y Desarrollo Intelectual',
+    note: 'Cotización generada desde el flujo Kinetic',
+  }
+
+  const issueDateIso = new Date().toISOString().slice(0, 10)
+
+  const quotePayload = {
+    quote_number: quoteNumber,
+    client_id: null,
+    issue_date: issueDateIso,
+    valid_until: input.valid_until ?? null,
+    currency: 'USD',
+    subtotal,
+    discount_amount: 0,
+    tax_rate: taxRate,
+    tax_amount: taxAmount,
+    retention_rate: retentionRate,
+    retencion_renta_amount: retencionAmount,
+    total,
+    total_a_pagar: totalAPagar,
+    status: 'draft',
+    notes: input.notes?.trim() || 'Cotización Kinetic',
+    client_snapshot_json: clientSnapshot,
+    emitter_snapshot_json: emitterSnapshot,
+    terms_snapshot_json: [],
+    created_by: ctx.appUser.id,
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: quoteData, error: quoteError } = await (admin as any)
+    .from('quotes')
+    .insert(quotePayload)
+    .select('id')
+    .single()
+
+  if (quoteError || !quoteData) {
+    return { ok: false, error: quoteError?.message ?? 'No se pudo crear la cotización.' }
+  }
+
+  const quoteId = quoteData.id
+  const itemsToInsert = input.lines.map((line, idx) => ({
+    quote_id: quoteId,
+    description: line.description.trim(),
+    quantity: line.quantity,
+    unit_price: line.unit_price_usd,
+    line_total: round2(line.quantity * line.unit_price_usd),
+    sort_order: idx,
+  }))
+
+  const { error: itemsError } = await admin.from('quote_items').insert(itemsToInsert)
+  if (itemsError) {
+    await admin.from('quotes').delete().eq('id', quoteId)
+    return { ok: false, error: `Error al crear líneas: ${itemsError.message}` }
+  }
+
+  revalidatePath('/billing')
+  revalidatePath('/billing/quotes')
+  return { ok: true, quote_id: quoteId }
+}
