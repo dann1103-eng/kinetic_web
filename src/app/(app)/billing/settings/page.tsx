@@ -29,15 +29,15 @@ export default async function BillingSettingsPage() {
       <TopNav title="Configuración de facturación" />
 
       <div className="flex-1 p-6 space-y-6 max-w-4xl">
-        <Section title="Datos del emisor" description="Información fiscal de la clínica que aparece en todas las facturas y cotizaciones.">
+        <Section title="Datos del emisor" description="Información fiscal de la clínica que aparece en todas las facturas y propuestas.">
           <CompanySettingsForm initial={settings} />
         </Section>
 
-        <Section title="Métodos de pago" description="Datos bancarios y tarjetas que se muestran al cliente en las cotizaciones.">
+        <Section title="Métodos de pago" description="Datos bancarios y tarjetas que se muestran al cliente en las propuestas.">
           <PaymentMethodsEditor initialMethods={methods} />
         </Section>
 
-        <Section title="Términos y condiciones" description="Lista numerada que se incluye en la segunda página de cada cotización.">
+        <Section title="Términos y condiciones" description="Lista numerada que se incluye en la segunda página de cada propuesta.">
           <TermsAndConditionsEditor initialTerms={terms} />
         </Section>
       </div>

@@ -50,7 +50,7 @@ export function InvoiceForm({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // En modo cotización el usuario puede elegir entre "cliente existente" o
+  // En modo propuesta el usuario puede elegir entre "cliente existente" o
   // "prospecto" (sin cliente; opcionalmente captura un nombre para identificarla).
   const [clientMode, setClientMode] = useState<'existing' | 'prospect'>('existing')
   const [manualName, setManualName] = useState('')
@@ -244,7 +244,7 @@ export function InvoiceForm({
   const catalog = useMemo<{ group: string; items: CatalogItem[] }[]>(() => {
     const groups: { group: string; items: CatalogItem[] }[] = []
 
-    // Solo en cotizaciones: planes disponibles como ítems de línea.
+    // Solo en propuestas: planes disponibles como ítems de línea.
     // No llevan extrasMetadata (no generan créditos al pagar; son solo texto descriptivo).
     if (mode === 'quote' && plans.length > 0) {
       groups.push({
@@ -443,7 +443,7 @@ export function InvoiceForm({
     if ('invoiceId' in result) {
       router.push(`/billing/invoices/${result.invoiceId}`)
     } else {
-      router.push(`/billing/quotes/${result.quoteId}`)
+      router.push(`/billing/propuestas/${result.quoteId}`)
     }
     router.refresh()
   }
@@ -452,7 +452,7 @@ export function InvoiceForm({
     return <div className="text-sm text-fm-on-surface-variant p-6">Cargando…</div>
   }
 
-  const titleLabel = mode === 'invoice' ? 'Nueva factura' : 'Nueva cotización'
+  const titleLabel = mode === 'invoice' ? 'Nueva factura' : 'Nueva propuesta'
 
   return (
     <form onSubmit={handleSubmit} className="grid grid-cols-[1fr_340px] gap-6">
@@ -510,7 +510,7 @@ export function InvoiceForm({
                   className="rounded-xl"
                 />
                 <p className="text-xs text-fm-on-surface-variant">
-                  La cotización se crea sin cliente vinculado. Si luego aceptan, crea el
+                  La propuesta se crea sin cliente vinculado. Si luego aceptan, crea el
                   cliente en el sistema antes de facturarla.
                 </p>
               </div>
@@ -927,7 +927,7 @@ export function InvoiceForm({
         <div className="space-y-2">
           <Button type="submit" disabled={saving} className="w-full rounded-xl text-white font-semibold"
             style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)' }}>
-            {saving ? 'Guardando…' : (mode === 'invoice' ? 'Crear factura' : 'Crear cotización')}
+            {saving ? 'Guardando…' : (mode === 'invoice' ? 'Crear factura' : 'Crear propuesta')}
           </Button>
           <Button type="button" variant="outline" onClick={() => router.back()} className="w-full rounded-xl">
             Cancelar

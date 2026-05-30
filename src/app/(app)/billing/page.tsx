@@ -17,8 +17,8 @@ export default async function BillingDashboardPage() {
   const canQuote = appUser?.can_quote ?? false
   const isManager = isBillingManager(role)
   if (!isManager && !canQuote) redirect('/')
-  // Usuarios con solo can_quote van directo a cotizaciones, no al hub completo
-  if (canQuote && !isManager) redirect('/billing/quotes')
+  // Usuarios con solo can_quote van directo a propuestas, no al hub completo
+  if (canQuote && !isManager) redirect('/billing/propuestas')
 
   const [
     { count: draftCount },
@@ -52,10 +52,10 @@ export default async function BillingDashboardPage() {
               + Nueva factura
             </Link>
             <Link
-              href="/billing/quotes/new"
+              href="/billing/propuestas/new"
               className="text-sm font-semibold text-fm-primary bg-fm-primary/10 border border-fm-primary/30 px-4 py-2 rounded-xl hover:bg-fm-primary/15"
             >
-              + Nueva cotización
+              + Nueva propuesta
             </Link>
           </div>
           {role === 'admin' && (
@@ -91,12 +91,12 @@ export default async function BillingDashboardPage() {
             }))}
           />
           <RecentList
-            title="Últimas cotizaciones"
-            href="/billing/quotes"
-            empty="Sin cotizaciones aún."
+            title="Últimas propuestas"
+            href="/billing/propuestas"
+            empty="Sin propuestas aún."
             items={(recentQuotes ?? []).map(q => ({
               id: q.id,
-              href: `/billing/quotes/${q.id}`,
+              href: `/billing/propuestas/${q.id}`,
               number: q.quote_number,
               clientName: (q.client_snapshot_json as { name?: string })?.name ?? '—',
               date: q.issue_date,

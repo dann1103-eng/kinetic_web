@@ -66,7 +66,7 @@ export default async function NewQuotePage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopNav title="Nueva cotización" />
+      <TopNav title="Nueva propuesta" />
       <div className="flex-1 p-6">
         <KineticInvoicePageClient childOptions={children} catalog={catalog} kind="quote" />
       </div>

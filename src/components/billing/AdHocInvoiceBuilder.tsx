@@ -36,9 +36,9 @@ interface Props {
   childId: string
   enrolledProgram: MorningProgram | null
   catalog: ServiceCatalogItem[]
-  /** Llamado con el id del documento creado (factura o cotización). */
+  /** Llamado con el id del documento creado (factura o propuesta). */
   onCreated: (id: string) => void
-  /** 'invoice' (default) crea factura; 'quote' crea cotización. */
+  /** 'invoice' (default) crea factura; 'quote' crea propuesta. */
   kind?: 'invoice' | 'quote'
 }
 
@@ -55,7 +55,7 @@ function effectivePrice(item: ServiceCatalogItem, enrolledProgram: MorningProgra
 
 export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreated, kind = 'invoice' }: Props) {
   const isQuote = kind === 'quote'
-  const docLabel = isQuote ? 'cotización' : 'factura'
+  const docLabel = isQuote ? 'propuesta' : 'factura'
   const [lines, setLines] = useState<Line[]>([])
   const [filter, setFilter] = useState('')
   const [filterCategory, setFilterCategory] = useState<ServiceCategory | 'all'>('all')
@@ -333,14 +333,14 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
           )}
           <div className="flex justify-between items-center pt-1 mt-1 border-t border-fm-outline-variant/20">
             <span className="text-xs uppercase tracking-wider font-semibold text-fm-on-surface-variant">
-              {isQuote ? 'Total cotizado' : 'Total a pagar'}
+              {isQuote ? 'Total propuesta' : 'Total a pagar'}
             </span>
             <span className="text-xl font-bold tabular-nums text-fm-primary">{fmt(totalAPagar)}</span>
           </div>
         </div>
 
         <div className="space-y-2 pt-2 border-t border-fm-outline-variant/20">
-          {/* Pago — solo facturas (las cotizaciones no se cobran) */}
+          {/* Pago — solo facturas (las propuestas no se cobran) */}
           {!isQuote && (
             <>
               <label className="flex items-center gap-2 text-xs cursor-pointer">
@@ -370,7 +370,7 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
               )}
             </>
           )}
-          {/* Válida hasta — solo cotizaciones */}
+          {/* Válida hasta — solo propuestas */}
           {isQuote && (
             <label className="flex items-center justify-between gap-2 text-xs">
               <span className="text-fm-on-surface-variant">Válida hasta</span>

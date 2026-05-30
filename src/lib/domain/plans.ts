@@ -158,7 +158,7 @@ export function applyUnifiedPool(
 
 /**
  * Genera una descripción legible del contenido incluido en un plan.
- * Usada como descripción de la línea de item en cotizaciones.
+ * Usada como descripción de la línea de item en propuestas.
  * Ejemplo: "Pool de 12 contenidos · 4 historias · 5 cambios"
  */
 export function formatPlanDescription(plan: Plan): string {

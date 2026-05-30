@@ -107,7 +107,7 @@ export function QuotePDF({ quote, items }: QuotePDFProps) {
         </View>
 
         <View style={styles.datesRow}>
-          <Text style={styles.quoteTitle}>Cotización {quote.quote_number}</Text>
+          <Text style={styles.quoteTitle}>Propuesta {quote.quote_number}</Text>
           <View style={{ alignItems: 'flex-end' }}>
             <Text style={styles.dateBox}>Fecha: {quote.issue_date}</Text>
             {quote.valid_until && <Text style={styles.dateBox}>Válida hasta: {quote.valid_until}</Text>}
@@ -116,7 +116,7 @@ export function QuotePDF({ quote, items }: QuotePDFProps) {
 
         <View style={styles.metaGrid}>
           <View style={styles.metaBox}>
-            <Text style={styles.metaLabel}>Cotizado a</Text>
+            <Text style={styles.metaLabel}>Propuesta para</Text>
             <Text style={styles.metaValueBold}>{client.legal_name ?? client.name}</Text>
             {client.fiscal_address && <Text style={styles.metaValue}>{client.fiscal_address}</Text>}
             {client.nit && <Text style={styles.metaValue}>NIT: {client.nit}</Text>}
@@ -239,7 +239,7 @@ export function QuotePDF({ quote, items }: QuotePDFProps) {
         <Page size="LETTER" style={styles.page}>
           <View style={styles.tcHeader}>
             <Text style={styles.tcTitle}>Términos y Condiciones</Text>
-            <Text style={styles.tcSubtitle}>Cotización {quote.quote_number}</Text>
+            <Text style={styles.tcSubtitle}>Propuesta {quote.quote_number}</Text>
           </View>
           {terms.map((t, idx) => (
             <View key={t.id} style={styles.tcItem}>

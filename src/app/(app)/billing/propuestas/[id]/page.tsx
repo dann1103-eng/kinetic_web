@@ -50,14 +50,14 @@ export default async function QuoteDetailPage({
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopNav title={`Cotización ${quote.quote_number}`} backHref="/billing/quotes" />
+      <TopNav title={`Propuesta ${quote.quote_number}`} backHref="/billing/propuestas" />
 
       <div className="flex-1 p-6">
         <div className="grid grid-cols-[1fr_340px] gap-6">
           <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-8 space-y-6">
             <div className="flex justify-between items-start gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-fm-outline-variant">Cotización</p>
+                <p className="text-xs font-semibold uppercase tracking-wider text-fm-outline-variant">Propuesta</p>
                 <h1 className="text-2xl font-bold text-fm-primary mt-1">{quote.quote_number}</h1>
                 <div className="mt-2 flex items-center gap-2">
                   <QuoteStatusBadge status={quote.status} />
@@ -78,7 +78,7 @@ export default async function QuoteDetailPage({
             </div>
 
             <div className="grid grid-cols-3 gap-4 py-4 border-y border-fm-surface-container-high text-xs">
-              <Field label="Cotizado a">
+              <Field label="Propuesta para">
                 <p className="font-semibold text-fm-on-surface">{clientSnap.legal_name ?? clientSnap.name}</p>
                 {clientSnap.fiscal_address && <p className="text-fm-on-surface-variant mt-0.5">{clientSnap.fiscal_address}</p>}
                 {clientSnap.nit && <p className="text-fm-on-surface-variant mt-0.5">NIT: {clientSnap.nit}</p>}

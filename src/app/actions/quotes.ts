@@ -28,7 +28,7 @@ async function requireQuoteAccess() {
   if (!user) return { error: 'No autenticado' as const }
   const { data: appUser } = await supabase.from('users').select('role, can_quote').eq('id', user.id).single()
   const allowed = isBillingManager(appUser?.role) || (appUser?.can_quote ?? false)
-  if (!allowed) return { error: 'Sin permiso para gestionar cotizaciones' as const }
+  if (!allowed) return { error: 'Sin permiso para gestionar propuestas' as const }
   return { userId: user.id }
 }
 
@@ -51,7 +51,7 @@ export interface ManualClientInput {
 }
 
 export interface CreateQuoteInput {
-  /** null cuando es una cotización a un prospecto (datos en `manualClient`). */
+  /** null cuando es una propuesta a un prospecto (datos en `manualClient`). */
   clientId: string | null
   /** Datos del prospecto cuando `clientId` es null. */
   manualClient?: ManualClientInput
@@ -62,7 +62,7 @@ export interface CreateQuoteInput {
   retentionRate?: number
   validUntil?: string | null
   notes?: string | null
-  /** Si se pasa, sobrescribe el snapshot global de T&C para esta cotización. */
+  /** Si se pasa, sobrescribe el snapshot global de T&C para esta propuesta. */
   termsSnapshotJson?: TermAndCondition[] | null
 }
 
@@ -75,7 +75,7 @@ export async function createQuote(
   const auth = await requireQuoteAccess()
   if ('error' in auth) return { error: auth.error as string }
 
-  if (!input.items?.length) return { error: 'La cotización debe tener al menos un ítem' as const }
+  if (!input.items?.length) return { error: 'La propuesta debe tener al menos un ítem' as const }
 
   if (!input.clientId && !input.manualClient?.name?.trim()) {
     return { error: 'Selecciona un cliente o ingresa el nombre del prospecto' as const }
@@ -157,7 +157,7 @@ export async function createQuote(
     .select('id')
     .single()
 
-  if (insertErr || !inserted?.id) return { error: 'Error al crear la cotización' as const }
+  if (insertErr || !inserted?.id) return { error: 'Error al crear la propuesta' as const }
 
   const itemsPayload = totals.items.map(it => ({
     quote_id: inserted.id,
@@ -173,12 +173,12 @@ export async function createQuote(
   const { error: itemsErr } = await admin.from('quote_items').insert(itemsPayload)
   if (itemsErr) {
     await admin.from('quotes').delete().eq('id', inserted.id)
-    return { error: 'Error al guardar los ítems de la cotización' as const }
+    return { error: 'Error al guardar los ítems de la propuesta' as const }
   }
 
   revalidatePath('/billing')
-  revalidatePath('/billing/quotes')
-  revalidatePath(`/billing/quotes/${inserted.id}`)
+  revalidatePath('/billing/propuestas')
+  revalidatePath(`/billing/propuestas/${inserted.id}`)
   return { ok: true as const, quoteId: inserted.id, quoteNumber }
 }
 
@@ -191,9 +191,9 @@ export async function sendQuote(id: string): Promise<{ error: string } | { ok: t
     .update({ status: 'sent' })
     .eq('id', id)
     .in('status', ['draft', 'sent'])
-  if (error) return { error: 'Error al enviar la cotización' as const }
-  revalidatePath('/billing/quotes')
-  revalidatePath(`/billing/quotes/${id}`)
+  if (error) return { error: 'Error al enviar la propuesta' as const }
+  revalidatePath('/billing/propuestas')
+  revalidatePath(`/billing/propuestas/${id}`)
   return { ok: true as const }
 }
 
@@ -202,9 +202,9 @@ export async function markQuoteAccepted(id: string): Promise<{ error: string } |
   if ('error' in auth) return { error: auth.error as string }
   const admin = createAdminClient()
   const { error } = await admin.from('quotes').update({ status: 'accepted' }).eq('id', id)
-  if (error) return { error: 'Error al marcar la cotización como aceptada' as const }
-  revalidatePath('/billing/quotes')
-  revalidatePath(`/billing/quotes/${id}`)
+  if (error) return { error: 'Error al marcar la propuesta como aceptada' as const }
+  revalidatePath('/billing/propuestas')
+  revalidatePath(`/billing/propuestas/${id}`)
   return { ok: true as const }
 }
 
@@ -213,9 +213,9 @@ export async function markQuoteRejected(id: string): Promise<{ error: string } |
   if ('error' in auth) return { error: auth.error as string }
   const admin = createAdminClient()
   const { error } = await admin.from('quotes').update({ status: 'rejected' }).eq('id', id)
-  if (error) return { error: 'Error al marcar la cotización como rechazada' as const }
-  revalidatePath('/billing/quotes')
-  revalidatePath(`/billing/quotes/${id}`)
+  if (error) return { error: 'Error al marcar la propuesta como rechazada' as const }
+  revalidatePath('/billing/propuestas')
+  revalidatePath(`/billing/propuestas/${id}`)
   return { ok: true as const }
 }
 
@@ -224,15 +224,15 @@ export async function deleteQuoteDraft(id: string): Promise<{ error: string } | 
   if ('error' in auth) return { error: auth.error as string }
   const admin = createAdminClient()
   const { data: q } = await admin.from('quotes').select('status').eq('id', id).single()
-  if (!q) return { error: 'Cotización no encontrada' as const }
+  if (!q) return { error: 'Propuesta no encontrada' as const }
   if (q.status !== 'draft') return { error: 'Solo se pueden eliminar borradores' as const }
   const { error } = await admin.from('quotes').delete().eq('id', id)
   if (error) return { error: 'Error al eliminar el borrador' as const }
-  revalidatePath('/billing/quotes')
+  revalidatePath('/billing/propuestas')
   return { ok: true as const }
 }
 
-/** Crea una factura a partir de una cotización aceptada y enlaza ambos registros. */
+/** Crea una factura a partir de una propuesta aceptada y enlaza ambos registros. */
 export async function convertQuoteToInvoice(
   quoteId: string
 ): Promise<{ error: string } | { ok: true; invoiceId: string; invoiceNumber: string }> {
@@ -246,11 +246,11 @@ export async function convertQuoteToInvoice(
     .eq('id', quoteId)
     .single()
   const quote = quoteRow as (Quote & { items: QuoteItem[] }) | null
-  if (!quote) return { error: 'Cotización no encontrada' as const }
-  if (quote.status !== 'accepted') return { error: 'Solo se pueden convertir cotizaciones aceptadas' as const }
-  if (quote.converted_invoice_id) return { error: 'Esta cotización ya fue convertida en factura' as const }
+  if (!quote) return { error: 'Propuesta no encontrada' as const }
+  if (quote.status !== 'accepted') return { error: 'Solo se pueden convertir propuestas aceptadas' as const }
+  if (quote.converted_invoice_id) return { error: 'Esta propuesta ya fue convertida en factura' as const }
   if (!quote.client_id) {
-    return { error: 'Esta cotización es de un prospecto. Crea el cliente en el sistema antes de convertirla en factura.' as const }
+    return { error: 'Esta propuesta es de un prospecto. Crea el cliente en el sistema antes de convertirla en factura.' as const }
   }
 
   const items: LineItemInput[] = quote.items
@@ -278,8 +278,8 @@ export async function convertQuoteToInvoice(
     .update({ converted_invoice_id: result.invoiceId })
     .eq('id', quote.id)
 
-  revalidatePath('/billing/quotes')
-  revalidatePath(`/billing/quotes/${quote.id}`)
+  revalidatePath('/billing/propuestas')
+  revalidatePath(`/billing/propuestas/${quote.id}`)
   revalidatePath('/billing/invoices')
   revalidatePath(`/billing/invoices/${result.invoiceId}`)
   return { ok: true as const, invoiceId: result.invoiceId, invoiceNumber: result.invoiceNumber }

@@ -16,7 +16,7 @@ interface QuoteActionsProps {
   quoteId: string
   status: QuoteStatus
   convertedInvoiceId: string | null
-  /** True cuando la cotización es de un prospecto (sin cliente vinculado). */
+  /** True cuando la propuesta es de un prospecto (sin cliente vinculado). */
   isProspect?: boolean
 }
 
@@ -49,7 +49,7 @@ export function QuoteActions({ quoteId, status, convertedInvoiceId, isProspect =
     startTransition(async () => {
       const r = await deleteQuoteDraft(quoteId)
       if ('error' in r) { setError(r.error); return }
-      router.push('/billing/quotes')
+      router.push('/billing/propuestas')
     })
   }
 
@@ -117,7 +117,7 @@ export function QuoteActions({ quoteId, status, convertedInvoiceId, isProspect =
 
       {convertedInvoiceId && (
         <div className="bg-fm-primary/10 border border-fm-primary/30 rounded-xl px-3 py-2 text-sm text-fm-primary font-medium text-center">
-          Esta cotización ya fue facturada
+          Esta propuesta ya fue facturada
         </div>
       )}
     </div>

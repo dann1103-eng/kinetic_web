@@ -31,7 +31,7 @@ interface Props {
 
 export function KineticInvoicePageClient({ childOptions, catalog, kind = 'invoice' }: Props) {
   const isQuote = kind === 'quote'
-  const docLabel = isQuote ? 'cotización' : 'factura'
+  const docLabel = isQuote ? 'propuesta' : 'factura'
   const [query, setQuery] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [createdInvoiceId, setCreatedInvoiceId] = useState<string | null>(null)
@@ -62,7 +62,7 @@ export function KineticInvoicePageClient({ childOptions, catalog, kind = 'invoic
         </div>
         <div>
           <h2 className="text-lg font-semibold text-fm-on-surface">
-            {isQuote ? 'Cotización creada' : 'Factura creada'}
+            {isQuote ? 'Propuesta creada' : 'Factura creada'}
           </h2>
           <p className="text-sm text-fm-on-surface-variant mt-1">
             Se generó la {docLabel} para {selected.full_name}.
@@ -70,10 +70,10 @@ export function KineticInvoicePageClient({ childOptions, catalog, kind = 'invoic
         </div>
         <div className="flex flex-col gap-2 pt-2">
           <Link
-            href={isQuote ? '/billing/quotes' : `/familias/${selected.family_id}/children/${selected.id}`}
+            href={isQuote ? '/billing/propuestas' : `/familias/${selected.family_id}/children/${selected.id}`}
             className="px-4 py-2 rounded-xl bg-fm-primary text-white text-sm font-semibold hover:bg-fm-primary/90 transition-colors"
           >
-            {isQuote ? 'Ver cotizaciones' : 'Ver ficha del niño/a'}
+            {isQuote ? 'Ver propuestas' : 'Ver ficha del niño/a'}
           </Link>
           <button
             type="button"
@@ -96,7 +96,7 @@ export function KineticInvoicePageClient({ childOptions, catalog, kind = 'invoic
       {/* Selector de niño */}
       <div className="rounded-2xl border border-fm-outline-variant/30 bg-fm-surface-container-lowest p-5">
         <label className="text-xs font-semibold uppercase tracking-wider text-fm-on-surface-variant">
-          {isQuote ? 'Niño/a a cotizar' : 'Niño/a a facturar'}
+          {isQuote ? 'Niño/a de la propuesta' : 'Niño/a a facturar'}
         </label>
         {selected ? (
           <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-fm-primary/40 bg-fm-primary/5 px-4 py-3">

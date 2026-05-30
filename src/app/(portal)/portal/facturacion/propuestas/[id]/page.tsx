@@ -68,7 +68,7 @@ export default async function PortalQuoteDetailPage({
           <div className="flex flex-col md:flex-row justify-between items-start gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider text-fm-outline-variant">
-                Cotización
+                Propuesta
               </p>
               <h1 className="text-2xl font-bold text-fm-primary mt-1">{quote.quote_number}</h1>
               <div className="mt-2">
@@ -89,7 +89,7 @@ export default async function PortalQuoteDetailPage({
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 py-4 border-y border-fm-surface-container-high text-xs">
-            <Field label="Cotizado a">
+            <Field label="Propuesta para">
               <p className="font-semibold text-fm-on-surface">
                 {clientSnap.legal_name ?? clientSnap.name}
               </p>

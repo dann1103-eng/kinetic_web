@@ -2,7 +2,7 @@ import type { UserRole } from '@/types/db'
 
 /**
  * Roles con acceso COMPLETO a Facturación (paridad con admin):
- * ver el hub, listados y detalle de facturas/cotizaciones, y ejecutar
+ * ver el hub, listados y detalle de facturas/propuestas, y ejecutar
  * acciones (emitir, registrar pago, anular, etc.).
  *
  * Recepción gestiona cobros y facturación día a día, por eso entra aquí.

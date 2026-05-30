@@ -304,7 +304,7 @@ export function PortalUsersClient({ initialUsers, clients }: Props) {
                     <div>
                       <p className="text-sm font-medium text-fm-on-surface">Facturación</p>
                       <p className="text-xs text-fm-on-surface-variant">
-                        Ve facturas, cotizaciones y pagos de la marca.
+                        Ve facturas, propuestas y pagos de la marca.
                       </p>
                     </div>
                   </label>

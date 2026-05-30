@@ -1668,7 +1668,7 @@ export interface Database {
         Row: {
           id: string
           quote_number: string
-          /** null cuando es una cotización a un prospecto sin cliente creado (migración 0075). */
+          /** null cuando es una propuesta a un prospecto sin cliente creado (migración 0075). */
           client_id: string | null
           issue_date: string
           valid_until: string | null

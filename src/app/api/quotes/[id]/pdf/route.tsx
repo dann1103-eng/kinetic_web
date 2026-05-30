@@ -17,10 +17,10 @@ export async function GET(
   if (!user) return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
 
   const { data: quote } = await supabase.from('quotes').select('*').eq('id', id).maybeSingle()
-  if (!quote) return NextResponse.json({ error: 'Cotización no encontrada' }, { status: 404 })
+  if (!quote) return NextResponse.json({ error: 'Propuesta no encontrada' }, { status: 404 })
 
-  // Staff (admin/supervisor) siempre puede ver cualquier cotización.
-  // Clientes pueden ver solo cotizaciones de los clients a los que están vinculados.
+  // Staff (admin/supervisor) siempre puede ver cualquier propuesta.
+  // Clientes pueden ver solo propuestas de los clients a los que están vinculados.
   const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
   const isStaff = appUser?.role === 'admin' || appUser?.role === 'supervisor'
 

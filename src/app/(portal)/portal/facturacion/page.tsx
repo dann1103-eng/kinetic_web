@@ -35,7 +35,7 @@ export default async function PortalFacturacionPage() {
       <div>
         <h1 className="text-xl font-semibold text-fm-on-surface mb-1">Facturación</h1>
         <p className="text-sm text-fm-on-surface-variant">
-          Historial de facturas y cotizaciones de tu cuenta.
+          Historial de facturas y propuestas de tu cuenta.
         </p>
       </div>
 
@@ -124,11 +124,11 @@ export default async function PortalFacturacionPage() {
         )}
       </section>
 
-      {/* Cotizaciones */}
+      {/* Propuestas */}
       <section className="glass-panel p-5">
-        <h2 className="text-base font-semibold text-fm-on-surface mb-4">Cotizaciones</h2>
+        <h2 className="text-base font-semibold text-fm-on-surface mb-4">Propuestas</h2>
         {!quotes?.length ? (
-          <p className="text-sm text-fm-on-surface-variant">Sin cotizaciones registradas.</p>
+          <p className="text-sm text-fm-on-surface-variant">Sin propuestas registradas.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -150,7 +150,7 @@ export default async function PortalFacturacionPage() {
                   >
                     <td className="py-2.5">
                       <Link
-                        href={`/portal/facturacion/cotizaciones/${q.id}`}
+                        href={`/portal/facturacion/propuestas/${q.id}`}
                         className="font-semibold text-fm-primary hover:underline"
                       >
                         {q.quote_number}
@@ -170,9 +170,9 @@ export default async function PortalFacturacionPage() {
                     </td>
                     <td className="py-2.5 text-right">
                       <Link
-                        href={`/portal/facturacion/cotizaciones/${q.id}`}
+                        href={`/portal/facturacion/propuestas/${q.id}`}
                         className="text-xs text-fm-on-surface-variant hover:text-fm-primary"
-                        aria-label={`Ver cotización ${q.quote_number}`}
+                        aria-label={`Ver propuesta ${q.quote_number}`}
                       >
                         <span className="material-symbols-outlined text-base align-middle">
                           chevron_right

@@ -188,7 +188,7 @@ export interface CreateAdHocQuoteInput {
   notes?: string | null
   apply_iva?: boolean
   retention_rate_pct?: number
-  /** Fecha hasta la que la cotización es válida (YYYY-MM-DD). */
+  /** Fecha hasta la que la propuesta es válida (YYYY-MM-DD). */
   valid_until?: string | null
 }
 
@@ -198,12 +198,12 @@ export async function createAdHocQuote(
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado.' }
   if (!ALLOWED_ROLES.includes(ctx.appUser.role)) {
-    return { ok: false, error: 'Sin permisos para cotizar.' }
+    return { ok: false, error: 'Sin permisos para crear propuestas.' }
   }
 
   if (!input.child_id) return { ok: false, error: 'Falta el niño.' }
   if (!input.lines || input.lines.length === 0) {
-    return { ok: false, error: 'Agregá al menos un item a la cotización.' }
+    return { ok: false, error: 'Agregá al menos un item a la propuesta.' }
   }
   for (const line of input.lines) {
     if (line.quantity < 1) return { ok: false, error: 'Cantidad debe ser ≥ 1.' }
@@ -231,10 +231,10 @@ export async function createAdHocQuote(
 
   const admin = createAdminClient()
 
-  // Correlativo de cotización (RPC existente del módulo FM)
+  // Correlativo de propuesta (RPC existente del módulo FM)
   const { data: numberRow, error: numberErr } = await admin.rpc('next_quote_number')
   if (numberErr || !numberRow) {
-    return { ok: false, error: 'No se pudo generar el correlativo de la cotización.' }
+    return { ok: false, error: 'No se pudo generar el correlativo de la propuesta.' }
   }
   const quoteNumber = numberRow as unknown as string
 
@@ -246,7 +246,7 @@ export async function createAdHocQuote(
   }
   const emitterSnapshot = {
     name: 'Kinetic — Centro de Estimulación y Desarrollo Intelectual',
-    note: 'Cotización generada desde el flujo Kinetic',
+    note: 'Propuesta generada desde el flujo Kinetic',
   }
 
   const issueDateIso = new Date().toISOString().slice(0, 10)
@@ -266,7 +266,7 @@ export async function createAdHocQuote(
     total,
     total_a_pagar: totalAPagar,
     status: 'draft',
-    notes: input.notes?.trim() || 'Cotización Kinetic',
+    notes: input.notes?.trim() || 'Propuesta Kinetic',
     client_snapshot_json: clientSnapshot,
     emitter_snapshot_json: emitterSnapshot,
     terms_snapshot_json: [],
@@ -280,7 +280,7 @@ export async function createAdHocQuote(
     .single()
 
   if (quoteError || !quoteData) {
-    return { ok: false, error: quoteError?.message ?? 'No se pudo crear la cotización.' }
+    return { ok: false, error: quoteError?.message ?? 'No se pudo crear la propuesta.' }
   }
 
   const quoteId = quoteData.id
@@ -300,6 +300,6 @@ export async function createAdHocQuote(
   }
 
   revalidatePath('/billing')
-  revalidatePath('/billing/quotes')
+  revalidatePath('/billing/propuestas')
   return { ok: true, quote_id: quoteId }
 }

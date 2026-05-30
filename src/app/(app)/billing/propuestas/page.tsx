@@ -45,27 +45,27 @@ export default async function QuotesListPage({
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopNav title="Cotizaciones" backHref="/billing" />
+      <TopNav title="Propuestas" backHref="/billing" />
 
       <div className="flex-1 p-6 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex gap-2 flex-wrap">
-            <FilterLink href="/billing/quotes" active={!statusFilter} label="Todas" />
+            <FilterLink href="/billing/propuestas" active={!statusFilter} label="Todas" />
             {STATUS_VALUES.map(s => (
               <FilterLink
                 key={s}
-                href={`/billing/quotes?status=${s}`}
+                href={`/billing/propuestas?status=${s}`}
                 active={statusFilter === s}
                 label={s === 'draft' ? 'Borradores' : s === 'sent' ? 'Enviadas' : s === 'accepted' ? 'Aceptadas' : s === 'rejected' ? 'Rechazadas' : 'Expiradas'}
               />
             ))}
           </div>
           <Link
-            href="/billing/quotes/new"
+            href="/billing/propuestas/new"
             className="text-sm font-semibold text-white px-4 py-2 rounded-xl"
             style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)' }}
           >
-            + Nueva cotización
+            + Nueva propuesta
           </Link>
         </div>
 
@@ -88,7 +88,7 @@ export default async function QuotesListPage({
 
         <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 overflow-hidden">
           {filtered.length === 0 ? (
-            <p className="p-10 text-center text-sm text-fm-on-surface-variant">Sin cotizaciones con estos criterios.</p>
+            <p className="p-10 text-center text-sm text-fm-on-surface-variant">Sin propuestas con estos criterios.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="text-xs font-semibold text-fm-outline-variant uppercase tracking-wider bg-fm-background">
@@ -107,7 +107,7 @@ export default async function QuotesListPage({
                   return (
                     <tr key={q.id} className="border-t border-fm-surface-container-high hover:bg-fm-background">
                       <td className="px-4 py-3">
-                        <Link href={`/billing/quotes/${q.id}`} className="font-semibold text-fm-on-surface hover:text-fm-primary">
+                        <Link href={`/billing/propuestas/${q.id}`} className="font-semibold text-fm-on-surface hover:text-fm-primary">
                           {q.quote_number}
                         </Link>
                         {q.converted_invoice_id && (

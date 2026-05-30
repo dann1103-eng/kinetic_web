@@ -182,10 +182,10 @@ export default async function InvoiceDetailPage({
 
             {invoice.quote_id && (
               <Link
-                href={`/billing/quotes/${invoice.quote_id}`}
+                href={`/billing/propuestas/${invoice.quote_id}`}
                 className="block text-center text-xs font-medium text-fm-on-surface-variant hover:text-fm-primary"
               >
-                ← Ver cotización origen
+                ← Ver propuesta origen
               </Link>
             )}
 
