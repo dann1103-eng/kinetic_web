@@ -113,7 +113,7 @@ export function SessionCard({ appointment, session, report, onNoteClick, onRepor
             <button
               onClick={handleStart}
               disabled={isPending || absencePending}
-              className="flex-1 py-2 rounded-xl bg-green-600 text-white text-sm font-semibold disabled:opacity-50 hover:bg-green-700 transition-colors"
+              className="flex-1 py-2 rounded-xl bg-fm-primary text-white text-sm font-semibold disabled:opacity-50 hover:bg-fm-primary-dim transition-colors"
             >
               {isPending ? 'Iniciando…' : 'Iniciar sesión'}
             </button>

@@ -339,7 +339,9 @@ export async function getMgmtWidgetsData(
     getRevenueByDayCurrentMonth(supabase, now),
     getAppointmentsHeatmapMonth(supabase, now),
     getTopTherapistsThisMonth(supabase, now, 5),
-    getChildrenAtRisk(supabase, now, 10),
+    // Sin límite efectivo: queremos TODOS los niños en riesgo. El widget tiene
+    // scroll interno para no alargar la página. 500 es un techo de seguridad.
+    getChildrenAtRisk(supabase, now, 500),
     getCurrentMonthExpenseSummary(supabase, now),
   ])
   return {

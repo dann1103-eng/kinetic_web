@@ -39,6 +39,10 @@ export function AtRiskChildren({ rows }: Props) {
               {rows.length}
             </span>
           </h2>
+          <p className="text-[11px] text-amber-800/70 dark:text-amber-200/70 mt-0.5">
+            Les falta contacto de emergencia, plan, ciclo del mes o tienen
+            inasistencias por reagendar.
+          </p>
         </div>
         <span
           className="material-symbols-outlined text-amber-700 dark:text-amber-300"
@@ -47,7 +51,7 @@ export function AtRiskChildren({ rows }: Props) {
           warning
         </span>
       </div>
-      <ul className="space-y-2">
+      <ul className="space-y-2 max-h-[360px] overflow-y-auto pr-1 -mr-1">
         {rows.map((c) => (
           <li
             key={c.childId}
