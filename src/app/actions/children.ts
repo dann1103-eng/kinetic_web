@@ -14,7 +14,7 @@ const PHOTO_MAX_BYTES = 5 * 1024 * 1024 // 5 MB
 
 const PHOTO_STAFF_ROLES = [
   'admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias',
-  'recepcion', 'terapista', 'maestra',
+  'recepcion', 'terapista', 'maestra', 'contable',
 ]
 
 type PhotoResult = { ok: true; url: string } | { ok: false; error: string }

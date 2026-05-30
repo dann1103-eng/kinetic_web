@@ -74,7 +74,7 @@ export async function updateFamily(
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }
 
-  const allowed = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'recepcion']
+  const allowed = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'recepcion', 'contable']
   if (!allowed.includes(ctx.appUser.role)) {
     return { ok: false, error: 'Sin permisos' }
   }
