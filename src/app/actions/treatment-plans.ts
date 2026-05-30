@@ -44,11 +44,16 @@ function validateTherapies(input: unknown): TreatmentPlanTherapyEntry[] | string
     if (!Number.isFinite(sessions) || sessions < 0) return 'Sesiones por mes inválido.'
     const cost = Number(t.unit_cost_usd ?? 0)
     if (!Number.isFinite(cost) || cost < 0) return 'Costo unitario inválido.'
+    // Terapista por tipo de terapia (opcional). null/'' → usar primary del plan.
+    const rawTherapist = t.therapist_id
+    const therapistId =
+      typeof rawTherapist === 'string' && rawTherapist.trim() ? rawTherapist.trim() : null
     result.push({
       service: t.service as ServiceType,
       active: t.active !== false,
       sessions_per_month: Math.floor(sessions),
       unit_cost_usd: Math.round(cost * 100) / 100,
+      therapist_id: therapistId,
     })
   }
   return result

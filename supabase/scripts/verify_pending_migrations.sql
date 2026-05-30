@@ -204,6 +204,19 @@ WITH checks AS (
           WHERE schemaname='public' AND tablename='payroll_runs'
             AND policyname='payroll_runs_select'
             AND qual ILIKE '%recepcion%')
+  UNION ALL
+  -- ── 0134 (terapista por tipo de terapia en generación del ciclo) ──
+  SELECT 34, 'mig_0134_compute_therapist_per_service',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_proc
+          WHERE proname='compute_monthly_appointment_candidates'
+            AND prosrc ILIKE '%v_therapist_map%')
+  UNION ALL
+  SELECT 35, 'mig_0134_confirm_therapist_per_service',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_proc
+          WHERE proname='confirm_monthly_payment_and_generate'
+            AND prosrc ILIKE '%v_therapist_map%')
 )
 SELECT
   check_name,

@@ -44,7 +44,7 @@ const FREQUENCY_OPTIONS = Object.entries(SLOT_FREQUENCY_LABELS) as [SlotFrequenc
 // Los precios (unit_cost_usd) se definen al cobrar el ciclo mensual, no en el
 // plan. Acá quedan en 0 — son solo plantilla de qué terapias + cuántas sesiones.
 function emptyTherapy(): TreatmentPlanTherapyEntry {
-  return { service: 'lenguaje', active: true, sessions_per_month: 4, unit_cost_usd: 0 }
+  return { service: 'lenguaje', active: true, sessions_per_month: 4, unit_cost_usd: 0, therapist_id: null }
 }
 
 function emptySlot(): TreatmentPlanScheduleSlot {
@@ -84,7 +84,7 @@ export function TreatmentPlanEditor({
       // de la migración 0132. Cast directo porque MorningProgram es un subset.
       const programService = enrolledProgram as ServiceType
       return [
-        { service: programService, active: true, sessions_per_month: 1, unit_cost_usd: 0 },
+        { service: programService, active: true, sessions_per_month: 1, unit_cost_usd: 0, therapist_id: null },
       ]
     }
     return [emptyTherapy()]
@@ -257,7 +257,7 @@ export function TreatmentPlanEditor({
               {therapies.map((t, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-[1fr_110px_80px_30px] gap-2 items-center bg-fm-surface-container-low/40 rounded-lg p-2"
+                  className="grid grid-cols-[1fr_1fr_84px_64px_30px] gap-2 items-center bg-fm-surface-container-low/40 rounded-lg p-2"
                 >
                   <select
                     value={t.service}
@@ -270,6 +270,19 @@ export function TreatmentPlanEditor({
                       </option>
                     ))}
                   </select>
+                  <select
+                    value={t.therapist_id ?? ''}
+                    onChange={(e) => patchTherapy(idx, { therapist_id: e.target.value || null })}
+                    title="Terapista para este tipo de terapia (si se deja en principal, usa la terapista principal del plan)"
+                    className="rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
+                  >
+                    <option value="">↳ Usar principal</option>
+                    {therapists.map((th) => (
+                      <option key={th.id} value={th.id}>
+                        {th.full_name}
+                      </option>
+                    ))}
+                  </select>
                   <label className="flex items-center gap-1 text-xs text-fm-on-surface-variant">
                     <input
                       type="number"
@@ -279,9 +292,9 @@ export function TreatmentPlanEditor({
                         patchTherapy(idx, { sessions_per_month: Number(e.target.value) })
                       }
                       placeholder="ses/mes"
-                      className="w-16 rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
+                      className="w-14 rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
                     />
-                    ses/mes
+                    /mes
                   </label>
                   <label className="flex items-center gap-1 text-xs">
                     <input

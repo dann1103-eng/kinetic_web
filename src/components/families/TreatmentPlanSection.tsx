@@ -154,23 +154,34 @@ function PlanReadOnly({
                 <thead className="bg-fm-surface-container-low text-[10px] uppercase tracking-wide text-fm-on-surface-variant">
                   <tr>
                     <th className="text-left px-3 py-1.5 font-semibold">Servicio</th>
+                    <th className="text-left px-3 py-1.5 font-semibold">Terapista</th>
                     <th className="text-right px-3 py-1.5 font-semibold">Sesiones/mes</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {therapies.map((t, i) => (
-                    <tr
-                      key={`${t.service}-${i}`}
-                      className={`border-t border-fm-outline-variant/15 ${
-                        t.active ? '' : 'opacity-50 line-through'
-                      }`}
-                    >
-                      <td className="px-3 py-1.5">
-                        {SERVICE_TYPE_LABELS[t.service] ?? t.service}
-                      </td>
-                      <td className="text-right px-3 py-1.5 tabular-nums">{t.sessions_per_month}</td>
-                    </tr>
-                  ))}
+                  {therapies.map((t, i) => {
+                    const therapistName = t.therapist_id
+                      ? therapists.find((th) => th.id === t.therapist_id)?.full_name ?? '—'
+                      : null
+                    return (
+                      <tr
+                        key={`${t.service}-${i}`}
+                        className={`border-t border-fm-outline-variant/15 ${
+                          t.active ? '' : 'opacity-50 line-through'
+                        }`}
+                      >
+                        <td className="px-3 py-1.5">
+                          {SERVICE_TYPE_LABELS[t.service] ?? t.service}
+                        </td>
+                        <td className="px-3 py-1.5 text-fm-on-surface-variant">
+                          {therapistName ?? (
+                            <span className="italic text-fm-on-surface-variant/70">Principal</span>
+                          )}
+                        </td>
+                        <td className="text-right px-3 py-1.5 tabular-nums">{t.sessions_per_month}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

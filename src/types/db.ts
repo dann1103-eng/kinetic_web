@@ -3438,6 +3438,12 @@ export interface TreatmentPlanTherapyEntry {
   sessions_per_month: number
   /** Costo por sesión en USD. */
   unit_cost_usd: number
+  /**
+   * Terapista asignada a ESTE tipo de terapia. Si es null/ausente, se usa
+   * `primary_therapist_id` del plan como fallback. Al generar el ciclo,
+   * cada cita del servicio se asigna a esta terapista.
+   */
+  therapist_id?: string | null
 }
 
 /** Frecuencia de un slot dentro del mes.
