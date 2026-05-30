@@ -17,8 +17,8 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 const ALLOWED_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'recepcion', 'contable']
 
 export interface AdHocInvoiceLine {
-  /** ID del item en service_catalog (para snapshot + trazabilidad). */
-  catalog_item_id: string
+  /** ID del item en service_catalog. null/'' para líneas manuales libres. */
+  catalog_item_id?: string | null
   /** Description final (puede sobreescribir el name del item). */
   description: string
   /** Cantidad >= 1. */
@@ -36,7 +36,13 @@ export interface CreateAdHocInvoiceInput {
   payment_method?: 'cash' | 'transfer' | 'card' | 'other' | null
   payment_reference?: string | null
   notes?: string | null
+  /** Aplicar IVA 13% sobre el subtotal. */
+  apply_iva?: boolean
+  /** % de retención de IVA sobre el subtotal (ej. 1 para 1%). 0 = sin retención. */
+  retention_rate_pct?: number
 }
+
+const IVA_RATE = 0.13
 
 export async function createAdHocInvoice(
   input: CreateAdHocInvoiceInput,
@@ -68,12 +74,16 @@ export async function createAdHocInvoice(
     .maybeSingle()
   if (!child) return { ok: false, error: 'Niño/a no encontrado.' }
 
-  // Subtotal
-  const subtotal = input.lines.reduce(
-    (sum, l) => sum + l.quantity * l.unit_price_usd,
-    0,
-  )
-  const total = Math.round(subtotal * 100) / 100
+  // Subtotal + IVA + retención
+  const round2 = (n: number) => Math.round(n * 100) / 100
+  const subtotal = round2(input.lines.reduce((sum, l) => sum + l.quantity * l.unit_price_usd, 0))
+  const taxRate = input.apply_iva ? IVA_RATE : 0
+  const taxAmount = round2(subtotal * taxRate)
+  const total = round2(subtotal + taxAmount)
+  const retentionPct = Math.max(0, Math.min(100, input.retention_rate_pct ?? 0))
+  const retentionRate = retentionPct / 100
+  const retencionAmount = round2(subtotal * retentionRate)
+  const totalAPagar = round2(total - retencionAmount)
 
   // Número de invoice — Kinetic format: KIN-YYYYMM-XXXX
   const now = new Date()
@@ -116,10 +126,12 @@ export async function createAdHocInvoice(
     currency: 'USD',
     subtotal,
     discount_amount: 0,
-    tax_rate: 0,
-    tax_amount: 0,
+    tax_rate: taxRate,
+    tax_amount: taxAmount,
+    retention_rate: retentionRate,
+    retencion_renta_amount: retencionAmount,
     total,
-    total_a_pagar: total,
+    total_a_pagar: totalAPagar,
     status: input.status,
     payment_date: paymentDateIso,
     payment_method: input.payment_method ?? null,

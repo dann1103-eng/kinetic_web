@@ -24,11 +24,13 @@ import {
 } from '@/types/db'
 
 interface Line {
-  catalog_item_id: string
+  catalog_item_id: string | null
   description: string
   quantity: number
   unit_price_usd: number
 }
+
+const IVA_RATE = 0.13
 
 interface Props {
   childId: string
@@ -57,6 +59,8 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer' | 'card' | 'other'>('cash')
   const [paymentReference, setPaymentReference] = useState('')
   const [notes, setNotes] = useState('')
+  const [applyIva, setApplyIva] = useState(false)
+  const [retentionPct, setRetentionPct] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
 
@@ -69,16 +73,31 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
       .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
   }, [catalog, filter, filterCategory])
 
+  const round2 = (n: number) => Math.round(n * 100) / 100
   const subtotal = useMemo(
-    () => lines.reduce((s, l) => s + l.quantity * l.unit_price_usd, 0),
+    () => round2(lines.reduce((s, l) => s + l.quantity * l.unit_price_usd, 0)),
     [lines],
   )
+  const taxAmount = useMemo(() => (applyIva ? round2(subtotal * IVA_RATE) : 0), [applyIva, subtotal])
+  const retencionAmount = useMemo(
+    () => round2(subtotal * (Math.max(0, Math.min(100, retentionPct)) / 100)),
+    [subtotal, retentionPct],
+  )
+  const total = round2(subtotal + taxAmount)
+  const totalAPagar = round2(total - retencionAmount)
 
   function addLine(item: ServiceCatalogItem) {
     const price = effectivePrice(item, enrolledProgram)
     setLines((prev) => [
       ...prev,
       { catalog_item_id: item.id, description: item.name, quantity: 1, unit_price_usd: price },
+    ])
+  }
+
+  function addManualLine() {
+    setLines((prev) => [
+      ...prev,
+      { catalog_item_id: null, description: '', quantity: 1, unit_price_usd: 0 },
     ])
   }
 
@@ -104,6 +123,8 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
         payment_method: paymentNow ? paymentMethod : null,
         payment_reference: paymentNow ? paymentReference.trim() || null : null,
         notes: notes.trim() || null,
+        apply_iva: applyIva,
+        retention_rate_pct: retentionPct,
       })
       if (!res.ok) {
         setError(res.error)
@@ -115,15 +136,15 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-5 divide-y md:divide-y-0 md:divide-x divide-fm-outline-variant/20">
-      {/* Columna izq: catálogo */}
-      <div className="md:col-span-3 p-4 space-y-3 overflow-y-auto max-h-[55vh]">
-        <div className="flex gap-2 items-center sticky top-0 bg-fm-surface-container-lowest pb-2 z-10">
+      {/* Columna izq: catálogo — header fijo + lista scrolleable */}
+      <div className="md:col-span-3 p-4 flex flex-col gap-3">
+        <div className="flex flex-wrap gap-2 items-center shrink-0">
           <input
             type="text"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Buscar item…"
-            className="flex-1 text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
+            className="flex-1 min-w-[140px] text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
           />
           <select
             value={filterCategory}
@@ -137,8 +158,15 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            onClick={addManualLine}
+            className="text-xs font-semibold text-fm-primary border border-fm-primary/40 rounded-xl px-3 py-2 hover:bg-fm-primary/10 transition-colors whitespace-nowrap"
+          >
+            + Línea manual
+          </button>
         </div>
-        <div className="space-y-1">
+        <div className="space-y-1 overflow-y-auto max-h-[48vh] pr-1 -mr-1">
           {visibleItems.length === 0 ? (
             <p className="text-xs text-fm-on-surface-variant italic px-2">
               No hay items que coincidan con tu búsqueda.
@@ -244,9 +272,50 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
           </ul>
         )}
 
-        <div className="flex justify-between items-center pt-2 border-t border-fm-outline-variant/20">
-          <span className="text-xs uppercase tracking-wider text-fm-on-surface-variant">Total</span>
-          <span className="text-xl font-bold tabular-nums text-fm-primary">{fmt(subtotal)}</span>
+        {/* IVA + retención */}
+        <div className="space-y-2 pt-2 border-t border-fm-outline-variant/20">
+          <label className="flex items-center gap-2 text-xs cursor-pointer">
+            <input type="checkbox" checked={applyIva} onChange={(e) => setApplyIva(e.target.checked)} />
+            Aplicar IVA (13%)
+          </label>
+          <label className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-fm-on-surface-variant">Retención IVA (%)</span>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={0.5}
+              value={retentionPct}
+              onChange={(e) => setRetentionPct(Math.max(0, Math.min(100, Number(e.target.value))))}
+              className="w-20 px-2 py-1 bg-fm-background border border-fm-surface-container-high rounded tabular-nums text-right"
+            />
+          </label>
+        </div>
+
+        {/* Desglose de totales */}
+        <div className="space-y-1 pt-2 border-t border-fm-outline-variant/20 text-xs">
+          <div className="flex justify-between">
+            <span className="text-fm-on-surface-variant">Subtotal</span>
+            <span className="tabular-nums">{fmt(subtotal)}</span>
+          </div>
+          {applyIva && (
+            <div className="flex justify-between">
+              <span className="text-fm-on-surface-variant">IVA (13%)</span>
+              <span className="tabular-nums">{fmt(taxAmount)}</span>
+            </div>
+          )}
+          {retencionAmount > 0 && (
+            <div className="flex justify-between text-fm-error">
+              <span>Retención IVA ({retentionPct}%)</span>
+              <span className="tabular-nums">− {fmt(retencionAmount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center pt-1 mt-1 border-t border-fm-outline-variant/20">
+            <span className="text-xs uppercase tracking-wider font-semibold text-fm-on-surface-variant">
+              Total a pagar
+            </span>
+            <span className="text-xl font-bold tabular-nums text-fm-primary">{fmt(totalAPagar)}</span>
+          </div>
         </div>
 
         <div className="space-y-2 pt-2 border-t border-fm-outline-variant/20">
@@ -294,7 +363,7 @@ export function AdHocInvoiceBuilder({ childId, enrolledProgram, catalog, onCreat
           disabled={isPending || lines.length === 0}
           className="mt-1 w-full px-4 py-2.5 text-sm rounded-xl bg-fm-primary text-white font-semibold disabled:opacity-60 hover:bg-fm-primary/90 transition-colors"
         >
-          {isPending ? 'Creando…' : `Crear factura ${fmt(subtotal)}`}
+          {isPending ? 'Creando…' : `Crear factura ${fmt(totalAPagar)}`}
         </button>
       </div>
     </div>

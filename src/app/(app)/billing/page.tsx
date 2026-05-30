@@ -45,8 +45,7 @@ export default async function BillingDashboardPage() {
           <div className="flex gap-2">
             <Link
               href="/billing/invoices/new"
-              className="text-sm font-semibold text-white px-4 py-2 rounded-xl"
-              style={{ background: 'linear-gradient(135deg, #00675c 0%, #4fa89c 100%)' }}
+              className="text-sm font-semibold text-white px-4 py-2 rounded-xl bg-fm-primary hover:bg-fm-primary-dim transition-colors"
             >
               + Nueva factura
             </Link>
