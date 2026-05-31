@@ -11,6 +11,7 @@ import type {
 } from '@/types/db'
 import { validateDiscount } from '@/lib/domain/discounts'
 import { createInvoiceForCycle } from './kinetic-invoices'
+import { fromZonedTime } from 'date-fns-tz'
 
 const MGMT_ROLES = [
   'admin',
@@ -58,6 +59,7 @@ export async function listMonthlyCyclesByChild(
 export async function dryRunMonthlyGeneration(
   childId: string,
   periodMonthInput: string,
+  rolloverSessions?: Record<string, number> | null,
 ): Promise<{ ok: true; result: MonthlyCandidatesResult } | { ok: false; error: string }> {
   const { supabase } = await getActor()
   let periodMonth: string
@@ -70,6 +72,8 @@ export async function dryRunMonthlyGeneration(
   const { data, error } = await supabase.rpc('compute_monthly_appointment_candidates', {
     p_child_id: childId,
     p_period_month: periodMonth,
+    p_rollover_sessions:
+      rolloverSessions && Object.keys(rolloverSessions).length > 0 ? rolloverSessions : null,
   })
 
   if (error) {
@@ -86,6 +90,105 @@ export async function dryRunMonthlyGeneration(
   }
 
   return { ok: true, result: data as MonthlyCandidatesResult }
+}
+
+// ── Rollover: sesiones no dadas del mes anterior ───────────────────────────
+
+export interface RolloverPreviewItem {
+  service: string
+  missed: number
+  unitPrice: number
+  amount: number
+}
+
+export interface RolloverPreview {
+  fromPeriod: string // 'YYYY-MM-01' del mes anterior con ciclo
+  items: RolloverPreviewItem[]
+  totalDiscount: number
+}
+
+/**
+ * Calcula, para el mes ANTERIOR al período dado, las sesiones de terapia que
+ * NO se dieron (no_show/late_cancel/cancelled) y NO fueron repuestas.
+ * Devuelve por servicio: cuántas y el monto (× precio del ciclo anterior).
+ */
+export async function getCycleRolloverPreview(
+  childId: string,
+  periodMonthInput: string,
+): Promise<{ ok: true; preview: RolloverPreview | null } | { ok: false; error: string }> {
+  const { supabase } = await getActor()
+  let periodMonth: string
+  try {
+    periodMonth = normalizePeriodMonth(periodMonthInput)
+  } catch {
+    return { ok: false, error: 'Período inválido.' }
+  }
+
+  // Mes anterior.
+  const [y, m] = periodMonth.slice(0, 7).split('-').map(Number)
+  const prevY = m === 1 ? y - 1 : y
+  const prevM = m === 1 ? 12 : m - 1
+  const prevPeriod = `${prevY}-${String(prevM).padStart(2, '0')}-01`
+  const startISO = fromZonedTime(new Date(prevY, prevM - 1, 1, 0, 0, 0), 'America/El_Salvador').toISOString()
+  const endISO = fromZonedTime(new Date(prevY, prevM, 1, 0, 0, 0), 'America/El_Salvador').toISOString()
+
+  // Citas de terapia del mes anterior.
+  const { data: apptsRaw } = await supabase
+    .from('appointments')
+    .select('id, service_type, status')
+    .eq('child_id', childId)
+    .eq('event_type', 'terapia')
+    .gte('starts_at', startISO)
+    .lt('starts_at', endISO)
+  const appts = (apptsRaw ?? []) as { id: string; service_type: string | null; status: string }[]
+  if (appts.length === 0) return { ok: true, preview: null }
+
+  // Ausencias repuestas de esas citas.
+  const apptIds = appts.map((a) => a.id)
+  const { data: absRaw } = await supabase
+    .from('appointment_absences')
+    .select('appointment_id, status')
+    .in('appointment_id', apptIds)
+  const replaced = new Set(
+    (absRaw ?? [])
+      .filter((a) => a.status === 'replaced')
+      .map((a) => a.appointment_id as string),
+  )
+
+  // No dadas sin reposición, por servicio.
+  const missedBy = new Map<string, number>()
+  for (const a of appts) {
+    const notDelivered = ['no_show', 'late_cancel', 'cancelled'].includes(a.status)
+    if (notDelivered && !replaced.has(a.id)) {
+      const svc = a.service_type ?? 'otra'
+      missedBy.set(svc, (missedBy.get(svc) ?? 0) + 1)
+    }
+  }
+  if (missedBy.size === 0) return { ok: true, preview: { fromPeriod: prevPeriod, items: [], totalDiscount: 0 } }
+
+  // Precio por servicio: del snapshot del ciclo anterior (lo que pagaron).
+  const { data: prevCycle } = await supabase
+    .from('monthly_session_cycles')
+    .select('treatment_plan_snapshot')
+    .eq('child_id', childId)
+    .eq('period_month', prevPeriod)
+    .neq('status', 'cancelled')
+    .maybeSingle()
+  const priceBy = new Map<string, number>()
+  const snap = (prevCycle?.treatment_plan_snapshot ?? {}) as {
+    therapies_json?: { service: string; unit_cost_usd?: number }[]
+  }
+  for (const t of snap.therapies_json ?? []) {
+    priceBy.set(t.service, Number(t.unit_cost_usd ?? 0))
+  }
+
+  const items: RolloverPreviewItem[] = Array.from(missedBy.entries()).map(([service, missed]) => {
+    const unitPrice = priceBy.get(service) ?? 0
+    return { service, missed, unitPrice, amount: Math.round(missed * unitPrice * 100) / 100 }
+  })
+  const totalDiscount = Math.round(items.reduce((s, i) => s + i.amount, 0) * 100) / 100
+
+  return { ok: true, preview: { fromPeriod: prevPeriod, items, totalDiscount } }
 }
 
 // ── Confirmar pago + generar (mgmt) ────────────────────────────────────────
@@ -115,6 +218,12 @@ export interface ConfirmMonthlyPaymentInput {
    * el RPC usa el día 5 del mes.
    */
   dueDate?: string | null
+  /** Rollover de sesiones no dadas del mes anterior. */
+  rolloverMode?: 'none' | 'accumulate' | 'discount'
+  /** service → sesiones a acumular (modo accumulate) o base del descuento. */
+  rolloverSessions?: Record<string, number> | null
+  /** Monto del descuento por rollover (modo discount). */
+  rolloverDiscountUsd?: number
 }
 
 export async function confirmMonthlyPaymentAndGenerate(
@@ -150,6 +259,12 @@ export async function confirmMonthlyPaymentAndGenerate(
     p_notes: input.notes ?? null,
     p_appointments_override: input.appointmentsOverride ?? null,
     p_due_date: input.dueDate ?? null,
+    p_rollover_sessions:
+      input.rolloverSessions && Object.keys(input.rolloverSessions).length > 0
+        ? input.rolloverSessions
+        : null,
+    p_rollover_mode: input.rolloverMode ?? 'none',
+    p_rollover_discount: input.rolloverDiscountUsd ?? 0,
   })
 
   if (error) {

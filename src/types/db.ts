@@ -3589,6 +3589,11 @@ export interface MonthlySessionCycle {
   grace_extension_reason: string | null
   /** Recargo por mora aplicado al pagar (USD). */
   surcharge_amount_usd: number
+  /** Rollover de sesiones no dadas del mes anterior. */
+  rollover_mode: 'none' | 'accumulate' | 'discount'
+  rollover_sessions_json: Record<string, number> | null
+  rollover_discount_usd: number
+  rollover_from_period: string | null
   cancel_reason: string | null
   cancelled_at: string | null
   cancelled_by_user_id: string | null

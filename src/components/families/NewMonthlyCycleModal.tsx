@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import {
   confirmMonthlyPaymentAndGenerate,
   dryRunMonthlyGeneration,
+  getCycleRolloverPreview,
+  type RolloverPreview,
 } from '@/app/actions/monthly-cycles'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type {
@@ -144,6 +146,15 @@ export function NewMonthlyCycleModal({
   }, [periodMonth])
   const [notes, setNotes] = useState('')
 
+  // Rollover del mes anterior.
+  const [rollover, setRollover] = useState<RolloverPreview | null>(null)
+  const [rolloverMode, setRolloverMode] = useState<'none' | 'accumulate' | 'discount'>('none')
+  const rolloverSessionsMap = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const it of rollover?.items ?? []) map[it.service] = it.missed
+    return map
+  }, [rollover])
+
   const [dryRun, setDryRun] = useState<MonthlyCandidatesResult | null>(null)
   const [dryError, setDryError] = useState<string | null>(null)
   const [isLoadingDry, startLoadDry] = useTransition()
@@ -158,15 +169,32 @@ export function NewMonthlyCycleModal({
 
   const periodAlreadyUsed = existingPeriods.some((p) => p.startsWith(periodMonth))
 
-  // Cargar dry-run automáticamente al cambiar período
+  // Cargar preview de rollover (mes anterior) al cambiar período.
+  useEffect(() => {
+    if (!periodMonth || periodAlreadyUsed) {
+      setRollover(null)
+      return
+    }
+    let cancel = false
+    getCycleRolloverPreview(childId, periodMonth).then((res) => {
+      if (cancel) return
+      setRollover(res.ok ? res.preview : null)
+    })
+    return () => {
+      cancel = true
+    }
+  }, [childId, periodMonth, periodAlreadyUsed])
+
+  // Cargar dry-run automáticamente al cambiar período / modo rollover.
   useEffect(() => {
     if (!periodMonth || periodAlreadyUsed) {
       setDryRun(null)
       return
     }
     setDryError(null)
+    const rolloverForCompute = rolloverMode === 'accumulate' ? rolloverSessionsMap : null
     startLoadDry(async () => {
-      const res = await dryRunMonthlyGeneration(childId, periodMonth)
+      const res = await dryRunMonthlyGeneration(childId, periodMonth, rolloverForCompute)
       if (!res.ok) {
         setDryError(res.error)
         setDryRun(null)
@@ -178,7 +206,7 @@ export function NewMonthlyCycleModal({
       setEditedCandidates(res.result.candidates)
       setHasEdits(false)
     })
-  }, [childId, periodMonth, periodAlreadyUsed])
+  }, [childId, periodMonth, periodAlreadyUsed, rolloverMode, rolloverSessionsMap])
 
   function handleMoveCandidate(idx: number, newStartsAt: string, newEndsAt: string) {
     setEditedCandidates((prev) =>
@@ -224,6 +252,10 @@ export function NewMonthlyCycleModal({
         pricedTherapies: priced,
         // Fecha límite de pago (gracia).
         dueDate: graceDate,
+        // Rollover del mes anterior.
+        rolloverMode,
+        rolloverSessions: rolloverMode !== 'none' ? rolloverSessionsMap : null,
+        rolloverDiscountUsd: rolloverMode === 'discount' ? (rollover?.totalDiscount ?? 0) : 0,
       })
       if (!res.ok) {
         setConfirmError(res.error)
@@ -335,6 +367,60 @@ export function NewMonthlyCycleModal({
               </table>
             )}
           </div>
+
+          {/* Rollover del mes anterior */}
+          {rollover && rollover.items.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+              <p className="text-xs font-semibold text-amber-900">
+                Arrastre del mes anterior — {rollover.items.reduce((s, i) => s + i.missed, 0)}{' '}
+                sesión(es) no dada(s) ni repuesta(s)
+              </p>
+              <ul className="text-[11px] text-amber-900 space-y-0.5">
+                {rollover.items.map((it) => (
+                  <li key={it.service}>
+                    • {SERVICE_TYPE_LABELS[it.service as ServiceType] ?? it.service}:{' '}
+                    <b>{it.missed}</b> sesión(es)
+                    {it.unitPrice > 0 && ` · ($${(it.missed * it.unitPrice).toFixed(2)})`}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex flex-col gap-1 text-xs text-amber-900">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="rollover"
+                    checked={rolloverMode === 'none'}
+                    onChange={() => setRolloverMode('none')}
+                  />
+                  No aplicar
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="rollover"
+                    checked={rolloverMode === 'accumulate'}
+                    onChange={() => setRolloverMode('accumulate')}
+                  />
+                  Acumular sesiones (generar citas extra este mes, sin recobrar)
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="rollover"
+                    checked={rolloverMode === 'discount'}
+                    onChange={() => setRolloverMode('discount')}
+                  />
+                  Descontar ${rollover.totalDiscount.toFixed(2)} de la factura
+                </label>
+              </div>
+              {rolloverMode === 'accumulate' && (
+                <p className="text-[11px] text-amber-700 italic">
+                  Se intentarán generar las sesiones extra donde el horario tenga
+                  espacio (sube la cuota del mes). Revisá la previsualización abajo.
+                </p>
+              )}
+            </div>
+          )}
 
           <DiscountFields
             subtotal={planSubtotal}

@@ -152,6 +152,12 @@ export async function createInvoiceForCycle(
   } else if (cycle.discount_kind === 'fixed' && cycle.discount_value > 0) {
     discountAmount = Math.min(cycle.discount_value, subtotalRaw)
   }
+  // Rollover en modo 'discount': sumar el crédito por sesiones no dadas.
+  const rolloverDiscount =
+    cycle.rollover_mode === 'discount' ? Number(cycle.rollover_discount_usd ?? 0) : 0
+  if (rolloverDiscount > 0) {
+    discountAmount = Math.min(subtotalRaw, discountAmount + rolloverDiscount)
+  }
 
   const totals = calculateTotals({
     items,

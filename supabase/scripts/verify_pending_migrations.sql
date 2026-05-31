@@ -258,6 +258,19 @@ WITH checks AS (
          (SELECT COUNT(*)::int FROM information_schema.columns
           WHERE table_schema='public' AND table_name='appointments'
             AND column_name='is_extra')
+  UNION ALL
+  -- ── 0139 (rollover de terapias no dadas) ──────────────────────────
+  SELECT 44, 'mig_0139_cycle_rollover_cols',
+         (SELECT (CASE WHEN COUNT(*)=3 THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='monthly_session_cycles'
+            AND column_name IN ('rollover_mode','rollover_sessions_json','rollover_discount_usd'))
+  UNION ALL
+  SELECT 45, 'mig_0139_compute_rollover_param',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_proc
+          WHERE proname='compute_monthly_appointment_candidates'
+            AND prosrc ILIKE '%p_rollover_sessions%')
 )
 SELECT
   check_name,
