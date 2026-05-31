@@ -2978,6 +2978,20 @@ export interface Appointment {
   notes: string | null
   /** Terapia extra (cobertura / adicional). Para mensual_fijo se paga aparte. */
   is_extra: boolean
+  /** Momento en que la terapista marcó la terapia finalizada (arranca timer de despacho). */
+  completed_at: string | null
+  /** Momento en que el niño fue despachado (recogido). */
+  dispatched_at: string | null
+  dispatched_by_user_id: string | null
+  /** Minutos de espera para recogida (completed→dispatched). */
+  late_fee_minutes: number | null
+  /** Cargo por recogida tardía (USD). */
+  late_fee_usd: number
+  /** none | suggested | charged | waived. */
+  late_fee_status: 'none' | 'suggested' | 'charged' | 'waived'
+  late_fee_waive_reason: string | null
+  /** Pop-up de despacho pospuesto hasta esta hora ("no lo han traído aún"). */
+  dispatch_snoozed_until: string | null
   /** Solo se usa cuando event_type='otro'. Etiqueta libre que aparece en el calendario. */
   custom_event_label: string | null
   created_by_user_id: string | null

@@ -271,6 +271,18 @@ WITH checks AS (
           FROM pg_proc
           WHERE proname='compute_monthly_appointment_candidates'
             AND prosrc ILIKE '%p_rollover_sessions%')
+  UNION ALL
+  -- ── 0140 (despacho + cargo por recogida tardía) ───────────────────
+  SELECT 46, 'mig_0140_appointment_dispatch_cols',
+         (SELECT (CASE WHEN COUNT(*)=4 THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='appointments'
+            AND column_name IN ('completed_at','dispatched_at','late_fee_status','dispatch_snoozed_until'))
+  UNION ALL
+  SELECT 47, 'mig_0140_appointments_realtime',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_publication_tables
+          WHERE pubname='supabase_realtime' AND tablename='appointments')
 )
 SELECT
   check_name,

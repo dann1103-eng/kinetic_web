@@ -14,6 +14,7 @@ import { LoginWelcomeDialog } from '@/components/layout/LoginWelcomeDialog'
 import { IdleSchedulerWrapper } from '@/components/layout/IdleSchedulerWrapper'
 import { SessionSentinel } from '@/components/auth/SessionSentinel'
 import { SpectatorBanner } from '@/components/layout/SpectatorBanner'
+import { DispatchWatcher } from '@/components/dispatch/DispatchWatcher'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -64,6 +65,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
           <LoginWelcomeDialog />
           <IdleSchedulerWrapper />
           <SessionSentinel />
+          <DispatchWatcher />
         </MobileSidebarProvider>
       </ActiveCallProvider>
     </UserProvider>

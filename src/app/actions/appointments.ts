@@ -243,6 +243,36 @@ export async function cancelAppointment(
 export async function markAppointmentInProgress(
   appointmentId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+  const supabase = await createClient()
+
+  // Bloqueo: no abrir otra terapia si hay un niño finalizado sin despachar.
+  // (La terapista/maestra debe despachar al anterior primero.)
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('therapist_id')
+    .eq('id', appointmentId)
+    .maybeSingle()
+  const therapistId = appt?.therapist_id ?? null
+  if (therapistId) {
+    const { data: pendingDispatch } = await supabase
+      .from('appointments')
+      .select('id')
+      .eq('therapist_id', therapistId)
+      .eq('status', 'completed')
+      .not('completed_at', 'is', null)
+      .is('dispatched_at', null)
+      .neq('id', appointmentId)
+      .limit(1)
+    if (pendingDispatch && pendingDispatch.length > 0) {
+      return {
+        ok: false,
+        error: 'Primero despachá al niño/a de la terapia anterior (marcá que ya fue recogido).',
+      }
+    }
+  }
+
   return updateAppointmentStatus(appointmentId, 'in_progress')
 }
 
@@ -302,10 +332,11 @@ export async function markAppointmentCompleted(
   const supabase = await createClient()
   const { error } = await supabase
     .from('appointments')
-    .update({ status: 'completed', notes: notes?.trim() || null })
+    .update({ status: 'completed', completed_at: new Date().toISOString(), notes: notes?.trim() || null })
     .eq('id', appointmentId)
   if (error) return { ok: false, error: error.message }
   revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
   return { ok: true }
 }
 

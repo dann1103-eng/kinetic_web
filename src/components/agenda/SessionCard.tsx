@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { startTherapySession, finishTherapySession } from '@/app/actions/therapy-sessions'
 import { markAbsence } from '@/app/actions/absences'
+import { dispatchChild, confirmLateFee, waiveLateFee } from '@/app/actions/dispatch'
 import { formatElapsed, formatDuration } from '@/lib/domain/sessions'
 import type { Appointment, TherapySession, SessionReport } from '@/types/db'
 
@@ -160,6 +161,29 @@ export function SessionCard({ appointment, session, report, onNoteClick, onRepor
               {formatDuration(session.started_at, session.ended_at)}
             </div>
             <div className="ml-auto flex items-center gap-2">
+              {!appointment.dispatched_at ? (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      await dispatchChild(appointment.id)
+                      router.refresh()
+                    })
+                  }
+                  className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-fm-primary/10 text-fm-primary hover:bg-fm-primary/15 disabled:opacity-60"
+                  title="Marcar que el niño/a ya fue recogido por los padres"
+                >
+                  Despachar niño/a
+                </button>
+              ) : (
+                <span className="text-[10px] text-emerald-700 inline-flex items-center gap-1">
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                    check
+                  </span>
+                  Despachado
+                </span>
+              )}
               {onReportClick && session && <ReportButton report={report} sessionId={session.id} onClick={onReportClick} />}
               {onNoteClick && (
                 <button
@@ -170,6 +194,60 @@ export function SessionCard({ appointment, session, report, onNoteClick, onRepor
                 </button>
               )}
             </div>
+            {/* Recargo por recogida tardía */}
+            {appointment.late_fee_status !== 'none' && (
+              <div className="w-full flex items-center justify-between gap-2 mt-1 text-[11px]">
+                <span
+                  className={
+                    appointment.late_fee_status === 'waived'
+                      ? 'text-fm-on-surface-variant line-through'
+                      : appointment.late_fee_status === 'charged'
+                        ? 'text-emerald-700'
+                        : 'text-amber-800'
+                  }
+                >
+                  Recogida tardía: ${Number(appointment.late_fee_usd).toFixed(2)}
+                  {appointment.late_fee_minutes != null && ` (${appointment.late_fee_minutes} min)`}
+                  {appointment.late_fee_status === 'suggested' && ' — sugerido'}
+                  {appointment.late_fee_status === 'charged' && ' — cobrado'}
+                  {appointment.late_fee_status === 'waived' && ' — perdonado'}
+                </span>
+                {appointment.late_fee_status === 'suggested' && (
+                  <span className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() =>
+                        startTransition(async () => {
+                          const res = await confirmLateFee(appointment.id)
+                          if (!res.ok) alert(res.error)
+                          router.refresh()
+                        })
+                      }
+                      className="font-semibold text-emerald-700 hover:underline"
+                    >
+                      Cobrar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => {
+                        const reason = window.prompt('Motivo para perdonar el cargo:')
+                        if (!reason) return
+                        startTransition(async () => {
+                          const res = await waiveLateFee(appointment.id, reason)
+                          if (!res.ok) alert(res.error)
+                          router.refresh()
+                        })
+                      }}
+                      className="text-fm-on-surface-variant hover:underline"
+                    >
+                      Perdonar
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>
