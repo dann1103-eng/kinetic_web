@@ -10,9 +10,12 @@
 -- =============================================================================
 
 -- ── 1. contract_type: reemplazar 'por_hora' por 'por_terapias' ──
+-- IMPORTANTE: soltar el CHECK viejo ANTES del UPDATE. El viejo solo permite
+-- 'por_hora', así que actualizar a 'por_terapias' con él activo lo rechaza.
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_contract_type_check;
+
 UPDATE public.users SET contract_type = 'por_terapias' WHERE contract_type = 'por_hora';
 
-ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_contract_type_check;
 ALTER TABLE public.users
   ADD CONSTRAINT users_contract_type_check
   CHECK (contract_type IN ('mensual_fijo', 'por_terapias', 'sin_contrato'));
