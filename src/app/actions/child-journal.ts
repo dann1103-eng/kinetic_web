@@ -54,6 +54,18 @@ export async function createJournalEntry(input: CreateJournalEntryInput): Promis
   return { ok: true }
 }
 
+/**
+ * Variante para usar como `<form action>`: lee entryId del FormData.
+ * Sirve tanto en Server como en Client Components (es un server action
+ * importado, no inline), evitando el error de Turbopack.
+ */
+export async function toggleJournalEntryVisibilityAction(formData: FormData): Promise<void> {
+  const entryId = formData.get('entryId')
+  if (typeof entryId === 'string' && entryId) {
+    await toggleJournalEntryVisibility(entryId)
+  }
+}
+
 export async function toggleJournalEntryVisibility(entryId: string): Promise<
   | { ok: true; visibleToFamily: boolean }
   | { ok: false; error: string }

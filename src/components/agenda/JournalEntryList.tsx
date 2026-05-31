@@ -1,6 +1,6 @@
 import { format, parseISO, isToday, isYesterday } from 'date-fns'
 import { es } from 'date-fns/locale'
-import { toggleJournalEntryVisibility } from '@/app/actions/child-journal'
+import { toggleJournalEntryVisibilityAction } from '@/app/actions/child-journal'
 import type { ChildJournalEntry } from '@/types/db'
 
 interface JournalEntryListProps {
@@ -78,12 +78,8 @@ export function JournalEntryList({ entries, isFamily, authorNames = {} }: Journa
                   </div>
                   <p className="text-sm text-fm-on-surface whitespace-pre-wrap">{entry.body}</p>
                   {!isFamily && (
-                    <form
-                      action={async () => {
-                        'use server'
-                        await toggleJournalEntryVisibility(entry.id)
-                      }}
-                    >
+                    <form action={toggleJournalEntryVisibilityAction}>
+                      <input type="hidden" name="entryId" value={entry.id} />
                       <button
                         type="submit"
                         className="text-xs text-fm-primary hover:underline"
