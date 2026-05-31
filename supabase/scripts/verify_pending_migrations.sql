@@ -283,6 +283,15 @@ WITH checks AS (
          (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
           FROM pg_publication_tables
           WHERE pubname='supabase_realtime' AND tablename='appointments')
+  UNION ALL
+  -- ── 0141 (una sola sobrecarga de cada RPC del ciclo) ──────────────
+  SELECT 48, 'mig_0141_compute_single_overload',
+         (SELECT (CASE WHEN COUNT(*)=1 THEN 1 ELSE 0 END)::int
+          FROM pg_proc WHERE proname='compute_monthly_appointment_candidates')
+  UNION ALL
+  SELECT 49, 'mig_0141_confirm_single_overload',
+         (SELECT (CASE WHEN COUNT(*)=1 THEN 1 ELSE 0 END)::int
+          FROM pg_proc WHERE proname='confirm_monthly_payment_and_generate')
 )
 SELECT
   check_name,
