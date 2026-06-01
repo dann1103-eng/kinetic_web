@@ -1,8 +1,11 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { useUser } from '@/contexts/UserContext'
+import { useDraft } from '@/hooks/useDraft'
+import { DraftRestoreBanner, SaveStatusIndicator } from '@/components/ui/DraftAutosave'
 import {
   uploadProgressReportFile,
   removeProgressReportFile,
@@ -77,6 +80,16 @@ export function ProgressReportFileUploader({
   const isEditable =
     (isAuthor && (report.status === 'draft' || report.status === 'rejected')) ||
     canSuperEdit
+
+  // ── Autoguardado local de las notas para la familia ──
+  const user = useUser()
+  const notesDraftValue = useMemo(() => ({ familyNotes }), [familyNotes])
+  const { draft: notesDraft, savedAt: notesSavedAt, online: notesOnline, clear: clearNotesDraft } = useDraft(
+    `progress-report-notes:${report.id}`,
+    notesDraftValue,
+    { userId: user.id, serverUpdatedAt: report.updated_at, enabled: isEditable },
+  )
+  const [notesDraftDismissed, setNotesDraftDismissed] = useState(false)
   // Eliminar: el autor solo en borrador; admin/coordinadoras siempre
   const canDelete =
     (isAuthor && report.status === 'draft') || canSuperEdit
@@ -203,7 +216,7 @@ export function ProgressReportFileUploader({
     if (!notesDirty) return
     startSaveNotes(async () => {
       const res = await updateProgressReportNotes(report.id, familyNotes || null)
-      if (res.ok) setNotesDirty(false)
+      if (res.ok) { setNotesDirty(false); clearNotesDraft() }
       else setError(res.error)
     })
   }
@@ -347,6 +360,13 @@ export function ProgressReportFileUploader({
           </p>
           {isEditable ? (
             <div className="space-y-1.5">
+              {notesDraft && !notesDraftDismissed && notesDraft.familyNotes !== familyNotes && (
+                <DraftRestoreBanner
+                  savedAt={notesSavedAt}
+                  onRestore={() => { setFamilyNotes(notesDraft.familyNotes); setNotesDirty(true); setNotesDraftDismissed(true) }}
+                  onDiscard={() => { clearNotesDraft(); setNotesDraftDismissed(true) }}
+                />
+              )}
               <textarea
                 value={familyNotes}
                 onChange={(e) => { setFamilyNotes(e.target.value); setNotesDirty(true) }}
@@ -355,9 +375,12 @@ export function ProgressReportFileUploader({
                 placeholder="Ej: El periodo cubre las sesiones del mes de enero a abril. Se adjunta el informe completo…"
                 className="w-full rounded-2xl border border-fm-outline-variant/30 bg-fm-surface-container-lowest px-4 py-3 text-sm text-fm-on-surface placeholder:text-fm-on-surface-variant/50 focus:outline-none focus:ring-2 focus:ring-fm-primary/30 resize-none"
               />
-              <p className="text-xs text-fm-on-surface-variant">
-                {isSavingNotes ? 'Guardando…' : notesDirty ? 'Sin guardar — click fuera para guardar' : 'Guardado'}
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-fm-on-surface-variant">
+                  {isSavingNotes ? 'Guardando…' : notesDirty ? 'Sin guardar — click fuera para guardar' : 'Guardado'}
+                </p>
+                <SaveStatusIndicator savedAt={notesSavedAt} online={notesOnline} />
+              </div>
             </div>
           ) : (
             <div className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-low/40 px-4 py-3">

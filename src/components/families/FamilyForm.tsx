@@ -1,9 +1,12 @@
 'use client'
 
-import { useId, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createFamily, updateFamily } from '@/app/actions/families'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
+import { useUser } from '@/contexts/UserContext'
+import { useDraft } from '@/hooks/useDraft'
+import { DraftRestoreBanner, SaveStatusIndicator, OfflineSaveError } from '@/components/ui/DraftAutosave'
 import type { Family } from '@/types/db'
 
 interface FamilyFormProps {
@@ -49,9 +52,20 @@ export function FamilyForm({ initialFamily, triggerLabel = '+ Nueva familia' }: 
     setForm((f) => ({ ...f, [key]: value }))
   }
 
+  // ── Autoguardado local del borrador ──
+  const user = useUser()
+  const { draft, savedAt, online, clear } = useDraft(`family:${initialFamily?.id ?? 'new'}`, form, {
+    userId: user.id,
+    serverUpdatedAt: initialFamily?.updated_at ?? null,
+    enabled: open,
+  })
+  const [draftDismissed, setDraftDismissed] = useState(false)
+  const [failedOffline, setFailedOffline] = useState(false)
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setFailedOffline(false)
     setSubmitting(true)
 
     const payload = {
@@ -70,22 +84,28 @@ export function FamilyForm({ initialFamily, triggerLabel = '+ Nueva familia' }: 
       notes: form.notes || null,
     }
 
-    const res = isEdit
-      ? await updateFamily(initialFamily!.id, payload)
-      : await createFamily(payload)
+    try {
+      const res = isEdit
+        ? await updateFamily(initialFamily!.id, payload)
+        : await createFamily(payload)
 
-    setSubmitting(false)
+      setSubmitting(false)
 
-    if (!res.ok) {
-      setError(res.error)
-      return
-    }
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
 
-    setOpen(false)
-    if (!isEdit && 'familyId' in res) {
-      router.push(`/familias/${res.familyId}`)
-    } else {
-      router.refresh()
+      clear() // guardado en servidor → descartar borrador local
+      setOpen(false)
+      if (!isEdit && 'familyId' in res) {
+        router.push(`/familias/${res.familyId}`)
+      } else {
+        router.refresh()
+      }
+    } catch {
+      setSubmitting(false)
+      setFailedOffline(true)
     }
   }
 
@@ -124,6 +144,13 @@ export function FamilyForm({ initialFamily, triggerLabel = '+ Nueva familia' }: 
               </div>
 
               <div className="p-6 space-y-5">
+                {draft && !draftDismissed && (
+                  <DraftRestoreBanner
+                    savedAt={savedAt}
+                    onRestore={() => { setForm(draft); setDraftDismissed(true) }}
+                    onDiscard={() => { clear(); setDraftDismissed(true) }}
+                  />
+                )}
                 <fieldset className="space-y-3">
                   <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Contacto principal</legend>
                   <Field label="Nombre completo (papá / mamá / tutor)*" value={form.primary_contact_name} onChange={(v) => setField('primary_contact_name', v)} required />
@@ -170,10 +197,18 @@ export function FamilyForm({ initialFamily, triggerLabel = '+ Nueva familia' }: 
                   />
                 </fieldset>
 
+                {failedOffline && (
+                  <OfflineSaveError
+                    onRetry={() => handleSubmit({ preventDefault() {} } as React.FormEvent)}
+                    retrying={submitting}
+                  />
+                )}
+
                 {error && <p role="alert" className="text-xs text-fm-error">{error}</p>}
               </div>
 
               <div className="px-6 py-4 border-t border-fm-outline-variant/20 flex items-center justify-end gap-2 sticky bottom-0 bg-fm-surface-container-lowest z-10">
+                <SaveStatusIndicator savedAt={savedAt} online={online} className="mr-auto" />
                 <button type="button" onClick={() => setOpen(false)} disabled={submitting} className="min-h-[44px] px-4 py-2 text-sm rounded-xl text-fm-on-surface-variant hover:bg-fm-surface-container">Cancelar</button>
                 <button type="submit" disabled={submitting} className="min-h-[44px] px-4 py-2 text-sm rounded-xl bg-fm-primary text-fm-on-primary hover:bg-fm-primary-dim disabled:opacity-50">
                   {submitting ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Crear familia'}

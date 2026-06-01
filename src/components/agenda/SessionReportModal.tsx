@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,8 @@ import {
 import type { SessionReport } from '@/types/db'
 import { ChildAttachmentManagerLazy } from '@/components/shared/ChildAttachmentManagerLazy'
 import { useUser } from '@/contexts/UserContext'
+import { useDraft } from '@/hooks/useDraft'
+import { DraftRestoreBanner, SaveStatusIndicator, OfflineSaveError } from '@/components/ui/DraftAutosave'
 
 const SUPER_EDITOR_ROLES = ['admin', 'coordinadora_familias', 'coordinadora_terapias']
 
@@ -69,6 +71,7 @@ export function SessionReportModal({
   const [isUploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedHint, setSavedHint] = useState(false)
+  const [failedOffline, setFailedOffline] = useState(false)
 
   const currentUser = useUser()
   const isSuperEditor = SUPER_EDITOR_ROLES.includes(currentUser.role)
@@ -76,6 +79,26 @@ export function SessionReportModal({
   // actual es admin / coordinadora (puede modificar cualquier reporte).
   const isEditable =
     report.status === 'draft' || report.status === 'rejected' || isSuperEditor
+
+  // ── Autoguardado local del borrador (modo editor) ──
+  const formState = useMemo(
+    () => ({ actividades, respuesta, tarea, observaciones, visibleToFamily }),
+    [actividades, respuesta, tarea, observaciones, visibleToFamily],
+  )
+  const { draft, savedAt, online, clear } = useDraft(`session-report:${report.id}`, formState, {
+    userId: currentUser.id,
+    serverUpdatedAt: report.updated_at,
+    enabled: isEditable && mode === 'editor',
+  })
+  const [draftDismissed, setDraftDismissed] = useState(false)
+  function applyDraft(d: typeof formState) {
+    setActividades(d.actividades)
+    setRespuesta(d.respuesta)
+    setTarea(d.tarea)
+    setObservaciones(d.observaciones)
+    setVisibleToFamily(d.visibleToFamily)
+    setDraftDismissed(true)
+  }
   // Eliminar: el autor solo en borrador; admin/coordinadoras en cualquier estado.
   const canDelete = report.status === 'draft' || isSuperEditor
 
@@ -151,20 +174,26 @@ export function SessionReportModal({
     }
     setError(null)
     setSavedHint(false)
+    setFailedOffline(false)
     startTransition(async () => {
-      const res = await updateSessionReportDraft(report.id, {
-        actividades,
-        respuesta_del_nino: respuesta,
-        tarea_para_casa: tarea,
-        observaciones_internas: observaciones,
-        visible_to_family: visibleToFamily,
-      })
-      if (!res.ok) {
-        setError(res.error)
-        return
+      try {
+        const res = await updateSessionReportDraft(report.id, {
+          actividades,
+          respuesta_del_nino: respuesta,
+          tarea_para_casa: tarea,
+          observaciones_internas: observaciones,
+          visible_to_family: visibleToFamily,
+        })
+        if (!res.ok) {
+          setError(res.error)
+          return
+        }
+        clear() // guardado en servidor → ya no hace falta el borrador local
+        setSavedHint(true)
+        onReportUpdated?.(res.report)
+      } catch {
+        setFailedOffline(true)
       }
-      setSavedHint(true)
-      onReportUpdated?.(res.report)
     })
   }
 
@@ -178,28 +207,34 @@ export function SessionReportModal({
       setError('Subí un archivo antes de enviar.')
       return
     }
+    setFailedOffline(false)
     startTransition(async () => {
-      // En editor mode, persistir cambios antes de submit.
-      if (mode === 'editor') {
-        const upd = await updateSessionReportDraft(report.id, {
-          actividades,
-          respuesta_del_nino: respuesta,
-          tarea_para_casa: tarea,
-          observaciones_internas: observaciones,
-          visible_to_family: visibleToFamily,
-        })
-        if (!upd.ok) {
-          setError(upd.error)
+      try {
+        // En editor mode, persistir cambios antes de submit.
+        if (mode === 'editor') {
+          const upd = await updateSessionReportDraft(report.id, {
+            actividades,
+            respuesta_del_nino: respuesta,
+            tarea_para_casa: tarea,
+            observaciones_internas: observaciones,
+            visible_to_family: visibleToFamily,
+          })
+          if (!upd.ok) {
+            setError(upd.error)
+            return
+          }
+        }
+        const sub = await submitSessionReport(report.id)
+        if (!sub.ok) {
+          setError(sub.error)
           return
         }
+        clear()
+        onReportUpdated?.(sub.report)
+        onOpenChange(false)
+      } catch {
+        setFailedOffline(true)
       }
-      const sub = await submitSessionReport(report.id)
-      if (!sub.ok) {
-        setError(sub.error)
-        return
-      }
-      onReportUpdated?.(sub.report)
-      onOpenChange(false)
     })
   }
 
@@ -235,6 +270,14 @@ export function SessionReportModal({
               Corregí lo señalado y volvé a enviar a aprobación.
             </p>
           </div>
+        )}
+
+        {mode === 'editor' && draft && !draftDismissed && (
+          <DraftRestoreBanner
+            savedAt={savedAt}
+            onRestore={() => applyDraft(draft)}
+            onDiscard={() => { clear(); setDraftDismissed(true) }}
+          />
         )}
 
         {/* Toggle mode */}
@@ -329,6 +372,12 @@ export function SessionReportModal({
           <div className="rounded-lg bg-green-500/10 px-3 py-2 text-sm text-green-700">
             {mode === 'file' ? 'Archivo guardado.' : 'Borrador guardado.'}
           </div>
+        )}
+        {failedOffline && (
+          <OfflineSaveError onRetry={handleSaveDraft} retrying={isPending} />
+        )}
+        {mode === 'editor' && isEditable && (
+          <SaveStatusIndicator savedAt={savedAt} online={online} />
         )}
 
         {/* Adjuntos extra de la sesión (tareas, imágenes, etc.) — mig 0119 */}

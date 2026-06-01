@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   REFERRAL_CHANNEL_LABELS,
@@ -9,6 +9,9 @@ import {
   type ServiceType,
 } from '@/types/db'
 import { createWaitlistEntry } from '@/app/actions/waitlist'
+import { useUser } from '@/contexts/UserContext'
+import { useDraft } from '@/hooks/useDraft'
+import { DraftRestoreBanner, SaveStatusIndicator, OfflineSaveError } from '@/components/ui/DraftAutosave'
 
 interface Props {
   open: boolean
@@ -39,6 +42,42 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
   >(null)
   const [referralChannel, setReferralChannel] = useState<ReferralChannel | ''>('')
   const [referralChannelOther, setReferralChannelOther] = useState('')
+  const [failedOffline, setFailedOffline] = useState(false)
+
+  // ── Autoguardado local del borrador (formulario de captura) ──
+  const user = useUser()
+  const formState = useMemo(
+    () => ({
+      childFullName, childBirthdate, childAgeText, childDiagnosis,
+      parentFullName, parentPhone, parentEmail, requestedServiceType,
+      interestText, preferredTherapistId, preferredDays, notes, priority,
+      hasPreviousEvaluation, referralChannel, referralChannelOther,
+    }),
+    [childFullName, childBirthdate, childAgeText, childDiagnosis, parentFullName,
+     parentPhone, parentEmail, requestedServiceType, interestText, preferredTherapistId,
+     preferredDays, notes, priority, hasPreviousEvaluation, referralChannel, referralChannelOther],
+  )
+  const { draft, savedAt, online, clear } = useDraft('waitlist-new', formState, { userId: user.id })
+  const [draftDismissed, setDraftDismissed] = useState(false)
+  function applyDraft(d: typeof formState) {
+    setChildFullName(d.childFullName)
+    setChildBirthdate(d.childBirthdate)
+    setChildAgeText(d.childAgeText)
+    setChildDiagnosis(d.childDiagnosis)
+    setParentFullName(d.parentFullName)
+    setParentPhone(d.parentPhone)
+    setParentEmail(d.parentEmail)
+    setRequestedServiceType(d.requestedServiceType)
+    setInterestText(d.interestText)
+    setPreferredTherapistId(d.preferredTherapistId)
+    setPreferredDays(d.preferredDays)
+    setNotes(d.notes)
+    setPriority(d.priority)
+    setHasPreviousEvaluation(d.hasPreviousEvaluation)
+    setReferralChannel(d.referralChannel)
+    setReferralChannelOther(d.referralChannelOther)
+    setDraftDismissed(true)
+  }
 
   function reset() {
     setChildFullName('')
@@ -58,11 +97,15 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
     setReferralChannel('')
     setReferralChannelOther('')
     setError(null)
+    setFailedOffline(false)
+    clear() // descarta el borrador local
   }
 
   function handleSubmit() {
     setError(null)
+    setFailedOffline(false)
     startTransition(async () => {
+      try {
       const res = await createWaitlistEntry({
         childFullName,
         childBirthdate: childBirthdate || null,
@@ -89,6 +132,9 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
       reset()
       router.refresh()
       onClose()
+      } catch {
+        setFailedOffline(true)
+      }
     })
   }
 
@@ -113,6 +159,14 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
             <span className="material-symbols-outlined">close</span>
           </button>
         </header>
+
+        {draft && !draftDismissed && (
+          <DraftRestoreBanner
+            savedAt={savedAt}
+            onRestore={() => applyDraft(draft)}
+            onDiscard={() => { clear(); setDraftDismissed(true) }}
+          />
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Field label="Nombre del niño *">
@@ -306,13 +360,18 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
           </Field>
         </div>
 
+        {failedOffline && (
+          <OfflineSaveError onRetry={handleSubmit} retrying={isPending} />
+        )}
+
         {error && (
           <div className="rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-800">
             {error}
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-2 border-t border-fm-outline-variant/20">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-fm-outline-variant/20">
+          <SaveStatusIndicator savedAt={savedAt} online={online} className="mr-auto" />
           <button
             type="button"
             onClick={() => {

@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { useUser } from '@/contexts/UserContext'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { useInboxList } from '@/hooks/useInboxPolling'
+import { clearAllDrafts } from '@/hooks/useDraft'
 import type { UserRole } from '@/types/db'
 
 interface NavItem {
@@ -361,7 +362,7 @@ export function SidebarContent({
           </div>
         </Link>
 
-        <form action="/auth/signout" method="post">
+        <form action="/auth/signout" method="post" onSubmit={() => clearAllDrafts()}>
           <button
             type="submit"
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-fm-on-surface-variant hover:bg-red-50 hover:text-fm-error transition-all duration-150"

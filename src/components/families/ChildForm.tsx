@@ -1,10 +1,13 @@
 'use client'
 
-import { useId, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createChild, updateChild } from '@/app/actions/children'
 import { computeChildCodeBase } from '@/lib/domain/child-code'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
+import { useUser } from '@/contexts/UserContext'
+import { useDraft } from '@/hooks/useDraft'
+import { DraftRestoreBanner, SaveStatusIndicator, OfflineSaveError } from '@/components/ui/DraftAutosave'
 import type { Child, DiagnosisCode, MorningProgram } from '@/types/db'
 
 const DIAGNOSIS_OPTIONS: { code: DiagnosisCode; label: string }[] = [
@@ -82,54 +85,78 @@ export function ChildForm({ familyId, initialChild }: ChildFormProps) {
     setDiagnoses((d) => (d.includes(code) ? d.filter((c) => c !== code) : [...d, code]))
   }
 
+  // ── Autoguardado local del borrador ──
+  const user = useUser()
+  const draftValue = useMemo(() => ({ form, diagnoses }), [form, diagnoses])
+  const { draft, savedAt, online, clear } = useDraft(
+    `child:${initialChild?.id ?? `new:${familyId}`}`,
+    draftValue,
+    { userId: user.id, serverUpdatedAt: initialChild?.updated_at ?? null, enabled: open },
+  )
+  const [draftDismissed, setDraftDismissed] = useState(false)
+  const [failedOffline, setFailedOffline] = useState(false)
+  function applyDraft(d: typeof draftValue) {
+    setForm(d.form)
+    setDiagnoses(d.diagnoses)
+    setDraftDismissed(true)
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
+    setFailedOffline(false)
     setSubmitting(true)
 
-    if (isEdit) {
-      const res = await updateChild(initialChild.id, {
-        full_name: form.full_name,
-        preferred_name: form.preferred_name || null,
-        birth_date: form.birth_date || null,
-        gender: form.gender || null,
-        blood_type: form.blood_type || null,
-        allergies_text: form.allergies_text || null,
-        medications_text: form.medications_text || null,
-        preferred_hospital: form.preferred_hospital || null,
-        school_name: form.school_name || null,
-        school_grade: form.school_grade || null,
-        diagnoses_json: diagnoses,
-        diagnoses_display_text: form.diagnoses_display_text || null,
-        enrolled_program: form.enrolled_program || null,
-        notes: form.notes || null,
-      })
+    try {
+      if (isEdit) {
+        const res = await updateChild(initialChild.id, {
+          full_name: form.full_name,
+          preferred_name: form.preferred_name || null,
+          birth_date: form.birth_date || null,
+          gender: form.gender || null,
+          blood_type: form.blood_type || null,
+          allergies_text: form.allergies_text || null,
+          medications_text: form.medications_text || null,
+          preferred_hospital: form.preferred_hospital || null,
+          school_name: form.school_name || null,
+          school_grade: form.school_grade || null,
+          diagnoses_json: diagnoses,
+          diagnoses_display_text: form.diagnoses_display_text || null,
+          enrolled_program: form.enrolled_program || null,
+          notes: form.notes || null,
+        })
+        setSubmitting(false)
+        if (!res.ok) { setError(res.error); return }
+        clear()
+        setOpen(false)
+        router.refresh()
+      } else {
+        const res = await createChild({
+          family_id: familyId!,
+          full_name: form.full_name,
+          preferred_name: form.preferred_name || null,
+          birth_date: form.birth_date || null,
+          gender: form.gender || null,
+          blood_type: form.blood_type || null,
+          allergies_text: form.allergies_text || null,
+          medications_text: form.medications_text || null,
+          preferred_hospital: form.preferred_hospital || null,
+          school_name: form.school_name || null,
+          school_grade: form.school_grade || null,
+          diagnoses_json: diagnoses,
+          diagnoses_display_text: form.diagnoses_display_text || null,
+          enrolled_program: form.enrolled_program || null,
+          notes: form.notes || null,
+        })
+        setSubmitting(false)
+        if (!res.ok) { setError(res.error); return }
+        clear()
+        setOpen(false)
+        router.refresh()
+      }
+    } catch {
       setSubmitting(false)
-      if (!res.ok) { setError(res.error); return }
-      setOpen(false)
-      router.refresh()
-    } else {
-      const res = await createChild({
-        family_id: familyId!,
-        full_name: form.full_name,
-        preferred_name: form.preferred_name || null,
-        birth_date: form.birth_date || null,
-        gender: form.gender || null,
-        blood_type: form.blood_type || null,
-        allergies_text: form.allergies_text || null,
-        medications_text: form.medications_text || null,
-        preferred_hospital: form.preferred_hospital || null,
-        school_name: form.school_name || null,
-        school_grade: form.school_grade || null,
-        diagnoses_json: diagnoses,
-        diagnoses_display_text: form.diagnoses_display_text || null,
-        enrolled_program: form.enrolled_program || null,
-        notes: form.notes || null,
-      })
-      setSubmitting(false)
-      if (!res.ok) { setError(res.error); return }
-      setOpen(false)
-      router.refresh()
+      setFailedOffline(true)
     }
   }
 
@@ -181,6 +208,13 @@ export function ChildForm({ familyId, initialChild }: ChildFormProps) {
               </div>
 
               <div className="p-6 space-y-5">
+                {draft && !draftDismissed && (
+                  <DraftRestoreBanner
+                    savedAt={savedAt}
+                    onRestore={() => applyDraft(draft)}
+                    onDiscard={() => { clear(); setDraftDismissed(true) }}
+                  />
+                )}
                 <fieldset className="space-y-3">
                   <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Identidad</legend>
                   <div>
@@ -262,10 +296,18 @@ export function ChildForm({ familyId, initialChild }: ChildFormProps) {
 
                 <Textarea label="Notas internas" value={form.notes} onChange={(v) => setField('notes', v)} />
 
+                {failedOffline && (
+                  <OfflineSaveError
+                    onRetry={() => handleSubmit({ preventDefault() {} } as React.FormEvent)}
+                    retrying={submitting}
+                  />
+                )}
+
                 {error && <p role="alert" className="text-xs text-fm-error">{error}</p>}
               </div>
 
               <div className="px-6 py-4 border-t border-fm-outline-variant/20 flex items-center justify-end gap-2 sticky bottom-0 bg-fm-surface-container-lowest z-10">
+                <SaveStatusIndicator savedAt={savedAt} online={online} className="mr-auto" />
                 <button type="button" onClick={() => setOpen(false)} disabled={submitting} className="min-h-[44px] px-4 py-2 text-sm rounded-xl text-fm-on-surface-variant hover:bg-fm-surface-container">Cancelar</button>
                 <button type="submit" disabled={submitting} className="min-h-[44px] px-4 py-2 text-sm rounded-xl bg-fm-primary text-fm-on-primary hover:bg-fm-primary-dim disabled:opacity-50">
                   {submitting ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Registrar niño/a'}

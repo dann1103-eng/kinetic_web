@@ -225,6 +225,25 @@ Wrapper: `KineticPortalShell` (sin search bar en desktop; logout va a `/auth/sig
 - Tab Capacidad del perfil de usuario: ocupación real de la semana con week navigator inline (`getTherapistWeekOccupancy`).
 - `WeekNavigator` (página standalone) recibe `weekStartParam: string` (no Date) para evitar bugs de zona horaria al serializar entre server (UTC) y client (SV, UTC-6).
 
+## Autoguardado de borradores (offline-safe)
+- Hook `useDraft(key, value, { userId, serverUpdatedAt?, enabled? })` en
+  `src/hooks/useDraft.ts`: persiste el estado de un formulario en `localStorage`
+  (con debounce ~700ms) para que no se pierda lo escrito si se va luz/internet.
+  100% local — no toca DB ni servidor. Clave namespaced por `userId` (computadoras
+  compartidas). Expira a 7 días. Lectura inicial NO depende de `enabled` (para
+  modales montados cerrados); `enabled` solo gobierna las escrituras.
+- UI en `src/components/ui/DraftAutosave.tsx`: `DraftRestoreBanner` (ofrecer
+  restaurar/descartar al abrir), `SaveStatusIndicator` ("Guardado local HH:MM" +
+  pill "Sin conexión") y `OfflineSaveError` (envío falló sin red → reintentar; el
+  borrador queda a salvo). `clearAllDrafts()` se llama en logout del Sidebar.
+- Patrón al cablear un form: bundle del estado en un objeto (`useMemo`), `useDraft`,
+  banner arriba, `SaveStatusIndicator` en el footer, `clear()` tras envío exitoso,
+  y `try/catch` en el submit que setea `failedOffline` para mostrar `OfflineSaveError`.
+- Cableado en: `TreatmentPlanEditor`, `SessionReportModal` (notas de sesión),
+  `ProgressReportFileUploader` (notas para familia), `FamilyForm`, `ChildForm`,
+  `NewWaitlistEntryModal`. Los **archivos** (uploads) no se cachean — fase futura
+  con IndexedDB si se necesita.
+
 ## Lista de espera
 - Tabla `waitlist_entries` con datos del niño, contacto padre, terapia requerida, terapista preferida opcional, prioridad 0/1/2.
 - Server actions: `listWaitlist`, `createWaitlistEntry`, `markContacted`, `markScheduled` (link al child creado), `dropEntry` (con razón), `reopenEntry`.

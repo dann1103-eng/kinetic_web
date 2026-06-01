@@ -3,6 +3,9 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { upsertTreatmentPlan } from '@/app/actions/treatment-plans'
+import { useUser } from '@/contexts/UserContext'
+import { useDraft } from '@/hooks/useDraft'
+import { DraftRestoreBanner, SaveStatusIndicator, OfflineSaveError } from '@/components/ui/DraftAutosave'
 import {
   SERVICE_TYPE_LABELS,
   DAY_OF_WEEK_LABELS,
@@ -93,7 +96,31 @@ export function TreatmentPlanEditor({
     existing?.schedule_pattern_json ?? [],
   )
   const [error, setError] = useState<string | null>(null)
+  const [failedOffline, setFailedOffline] = useState(false)
   const [isPending, startTransition] = useTransition()
+
+  // ── Autoguardado local de borrador (sobrevive cortes de luz/internet) ──
+  const user = useUser()
+  const formState = useMemo(
+    () => ({ primaryTherapistId, diagnosisText, startsAt, ageAtStart, observations, therapies, slots }),
+    [primaryTherapistId, diagnosisText, startsAt, ageAtStart, observations, therapies, slots],
+  )
+  const { draft, savedAt, online, clear } = useDraft(`treatment-plan:${childId}`, formState, {
+    userId: user.id,
+    serverUpdatedAt: existing?.updated_at ?? null,
+  })
+  const [draftDismissed, setDraftDismissed] = useState(false)
+
+  function applyDraft(d: typeof formState) {
+    setPrimaryTherapistId(d.primaryTherapistId)
+    setDiagnosisText(d.diagnosisText)
+    setStartsAt(d.startsAt)
+    setAgeAtStart(d.ageAtStart)
+    setObservations(d.observations)
+    setTherapies(d.therapies)
+    setSlots(d.slots)
+    setDraftDismissed(true)
+  }
 
   /**
    * Quota vs patrón: para cada terapia activa, comparamos su `sessions_per_month`
@@ -145,27 +172,34 @@ export function TreatmentPlanEditor({
 
   function handleSave() {
     setError(null)
+    setFailedOffline(false)
     startTransition(async () => {
-      const res = await upsertTreatmentPlan({
-        childId,
-        primaryTherapistId: primaryTherapistId || null,
-        diagnosisText: diagnosisText.trim() || null,
-        startsAt: startsAt || null,
-        ageAtStartText: ageAtStart.trim() || null,
-        // Precios en 0 — se definen al cobrar el ciclo mensual.
-        therapies: therapies.map((t) => ({ ...t, unit_cost_usd: 0 })),
-        schedulePattern: slots,
-        observations: observations.trim() || null,
-        discountKind: 'none',
-        discountValue: 0,
-        discountReason: null,
-      })
-      if (!res.ok) {
-        setError(res.error)
-        return
+      try {
+        const res = await upsertTreatmentPlan({
+          childId,
+          primaryTherapistId: primaryTherapistId || null,
+          diagnosisText: diagnosisText.trim() || null,
+          startsAt: startsAt || null,
+          ageAtStartText: ageAtStart.trim() || null,
+          // Precios en 0 — se definen al cobrar el ciclo mensual.
+          therapies: therapies.map((t) => ({ ...t, unit_cost_usd: 0 })),
+          schedulePattern: slots,
+          observations: observations.trim() || null,
+          discountKind: 'none',
+          discountValue: 0,
+          discountReason: null,
+        })
+        if (!res.ok) {
+          setError(res.error)
+          return
+        }
+        clear() // envío exitoso → ya no hace falta el borrador local
+        router.refresh()
+        onClose()
+      } catch {
+        // Falla de red (sin internet): el borrador sigue a salvo en el dispositivo.
+        setFailedOffline(true)
       }
-      router.refresh()
-      onClose()
     })
   }
 
@@ -188,6 +222,13 @@ export function TreatmentPlanEditor({
 
         {/* Body scrollable */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {draft && !draftDismissed && (
+            <DraftRestoreBanner
+              savedAt={savedAt}
+              onRestore={() => applyDraft(draft)}
+              onDiscard={() => { clear(); setDraftDismissed(true) }}
+            />
+          )}
           {/* Header data */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Terapista principal">
@@ -451,6 +492,10 @@ export function TreatmentPlanEditor({
             </div>
           )}
 
+          {failedOffline && (
+            <OfflineSaveError onRetry={handleSave} retrying={isPending} />
+          )}
+
           {error && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
               {error}
@@ -459,7 +504,8 @@ export function TreatmentPlanEditor({
         </div>
 
         {/* Footer fijo */}
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-fm-outline-variant/20 bg-fm-surface">
+        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-fm-outline-variant/20 bg-fm-surface">
+          <SaveStatusIndicator savedAt={savedAt} online={online} className="mr-auto" />
           <button
             type="button"
             onClick={onClose}
