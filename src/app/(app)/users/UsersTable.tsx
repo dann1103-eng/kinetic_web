@@ -77,6 +77,8 @@ function CreateUserModal({ onClose, onCreated }: {
         monthly_salary_usd: null,
         hourly_rate_usd: null,
         contract_type: 'sin_contrato',
+        in_normal_payroll: false,
+        in_professional_services_payroll: false,
         dui: null,
         isss_number: null,
         afp_number: null,

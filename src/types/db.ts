@@ -312,6 +312,8 @@ export interface Database {
           monthly_salary_usd: number | null
           hourly_rate_usd: number | null
           contract_type: PayrollContractType
+          in_normal_payroll: boolean
+          in_professional_services_payroll: boolean
           dui: string | null
           isss_number: string | null
           afp_number: string | null
@@ -331,6 +333,8 @@ export interface Database {
           monthly_salary_usd?: number | null
           hourly_rate_usd?: number | null
           contract_type?: PayrollContractType
+          in_normal_payroll?: boolean
+          in_professional_services_payroll?: boolean
           dui?: string | null
           isss_number?: string | null
           afp_number?: string | null
@@ -349,6 +353,8 @@ export interface Database {
           monthly_salary_usd?: number | null
           hourly_rate_usd?: number | null
           contract_type?: PayrollContractType
+          in_normal_payroll?: boolean
+          in_professional_services_payroll?: boolean
           dui?: string | null
           isss_number?: string | null
           afp_number?: string | null
@@ -369,6 +375,7 @@ export interface Database {
           afp_employer_rate: number
           afp_cap_salary_usd?: number | null
           isr_brackets_json: IsrBracket[]
+          professional_services_isr_rate?: number
           notes?: string | null
           created_by_user_id?: string | null
         }
@@ -381,6 +388,7 @@ export interface Database {
           id?: string
           period_year: number
           period_month: number
+          payroll_type?: PayrollType
           status?: PayrollRunStatus
           fiscal_config_snapshot_json?: Record<string, unknown> | null
           notes?: string | null
@@ -2083,6 +2091,7 @@ export interface Database {
           notification_sent_1h?: boolean
           notes?: string | null
           is_extra?: boolean
+          extra_reason?: ExtraReason | null
           custom_event_label?: string | null
           created_by_user_id?: string | null
         }
@@ -2959,6 +2968,15 @@ export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
   cancelled: 'Cancelada',
 }
 
+/** Motivo de una terapia extra (is_extra=true). Suma a la planilla de servicios profesionales. */
+export type ExtraReason = 'hora_extra' | 'sabado' | 'cobertura'
+
+export const EXTRA_REASON_LABELS: Record<ExtraReason, string> = {
+  hora_extra: 'Hora extra',
+  sabado: 'Sábado',
+  cobertura: 'Cobertura',
+}
+
 export interface Appointment {
   id: string
   child_id: string
@@ -2978,6 +2996,8 @@ export interface Appointment {
   notes: string | null
   /** Terapia extra (cobertura / adicional). Para mensual_fijo se paga aparte. */
   is_extra: boolean
+  /** Motivo de la terapia extra (solo si is_extra=true). */
+  extra_reason: ExtraReason | null
   /** Momento en que la terapista marcó la terapia finalizada (arranca timer de despacho). */
   completed_at: string | null
   /** Momento en que el niño fue despachado (recogido). */
@@ -3760,6 +3780,18 @@ export const PAYROLL_RUN_STATUS_LABELS: Record<PayrollRunStatus, string> = {
   cancelled: 'Anulada',
 }
 
+/**
+ * Régimen de la planilla:
+ *  - normal: sueldo fijo, deducciones completas (ISSS/AFP/ISR) + aportes patronales.
+ *  - servicios_profesionales: honorarios, solo retención ISR (10% configurable).
+ */
+export type PayrollType = 'normal' | 'servicios_profesionales'
+
+export const PAYROLL_TYPE_LABELS: Record<PayrollType, string> = {
+  normal: 'Normal',
+  servicios_profesionales: 'Servicios profesionales',
+}
+
 /** Tramo del ISR mensual asalariados El Salvador. */
 export interface IsrBracket {
   /** Mínimo del tramo en USD (inclusive). */
@@ -3784,6 +3816,8 @@ export interface PayrollFiscalConfig {
   afp_employer_rate: number
   afp_cap_salary_usd: number | null
   isr_brackets_json: IsrBracket[]
+  /** Retención de renta para planilla de servicios profesionales (0.10 = 10%). */
+  professional_services_isr_rate: number
   notes: string | null
   created_at: string
   created_by_user_id: string | null
@@ -3793,6 +3827,7 @@ export interface PayrollRun {
   id: string
   period_year: number
   period_month: number
+  payroll_type: PayrollType
   status: PayrollRunStatus
   fiscal_config_snapshot_json: PayrollFiscalConfig | Record<string, unknown> | null
   notes: string | null

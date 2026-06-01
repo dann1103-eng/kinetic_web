@@ -8,6 +8,7 @@ import type {
   Appointment,
   AppointmentStatus,
   EventType,
+  ExtraReason,
   Modality,
   ServiceType,
 } from '@/types/db'
@@ -27,6 +28,8 @@ interface CreateAppointmentInput {
   custom_event_label?: string | null
   /** Terapia extra (cobertura / adicional) — para pago aparte a mensual_fijo. */
   is_extra?: boolean
+  /** Motivo de la terapia extra (solo si is_extra=true). */
+  extra_reason?: ExtraReason | null
   /** Si true, salta validación de cierre institucional (solo admin). */
   force?: boolean
 }
@@ -133,6 +136,7 @@ export async function createAppointment(
           ? input.custom_event_label.trim()
           : null,
       is_extra: input.is_extra ?? false,
+      extra_reason: input.is_extra ? (input.extra_reason ?? null) : null,
       created_by_user_id: ctx.appUser.id,
     })
     .select('id')
@@ -147,7 +151,7 @@ export async function createAppointment(
 
 export async function updateAppointment(
   appointmentId: string,
-  patch: Partial<Pick<Appointment, 'starts_at' | 'ends_at' | 'modality' | 'service_type' | 'therapist_id' | 'notes' | 'event_type' | 'custom_event_label' | 'is_extra'>>,
+  patch: Partial<Pick<Appointment, 'starts_at' | 'ends_at' | 'modality' | 'service_type' | 'therapist_id' | 'notes' | 'event_type' | 'custom_event_label' | 'is_extra' | 'extra_reason'>>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }
@@ -205,6 +209,8 @@ export async function rescheduleAppointment(
       status: 'scheduled',
       parent_appointment_id: appointmentId,
       notes: orig.notes,
+      is_extra: orig.is_extra ?? false,
+      extra_reason: orig.is_extra ? (orig.extra_reason ?? null) : null,
       created_by_user_id: ctx.appUser.id,
     })
     .select('id')

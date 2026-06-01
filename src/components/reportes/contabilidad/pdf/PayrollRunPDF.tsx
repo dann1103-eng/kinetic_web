@@ -21,6 +21,7 @@ interface Props {
 
 export function PayrollRunPDF({ run, items, logoUrl }: Props) {
   const period = formatPeriodLabel(run.period_year, run.period_month)
+  const isSp = run.payroll_type === 'servicios_profesionales'
   const totals = items.reduce(
     (acc, it) => ({
       base: acc.base + Number(it.base_salary_usd),
@@ -43,12 +44,72 @@ export function PayrollRunPDF({ run, items, logoUrl }: Props) {
     <Document>
       <Page size="A4" orientation="landscape" style={sharedStyles.pageA4Landscape}>
         <ShellHeader
-          title="Planilla mensual"
+          title={isSp ? 'Planilla de servicios profesionales' : 'Planilla mensual'}
           subtitle={period}
           filtersLine={`Estado: ${run.status} · ${items.length} empleados · Generado ${nowSvLabel()}`}
           logoUrl={logoUrl}
         />
 
+        {isSp ? (
+          <>
+            <View style={[sharedStyles.tableHeader, { marginTop: 10 }]}>
+              <Text style={[sharedStyles.tableHeaderCell, { flex: 3 }]}>Empleado</Text>
+              <Text style={[sharedStyles.tableHeaderCell, { flex: 1.5, textAlign: 'right' }]}>Honorarios</Text>
+              <Text style={[sharedStyles.tableHeaderCell, { flex: 1.5, textAlign: 'right' }]}>Retención ISR</Text>
+              <Text style={[sharedStyles.tableHeaderCell, { flex: 1.5, textAlign: 'right' }]}>Neto</Text>
+            </View>
+            {items.length === 0 ? (
+              <View style={sharedStyles.tableRow}>
+                <Text style={[sharedStyles.cell, { flex: 1 }]}>Sin ítems.</Text>
+              </View>
+            ) : (
+              items.map((it, i) => {
+                const snap = it.user_snapshot_json
+                const name = snap?.full_name ?? it.user?.full_name ?? '—'
+                const role = snap?.role ?? it.user?.role ?? ''
+                return (
+                  <View
+                    key={it.id}
+                    style={[sharedStyles.tableRow, i % 2 === 1 ? sharedStyles.tableRowAlt : {}]}
+                  >
+                    <View style={{ flex: 3 }}>
+                      <Text style={sharedStyles.cellBold}>{name}</Text>
+                      <Text style={{ fontSize: 7, color: '#64748b' }}>
+                        {role.replace('_', ' ')}
+                        {snap?.dui ? ` · DUI ${snap.dui}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={[sharedStyles.cellBold, { flex: 1.5, textAlign: 'right' }]}>
+                      {fmtUsd(Number(it.gross_total_usd))}
+                    </Text>
+                    <Text style={[sharedStyles.cell, { flex: 1.5, textAlign: 'right', color: '#b31b25' }]}>
+                      −{fmtUsd(Number(it.isr_usd))}
+                    </Text>
+                    <Text style={[sharedStyles.cellBold, { flex: 1.5, textAlign: 'right', color: KINETIC_TEAL }]}>
+                      {fmtUsd(Number(it.net_pay_usd))}
+                    </Text>
+                  </View>
+                )
+              })
+            )}
+            <View style={sharedStyles.totalsRow}>
+              <Text style={[sharedStyles.totalsLabel, { flex: 3 }]}>Totales</Text>
+              <Text style={[sharedStyles.cellBold, { flex: 1.5, textAlign: 'right' }]}>{fmtUsd(totals.gross)}</Text>
+              <Text style={[sharedStyles.cellBold, { flex: 1.5, textAlign: 'right', color: '#b31b25' }]}>
+                −{fmtUsd(totals.isr)}
+              </Text>
+              <Text style={[sharedStyles.totalsValue, { flex: 1.5, textAlign: 'right' }]}>
+                {fmtUsd(totals.net)}
+              </Text>
+            </View>
+            <View style={{ marginTop: 16, paddingTop: 8, borderTopWidth: 0.5, borderColor: '#dfe3e6' }}>
+              <Text style={{ fontSize: 8, color: '#64748b' }}>
+                Régimen de servicios profesionales: solo retención de renta. No aplica ISSS ni AFP.
+              </Text>
+            </View>
+          </>
+        ) : (
+        <>
         <View style={[sharedStyles.tableHeader, { marginTop: 10 }]}>
           <Text style={[sharedStyles.tableHeaderCell, { flex: 2 }]}>Empleado</Text>
           <Text style={[sharedStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Base</Text>
@@ -185,6 +246,8 @@ export function PayrollRunPDF({ run, items, logoUrl }: Props) {
             </Text>
           </View>
         </View>
+        </>
+        )}
 
         <ShellFooter generatedAtSV={nowSvLabel()} />
       </Page>

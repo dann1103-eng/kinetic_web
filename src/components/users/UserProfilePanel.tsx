@@ -803,6 +803,8 @@ function SalarioTab({
   const [success, setSuccess] = useState(false)
 
   const [contractType, setContractType] = useState<PayrollContractType>(user.contract_type)
+  const [inNormal, setInNormal] = useState<boolean>(user.in_normal_payroll)
+  const [inSp, setInSp] = useState<boolean>(user.in_professional_services_payroll)
   const [monthly, setMonthly] = useState<string>(
     user.monthly_salary_usd != null ? String(user.monthly_salary_usd) : '',
   )
@@ -824,6 +826,8 @@ function SalarioTab({
         monthlySalaryUsd: monthly === '' ? null : Number(monthly),
         hourlyRateUsd: hourly === '' ? null : Number(hourly),
         contractType,
+        inNormalPayroll: inNormal,
+        inProfessionalServicesPayroll: inSp,
         dui: dui.trim() || null,
         isssNumber: isssNum.trim() || null,
         afpNumber: afpNum.trim() || null,
@@ -839,6 +843,8 @@ function SalarioTab({
         monthly_salary_usd: monthly === '' ? null : Number(monthly),
         hourly_rate_usd: hourly === '' ? null : Number(hourly),
         contract_type: contractType,
+        in_normal_payroll: inNormal,
+        in_professional_services_payroll: inSp,
         dui: dui.trim() || null,
         isss_number: isssNum.trim() || null,
         afp_number: afpNum.trim() || null,
@@ -852,8 +858,8 @@ function SalarioTab({
   return (
     <div className="space-y-5">
       <div className="rounded-xl bg-fm-surface-container-low/50 border border-fm-outline-variant/30 px-4 py-3 text-xs text-fm-on-surface-variant leading-relaxed">
-        Estos datos se usan al generar planillas mensuales (cálculo ISSS / AFP / ISR).
-        Los empleados con <code>sin_contrato</code> no aparecerán en planillas nuevas.
+        Estos datos se usan al generar planillas mensuales. La pertenencia (abajo) decide
+        en qué planilla aparece: normal (ISSS/AFP/ISR) y/o servicios profesionales (solo ISR).
         Cambios aquí no afectan planillas ya selladas (cada una guarda su snapshot).
       </div>
 
@@ -873,6 +879,33 @@ function SalarioTab({
             ))}
           </select>
         </label>
+
+        <div className="rounded-lg border border-fm-outline-variant/30 bg-fm-surface-container-low/40 px-3 py-2">
+          <span className="text-xs text-fm-on-surface-variant">Pertenencia a planillas</span>
+          <div className="mt-2 flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-sm text-fm-on-surface">
+              <input
+                type="checkbox"
+                checked={inNormal}
+                onChange={(e) => setInNormal(e.target.checked)}
+                className="rounded border-fm-outline-variant"
+              />
+              Planilla normal (sueldo fijo, ISSS/AFP/ISR)
+            </label>
+            <label className="flex items-center gap-2 text-sm text-fm-on-surface">
+              <input
+                type="checkbox"
+                checked={inSp}
+                onChange={(e) => setInSp(e.target.checked)}
+                className="rounded border-fm-outline-variant"
+              />
+              Servicios profesionales (honorarios, solo ISR)
+            </label>
+          </div>
+          <p className="mt-2 text-[11px] text-fm-on-surface-variant">
+            Marcá ambas para quien recibe sueldo fijo y además extras/sábados aparte.
+          </p>
+        </div>
 
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1">

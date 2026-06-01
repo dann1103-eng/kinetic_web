@@ -5,13 +5,18 @@ import { headers } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import { calculatePayroll, round2 } from '@/lib/domain/payroll/calculation'
+import {
+  calculatePayroll,
+  calculateProfessionalServicesPayroll,
+  round2,
+} from '@/lib/domain/payroll/calculation'
 import { fromZonedTime } from 'date-fns-tz'
 import type {
   PayrollFiscalConfig,
   PayrollItem,
   PayrollItemUserSnapshot,
   PayrollRun,
+  PayrollType,
   UserRole,
 } from '@/types/db'
 
@@ -57,6 +62,7 @@ export async function updateActiveFiscalConfig(
     afpEmployerRate: number
     afpCapSalaryUsd: number | null
     isrBrackets: PayrollFiscalConfig['isr_brackets_json']
+    professionalServicesIsrRate: number
     notes?: string | null
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -77,6 +83,7 @@ export async function updateActiveFiscalConfig(
         afp_employer_rate: input.afpEmployerRate,
         afp_cap_salary_usd: input.afpCapSalaryUsd,
         isr_brackets_json: input.isrBrackets,
+        professional_services_isr_rate: input.professionalServicesIsrRate,
         notes: input.notes ?? null,
         created_by_user_id: user.id,
       },
@@ -96,6 +103,8 @@ export interface UpdateUserSalaryInput {
   monthlySalaryUsd: number | null
   hourlyRateUsd: number | null
   contractType: 'mensual_fijo' | 'por_terapias' | 'sin_contrato'
+  inNormalPayroll: boolean
+  inProfessionalServicesPayroll: boolean
   dui: string | null
   isssNumber: string | null
   afpNumber: string | null
@@ -116,6 +125,8 @@ export async function updateUserSalary(
       monthly_salary_usd: input.monthlySalaryUsd,
       hourly_rate_usd: input.hourlyRateUsd,
       contract_type: input.contractType,
+      in_normal_payroll: input.inNormalPayroll,
+      in_professional_services_payroll: input.inProfessionalServicesPayroll,
       dui: input.dui,
       isss_number: input.isssNumber,
       afp_number: input.afpNumber,
@@ -136,21 +147,27 @@ export async function updateUserSalary(
 export async function createPayrollRun(input: {
   year: number
   month: number
+  payrollType: PayrollType
   notes?: string | null
 }): Promise<{ ok: true; run: PayrollRun } | { ok: false; error: string }> {
   const { supabase, user } = await getActor()
   if (!canManagePayroll(user.role)) return { ok: false, error: 'No autorizado.' }
   if (input.month < 1 || input.month > 12) return { ok: false, error: 'Mes inválido.' }
+  if (input.payrollType !== 'normal' && input.payrollType !== 'servicios_profesionales') {
+    return { ok: false, error: 'Tipo de planilla inválido.' }
+  }
+  const isSp = input.payrollType === 'servicios_profesionales'
 
-  // Validar que no exista una activa
+  // Validar que no exista una activa de ESTE tipo en el período.
   const { data: existing } = await supabase
     .from('payroll_runs')
     .select('id, status')
     .eq('period_year', input.year)
     .eq('period_month', input.month)
+    .eq('payroll_type', input.payrollType)
     .neq('status', 'cancelled')
     .maybeSingle()
-  if (existing) return { ok: false, error: 'Ya existe una planilla activa para ese período.' }
+  if (existing) return { ok: false, error: 'Ya existe una planilla activa de este tipo para ese período.' }
 
   const admin = createAdminClient()
   const { data: created, error: createErr } = await admin
@@ -158,6 +175,7 @@ export async function createPayrollRun(input: {
     .insert({
       period_year: input.year,
       period_month: input.month,
+      payroll_type: input.payrollType,
       status: 'draft',
       notes: input.notes ?? null,
       created_by_user_id: user.id,
@@ -174,71 +192,94 @@ export async function createPayrollRun(input: {
     return { ok: false, error: 'No hay configuración fiscal activa.' }
   }
 
-  // Auto-generar items para todos los usuarios con contract_type != sin_contrato.
+  // Empleados según la planilla: el flag de pertenencia decide quién entra.
+  const membershipColumn = isSp ? 'in_professional_services_payroll' : 'in_normal_payroll'
   const { data: empleados } = await admin
     .from('users')
-    .select('id, full_name, email, role, contract_type, monthly_salary_usd, hourly_rate_usd, dui, isss_number, afp_number, afp_provider, hire_date')
-    .neq('contract_type', 'sin_contrato')
+    .select('id, full_name, email, role, contract_type, in_normal_payroll, in_professional_services_payroll, monthly_salary_usd, hourly_rate_usd, dui, isss_number, afp_number, afp_provider, hire_date')
+    .eq(membershipColumn, true)
     .neq('role', 'client')
     .neq('role', 'family')
 
-  // ── Pago por terapia: costo por service_type + terapias completadas del mes
-  // Mapa service_type → costo (catálogo de costos, F3).
-  const { data: catalogRaw } = await admin
-    .from('service_catalog')
-    .select('service_type, cost_usd')
-    .eq('category', 'terapia_individual')
-    .eq('active', true)
-  const costByService = new Map<string, number>()
-  for (const c of catalogRaw ?? []) {
-    if (c.service_type) costByService.set(c.service_type, Number(c.cost_usd ?? 0))
-  }
-
-  // Citas de terapia COMPLETADAS del mes, por terapista (con service_type + is_extra).
-  const periodStartISO = fromZonedTime(
-    new Date(input.year, input.month - 1, 1, 0, 0, 0),
-    'America/El_Salvador',
-  ).toISOString()
-  const periodEndISO = fromZonedTime(
-    new Date(input.year, input.month, 1, 0, 0, 0),
-    'America/El_Salvador',
-  ).toISOString()
-  const empIds = (empleados ?? []).map((u) => u.id)
-  const { data: apptsRaw } = empIds.length
-    ? await admin
-        .from('appointments')
-        .select('therapist_id, service_type, is_extra, status')
-        .eq('event_type', 'terapia')
-        .eq('status', 'completed')
-        .in('therapist_id', empIds)
-        .gte('starts_at', periodStartISO)
-        .lt('starts_at', periodEndISO)
-    : { data: [] as { therapist_id: string | null; service_type: string | null; is_extra: boolean; status: string }[] }
-
-  // Acumular por terapista: pago de TODAS las completadas y de las EXTRA.
+  // Para servicios profesionales: pago por terapia (catálogo de costos + citas completadas).
+  // Solo-SP → todas las terapias completadas; ambos (también en normal) → solo las is_extra.
   const allTherapyPay = new Map<string, number>()
   const extraTherapyPay = new Map<string, number>()
-  for (const a of apptsRaw ?? []) {
-    if (!a.therapist_id) continue
-    const cost = costByService.get(a.service_type ?? '') ?? 0
-    allTherapyPay.set(a.therapist_id, (allTherapyPay.get(a.therapist_id) ?? 0) + cost)
-    if (a.is_extra) {
-      extraTherapyPay.set(a.therapist_id, (extraTherapyPay.get(a.therapist_id) ?? 0) + cost)
+  if (isSp) {
+    const { data: catalogRaw } = await admin
+      .from('service_catalog')
+      .select('service_type, cost_usd')
+      .eq('category', 'terapia_individual')
+      .eq('active', true)
+    const costByService = new Map<string, number>()
+    for (const c of catalogRaw ?? []) {
+      if (c.service_type) costByService.set(c.service_type, Number(c.cost_usd ?? 0))
+    }
+
+    const periodStartISO = fromZonedTime(
+      new Date(input.year, input.month - 1, 1, 0, 0, 0),
+      'America/El_Salvador',
+    ).toISOString()
+    const periodEndISO = fromZonedTime(
+      new Date(input.year, input.month, 1, 0, 0, 0),
+      'America/El_Salvador',
+    ).toISOString()
+    const empIds = (empleados ?? []).map((u) => u.id)
+    const { data: apptsRaw } = empIds.length
+      ? await admin
+          .from('appointments')
+          .select('therapist_id, service_type, is_extra, status')
+          .eq('event_type', 'terapia')
+          .eq('status', 'completed')
+          .in('therapist_id', empIds)
+          .gte('starts_at', periodStartISO)
+          .lt('starts_at', periodEndISO)
+      : { data: [] as { therapist_id: string | null; service_type: string | null; is_extra: boolean; status: string }[] }
+
+    for (const a of apptsRaw ?? []) {
+      if (!a.therapist_id) continue
+      const cost = costByService.get(a.service_type ?? '') ?? 0
+      allTherapyPay.set(a.therapist_id, (allTherapyPay.get(a.therapist_id) ?? 0) + cost)
+      if (a.is_extra) {
+        extraTherapyPay.set(a.therapist_id, (extraTherapyPay.get(a.therapist_id) ?? 0) + cost)
+      }
     }
   }
 
   const items = (empleados ?? []).map((u) => {
-    // por_terapias: la base es el pago por TODAS las terapias completadas.
-    // mensual_fijo: salario fijo + terapias EXTRA (cobertura) como bono gravable.
-    const baseSalary = u.contract_type === 'mensual_fijo'
-      ? Number(u.monthly_salary_usd ?? 0)
-      : u.contract_type === 'por_terapias'
-        ? round2(allTherapyPay.get(u.id) ?? 0)
-        : 0
-    const bonus = u.contract_type === 'mensual_fijo'
-      ? round2(extraTherapyPay.get(u.id) ?? 0)
-      : 0
-    const calc = calculatePayroll({ baseSalaryUsd: baseSalary, bonusUsd: bonus }, config)
+    if (isSp) {
+      // Ambos (también en normal) → solo las is_extra; solo-SP → todas las completadas.
+      const base = u.in_normal_payroll
+        ? round2(extraTherapyPay.get(u.id) ?? 0)
+        : round2(allTherapyPay.get(u.id) ?? 0)
+      const calc = calculateProfessionalServicesPayroll(
+        { baseUsd: base },
+        Number(config.professional_services_isr_rate ?? 0.1),
+      )
+      return {
+        payroll_run_id: created.id,
+        user_id: u.id,
+        user_snapshot_json: null,
+        base_salary_usd: calc.baseSalaryUsd,
+        extra_hours: 0,
+        extra_hours_rate_usd: u.hourly_rate_usd ?? null,
+        extra_hours_amount_usd: 0,
+        bonus_usd: calc.bonusUsd,
+        other_deductions_usd: 0,
+        gross_total_usd: calc.grossTotalUsd,
+        isss_employee_usd: calc.isssEmployeeUsd,
+        afp_employee_usd: calc.afpEmployeeUsd,
+        isr_usd: calc.isrUsd,
+        total_deductions_usd: calc.totalDeductionsUsd,
+        net_pay_usd: calc.netPayUsd,
+        isss_employer_usd: calc.isssEmployerUsd,
+        afp_employer_usd: calc.afpEmployerUsd,
+        employer_cost_usd: calc.employerCostUsd,
+      }
+    }
+    // Planilla normal: sueldo fijo, deducciones completas. Los extras van a la SP.
+    const baseSalary = Number(u.monthly_salary_usd ?? 0)
+    const calc = calculatePayroll({ baseSalaryUsd: baseSalary }, config)
     return {
       payroll_run_id: created.id,
       user_id: u.id,
@@ -297,7 +338,7 @@ export async function updatePayrollItem(
   if (!item) return { ok: false, error: 'Ítem no encontrado.' }
   const { data: parentRun } = await supabase
     .from('payroll_runs')
-    .select('status')
+    .select('status, payroll_type')
     .eq('id', item.payroll_run_id)
     .maybeSingle()
   if (parentRun?.status !== 'draft') return { ok: false, error: 'La planilla ya fue sellada.' }
@@ -312,7 +353,13 @@ export async function updatePayrollItem(
     bonusUsd: input.bonusUsd ?? Number(item.bonus_usd),
     otherDeductionsUsd: input.otherDeductionsUsd ?? Number(item.other_deductions_usd),
   }
-  const calc = calculatePayroll(next, config)
+  // Servicios profesionales: solo retención ISR sobre la base. Normal: deducciones completas.
+  const calc = parentRun.payroll_type === 'servicios_profesionales'
+    ? calculateProfessionalServicesPayroll(
+        { baseUsd: next.baseSalaryUsd, otherDeductionsUsd: next.otherDeductionsUsd },
+        Number(config.professional_services_isr_rate ?? 0.1),
+      )
+    : calculatePayroll(next, config)
 
   const admin = createAdminClient()
   const { data: updated, error: updErr } = await admin

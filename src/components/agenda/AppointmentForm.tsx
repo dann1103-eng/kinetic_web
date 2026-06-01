@@ -12,10 +12,12 @@ import {
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import {
   EVENT_TYPE_LABELS,
+  EXTRA_REASON_LABELS,
   SERVICE_TYPE_LABELS,
   type Appointment,
   type Child,
   type EventType,
+  type ExtraReason,
   type InstitutionalClosure,
   type Modality,
   type ServiceType,
@@ -89,6 +91,9 @@ export function AppointmentForm({
     existingAppointment?.custom_event_label ?? '',
   )
   const [isExtra, setIsExtra] = useState<boolean>(existingAppointment?.is_extra ?? false)
+  const [extraReason, setExtraReason] = useState<ExtraReason>(
+    existingAppointment?.extra_reason ?? 'hora_extra',
+  )
 
   // Validación inline: cierre institucional
   const closureWarning = useMemo(() => {
@@ -142,6 +147,7 @@ export function AppointmentForm({
           notes: notes || null,
           custom_event_label: eventType === 'otro' ? customEventLabel.trim() : null,
           is_extra: eventType === 'terapia' ? isExtra : false,
+          extra_reason: eventType === 'terapia' && isExtra ? extraReason : null,
         })
         if (!res.ok) {
           setError(res.error)
@@ -161,6 +167,7 @@ export function AppointmentForm({
         notes: notes || null,
         custom_event_label: eventType === 'otro' ? customEventLabel.trim() : null,
         is_extra: eventType === 'terapia' ? isExtra : false,
+        extra_reason: eventType === 'terapia' && isExtra ? extraReason : null,
         force: !!closureWarning && isAdmin,
       })
       if (!res.ok) {
@@ -351,9 +358,25 @@ export function AppointmentForm({
                   />
                   Terapia extra (cobertura / adicional)
                   <span className="text-[10px] text-fm-on-surface-variant">
-                    — se paga aparte a terapistas de salario fijo
+                    — se paga aparte (planilla de servicios profesionales)
                   </span>
                 </label>
+                {isExtra && (
+                  <label className="flex flex-col gap-1 mt-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-fm-on-surface-variant">
+                      Motivo
+                    </span>
+                    <select
+                      value={extraReason}
+                      onChange={(e) => setExtraReason(e.target.value as ExtraReason)}
+                      className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
+                    >
+                      {(Object.keys(EXTRA_REASON_LABELS) as ExtraReason[]).map((r) => (
+                        <option key={r} value={r}>{EXTRA_REASON_LABELS[r]}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
               </fieldset>
             )}
 

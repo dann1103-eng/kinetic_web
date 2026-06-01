@@ -292,6 +292,28 @@ WITH checks AS (
   SELECT 49, 'mig_0141_confirm_single_overload',
          (SELECT (CASE WHEN COUNT(*)=1 THEN 1 ELSE 0 END)::int
           FROM pg_proc WHERE proname='confirm_monthly_payment_and_generate')
+  UNION ALL
+  -- ── 0142 (dos tipos de planilla: normal + servicios profesionales) ─
+  SELECT 50, 'mig_0142_users_payroll_flags',
+         (SELECT (CASE WHEN COUNT(*)=2 THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='users'
+            AND column_name IN ('in_normal_payroll','in_professional_services_payroll'))
+  UNION ALL
+  SELECT 51, 'mig_0142_fiscal_sp_isr_rate',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='payroll_fiscal_config'
+            AND column_name='professional_services_isr_rate')
+  UNION ALL
+  SELECT 52, 'mig_0142_payroll_runs_type',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='payroll_runs'
+            AND column_name='payroll_type')
+  UNION ALL
+  SELECT 53, 'mig_0142_appointments_extra_reason',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='appointments'
+            AND column_name='extra_reason')
 )
 SELECT
   check_name,

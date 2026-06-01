@@ -127,6 +127,41 @@ export function calculatePayroll(
   }
 }
 
+/**
+ * Calcula un pago de SERVICIOS PROFESIONALES (honorarios).
+ *
+ * Régimen distinto al asalariado: solo se retiene ISR (10% configurable) sobre el
+ * monto bruto. No hay ISSS, ni AFP, ni aportes patronales. Devuelve la misma forma
+ * `PayrollCalculation` que el cálculo normal para reutilizar las columnas de
+ * `payroll_items` y la UI; los campos de ISSS/AFP/patrono quedan en 0.
+ */
+export function calculateProfessionalServicesPayroll(
+  inputs: { baseUsd: number; otherDeductionsUsd?: number },
+  isrRate: number,
+): PayrollCalculation {
+  const gross = round2(Math.max(0, inputs.baseUsd))
+  const otherDeductions = round2(Math.max(0, inputs.otherDeductionsUsd ?? 0))
+  const isr = round2(gross * Math.max(0, isrRate))
+  const totalDeductions = round2(isr + otherDeductions)
+  const netPay = round2(gross - totalDeductions)
+
+  return {
+    baseSalaryUsd: gross,
+    extraHoursAmountUsd: 0,
+    bonusUsd: 0,
+    grossTotalUsd: gross,
+    isssEmployeeUsd: 0,
+    afpEmployeeUsd: 0,
+    isrUsd: isr,
+    otherDeductionsUsd: otherDeductions,
+    totalDeductionsUsd: totalDeductions,
+    netPayUsd: netPay,
+    isssEmployerUsd: 0,
+    afpEmployerUsd: 0,
+    employerCostUsd: gross,
+  }
+}
+
 /** Etiqueta legible mes/año en español SV. */
 export function formatPeriodLabel(year: number, month: number): string {
   const labels = [

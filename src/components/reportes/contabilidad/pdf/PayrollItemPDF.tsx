@@ -22,6 +22,7 @@ interface Props {
 
 export function PayrollItemPDF({ run, item, logoUrl }: Props) {
   const period = formatPeriodLabel(run.period_year, run.period_month)
+  const isSp = run.payroll_type === 'servicios_profesionales'
   const snap = item.user_snapshot_json
   const name = snap?.full_name ?? item.user?.full_name ?? '—'
   const role = (snap?.role ?? item.user?.role ?? '').replace('_', ' ')
@@ -30,7 +31,7 @@ export function PayrollItemPDF({ run, item, logoUrl }: Props) {
     <Document>
       <Page size="A4" style={sharedStyles.pageA4Portrait}>
         <ShellHeader
-          title="Recibo de salario"
+          title={isSp ? 'Recibo de servicios profesionales' : 'Recibo de salario'}
           subtitle={period}
           filtersLine={`Estado de planilla: ${run.status} · Generado ${nowSvLabel()}`}
           logoUrl={logoUrl}
@@ -80,21 +81,25 @@ export function PayrollItemPDF({ run, item, logoUrl }: Props) {
           <Text style={[sharedStyles.tableHeaderCell, { flex: 1, textAlign: 'right' }]}>Monto (USD)</Text>
         </View>
 
-        <Row label="Salario base" value={fmtUsd(Number(item.base_salary_usd))} />
-        {Number(item.extra_hours_amount_usd) > 0 && (
+        <Row label={isSp ? 'Honorarios profesionales' : 'Salario base'} value={fmtUsd(Number(item.base_salary_usd))} />
+        {!isSp && Number(item.extra_hours_amount_usd) > 0 && (
           <Row
             label={`Horas extras (${item.extra_hours} h × ${fmtUsd(Number(item.extra_hours_rate_usd ?? 0))})`}
             value={fmtUsd(Number(item.extra_hours_amount_usd))}
           />
         )}
-        {Number(item.bonus_usd) > 0 && (
+        {!isSp && Number(item.bonus_usd) > 0 && (
           <Row label="Bono / pago extra" value={fmtUsd(Number(item.bonus_usd))} />
         )}
-        <Row label="Bruto" value={fmtUsd(Number(item.gross_total_usd))} bold tone="dark" />
+        <Row label={isSp ? 'Honorarios brutos' : 'Bruto'} value={fmtUsd(Number(item.gross_total_usd))} bold tone="dark" />
 
-        <Row label="ISSS empleado (3%)" value={`−${fmtUsd(Number(item.isss_employee_usd))}`} tone="red" />
-        <Row label="AFP empleado (7.25%)" value={`−${fmtUsd(Number(item.afp_employee_usd))}`} tone="red" />
-        <Row label="ISR" value={`−${fmtUsd(Number(item.isr_usd))}`} tone="red" />
+        {!isSp && (
+          <>
+            <Row label="ISSS empleado (3%)" value={`−${fmtUsd(Number(item.isss_employee_usd))}`} tone="red" />
+            <Row label="AFP empleado (7.25%)" value={`−${fmtUsd(Number(item.afp_employee_usd))}`} tone="red" />
+          </>
+        )}
+        <Row label={isSp ? 'Retención ISR' : 'ISR'} value={`−${fmtUsd(Number(item.isr_usd))}`} tone="red" />
         {Number(item.other_deductions_usd) > 0 && (
           <Row label="Otras deducciones" value={`−${fmtUsd(Number(item.other_deductions_usd))}`} tone="red" />
         )}

@@ -171,9 +171,9 @@ Visible si AL MENOS UN item es accesible al usuario. Cada item respeta su propio
   - `/reportes/financieros` — Sección de **Ingresos** (en UI). 5 reportes web+PDF: ingresos mensuales, comparativa anual, ciclos, pagos por método, **churn de familias** (altas, alta médica, bajas, pausas, neto). La ruta sigue siendo `/financieros` por compatibilidad.
   - `/reportes/egresos` — Egresos del centro: total mensual, desglose por mes (planilla auto + gastos generales), distribución por categoría, CRUD de gastos generales (renta, luz, agua, transporte, etc.). Roles: admin, directora, contable.
   - `/reportes/contabilidad` — Hub de Planillas → listado mensual + configuración. (La ruta sigue siendo `contabilidad` para minimizar churn; en UI se muestra como "Planillas".)
-  - `/reportes/contabilidad/planillas` — Listado y creación de planillas mensuales.
-  - `/reportes/contabilidad/planillas/[id]` — Detalle: editable en draft, sellado inmutable, firma de empleados, PDF.
-  - `/reportes/contabilidad/configuracion` — Constantes ISSS/AFP/ISR (admin) + tabla de salarios por empleado (admin/directora/contable).
+  - `/reportes/contabilidad/planillas` — Listado y creación de planillas mensuales. Cada mes admite **dos planillas separadas** por `payroll_type`: **normal** (sueldo fijo, ISSS/AFP/ISR + aportes patronales) y **servicios profesionales** (honorarios, solo retención ISR configurable, sin ISSS/AFP). El modal de creación elige el tipo.
+  - `/reportes/contabilidad/planillas/[id]` — Detalle: editable en draft, sellado inmutable, firma de empleados, PDF. La UI/PDF de servicios profesionales ocultan ISSS/AFP/patrono y muestran solo honorarios → retención → neto.
+  - `/reportes/contabilidad/configuracion` — Constantes ISSS/AFP/ISR + **% retención servicios profesionales** (admin) + tabla de salarios por empleado con **checkboxes de pertenencia** a cada planilla (admin/directora/contable).
   - `/reportes/por-terapista` — Tabla comparativa mensual del equipo con KPIs por terapista: asistencia (completed/no_show/late_cancel/reposiciones), carga horaria (trabajadas vs contratadas), cumplimiento de informes cuatrimestrales. Roles: admin, directora, coordinadora_terapias. Cada fila tiene botón de descarga PDF individual; cabecera tiene descarga del PDF del equipo. Incluye **sección de Capacidad histórica** (heatmap últimos 6 meses con tendencia ↑↓→ por terapista).
 - `/billing` — Facturación (FM legacy, can_quote también ve fallback top-level)
 
@@ -278,10 +278,11 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0139** | **F7**: rollover (`rollover_mode`/`rollover_sessions_json`/`rollover_discount_usd`); compute/confirm con `p_rollover_sessions` |
 | **0140** | **F5**: `appointments` despacho (`completed_at`/`dispatched_at`/`late_fee_*`/`dispatch_snoozed_until`) + `appointments` en publicación realtime |
 | **0141** | Fix: dropea sobrecargas obsoletas de `compute_*`/`confirm_*` (ambigüedad "could not choose candidate") |
+| **0142** | **Dos tipos de planilla**: `users.in_normal_payroll` + `users.in_professional_services_payroll` (flags de pertenencia, migrados desde `contract_type`); `payroll_fiscal_config.professional_services_isr_rate` (10% default); `payroll_runs.payroll_type` (`normal`\|`servicios_profesionales`) + índice único por (año, mes, tipo); `appointments.extra_reason` (`hora_extra`\|`sabado`\|`cobertura`) |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
-> migración automática. **Aplicar 0134→0141 en orden.** Correr
-> `supabase/scripts/verify_pending_migrations.sql` (checks hasta `mig_0141_*`)
+> migración automática. **Aplicar 0134→0142 en orden.** Correr
+> `supabase/scripts/verify_pending_migrations.sql` (checks hasta `mig_0142_*`)
 > para ver cuáles faltan.
 >
 > **GOTCHA recurrente**: `create or replace function` con DISTINTO # de args

@@ -19,6 +19,8 @@ interface UserRow {
   monthly_salary_usd: number | null
   hourly_rate_usd: number | null
   contract_type: PayrollContractType
+  in_normal_payroll: boolean
+  in_professional_services_payroll: boolean
   dui: string | null
   isss_number: string | null
   afp_number: string | null
@@ -39,6 +41,8 @@ export function UserSalaryRow({ user }: Props) {
   const [monthly, setMonthly] = useState(user.monthly_salary_usd ?? '')
   const [hourly, setHourly] = useState(user.hourly_rate_usd ?? '')
   const [contract, setContract] = useState<PayrollContractType>(user.contract_type)
+  const [inNormal, setInNormal] = useState<boolean>(user.in_normal_payroll)
+  const [inSp, setInSp] = useState<boolean>(user.in_professional_services_payroll)
   const [dui, setDui] = useState(user.dui ?? '')
   const [isssNum, setIsssNum] = useState(user.isss_number ?? '')
   const [afpNum, setAfpNum] = useState(user.afp_number ?? '')
@@ -53,6 +57,8 @@ export function UserSalaryRow({ user }: Props) {
         monthlySalaryUsd: monthly === '' ? null : Number(monthly),
         hourlyRateUsd: hourly === '' ? null : Number(hourly),
         contractType: contract,
+        inNormalPayroll: inNormal,
+        inProfessionalServicesPayroll: inSp,
         dui: dui.trim() || null,
         isssNumber: isssNum.trim() || null,
         afpNumber: afpNum.trim() || null,
@@ -76,7 +82,20 @@ export function UserSalaryRow({ user }: Props) {
           <div className="text-xs text-fm-on-surface-variant">{user.email}</div>
         </td>
         <td className="py-3 px-4 text-fm-on-surface capitalize">{user.role.replace('_', ' ')}</td>
-        <td className="py-3 px-4 text-fm-on-surface">{CONTRACT_TYPE_LABELS[user.contract_type]}</td>
+        <td className="py-3 px-4 text-fm-on-surface">
+          <div>{CONTRACT_TYPE_LABELS[user.contract_type]}</div>
+          <div className="mt-1 flex flex-wrap gap-1">
+            {user.in_normal_payroll && (
+              <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-teal-100 text-teal-900">Normal</span>
+            )}
+            {user.in_professional_services_payroll && (
+              <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-violet-100 text-violet-900">Serv. prof.</span>
+            )}
+            {!user.in_normal_payroll && !user.in_professional_services_payroll && (
+              <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-slate-100 text-slate-500">Ninguna</span>
+            )}
+          </div>
+        </td>
         <td className="py-3 px-4 text-right font-bold text-fm-on-surface">
           {user.monthly_salary_usd != null ? fmtUsd(user.monthly_salary_usd) : '—'}
         </td>
@@ -96,6 +115,34 @@ export function UserSalaryRow({ user }: Props) {
       {expanded && (
         <tr className="bg-fm-surface-container-low border-t border-fm-outline-variant/20">
           <td colSpan={6} className="px-4 py-4">
+            <div className="mb-3 rounded-lg border border-fm-outline-variant/30 bg-fm-background p-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-fm-on-surface-variant">
+                Pertenencia a planillas
+              </span>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:gap-6">
+                <label className="flex items-center gap-2 text-sm text-fm-on-surface">
+                  <input
+                    type="checkbox"
+                    checked={inNormal}
+                    onChange={(e) => setInNormal(e.target.checked)}
+                    className="rounded border-fm-outline-variant"
+                  />
+                  Entra a planilla normal (sueldo fijo, ISSS/AFP/ISR)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-fm-on-surface">
+                  <input
+                    type="checkbox"
+                    checked={inSp}
+                    onChange={(e) => setInSp(e.target.checked)}
+                    className="rounded border-fm-outline-variant"
+                  />
+                  Entra a servicios profesionales (honorarios, solo ISR)
+                </label>
+              </div>
+              <p className="mt-2 text-[11px] text-fm-on-surface-variant">
+                Marcá ambas para quien recibe sueldo fijo y además se le pagan extras/sábados aparte.
+              </p>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
               <FieldSelect
                 label="Tipo de contrato"

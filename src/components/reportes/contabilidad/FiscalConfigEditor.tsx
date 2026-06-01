@@ -26,6 +26,7 @@ export function FiscalConfigEditor({ config, canEdit }: Props) {
   const [brackets, setBrackets] = useState<IsrBracket[]>(
     (config.isr_brackets_json as IsrBracket[]).map((b) => ({ ...b })),
   )
+  const [spIsrRate, setSpIsrRate] = useState(Number(config.professional_services_isr_rate ?? 0.1))
   const [notes, setNotes] = useState(config.notes ?? '')
 
   function updateBracket(i: number, patch: Partial<IsrBracket>) {
@@ -43,6 +44,7 @@ export function FiscalConfigEditor({ config, canEdit }: Props) {
         afpEmployerRate: afpPat,
         afpCapSalaryUsd: afpCap === '' ? null : Number(afpCap),
         isrBrackets: brackets,
+        professionalServicesIsrRate: spIsrRate,
         notes: notes.trim() || null,
       })
       if (!res.ok) {
@@ -142,6 +144,18 @@ export function FiscalConfigEditor({ config, canEdit }: Props) {
             </tbody>
           </table>
         </div>
+      </section>
+
+      <section>
+        <h4 className="text-xs font-extrabold uppercase tracking-wider text-fm-on-surface-variant mb-3">
+          Servicios profesionales — Retención de renta
+        </h4>
+        <div className="grid grid-cols-3 gap-3">
+          <RateField label="Retención ISR (%)" value={spIsrRate} onChange={setSpIsrRate} disabled={!canEdit} />
+        </div>
+        <p className="text-[11px] text-fm-on-surface-variant mt-2">
+          Porcentaje único que se retiene a la planilla de servicios profesionales (honorarios). No aplica ISSS ni AFP.
+        </p>
       </section>
 
       <section>

@@ -9,9 +9,11 @@ import type { PayrollItem } from '@/types/db'
 interface Props {
   item: PayrollItem & { user: { id: string; full_name: string; email: string; role: string } | null }
   editable: boolean
+  /** Planilla de servicios profesionales: solo retención ISR, sin ISSS/AFP/patrono. */
+  isSp?: boolean
 }
 
-export function PayrollItemEditor({ item, editable }: Props) {
+export function PayrollItemEditor({ item, editable, isSp = false }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -116,36 +118,40 @@ export function PayrollItemEditor({ item, editable }: Props) {
               <div className="space-y-2 text-sm">
                 {editable && (
                   <>
-                    <Field label="Horas extras">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min={0}
-                        value={extraHours}
-                        onChange={(e) => setExtraHours(parseFloat(e.target.value) || 0)}
-                        className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm"
-                      />
-                    </Field>
-                    <Field label="Tarifa hora extra">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={extraRate}
-                        onChange={(e) => setExtraRate(parseFloat(e.target.value) || 0)}
-                        className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm"
-                      />
-                    </Field>
-                    <Field label="Bono / pago extra">
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={bonus}
-                        onChange={(e) => setBonus(parseFloat(e.target.value) || 0)}
-                        className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm"
-                      />
-                    </Field>
+                    {!isSp && (
+                      <>
+                        <Field label="Horas extras">
+                          <input
+                            type="number"
+                            step="0.1"
+                            min={0}
+                            value={extraHours}
+                            onChange={(e) => setExtraHours(parseFloat(e.target.value) || 0)}
+                            className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm"
+                          />
+                        </Field>
+                        <Field label="Tarifa hora extra">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={extraRate}
+                            onChange={(e) => setExtraRate(parseFloat(e.target.value) || 0)}
+                            className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm"
+                          />
+                        </Field>
+                        <Field label="Bono / pago extra">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min={0}
+                            value={bonus}
+                            onChange={(e) => setBonus(parseFloat(e.target.value) || 0)}
+                            className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm"
+                          />
+                        </Field>
+                      </>
+                    )}
                     <Field label="Otras deducciones">
                       <input
                         type="number"
@@ -160,9 +166,13 @@ export function PayrollItemEditor({ item, editable }: Props) {
                 )}
                 {!editable && (
                   <>
-                    <ReadOnly label="Horas extras" value={`${item.extra_hours}`} />
-                    <ReadOnly label="Monto horas extras" value={fmtUsd(Number(item.extra_hours_amount_usd))} />
-                    <ReadOnly label="Bono" value={fmtUsd(Number(item.bonus_usd))} />
+                    {!isSp && (
+                      <>
+                        <ReadOnly label="Horas extras" value={`${item.extra_hours}`} />
+                        <ReadOnly label="Monto horas extras" value={fmtUsd(Number(item.extra_hours_amount_usd))} />
+                        <ReadOnly label="Bono" value={fmtUsd(Number(item.bonus_usd))} />
+                      </>
+                    )}
                     <ReadOnly label="Otras deducciones" value={fmtUsd(Number(item.other_deductions_usd))} />
                   </>
                 )}
@@ -173,16 +183,22 @@ export function PayrollItemEditor({ item, editable }: Props) {
                 Cálculo
               </h4>
               <div className="space-y-1 text-sm">
-                <ReadOnly label="Bruto" value={fmtUsd(Number(item.gross_total_usd))} />
-                <ReadOnly label="ISSS empleado" value={`−${fmtUsd(Number(item.isss_employee_usd))}`} />
-                <ReadOnly label="AFP empleado" value={`−${fmtUsd(Number(item.afp_employee_usd))}`} />
-                <ReadOnly label="ISR" value={`−${fmtUsd(Number(item.isr_usd))}`} />
+                <ReadOnly label={isSp ? 'Honorarios brutos' : 'Bruto'} value={fmtUsd(Number(item.gross_total_usd))} />
+                {!isSp && (
+                  <>
+                    <ReadOnly label="ISSS empleado" value={`−${fmtUsd(Number(item.isss_employee_usd))}`} />
+                    <ReadOnly label="AFP empleado" value={`−${fmtUsd(Number(item.afp_employee_usd))}`} />
+                  </>
+                )}
+                <ReadOnly label={isSp ? 'Retención ISR' : 'ISR'} value={`−${fmtUsd(Number(item.isr_usd))}`} />
                 <ReadOnly label="Neto" value={fmtUsd(Number(item.net_pay_usd))} bold />
-                <div className="mt-2 pt-2 border-t border-fm-outline-variant/30 text-xs text-fm-on-surface-variant">
-                  Costo patrono: {fmtUsd(Number(item.employer_cost_usd))}
-                  <br />
-                  ISSS patrono: {fmtUsd(Number(item.isss_employer_usd))} · AFP patrono: {fmtUsd(Number(item.afp_employer_usd))}
-                </div>
+                {!isSp && (
+                  <div className="mt-2 pt-2 border-t border-fm-outline-variant/30 text-xs text-fm-on-surface-variant">
+                    Costo patrono: {fmtUsd(Number(item.employer_cost_usd))}
+                    <br />
+                    ISSS patrono: {fmtUsd(Number(item.isss_employer_usd))} · AFP patrono: {fmtUsd(Number(item.afp_employer_usd))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -34,7 +34,7 @@ export default async function ContabilidadConfigPage() {
 
   const { data: usersRaw } = await supabase
     .from('users')
-    .select('id, full_name, email, role, monthly_salary_usd, hourly_rate_usd, contract_type, dui, isss_number, afp_number, afp_provider, hire_date')
+    .select('id, full_name, email, role, monthly_salary_usd, hourly_rate_usd, contract_type, in_normal_payroll, in_professional_services_payroll, dui, isss_number, afp_number, afp_provider, hire_date')
     .in('role', STAFF_ROLES)
     .order('full_name')
 
@@ -46,6 +46,8 @@ export default async function ContabilidadConfigPage() {
     monthly_salary_usd: number | null
     hourly_rate_usd: number | null
     contract_type: PayrollContractType
+    in_normal_payroll: boolean
+    in_professional_services_payroll: boolean
     dui: string | null
     isss_number: string | null
     afp_number: string | null
@@ -95,7 +97,7 @@ export default async function ContabilidadConfigPage() {
         <section className="space-y-3">
           <h2 className="text-base font-extrabold text-fm-on-surface">Salarios por empleado</h2>
           <p className="text-xs text-fm-on-surface-variant">
-            Configurá el tipo de contrato y salario base de cada empleado. Los que tengan <code>sin_contrato</code> no aparecerán en planillas nuevas.
+            Configurá el salario base y la pertenencia a cada planilla (normal y/o servicios profesionales) de cada empleado. Quien no pertenezca a ninguna no aparecerá en planillas nuevas.
           </p>
 
           <div className="overflow-x-auto rounded-2xl border border-fm-outline-variant/30 bg-fm-background">

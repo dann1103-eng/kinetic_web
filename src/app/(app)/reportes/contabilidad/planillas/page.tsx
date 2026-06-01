@@ -5,7 +5,7 @@ import { TopNav } from '@/components/layout/TopNav'
 import { listPayrollRuns } from '@/app/actions/payroll'
 import { formatPeriodLabel } from '@/lib/domain/payroll/calculation'
 import { NewPayrollRunButton } from '@/components/reportes/contabilidad/NewPayrollRunButton'
-import { PAYROLL_RUN_STATUS_LABELS, type UserRole } from '@/types/db'
+import { PAYROLL_RUN_STATUS_LABELS, PAYROLL_TYPE_LABELS, type UserRole } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,7 +46,7 @@ export default async function PlanillasListPage() {
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-fm-on-surface">Listado mensual</h1>
             <p className="text-sm text-fm-on-surface-variant mt-1">
-              Una planilla por mes. Estados: borrador (editable) → sellada (inmutable) → pagada. Se puede anular si no fue pagada.
+              Cada mes puede tener una planilla normal y una de servicios profesionales. Estados: borrador (editable) → sellada (inmutable) → pagada. Se puede anular si no fue pagada.
             </p>
           </div>
           <NewPayrollRunButton />
@@ -67,6 +67,7 @@ export default async function PlanillasListPage() {
               <thead className="bg-fm-surface-container">
                 <tr>
                   <th className="text-left py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Período</th>
+                  <th className="text-left py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Tipo</th>
                   <th className="text-left py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Estado</th>
                   <th className="text-left py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Sellada</th>
                   <th className="text-left py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Pagada</th>
@@ -85,6 +86,15 @@ export default async function PlanillasListPage() {
                         >
                           {formatPeriodLabel(r.period_year, r.period_month)}
                         </Link>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                          r.payroll_type === 'servicios_profesionales'
+                            ? 'bg-violet-100 text-violet-900'
+                            : 'bg-teal-100 text-teal-900'
+                        }`}>
+                          {PAYROLL_TYPE_LABELS[r.payroll_type]}
+                        </span>
                       </td>
                       <td className="py-3 px-4">
                         <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${tone.bg} ${tone.text}`}>

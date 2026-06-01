@@ -7,7 +7,7 @@ import { fmtUsd, formatPeriodLabel } from '@/lib/domain/payroll/calculation'
 import { PayrollItemEditor } from '@/components/reportes/contabilidad/PayrollItemEditor'
 import { PayrollRunActions } from '@/components/reportes/contabilidad/PayrollRunActions'
 import { ReportDownloadButton } from '@/components/reportes/ReportDownloadButton'
-import { PAYROLL_RUN_STATUS_LABELS, type UserRole } from '@/types/db'
+import { PAYROLL_RUN_STATUS_LABELS, PAYROLL_TYPE_LABELS, type UserRole } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,6 +36,7 @@ export default async function PayrollRunDetailPage({ params }: PageProps) {
   const { run, items } = detail
   const editable = run.status === 'draft'
   const tone = STATUS_TONES[run.status]
+  const isSp = run.payroll_type === 'servicios_profesionales'
 
   const totals = items.reduce(
     (acc, it) => ({
@@ -78,6 +79,11 @@ export default async function PayrollRunDetailPage({ params }: PageProps) {
               <h1 className="text-2xl font-extrabold tracking-tight text-fm-on-surface">
                 {formatPeriodLabel(run.period_year, run.period_month)}
               </h1>
+              <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                isSp ? 'bg-violet-100 text-violet-900' : 'bg-teal-100 text-teal-900'
+              }`}>
+                {PAYROLL_TYPE_LABELS[run.payroll_type]}
+              </span>
               <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${tone.bg} ${tone.text}`}>
                 {PAYROLL_RUN_STATUS_LABELS[run.status]}
               </span>
@@ -106,10 +112,12 @@ export default async function PayrollRunDetailPage({ params }: PageProps) {
 
         {/* KPIs totales */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Kpi label="Bruto total" value={fmtUsd(totals.gross)} />
-          <Kpi label="Deducciones" value={`−${fmtUsd(totals.isssEmp + totals.afpEmp + totals.isr)}`} tone="rose" />
+          <Kpi label={isSp ? 'Honorarios brutos' : 'Bruto total'} value={fmtUsd(totals.gross)} />
+          <Kpi label={isSp ? 'Retención ISR' : 'Deducciones'} value={`−${fmtUsd(totals.isssEmp + totals.afpEmp + totals.isr)}`} tone="rose" />
           <Kpi label="Neto a pagar" value={fmtUsd(totals.net)} tone="teal" />
-          <Kpi label="Costo patrono" value={fmtUsd(totals.employerCost)} />
+          {isSp
+            ? <Kpi label="Empleados" value={`${items.length}`} />
+            : <Kpi label="Costo patrono" value={fmtUsd(totals.employerCost)} />}
         </div>
 
         {items.length === 0 ? (
@@ -128,14 +136,14 @@ export default async function PayrollRunDetailPage({ params }: PageProps) {
                   <th className="text-left py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Empleado</th>
                   <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Base</th>
                   <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Bruto</th>
-                  <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Deducciones</th>
+                  <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">{isSp ? 'Retención ISR' : 'Deducciones'}</th>
                   <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Neto</th>
                   <th className="py-3 px-4 w-12"></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((it) => (
-                  <PayrollItemEditor key={it.id} item={it} editable={editable} />
+                  <PayrollItemEditor key={it.id} item={it} editable={editable} isSp={isSp} />
                 ))}
               </tbody>
               <tfoot className="bg-fm-surface-container border-t-2 border-fm-on-surface/30">

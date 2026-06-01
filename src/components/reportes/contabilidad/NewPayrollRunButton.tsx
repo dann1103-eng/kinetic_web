@@ -3,11 +3,14 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPayrollRun } from '@/app/actions/payroll'
+import { PAYROLL_TYPE_LABELS, type PayrollType } from '@/types/db'
 
 const MONTHS = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ]
+
+const PAYROLL_TYPES: PayrollType[] = ['normal', 'servicios_profesionales']
 
 export function NewPayrollRunButton() {
   const router = useRouter()
@@ -17,11 +20,12 @@ export function NewPayrollRunButton() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
+  const [payrollType, setPayrollType] = useState<PayrollType>('normal')
 
   function handleCreate() {
     setError(null)
     startTransition(async () => {
-      const res = await createPayrollRun({ year, month })
+      const res = await createPayrollRun({ year, month, payrollType })
       if (!res.ok) {
         setError(res.error)
         return
@@ -48,10 +52,27 @@ export function NewPayrollRunButton() {
             <div className="border-b border-fm-outline-variant/30 px-6 py-4">
               <h2 className="text-lg font-extrabold text-fm-on-surface">Crear planilla mensual</h2>
               <p className="text-xs text-fm-on-surface-variant mt-1">
-                Se generarán automáticamente ítems para todos los empleados con contrato activo, usando la configuración fiscal vigente.
+                Se generarán automáticamente ítems para los empleados que pertenecen a la planilla elegida, usando la configuración fiscal vigente.
               </p>
             </div>
             <div className="p-6 space-y-4">
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-fm-on-surface-variant">Tipo de planilla</span>
+                <select
+                  value={payrollType}
+                  onChange={(e) => setPayrollType(e.target.value as PayrollType)}
+                  className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-fm-primary/30"
+                >
+                  {PAYROLL_TYPES.map((t) => (
+                    <option key={t} value={t}>{PAYROLL_TYPE_LABELS[t]}</option>
+                  ))}
+                </select>
+                <span className="text-[11px] text-fm-on-surface-variant">
+                  {payrollType === 'servicios_profesionales'
+                    ? 'Honorarios: solo retención de renta. Toma terapias completadas × costo (extras para quienes también están en la normal).'
+                    : 'Sueldo fijo con deducciones completas (ISSS/AFP/ISR) y aportes patronales.'}
+                </span>
+              </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="flex flex-col gap-1">
                   <span className="text-xs font-bold uppercase tracking-wider text-fm-on-surface-variant">Año</span>
