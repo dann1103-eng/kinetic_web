@@ -71,6 +71,57 @@ export async function listPendingDispatches(): Promise<PendingDispatch[]> {
   }))
 }
 
+export interface SuggestedLateFee {
+  id: string
+  child_id: string
+  child_name: string
+  family_id: string | null
+  starts_at: string
+  minutes: number
+  feeUsd: number
+}
+
+/** Cargos por recogida tardía SUGERIDOS (pendientes de cobrar o perdonar). */
+export async function listSuggestedLateFees(): Promise<SuggestedLateFee[]> {
+  const actor = await getActor()
+  if (!actor || !MGMT_ROLES.includes(actor.role)) return []
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('appointments')
+    .select('id, child_id, starts_at, late_fee_minutes, late_fee_usd')
+    .eq('late_fee_status', 'suggested')
+    .order('starts_at', { ascending: false })
+  const rows = (data ?? []) as {
+    id: string
+    child_id: string
+    starts_at: string
+    late_fee_minutes: number | null
+    late_fee_usd: number
+  }[]
+  if (rows.length === 0) return []
+
+  const childIds = Array.from(new Set(rows.map((r) => r.child_id)))
+  const { data: childrenRaw } = await supabase
+    .from('children')
+    .select('id, full_name, family_id')
+    .in('id', childIds)
+  const byId = new Map((childrenRaw ?? []).map((c) => [c.id, c]))
+
+  return rows.map((r) => {
+    const c = byId.get(r.child_id)
+    return {
+      id: r.id,
+      child_id: r.child_id,
+      child_name: c?.full_name ?? 'Niño/a',
+      family_id: c?.family_id ?? null,
+      starts_at: r.starts_at,
+      minutes: r.late_fee_minutes ?? 0,
+      feeUsd: Number(r.late_fee_usd ?? 0),
+    }
+  })
+}
+
 /** Marca al niño como despachado y calcula el cargo por recogida tardía. */
 export async function dispatchChild(
   appointmentId: string,

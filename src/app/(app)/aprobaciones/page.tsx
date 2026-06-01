@@ -6,8 +6,10 @@ import { SessionReportApprovalList } from '@/components/aprobaciones/SessionRepo
 import { ProgressReportApprovalList } from '@/components/aprobaciones/ProgressReportApprovalList'
 import { PendingByTherapistSummary } from '@/components/aprobaciones/PendingByTherapistSummary'
 import { AbsenceRescheduleList } from '@/components/aprobaciones/AbsenceRescheduleList'
+import { LateFeeApprovalList } from '@/components/aprobaciones/LateFeeApprovalList'
 import { detectPendingProgressReportsAllTherapists } from '@/lib/domain/progress-reports-pending'
 import { listPendingAbsences } from '@/app/actions/absences'
+import { listSuggestedLateFees } from '@/app/actions/dispatch'
 import type { SessionReport, ProgressReport, ReportTemplate } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -112,6 +114,9 @@ export default async function AprobacionesPage() {
   // Bandeja de inasistencias pendientes de reagendar (Ronda 1 — mig 0100).
   const pendingAbsences = await listPendingAbsences()
 
+  // Cargos por recogida tardía sugeridos (pendientes de cobrar/perdonar).
+  const suggestedLateFees = await listSuggestedLateFees()
+
   // Lista de terapistas/maestras para el selector de reagendamiento.
   const { data: therapistsRaw } = await supabase
     .from('users')
@@ -120,7 +125,8 @@ export default async function AprobacionesPage() {
     .order('full_name')
   const therapistsForReschedule = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
 
-  const totalPending = sessionReports.length + progressReports.length + pendingAbsences.length
+  const totalPending =
+    sessionReports.length + progressReports.length + pendingAbsences.length + suggestedLateFees.length
 
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
@@ -142,6 +148,8 @@ export default async function AprobacionesPage() {
             />
           </section>
         )}
+
+        <LateFeeApprovalList fees={suggestedLateFees} />
         {totalPending === 0 ? (
           <div className="py-20 text-center text-sm text-fm-on-surface-variant">
             Bandeja al día. No hay reportes ni informes esperando aprobación.
