@@ -155,7 +155,7 @@ Labels en `SERVICE_TYPE_LABELS` (db.ts). Paleta visual en `KINETIC_EVENT_PALETTE
 - `/ninos` — Listado de niños cross-family
 - `/mi-dia` — Vista del día para terapistas/maestras
 - `/agenda` — Calendario semanal del equipo
-- `/aprobaciones` — Inasistencias por reponer + informes cuatrimestrales pendientes
+- `/aprobaciones` — Inasistencias por reponer + informes cuatrimestrales pendientes + **recogidas tardías por cobrar/perdonar** (admin/directora)
 - `/operacion/lista-de-espera` — Lista de espera con filtros y prioridades
 - `/inbox` — Chat interno del equipo (excluye family/client)
 - `/tiempo` — Control de tiempo personal
@@ -165,7 +165,8 @@ Labels en `SERVICE_TYPE_LABELS` (db.ts). Paleta visual en `KINETIC_EVENT_PALETTE
 Visible si AL MENOS UN item es accesible al usuario. Cada item respeta su propio `allowedRoles`.
 - `/users` — Equipo unificado con panel lateral (tabs Perfil / Horario / Capacidad)
 - `/usuarios-portal` — Cuentas family
-- `/operacion/capacidad-terapistas` — Tabla semanal comparativa de ocupación
+- `/operacion/capacidad-terapistas` — Tabla semanal comparativa de ocupación (admin/directora/coord_terapias/recepción)
+- `/catalogos` — **Catálogos de precios (cobro) y costos (pago terapista)** editables (admin/contable/recepción). Mig 0135.
 - `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion, coordinadora_terapias). Tarjetas activas: **Ingresos**, **Egresos**, **Planillas** y **Por terapista**.
   - `/reportes/financieros` — Sección de **Ingresos** (en UI). 5 reportes web+PDF: ingresos mensuales, comparativa anual, ciclos, pagos por método, **churn de familias** (altas, alta médica, bajas, pausas, neto). La ruta sigue siendo `/financieros` por compatibilidad.
   - `/reportes/egresos` — Egresos del centro: total mensual, desglose por mes (planilla auto + gastos generales), distribución por categoría, CRUD de gastos generales (renta, luz, agua, transporte, etc.). Roles: admin, directora, contable.
@@ -261,14 +262,83 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | 0116 | `waitlist_entries` + enum `waitlist_status` |
 | 0117 | Módulo de planillas: columnas salariales en `users` + `payroll_fiscal_config` (con seed ISSS/AFP/ISR vigentes 2024-2026) + `payroll_runs` + `payroll_items` + RLS + RPC `sign_my_payroll_item` |
 | 0118 | Tabla `general_expenses` (gastos operativos no-planilla: renta, servicios, transporte, etc.) + RLS para admin/directora/contable |
+| 0119 | **DOS archivos mismo número**: `0119_child_attachments.sql` (adjuntos por niño) + `0119_recepcion_reportes_rls.sql` (recepción = paridad contable en RLS de general_expenses/payroll_*). Aplicar **ambos**. |
+| 0120 | `submit_session_report`: actividades opcional para programas matutinos |
+| 0121–0124 | Pipeline de admisión: `intake_phase_catalog` (17 sub-fases), `children.current_phase_code` + `waitlist_entries.current_phase_code`, `child_phase_history`, `child_discharge_records`, `dashboard_alerts`; campos del form de recepción; cleanup de `waitlist.status` y `children.intake_phase`/`treatment_status` legacy |
+| 0125–0127 | **Data**: cleanup de prueba (0125 destructiva) + seed demo (0126) + seed planillas (0127). NO re-correr. |
+| 0128 | `families`: lugar de trabajo/tel oficina, pediatra, autorización fotos |
+| 0129 | Tipos de evento de citas v2 |
+| 0130–0132 | `service_catalog` v2: `terapia_individual` + `unit_price_bk_usd` + `service_type`; seed 18 terapias; service_types `learning_kids`/`aula_educativa` |
+| 0133 | RLS: `contable` puede insertar/editar `treatment_plans` |
+| **0134** | **F2**: terapista por tipo de terapia — RPC compute/confirm asignan terapista por `service_type` (fallback `primary_therapist_id`) |
+| **0135** | **F3**: `service_catalog.cost_usd` (costo interno/pago terapista) + RLS escritura admin/contable/recepción |
+| **0136** | **F4**: ciclo con vencimiento (`due_date`/gracia) + `payment_status` + recargo por mora (`surcharge_amount_usd`); RPC `mark_monthly_cycle_paid`; `paid_at` ahora NULLABLE (=fecha pago real) |
+| **0137** | Fix: dropea sobrecarga vieja de `_kn_slot_dates_in_month` (ambigua) + compute con frecuencia |
+| **0138** | **F6**: `contract_type` `por_hora`→`por_terapias` + `appointments.is_extra` |
+| **0139** | **F7**: rollover (`rollover_mode`/`rollover_sessions_json`/`rollover_discount_usd`); compute/confirm con `p_rollover_sessions` |
+| **0140** | **F5**: `appointments` despacho (`completed_at`/`dispatched_at`/`late_fee_*`/`dispatch_snoozed_until`) + `appointments` en publicación realtime |
+| **0141** | Fix: dropea sobrecargas obsoletas de `compute_*`/`confirm_*` (ambigüedad "could not choose candidate") |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
-> migración automática. Ver `supabase/migrations*/` y revisar cuáles no
-> están aplicadas en el ambiente.
+> migración automática. **Aplicar 0134→0141 en orden.** Correr
+> `supabase/scripts/verify_pending_migrations.sql` (checks hasta `mig_0141_*`)
+> para ver cuáles faltan.
+>
+> **GOTCHA recurrente**: `create or replace function` con DISTINTO # de args
+> NO reemplaza — crea una **sobrecarga** y deja la llamada ambigua. Al cambiar
+> la firma de una RPC (compute/confirm del ciclo), agregar un `DROP FUNCTION`
+> de la firma vieja en la misma migración.
 
 ---
 
-# Estado del proyecto — mayo 2026
+# Estado del proyecto — junio 2026
+
+## Bloque "feedback operativo" (junio 2026) — 8 features + cobros
+Todo en `master`. **Requiere aplicar migraciones 0134–0141 en orden.**
+1. **F1 Propuesta**: "cotización" → "**propuesta**" en UI/PDF **y rutas**
+   (`/billing/propuestas`, `/portal/facturacion/propuestas`). BD interna sigue
+   siendo tabla `quotes`, `QuoteStatus`, `can_quote`, `/api/quotes`.
+2. **F2 Terapista por tipo de terapia**: `TreatmentPlanTherapyEntry.therapist_id`
+   por terapia (editor con selector "↳ Usar principal"). Al generar el ciclo,
+   cada cita se asigna a la terapista de su `service_type` (fallback
+   `primary_therapist_id`). Mig 0134 (RPC compute/confirm).
+3. **F3 Catálogos** (`/catalogos`, admin/contable/recepción): pestaña **Precios**
+   (cobro: `unit_price_usd`/`unit_price_bk_usd`) + pestaña **Costos**
+   (`cost_usd` = pago a terapista). `service-catalog.ts` CRUD. Mig 0135.
+4. **F4 Facturación con vencimiento + recargo**: el ciclo se genera como factura
+   **PENDIENTE** (`payment_status='pending'`, `due_date`=gracia día 5) → luego
+   **"Marcar pagado"** (RPC `mark_monthly_cycle_paid`) aplica **recargo 5% simple
+   por cada 5 días de atraso**. **"Prorrogar gracia"** (`grace_extended_to`+motivo).
+   Tag en cards de `/niños` (Faltan N días / N días atraso / Al día). Lógica pura
+   `src/lib/domain/billing/late-fee.ts`. Mig 0136.
+5. **F5 Despacho + recogida tardía (realtime)**: terapista marca "terapia
+   finalizada" (`completed_at`) y "Despachar niño/a" (`dispatched_at`). Tarifa
+   `late-pickup.ts`: 0–15min gratis, >15=$5, +$5/30min. Pop-up sincronizado
+   (`DispatchWatcher` en layout, Supabase realtime sobre `appointments`)
+   "¿el niño sigue ahí?" a terapista+recepción; "no lo han traído" =
+   `dispatch_snoozed_until`. Cargo **sugerido** → cobrar/perdonar en
+   **/aprobaciones** (`LateFeeApprovalList`). Bloqueo: no abrir otra terapia si
+   no despachó la anterior. `src/app/actions/dispatch.ts`. Mig 0140.
+6. **F6 Planilla por terapia**: `contract_type` = `mensual_fijo|por_terapias|sin_contrato`.
+   `por_terapias`: pago = terapias completadas × `cost_usd` del catálogo.
+   `mensual_fijo`: salario + terapias `is_extra` × `cost_usd`. `createPayrollRun`
+   lo computa. Mig 0138.
+7. **F7 Rollover** (manual al crear el ciclo): sesiones no dadas del mes anterior
+   (`no_show/late_cancel/cancelled` sin reposición) → **Acumular** (citas extra,
+   sube cuota en compute, sin recobrar) o **Descontar $** (de la factura).
+   `getCycleRolloverPreview`. Mig 0139.
+
+### Aprendizajes / gotchas de cobros
+- El ciclo mensual: **generar = factura pendiente** (NO cobra); **marcar pagado**
+  = registra pago + recargo. Reportes financieros filtran por `paid_at` (NULL en
+  pendientes ⇒ no cuentan como ingreso hasta pagar). ✔ correcto.
+- **Server Action en `<form action>`**: si el componente vive en árbol Server Y
+  Client (ej. `JournalEntryList` usado por staff y portal), NO usar `'use server'`
+  inline — exportar el action de un archivo `'use server'` y pasar args con
+  `<input type="hidden">` + `FormData`.
+- **Higiene de datos del import**: hubo familias/niños duplicados (una persona
+  creaba niños nuevos en fase `1_1` en vez de editar los `3_3` auto). Limpieza vía
+  SQL: comparar por familia, mover hijos reales a una familia, borrar cascarón.
 
 ## Completado en sesiones recientes
 1. **Stage A** — Calendario del terapista en modal de reagendamiento (`/aprobaciones`)
@@ -318,6 +388,12 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
     - Tarjeta "Por terapista" activada en `/reportes`. Usa `appointment_absences` con status='replaced' para contar reposiciones cumplidas.
 
 ## Pendiente (próximas sesiones)
+- **APLICAR migraciones 0134–0141 en Supabase** (en orden) — sin esto, generar
+  ciclo / planilla por terapia / despacho fallan. Verificar con verify script.
+- (Backlog) Botón "Eliminar niño/a" (admin, con confirmación) en perfil del niño
+  — hoy no existe; se borran por SQL.
+- (Backlog) Permitir a recepción cobrar/perdonar recogidas tardías (hoy
+  `/aprobaciones` está gated solo a admin/directora).
 - (Backlog) Detección automática de slot liberado tras cancelar cita → alerta a lista de espera
 - (Backlog) Notificaciones a familias en waitlist por email/WhatsApp
 - (Backlog) Vista mensual/anual de capacidad (actual es solo semanal)
