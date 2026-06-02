@@ -1,7 +1,7 @@
 {
-  "name": "FM Communication Solutions · CRM",
-  "short_name": "FM CRM",
-  "description": "Plataforma de gestión de clientes y requerimientos de contenido",
+  "name": "Kinetic — Centro de Estimulación y Desarrollo Intelectual",
+  "short_name": "Kinetic",
+  "description": "Plataforma de gestión clínica y educativa para niños neurodivergentes",
   "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",

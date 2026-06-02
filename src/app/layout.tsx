@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope } from "next/font/google";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
-import { createClient } from "@/lib/supabase/server";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -17,46 +16,18 @@ export const viewport: Viewport = {
   themeColor: "#1FA4DA",
 };
 
-export async function generateMetadata(): Promise<Metadata> {
-  let agencyLogoUrl: string | null = null
-  try {
-    const supabase = await createClient()
-    const { data } = await supabase
-      .from('app_settings')
-      .select('value, updated_at')
-      .eq('key', 'agency_logo_url')
-      .maybeSingle()
-    agencyLogoUrl = data?.value ?? null
-  } catch {
-    /* si falla el fetch (build sin env), usar fallback */
-  }
-
-  // Cache-bust: aseguramos que el URL del logo cambie cada vez que se actualiza
-  // (uploadAgencyLogo ya añade ?v=timestamp; acá garantizamos el comportamiento).
-  const iconUrl = agencyLogoUrl ?? '/icons/icon-192.png'
-  const appleIconUrl = agencyLogoUrl ?? '/icons/apple-touch-icon.png'
-
-  return {
-    title: 'Kinetic — Centro de Estimulación y Desarrollo Intelectual',
-    description: 'Plataforma de gestión clínica y educativa para niños neurodivergentes',
-    manifest: '/manifest.json',
-    appleWebApp: {
-      capable: true,
-      statusBarStyle: 'default',
-      title: 'Kinetic',
-    },
-    icons: {
-      // Múltiples sizes para que el browser elija; cada entry usa la MISMA URL
-      // pero browsers cachean por (rel + sizes), así que múltiples entries fuerzan
-      // re-fetch cuando el URL cambia.
-      icon: [
-        { url: iconUrl, sizes: '32x32', type: 'image/png' },
-        { url: iconUrl, sizes: '192x192', type: 'image/png' },
-      ],
-      shortcut: iconUrl,
-      apple: appleIconUrl,
-    },
-  }
+export const metadata: Metadata = {
+  title: 'Kinetic — Centro de Estimulación y Desarrollo Intelectual',
+  description: 'Plataforma de gestión clínica y educativa para niños neurodivergentes',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Kinetic',
+  },
+  // Los iconos (favicon/apple/192) los genera Next desde los archivos del símbolo
+  // de Kinetic: app/favicon.ico, app/icon.png y app/apple-icon.png. NO se deriva
+  // del logo de la agencia (que es el wordmark completo, ilegible a tamaño favicon).
 }
 
 export default function RootLayout({
