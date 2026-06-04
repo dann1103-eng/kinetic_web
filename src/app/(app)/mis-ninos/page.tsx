@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { listMyChildren } from '@/lib/domain/my-children'
+import { formatSvDateTime } from '@/lib/format/datetime-sv'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -20,17 +21,8 @@ function formatAge(birth: string | null): string | null {
   return `${years} año${years === 1 ? '' : 's'}`
 }
 
-function formatDateTime(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleString('es-SV', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-}
+// Hora de la cita en zona El Salvador (server = UTC sin esto → mostraba +6h).
+const formatDateTime = formatSvDateTime
 
 export default async function MisNinosPage() {
   const ctx = await getEffectiveUser()

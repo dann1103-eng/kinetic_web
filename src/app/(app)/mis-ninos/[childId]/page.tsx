@@ -7,6 +7,7 @@ import { ChildDashboardCalendar } from '@/components/dashboard/ChildDashboardCal
 import { ChildSessionReportsHistory } from '@/components/agenda/ChildSessionReportsHistory'
 import { getChildDashboardData } from '@/lib/domain/child-dashboard'
 import { userCanViewChild } from '@/lib/domain/my-children'
+import { formatSvDateTime } from '@/lib/format/datetime-sv'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type {
   Child,
@@ -33,16 +34,8 @@ function formatAge(birth: string | null): string | null {
   return `${years} año${years === 1 ? '' : 's'}`
 }
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('es-SV', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-}
+// Hora de la cita en zona El Salvador (server = UTC sin esto → mostraba +6h).
+const formatDateTime = formatSvDateTime
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('es-SV', {
