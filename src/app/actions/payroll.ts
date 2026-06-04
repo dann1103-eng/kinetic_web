@@ -8,8 +8,12 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import {
   calculatePayroll,
   calculateProfessionalServicesPayroll,
-  round2,
 } from '@/lib/domain/payroll/calculation'
+import {
+  sumProfessionalServicesPay,
+  professionalServicesBaseFor,
+  type TherapyPayTotals,
+} from '@/lib/domain/payroll/professional-services'
 import { fromZonedTime } from 'date-fns-tz'
 import type {
   PayrollFiscalConfig,
@@ -201,10 +205,10 @@ export async function createPayrollRun(input: {
     .neq('role', 'client')
     .neq('role', 'family')
 
-  // Para servicios profesionales: pago por terapia (catálogo de costos + citas completadas).
+  // Para servicios profesionales: pago POR CANTIDAD de terapias (no por horas):
+  // cada terapia completada aporta su tarifa de catálogo (cost_usd por service_type).
   // Solo-SP → todas las terapias completadas; ambos (también en normal) → solo las is_extra.
-  const allTherapyPay = new Map<string, number>()
-  const extraTherapyPay = new Map<string, number>()
+  let spTotals: TherapyPayTotals = { all: new Map(), extra: new Map(), count: new Map() }
   if (isSp) {
     const { data: catalogRaw } = await admin
       .from('service_catalog')
@@ -236,22 +240,14 @@ export async function createPayrollRun(input: {
           .lt('starts_at', periodEndISO)
       : { data: [] as { therapist_id: string | null; service_type: string | null; is_extra: boolean; status: string }[] }
 
-    for (const a of apptsRaw ?? []) {
-      if (!a.therapist_id) continue
-      const cost = costByService.get(a.service_type ?? '') ?? 0
-      allTherapyPay.set(a.therapist_id, (allTherapyPay.get(a.therapist_id) ?? 0) + cost)
-      if (a.is_extra) {
-        extraTherapyPay.set(a.therapist_id, (extraTherapyPay.get(a.therapist_id) ?? 0) + cost)
-      }
-    }
+    // Suma pura y testeada (professional-services.test.ts): la duración NO interviene.
+    spTotals = sumProfessionalServicesPay(apptsRaw ?? [], costByService)
   }
 
   const items = (empleados ?? []).map((u) => {
     if (isSp) {
       // Ambos (también en normal) → solo las is_extra; solo-SP → todas las completadas.
-      const base = u.in_normal_payroll
-        ? round2(extraTherapyPay.get(u.id) ?? 0)
-        : round2(allTherapyPay.get(u.id) ?? 0)
+      const base = professionalServicesBaseFor(u.id, u.in_normal_payroll, spTotals)
       const calc = calculateProfessionalServicesPayroll(
         { baseUsd: base },
         Number(config.professional_services_isr_rate ?? 0.1),
