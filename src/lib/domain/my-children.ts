@@ -1,14 +1,15 @@
 /**
  * my-children — niños que un terapista/maestra puede ver en /mis-ninos.
  *
- * Reglas:
- *   • Terapista: niños donde es primary_therapist_id en algún treatment_plan
- *     activo. Excluye fases terminales (5_*).
- *   • Maestra: niños con enrolled_program (blue_kids / learning_kids / aula_educativa).
- *     Las maestras llevan programa matutino, no terapias individuales.
+ * Reglas (se UNEN — una persona puede ser maestra Y dar terapias):
+ *   • Cualquier staff: niños donde es primary_therapist_id en algún treatment_plan
+ *     activo (sus niños de terapia). Esto aplica AUNQUE su rol sea maestra.
+ *   • Maestra: ADEMÁS, todos los niños con enrolled_program
+ *     (blue_kids / learning_kids / aula_educativa) — el programa matutino.
+ * En todos los casos se excluyen fases terminales (5_*).
  *
- * En ambos casos devolvemos un subset minimal del Child + la última cita
- * conocida + el próximo appointment programado para mostrar en cards.
+ * Devolvemos un subset minimal del Child + la última cita conocida + el próximo
+ * appointment programado para mostrar en cards.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -47,27 +48,29 @@ export async function listMyChildren(
   userId: string,
   role: string,
 ): Promise<MyChildCard[]> {
-  // ── 1. Resolver IDs de niños visibles según rol ─────────────────────────
-  let childIds: string[] = []
+  // ── 1. Resolver IDs de niños visibles (UNIÓN de reglas) ─────────────────
+  if (role !== 'terapista' && role !== 'maestra') return []
+  const childIdSet = new Set<string>()
 
-  if (role === 'terapista') {
-    const { data: plans } = await supabase
-      .from('treatment_plans')
-      .select('child_id')
-      .eq('primary_therapist_id', userId)
-      .eq('active', true)
-    childIds = (plans ?? []).map((p) => p.child_id as string)
-  } else if (role === 'maestra') {
-    // Maestra ve TODOS los niños inscritos en programa matutino.
+  // (a) Niños donde es terapista principal de un plan activo — aplica a CUALQUIER
+  //     rol que llegue acá (incluida una maestra que también da terapias).
+  const { data: plans } = await supabase
+    .from('treatment_plans')
+    .select('child_id')
+    .eq('primary_therapist_id', userId)
+    .eq('active', true)
+  for (const p of plans ?? []) childIdSet.add(p.child_id as string)
+
+  // (b) Maestra: además, todos los niños del programa matutino.
+  if (role === 'maestra') {
     const { data: kids } = await supabase
       .from('children')
       .select('id')
       .not('enrolled_program', 'is', null)
-    childIds = (kids ?? []).map((k) => k.id as string)
-  } else {
-    return []
+    for (const k of kids ?? []) childIdSet.add(k.id as string)
   }
 
+  const childIds = [...childIdSet]
   if (childIds.length === 0) return []
 
   // ── 2. Cargar datos básicos de los niños ────────────────────────────────
@@ -107,7 +110,8 @@ export async function listMyChildren(
   if (role === 'terapista') {
     apptQuery = apptQuery.eq('therapist_id', userId)
   } else if (role === 'maestra') {
-    apptQuery = apptQuery.eq('event_type', 'programa_matutino')
+    // Maestra-terapista: sus citas de terapia (therapist_id) O las del matutino.
+    apptQuery = apptQuery.or(`therapist_id.eq.${userId},event_type.eq.programa_matutino`)
   }
 
   const { data: apptsRaw } = await apptQuery
@@ -180,17 +184,20 @@ export async function userCanViewChild(
   role: string,
   childId: string,
 ): Promise<boolean> {
-  if (role === 'terapista') {
-    const { data } = await supabase
-      .from('treatment_plans')
-      .select('id')
-      .eq('primary_therapist_id', userId)
-      .eq('child_id', childId)
-      .eq('active', true)
-      .limit(1)
-      .maybeSingle()
-    return !!data
-  }
+  if (role !== 'terapista' && role !== 'maestra') return false
+
+  // Terapista principal de un plan activo de ese niño — aplica a cualquier rol.
+  const { data: plan } = await supabase
+    .from('treatment_plans')
+    .select('id')
+    .eq('primary_therapist_id', userId)
+    .eq('child_id', childId)
+    .eq('active', true)
+    .limit(1)
+    .maybeSingle()
+  if (plan) return true
+
+  // Maestra: además, cualquier niño del programa matutino.
   if (role === 'maestra') {
     const { data } = await supabase
       .from('children')
