@@ -117,14 +117,6 @@ export function NewMonthlyCycleModal({
     setPriced((prev) => prev.map((p, i) => (i === idx ? { ...p, unit_cost_usd: unit } : p)))
   }
 
-  function patchSessions(idx: number, sessions: number) {
-    setPriced((prev) =>
-      prev.map((p, i) =>
-        i === idx ? { ...p, sessions_per_month: Math.max(0, Math.floor(sessions || 0)) } : p,
-      ),
-    )
-  }
-
   // Subtotal = suma(sesiones × precio) de las terapias precargadas.
   const planSubtotal = priced.reduce(
     (s, t) => s + (t.sessions_per_month || 0) * (t.unit_cost_usd || 0),
@@ -175,14 +167,21 @@ export function NewMonthlyCycleModal({
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [isConfirming, startConfirm] = useTransition()
 
-  // Citas que realmente se van a generar, agrupadas por service_type. Sirve de
-  // referencia para ajustar las sesiones a cobrar (ej. si por asuetos se generan
-  // menos citas que las del plan).
-  const generatedByService = useMemo(() => {
-    const map: Record<string, number> = {}
-    for (const c of editedCandidates) map[c.service] = (map[c.service] ?? 0) + 1
+  // Pool de citas que el patrón del plan puede generar este mes, por servicio
+  // (= candidatas mostradas + las que sobraban por cuota). Ya excluye asuetos.
+  // Es el tope para AUMENTAR citas de un servicio desde el stepper.
+  const poolByService = useMemo(() => {
+    const map: Record<string, MonthlyCandidateAppointment[]> = {}
+    if (!dryRun) return map
+    for (const c of [...dryRun.candidates, ...dryRun.skipped_overquota]) {
+      if (!map[c.service]) map[c.service] = []
+      map[c.service].push(c)
+    }
+    for (const k of Object.keys(map)) {
+      map[k].sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    }
     return map
-  }, [editedCandidates])
+  }, [dryRun])
 
   const periodAlreadyUsed = existingPeriods.some((p) => p.startsWith(periodMonth))
 
@@ -222,6 +221,26 @@ export function NewMonthlyCycleModal({
       setDryRun(res.result)
       setEditedCandidates(res.result.candidates)
       setHasEdits(false)
+      // Sincronizar las sesiones a COBRAR con las que realmente se generan
+      // (ej. menos por asuetos), pero solo para terapias con citas en el
+      // calendario y sin rollover acumulado (ese modo suma citas sin recobrar).
+      if (rolloverMode === 'none') {
+        const genCount: Record<string, number> = {}
+        for (const c of res.result.candidates) {
+          genCount[c.service] = (genCount[c.service] ?? 0) + 1
+        }
+        const poolCount: Record<string, number> = {}
+        for (const c of [...res.result.candidates, ...res.result.skipped_overquota]) {
+          poolCount[c.service] = (poolCount[c.service] ?? 0) + 1
+        }
+        setPriced((prev) =>
+          prev.map((row) =>
+            (poolCount[row.service] ?? 0) > 0
+              ? { ...row, sessions_per_month: genCount[row.service] ?? 0 }
+              : row,
+          ),
+        )
+      }
     })
   }, [childId, periodMonth, periodAlreadyUsed, rolloverMode, rolloverSessionsMap])
 
@@ -235,8 +254,73 @@ export function NewMonthlyCycleModal({
   }
 
   function handleDeleteCandidate(idx: number) {
+    const svc = editedCandidates[idx]?.service
     setEditedCandidates((prev) => prev.filter((_, i) => i !== idx))
     setHasEdits(true)
+    // Cobrar una sesión menos para ese servicio (mantener cobro = citas).
+    if (svc) {
+      setPriced((prev) => {
+        const j = prev.findIndex((r) => r.service === svc)
+        if (j === -1) return prev
+        return prev.map((r, i) =>
+          i === j ? { ...r, sessions_per_month: Math.max(0, r.sessions_per_month - 1) } : r,
+        )
+      })
+    }
+  }
+
+  /**
+   * Sube/baja en 1 las sesiones de una terapia, reflejándolo en el calendario:
+   *  - Terapias con citas (pool > 0): agrega la próxima cita libre del patrón
+   *    o quita la de fecha más tardía; el cobro queda = nº de citas.
+   *  - Programas sin citas individuales (pool = 0): solo ajusta el cobro.
+   */
+  function stepSessions(idx: number, delta: 1 | -1) {
+    const svc = priced[idx].service
+    const pool = poolByService[svc] ?? []
+
+    if (pool.length === 0) {
+      // Solo cobro (ej. programa matutino mensual, sin citas en la grilla).
+      setPriced((prev) =>
+        prev.map((r, i) =>
+          i === idx
+            ? { ...r, sessions_per_month: Math.max(0, r.sessions_per_month + delta) }
+            : r,
+        ),
+      )
+      return
+    }
+
+    if (delta < 0) {
+      // Quitar la cita de fecha más tardía de ese servicio.
+      const mine = editedCandidates
+        .map((c, i) => ({ c, i }))
+        .filter((x) => x.c.service === svc)
+        .sort((a, b) => a.c.starts_at.localeCompare(b.c.starts_at))
+      if (mine.length === 0) return
+      const removeI = mine[mine.length - 1].i
+      const newCount = mine.length - 1
+      setEditedCandidates((prev) => prev.filter((_, i) => i !== removeI))
+      setPriced((prev) =>
+        prev.map((r, i) => (i === idx ? { ...r, sessions_per_month: newCount } : r)),
+      )
+      setHasEdits(true)
+    } else {
+      // Agregar la próxima cita del patrón que no esté ya en el calendario.
+      const used = new Set(
+        editedCandidates.filter((c) => c.service === svc).map((c) => c.starts_at),
+      )
+      const next = pool.find((c) => !used.has(c.starts_at))
+      if (!next) return // sin más slots del patrón este mes
+      const newCount = used.size + 1
+      setEditedCandidates((prev) =>
+        [...prev, next].sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
+      )
+      setPriced((prev) =>
+        prev.map((r, i) => (i === idx ? { ...r, sessions_per_month: newCount } : r)),
+      )
+      setHasEdits(true)
+    }
   }
 
   function handleResetEdits() {
@@ -367,26 +451,45 @@ export function NewMonthlyCycleModal({
                       <td className="px-3 py-1.5">
                         {SERVICE_TYPE_LABELS[t.service as ServiceType] ?? t.service}
                       </td>
-                      <td className="text-right px-3 py-1.5">
-                        <input
-                          type="number"
-                          min={0}
-                          step={1}
-                          value={t.sessions_per_month}
-                          onChange={(e) => patchSessions(idx, Number(e.target.value))}
-                          className="w-16 rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1 text-sm tabular-nums text-right"
-                        />
-                        {generatedByService[t.service] != null &&
-                          generatedByService[t.service] !== t.sessions_per_month && (
-                            <button
-                              type="button"
-                              onClick={() => patchSessions(idx, generatedByService[t.service])}
-                              className="block ml-auto mt-0.5 text-[10px] text-fm-primary hover:underline"
-                              title="Usar la cantidad de citas que se generarán este mes"
-                            >
-                              se generan {generatedByService[t.service]}
-                            </button>
-                          )}
+                      <td className="px-3 py-1.5">
+                        {(() => {
+                          const poolLen = poolByService[t.service]?.length ?? 0
+                          const calendarBacked = poolLen > 0
+                          const atMax = calendarBacked && t.sessions_per_month >= poolLen
+                          return (
+                            <div className="flex flex-col items-end gap-0.5">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => stepSessions(idx, -1)}
+                                  disabled={t.sessions_per_month <= 0}
+                                  className="h-6 w-6 rounded-md border border-fm-outline-variant/30 bg-white text-fm-on-surface leading-none disabled:opacity-40 hover:bg-fm-surface-container"
+                                  aria-label="Quitar una sesión"
+                                >
+                                  −
+                                </button>
+                                <span className="w-7 text-center tabular-nums font-medium">
+                                  {t.sessions_per_month}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => stepSessions(idx, 1)}
+                                  disabled={atMax}
+                                  title={atMax ? 'No hay más citas en el patrón este mes' : undefined}
+                                  className="h-6 w-6 rounded-md border border-fm-outline-variant/30 bg-white text-fm-on-surface leading-none disabled:opacity-40 hover:bg-fm-surface-container"
+                                  aria-label="Agregar una sesión"
+                                >
+                                  +
+                                </button>
+                              </div>
+                              {atMax && (
+                                <span className="text-[9px] text-fm-on-surface-variant">
+                                  máx {poolLen} (patrón)
+                                </span>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </td>
                       <td className="text-right px-3 py-1.5">
                         <input
@@ -408,9 +511,10 @@ export function NewMonthlyCycleModal({
             )}
             {priced.length > 0 && (
               <p className="px-3 py-2 text-[11px] text-fm-on-surface-variant border-t border-fm-outline-variant/10">
-                Ajustá las <b>sesiones a cobrar</b> si el niño no asistirá a todas
-                (asuetos, ausencias avisadas): se le cobra menos. Esto cambia la
-                factura, no las citas que se generan en el calendario.
+                Usá <b>− / +</b> para ajustar las sesiones del mes: agrega o quita
+                citas en el calendario de abajo y se cobra en consecuencia. Útil si
+                el niño no asistirá a todas (asuetos, ausencias avisadas). También
+                podés quitar una cita puntual con la ✕ en el calendario.
               </p>
             )}
           </div>
