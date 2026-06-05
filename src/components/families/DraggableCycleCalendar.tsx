@@ -25,6 +25,8 @@ interface Props {
   candidates: MonthlyCandidateAppointment[]
   /** Callback cuando el usuario mueve una cita a otro día. */
   onMove: (index: number, newStartsAt: string, newEndsAt: string) => void
+  /** Callback para quitar una cita del ciclo (ej. el papá avisa que faltará). */
+  onDelete?: (index: number) => void
   /** Render-only mode (sin drag, solo preview). */
   readOnly?: boolean
 }
@@ -57,7 +59,7 @@ function serviceLabel(s: string): string {
   return SERVICE_TYPE_LABELS[s as ServiceType] ?? s
 }
 
-export function DraggableCycleCalendar({ periodMonth, candidates, onMove, readOnly }: Props) {
+export function DraggableCycleCalendar({ periodMonth, candidates, onMove, onDelete, readOnly }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const { firstDayOffset, days } = useMemo(() => {
@@ -115,7 +117,7 @@ export function DraggableCycleCalendar({ periodMonth, candidates, onMove, readOn
           <h3 className="text-sm font-semibold text-fm-on-surface capitalize">{monthHeader}</h3>
           {!readOnly && (
             <p className="text-[11px] text-fm-on-surface-variant">
-              Arrastrá las citas a otro día. La hora se mantiene.
+              Arrastrá las citas a otro día (la hora se mantiene){onDelete ? ' o quitalas con ✕' : ''}.
             </p>
           )}
         </div>
@@ -138,6 +140,7 @@ export function DraggableCycleCalendar({ periodMonth, candidates, onMove, readOn
               dateKey={dateKey}
               dayNum={parseInt(dateKey.slice(8, 10), 10)}
               entries={candidatesByDay.get(dateKey) ?? []}
+              onDelete={onDelete}
               readOnly={readOnly}
             />
           ))}
@@ -151,11 +154,13 @@ function DayCell({
   dateKey,
   dayNum,
   entries,
+  onDelete,
   readOnly,
 }: {
   dateKey: string
   dayNum: number
   entries: { idx: number; cand: MonthlyCandidateAppointment }[]
+  onDelete?: (index: number) => void
   readOnly?: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: dateKey, disabled: readOnly })
@@ -170,7 +175,13 @@ function DayCell({
     >
       <span className="text-fm-on-surface-variant font-semibold opacity-70">{dayNum}</span>
       {entries.map(({ idx, cand }) => (
-        <DraggableCandidate key={`${idx}-${cand.starts_at}`} idx={idx} cand={cand} readOnly={readOnly} />
+        <DraggableCandidate
+          key={`${idx}-${cand.starts_at}`}
+          idx={idx}
+          cand={cand}
+          onDelete={onDelete}
+          readOnly={readOnly}
+        />
       ))}
     </div>
   )
@@ -179,10 +190,12 @@ function DayCell({
 function DraggableCandidate({
   idx,
   cand,
+  onDelete,
   readOnly,
 }: {
   idx: number
   cand: MonthlyCandidateAppointment
+  onDelete?: (index: number) => void
   readOnly?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -193,21 +206,38 @@ function DraggableCandidate({
     ? { transform: CSS.Translate.toString(transform), zIndex: 100 }
     : undefined
   return (
-    <button
-      ref={setNodeRef}
-      style={style}
-      type="button"
-      {...attributes}
-      {...listeners}
-      className={`text-left rounded-sm px-1 py-0.5 text-[9px] leading-tight font-medium border transition-shadow ${
-        isDragging
-          ? 'shadow-lg bg-fm-primary text-white border-fm-primary opacity-90 cursor-grabbing'
-          : 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200 cursor-grab'
-      } ${readOnly ? 'cursor-default' : ''}`}
-      title={`${serviceLabel(cand.service)} · ${timeLabel(cand.starts_at)} · ${cand.duration_minutes}m`}
-    >
-      <div className="font-mono tabular-nums">{timeLabel(cand.starts_at)}</div>
-      <div className="truncate">{serviceLabel(cand.service)}</div>
-    </button>
+    <div ref={setNodeRef} style={style} className="relative group">
+      <div
+        {...attributes}
+        {...listeners}
+        role="button"
+        tabIndex={readOnly ? -1 : 0}
+        className={`text-left rounded-sm px-1 py-0.5 text-[9px] leading-tight font-medium border transition-shadow ${
+          isDragging
+            ? 'shadow-lg bg-fm-primary text-white border-fm-primary opacity-90 cursor-grabbing'
+            : 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200 cursor-grab'
+        } ${readOnly ? 'cursor-default' : ''}`}
+        title={`${serviceLabel(cand.service)} · ${timeLabel(cand.starts_at)} · ${cand.duration_minutes}m`}
+      >
+        <div className="font-mono tabular-nums">{timeLabel(cand.starts_at)}</div>
+        <div className="truncate">{serviceLabel(cand.service)}</div>
+      </div>
+      {!readOnly && onDelete && (
+        <button
+          type="button"
+          // Evitar que el pointer-down inicie un drag de la cita.
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            onDelete(idx)
+          }}
+          className="absolute -top-1.5 -right-1.5 hidden group-hover:flex h-4 w-4 items-center justify-center rounded-full bg-fm-error text-white text-[10px] leading-none shadow ring-1 ring-white"
+          title="Quitar esta cita del ciclo"
+          aria-label="Quitar esta cita"
+        >
+          ✕
+        </button>
+      )}
+    </div>
   )
 }

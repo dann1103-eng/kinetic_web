@@ -234,6 +234,11 @@ export function NewMonthlyCycleModal({
     setHasEdits(true)
   }
 
+  function handleDeleteCandidate(idx: number) {
+    setEditedCandidates((prev) => prev.filter((_, i) => i !== idx))
+    setHasEdits(true)
+  }
+
   function handleResetEdits() {
     if (!dryRun) return
     setEditedCandidates(dryRun.candidates)
@@ -509,7 +514,7 @@ export function NewMonthlyCycleModal({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
                   <Stat
                     label="A generar"
-                    value={dryRun.summary.candidate_count}
+                    value={editedCandidates.length}
                     tone="ok"
                   />
                   <Stat
@@ -533,7 +538,7 @@ export function NewMonthlyCycleModal({
                   <ConflictList conflicts={dryRun.conflicts} />
                 )}
 
-                {editedCandidates.length > 0 &&
+                {(editedCandidates.length > 0 || hasEdits) &&
                   dryRun.summary.conflict_count === 0 && (
                     <div className="rounded-lg border border-fm-outline-variant/20 p-3 bg-fm-surface-container-low/30">
                       <div className="flex items-center justify-between mb-2">
@@ -554,6 +559,7 @@ export function NewMonthlyCycleModal({
                         periodMonth={`${periodMonth}-01`}
                         candidates={editedCandidates}
                         onMove={handleMoveCandidate}
+                        onDelete={handleDeleteCandidate}
                       />
                       {hasEdits && (
                         <p className="mt-2 text-[11px] text-amber-700">
