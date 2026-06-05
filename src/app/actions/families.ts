@@ -8,7 +8,7 @@ import type { Family, FamilyStatus } from '@/types/db'
 
 /**
  * Crear una familia nueva.
- * Requiere rol admin / supervisor / directora / coordinadora_familias.
+ * Requiere rol admin / supervisor / directora / coordinadora_familias / recepcion / contable.
  */
 export async function createFamily(input: {
   primary_contact_name: string
@@ -28,7 +28,7 @@ export async function createFamily(input: {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }
 
-  const allowed = ['admin', 'supervisor', 'directora', 'coordinadora_familias']
+  const allowed = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'recepcion', 'contable']
   if (!allowed.includes(ctx.appUser.role)) {
     return { ok: false, error: 'Sin permisos para crear familias' }
   }

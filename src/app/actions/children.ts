@@ -122,7 +122,7 @@ export async function createChild(input: {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }
 
-  const allowed = ['admin', 'supervisor', 'directora', 'coordinadora_familias']
+  const allowed = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'recepcion', 'contable']
   if (!allowed.includes(ctx.appUser.role)) {
     return { ok: false, error: 'Sin permisos para registrar niños' }
   }

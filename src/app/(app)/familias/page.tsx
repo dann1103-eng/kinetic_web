@@ -9,7 +9,7 @@ import type { Family } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_TO_CREATE = ['admin', 'supervisor', 'directora', 'coordinadora_familias']
+const ALLOWED_TO_CREATE = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'recepcion', 'contable']
 
 // Terapistas y maestras NO ven el listado de familias — son redirigidas a /mis-ninos.
 const REDIRECT_TO_MY_KIDS = ['terapista', 'maestra']
