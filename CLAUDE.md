@@ -299,6 +299,7 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0141** | Fix: dropea sobrecargas obsoletas de `compute_*`/`confirm_*` (ambigüedad "could not choose candidate") |
 | **0142** | **Dos tipos de planilla**: `users.in_normal_payroll` + `users.in_professional_services_payroll` (flags de pertenencia, migrados desde `contract_type`); `payroll_fiscal_config.professional_services_isr_rate` (10% default); `payroll_runs.payroll_type` (`normal`\|`servicios_profesionales`) + índice único por (año, mes, tipo); `appointments.extra_reason` (`hora_extra`\|`sabado`\|`cobertura`) |
 | **0143** | Crea el bucket de Storage `user-avatars` + políticas RLS (SELECT público, INSERT/UPDATE/DELETE por carpeta propia `auth.uid()`). Antes se documentaba como paso manual del Dashboard (desde 0018) y al omitirse daba "Bucket not found" al subir foto de perfil (staff y portal, `uploadUserAvatar`). |
+| **0144** | RLS: `coordinadora_familias` también puede insert/update de `treatment_plans` y su audit log `treatment_plan_changes` (paridad con `coordinadora_terapias`). Acompaña el cambio en `MGMT_ROLES` (treatment-plans.ts) y `MGMT_ROLES_PLAN` (página del niño). |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
 > migración automática. **Aplicar 0134→0142 en orden.** Correr
