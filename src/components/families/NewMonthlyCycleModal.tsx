@@ -117,6 +117,14 @@ export function NewMonthlyCycleModal({
     setPriced((prev) => prev.map((p, i) => (i === idx ? { ...p, unit_cost_usd: unit } : p)))
   }
 
+  function patchSessions(idx: number, sessions: number) {
+    setPriced((prev) =>
+      prev.map((p, i) =>
+        i === idx ? { ...p, sessions_per_month: Math.max(0, Math.floor(sessions || 0)) } : p,
+      ),
+    )
+  }
+
   // Subtotal = suma(sesiones × precio) de las terapias precargadas.
   const planSubtotal = priced.reduce(
     (s, t) => s + (t.sessions_per_month || 0) * (t.unit_cost_usd || 0),
@@ -166,6 +174,15 @@ export function NewMonthlyCycleModal({
 
   const [confirmError, setConfirmError] = useState<string | null>(null)
   const [isConfirming, startConfirm] = useTransition()
+
+  // Citas que realmente se van a generar, agrupadas por service_type. Sirve de
+  // referencia para ajustar las sesiones a cobrar (ej. si por asuetos se generan
+  // menos citas que las del plan).
+  const generatedByService = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const c of editedCandidates) map[c.service] = (map[c.service] ?? 0) + 1
+    return map
+  }, [editedCandidates])
 
   const periodAlreadyUsed = existingPeriods.some((p) => p.startsWith(periodMonth))
 
@@ -345,8 +362,26 @@ export function NewMonthlyCycleModal({
                       <td className="px-3 py-1.5">
                         {SERVICE_TYPE_LABELS[t.service as ServiceType] ?? t.service}
                       </td>
-                      <td className="text-right px-3 py-1.5 tabular-nums text-fm-on-surface-variant">
-                        {t.sessions_per_month}
+                      <td className="text-right px-3 py-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={t.sessions_per_month}
+                          onChange={(e) => patchSessions(idx, Number(e.target.value))}
+                          className="w-16 rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1 text-sm tabular-nums text-right"
+                        />
+                        {generatedByService[t.service] != null &&
+                          generatedByService[t.service] !== t.sessions_per_month && (
+                            <button
+                              type="button"
+                              onClick={() => patchSessions(idx, generatedByService[t.service])}
+                              className="block ml-auto mt-0.5 text-[10px] text-fm-primary hover:underline"
+                              title="Usar la cantidad de citas que se generarán este mes"
+                            >
+                              se generan {generatedByService[t.service]}
+                            </button>
+                          )}
                       </td>
                       <td className="text-right px-3 py-1.5">
                         <input
@@ -365,6 +400,13 @@ export function NewMonthlyCycleModal({
                   ))}
                 </tbody>
               </table>
+            )}
+            {priced.length > 0 && (
+              <p className="px-3 py-2 text-[11px] text-fm-on-surface-variant border-t border-fm-outline-variant/10">
+                Ajustá las <b>sesiones a cobrar</b> si el niño no asistirá a todas
+                (asuetos, ausencias avisadas): se le cobra menos. Esto cambia la
+                factura, no las citas que se generan en el calendario.
+              </p>
             )}
           </div>
 

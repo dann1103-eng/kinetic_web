@@ -319,16 +319,21 @@ export async function confirmMonthlyPaymentAndGenerate(
     }
 
     if (input.pricedTherapies && input.pricedTherapies.length > 0) {
-      const priceBy = new Map(
-        input.pricedTherapies.map((p) => [p.service, p.unit_cost_usd]),
+      // Mapa por servicio con precio Y sesiones editadas al cobrar. Ambos
+      // sobreescriben el snapshot del plan para que la factura refleje lo que
+      // realmente se cobra (ej. menos sesiones por asuetos/ausencias avisadas).
+      const editedBy = new Map(
+        input.pricedTherapies.map((p) => [p.service, p]),
       )
       const snapshot = (cycle.treatment_plan_snapshot ?? {}) as {
-        therapies_json?: { service: string; unit_cost_usd?: number }[]
+        therapies_json?: { service: string; sessions_per_month?: number; unit_cost_usd?: number }[]
       }
-      const therapies = (snapshot.therapies_json ?? []).map((t) => ({
-        ...t,
-        unit_cost_usd: priceBy.has(t.service) ? priceBy.get(t.service)! : (t.unit_cost_usd ?? 0),
-      }))
+      const therapies = (snapshot.therapies_json ?? []).map((t) => {
+        const edited = editedBy.get(t.service)
+        return edited
+          ? { ...t, sessions_per_month: edited.sessions_per_month, unit_cost_usd: edited.unit_cost_usd }
+          : t
+      })
       updatePayload.treatment_plan_snapshot = { ...snapshot, therapies_json: therapies }
 
       // Monto esperado del ciclo (pendiente) = subtotal priced − descuento.
