@@ -18,12 +18,13 @@ import type { Child, MonthlySessionCycle, TreatmentPlan, UserRole } from '@/type
 import Link from 'next/link'
 import { ChildForm } from '@/components/families/ChildForm'
 
-const MGMT_ROLES_PLAN = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'contable']
+const MGMT_ROLES_PLAN = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable']
 const CAN_EDIT_CHILD_INFO_ROLES = ['admin', 'directora', 'coordinadora_familias', 'contable', 'recepcion']
 const MGMT_ROLES_CYCLES = [
   'admin',
   'directora',
   'coordinadora_terapias',
+  'coordinadora_familias',
   'recepcion',
   'contable',
 ]

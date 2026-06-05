@@ -17,6 +17,7 @@ const MGMT_ROLES = [
   'admin',
   'directora',
   'coordinadora_terapias',
+  'coordinadora_familias',
   'recepcion',
   'contable',
 ] as const
