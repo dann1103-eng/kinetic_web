@@ -28,6 +28,9 @@ const MGMT_ROLES_CYCLES = [
   'recepcion',
   'contable',
 ]
+// Anular un ciclo es más sensible (void factura + cancela citas): solo dirección
+// y coordinadora_familias.
+const CAN_CANCEL_CYCLES_ROLES = ['admin', 'directora', 'coordinadora_familias']
 // Terapistas y maestras tienen su propia vista restringida en /mis-ninos/[childId].
 const REDIRECT_TO_MY_KIDS = ['terapista', 'maestra']
 
@@ -310,6 +313,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 plan={plan}
                 cycles={cycles}
                 canManage={canManageCycles}
+                canCancel={CAN_CANCEL_CYCLES_ROLES.includes(ctx.appUser.role)}
                 therapyCatalog={fullCatalog}
                 enrolledProgram={c.enrolled_program}
               />

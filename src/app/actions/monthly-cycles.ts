@@ -448,15 +448,17 @@ export async function extendMonthlyCycleGrace(
   return { ok: true, cycle: data as MonthlySessionCycle }
 }
 
-// ── Anular un ciclo (admin/directora) ──────────────────────────────────────
+// ── Anular un ciclo (admin/directora/coordinadora_familias) ─────────────────
+
+const CAN_CANCEL_ROLES = ['admin', 'directora', 'coordinadora_familias']
 
 export async function cancelMonthlyCycle(
   cycleId: string,
   reason: string,
 ): Promise<{ ok: true; cycle: MonthlySessionCycle } | { ok: false; error: string }> {
   const { supabase, user } = await getActor()
-  if (!['admin', 'directora'].includes(user.role)) {
-    return { ok: false, error: 'Solo admin/directora pueden anular ciclos.' }
+  if (!CAN_CANCEL_ROLES.includes(user.role)) {
+    return { ok: false, error: 'Solo admin/directora/coordinadora de familias pueden anular ciclos.' }
   }
   if (!reason || reason.trim().length < 5) {
     return { ok: false, error: 'El motivo debe tener al menos 5 caracteres.' }

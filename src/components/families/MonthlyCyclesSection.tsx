@@ -24,6 +24,8 @@ interface Props {
   plan: TreatmentPlan | null
   cycles: MonthlySessionCycle[]
   canManage: boolean
+  /** Puede anular ciclos (admin / directora / coordinadora_familias). */
+  canCancel: boolean
   /** Catálogo de terapias individuales — para precargar precios al cobrar. */
   therapyCatalog?: ServiceCatalogItem[]
   /** Programa matutino del niño — activa precio BK precargado. */
@@ -51,6 +53,7 @@ export function MonthlyCyclesSection({
   plan,
   cycles: initial,
   canManage,
+  canCancel,
   therapyCatalog,
   enrolledProgram,
 }: Props) {
@@ -288,7 +291,7 @@ export function MonthlyCyclesSection({
                           </button>
                         </>
                       )}
-                      {c.status === 'generated' && canManage && (
+                      {c.status === 'generated' && canCancel && (
                         <button
                           type="button"
                           onClick={() => setCancellingId(c.id)}
