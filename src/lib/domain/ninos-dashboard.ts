@@ -18,6 +18,25 @@ export interface NinoCardData {
   /** Citas del mes seleccionado (null = no hay datos para ese mes) */
   attendance: { completed: number; total: number } | null
   lastCycle: MonthlySessionCycle | null
+  /** IDs de terapistas asignados al niño (principal + por terapia). Para filtrar. */
+  therapistIds: string[]
+}
+
+export interface NinosDashboardResult {
+  niños: NinoCardData[]
+  /** Terapistas referenciados por algún plan (para el filtro), ordenados por nombre. */
+  therapists: { id: string; full_name: string }[]
+}
+
+/** IDs de terapista de un plan: principal + el de cada terapia activa. */
+function therapistIdsForPlan(plan: TreatmentPlan | null): string[] {
+  if (!plan) return []
+  const ids = new Set<string>()
+  if (plan.primary_therapist_id) ids.add(plan.primary_therapist_id)
+  for (const t of plan.therapies_json ?? []) {
+    if (t.therapist_id) ids.add(t.therapist_id)
+  }
+  return [...ids]
 }
 
 /** 'YYYY-MM' → ISO bounds en TZ El Salvador */
@@ -49,7 +68,7 @@ export function getAvailableMonths(): string[] {
 export async function getNinosDashboardData(
   supabase: SupabaseClient<Database>,
   periodMonth: string, // 'YYYY-MM'
-): Promise<NinoCardData[]> {
+): Promise<NinosDashboardResult> {
   const { startISO, endISO } = monthBoundsForPeriod(periodMonth)
 
   // 1. Niños
@@ -61,7 +80,7 @@ export async function getNinosDashboardData(
   const children = ((childrenRaw ?? []) as Child[])
     .slice()
     .sort((a, b) => compareByLastName(a.full_name, b.full_name))
-  if (children.length === 0) return []
+  if (children.length === 0) return { niños: [], therapists: [] }
 
   const childIds = children.map((c) => c.id)
 
@@ -105,10 +124,34 @@ export async function getNinosDashboardData(
     if (!lastCycleByChild.has(c.child_id)) lastCycleByChild.set(c.child_id, c)
   }
 
-  return children.map((child) => ({
+  // Terapistas por niño (principal + por terapia) + set global referenciado.
+  const therapistIdsByChild = new Map<string, string[]>()
+  const allTherapistIds = new Set<string>()
+  for (const child of children) {
+    const ids = therapistIdsForPlan(plansByChild.get(child.id) ?? null)
+    therapistIdsByChild.set(child.id, ids)
+    for (const id of ids) allTherapistIds.add(id)
+  }
+
+  // Nombres de los terapistas referenciados (para el dropdown del filtro).
+  let therapists: { id: string; full_name: string }[] = []
+  if (allTherapistIds.size > 0) {
+    const { data: usersRaw } = await supabase
+      .from('users')
+      .select('id, full_name')
+      .in('id', [...allTherapistIds])
+    therapists = ((usersRaw ?? []) as { id: string; full_name: string }[])
+      .slice()
+      .sort((a, b) => compareByLastName(a.full_name, b.full_name))
+  }
+
+  const niños = children.map((child) => ({
     child,
     plan: plansByChild.get(child.id) ?? null,
     attendance: attendanceByChild.get(child.id) ?? null,
     lastCycle: lastCycleByChild.get(child.id) ?? null,
+    therapistIds: therapistIdsByChild.get(child.id) ?? [],
   }))
+
+  return { niños, therapists }
 }

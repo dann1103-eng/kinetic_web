@@ -8,6 +8,8 @@ import type { IntakePhaseCatalogEntry, MorningProgram } from '@/types/db'
 
 interface Props {
   niños: NinoCardData[]
+  /** Terapistas referenciados por algún plan, para el filtro. */
+  therapists: { id: string; full_name: string }[]
   periodMonth: string       // 'YYYY-MM' activo
   availableMonths: string[]
   phaseCatalog: IntakePhaseCatalogEntry[]
@@ -60,11 +62,12 @@ function phaseMatchesFilter(phaseCode: string | null, filter: string): boolean {
   return true
 }
 
-export function NinosPageClient({ niños, periodMonth, availableMonths, phaseCatalog }: Props) {
+export function NinosPageClient({ niños, therapists, periodMonth, availableMonths, phaseCatalog }: Props) {
   const router = useRouter()
   const [search, setSearch] = useState('')
   const [phaseFilter, setPhaseFilter] = useState<string>('all')
   const [programFilter, setProgramFilter] = useState<string>('all')
+  const [therapistFilter, setTherapistFilter] = useState<string>('all')
 
   const filtered = niños.filter((d) => {
     if (search && !d.child.full_name.toLowerCase().includes(search.toLowerCase())) return false
@@ -75,6 +78,7 @@ export function NinosPageClient({ niños, periodMonth, availableMonths, phaseCat
         return false
       }
     }
+    if (therapistFilter !== 'all' && !d.therapistIds.includes(therapistFilter)) return false
     return true
   })
 
@@ -134,6 +138,22 @@ export function NinosPageClient({ niños, periodMonth, availableMonths, phaseCat
             </option>
           ))}
         </select>
+
+        {/* Terapista */}
+        {therapists.length > 0 && (
+          <select
+            value={therapistFilter}
+            onChange={(e) => setTherapistFilter(e.target.value)}
+            className={SELECT_CLASS}
+          >
+            <option value="all">Todos los terapistas</option>
+            {therapists.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.full_name}
+              </option>
+            ))}
+          </select>
+        )}
 
         <span className="ml-auto text-xs text-fm-on-surface-variant">
           {filtered.length} {filtered.length === 1 ? 'niño' : 'niños'}

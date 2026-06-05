@@ -36,7 +36,7 @@ export default async function NinosPage({
     month && availableMonths.includes(month) ? month : availableMonths[0]
 
   const supabase = await createClient()
-  const [niños, phaseCatalog] = await Promise.all([
+  const [dashboard, phaseCatalog] = await Promise.all([
     getNinosDashboardData(supabase, periodMonth),
     listPhaseCatalog(),
   ])
@@ -45,7 +45,8 @@ export default async function NinosPage({
     <div className="flex flex-col min-h-full">
       <TopNav title="Niños" />
       <NinosPageClient
-        niños={niños}
+        niños={dashboard.niños}
+        therapists={dashboard.therapists}
         periodMonth={periodMonth}
         availableMonths={availableMonths}
         phaseCatalog={phaseCatalog}
