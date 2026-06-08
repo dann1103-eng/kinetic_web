@@ -6,11 +6,13 @@ import { TopNav } from '@/components/layout/TopNav'
 import {
   getTherapistMonthlyReport,
   getTherapistHistoricalCapacity,
+  getTherapistTherapyEarnings,
   fmtHours,
   fmtPercent,
 } from '@/lib/domain/reports/therapist'
 import { PeriodSelector } from '@/components/reportes/por-terapista/PeriodSelector'
 import { HistoricalCapacitySection } from '@/components/reportes/por-terapista/HistoricalCapacitySection'
+import { TherapyEarningsSection } from '@/components/reportes/por-terapista/TherapyEarningsSection'
 import { ReportDownloadButton } from '@/components/reportes/ReportDownloadButton'
 import type { UserRole } from '@/types/db'
 
@@ -63,9 +65,10 @@ export default async function ReportesPorTerapistaPage({ searchParams }: PagePro
   const month = parseMonth(params.month, now.getMonth() + 1)
 
   const supabase = await createClient()
-  const [report, historicalCapacity] = await Promise.all([
+  const [report, historicalCapacity, earnings] = await Promise.all([
     getTherapistMonthlyReport(supabase, { year, month }),
     getTherapistHistoricalCapacity(supabase, { monthsBack: 6 }),
+    getTherapistTherapyEarnings(supabase, { year, month }),
   ])
 
   return (
@@ -209,6 +212,9 @@ export default async function ReportesPorTerapistaPage({ searchParams }: PagePro
             </table>
           </div>
         )}
+
+        {/* Acumulado a pagar por terapias completadas (planilla por terapia) */}
+        <TherapyEarningsSection report={earnings} />
 
         {/* Capacidad histórica multi-mes */}
         <HistoricalCapacitySection data={historicalCapacity} />

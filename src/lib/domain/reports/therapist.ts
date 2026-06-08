@@ -13,6 +13,10 @@
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, UserRole } from '@/types/db'
+import {
+  sumProfessionalServicesPay,
+  professionalServicesBaseFor,
+} from '@/lib/domain/payroll/professional-services'
 
 const TZ = 'America/El_Salvador'
 
@@ -602,6 +606,108 @@ function normalizeYearMonth(year: number, month: number): { year: number; month:
   while (m < 1) { m += 12; y-- }
   while (m > 12) { m -= 12; y++ }
   return { year: y, month: m }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Acumulado a pagar por terapias completadas (vista en vivo del mes)
+// ──────────────────────────────────────────────────────────────────────────
+// Refleja exactamente lo que pagaría la planilla de SERVICIOS PROFESIONALES:
+// cada terapia completada vale su tarifa de catálogo (cost_usd por service_type).
+// - Terapista SOLO en planilla SP → se pagan TODAS las terapias completadas.
+// - Terapista también en planilla normal (sueldo fijo) → solo las `is_extra`.
+
+export interface TherapistEarningsRow {
+  therapistId: string
+  fullName: string
+  /** Si también está en planilla normal: solo se le pagan las terapias extra. */
+  extraOnly: boolean
+  /** Terapias completadas en el mes (total, informativo). */
+  completedCount: number
+  /** Terapias que cuentan para el pago (todas, o solo las extra si extraOnly). */
+  payableCount: number
+  /** Monto acumulado a pagar este mes (USD). */
+  amountUsd: number
+}
+
+export interface TherapistEarningsReport {
+  monthLabel: string
+  rows: TherapistEarningsRow[]
+  totalUsd: number
+}
+
+export async function getTherapistTherapyEarnings(
+  supabase: SupabaseClient<Database>,
+  { year, month }: { year: number; month: number },
+): Promise<TherapistEarningsReport> {
+  const { startISO, endISO } = monthBoundsSV(year, month)
+  const monthLabel = `${MONTH_LABELS[month - 1]} ${year}`
+
+  // Terapistas que cobran por terapias (están en la planilla de SP).
+  const { data: emps } = await supabase
+    .from('users')
+    .select('id, full_name, in_normal_payroll')
+    .eq('in_professional_services_payroll', true)
+  const employees = (emps ?? []) as { id: string; full_name: string; in_normal_payroll: boolean }[]
+  if (employees.length === 0) return { monthLabel, rows: [], totalUsd: 0 }
+
+  // Tarifa por terapia desde el catálogo (cost_usd = pago a la terapista).
+  const { data: catalogRaw } = await supabase
+    .from('service_catalog')
+    .select('service_type, cost_usd')
+    .eq('category', 'terapia_individual')
+    .eq('active', true)
+  const costByService = new Map<string, number>()
+  for (const c of catalogRaw ?? []) {
+    if (c.service_type) costByService.set(c.service_type, Number(c.cost_usd ?? 0))
+  }
+
+  // Terapias completadas del mes de esos terapistas.
+  const empIds = employees.map((e) => e.id)
+  const { data: apptsRaw } = await supabase
+    .from('appointments')
+    .select('therapist_id, service_type, is_extra, status')
+    .eq('event_type', 'terapia')
+    .eq('status', 'completed')
+    .in('therapist_id', empIds)
+    .gte('starts_at', startISO)
+    .lt('starts_at', endISO)
+  const appts = (apptsRaw ?? []) as {
+    therapist_id: string | null
+    service_type: string | null
+    is_extra: boolean | null
+    status: string
+  }[]
+
+  const totals = sumProfessionalServicesPay(appts, costByService)
+
+  // Conteos por terapista (total completadas y solo-extra).
+  const completedBy = new Map<string, number>()
+  const extraBy = new Map<string, number>()
+  for (const a of appts) {
+    if (!a.therapist_id) continue
+    completedBy.set(a.therapist_id, (completedBy.get(a.therapist_id) ?? 0) + 1)
+    if (a.is_extra) extraBy.set(a.therapist_id, (extraBy.get(a.therapist_id) ?? 0) + 1)
+  }
+
+  const rows: TherapistEarningsRow[] = employees
+    .map((e) => {
+      const extraOnly = !!e.in_normal_payroll
+      const amountUsd = professionalServicesBaseFor(e.id, e.in_normal_payroll, totals)
+      const completedCount = completedBy.get(e.id) ?? 0
+      const payableCount = extraOnly ? extraBy.get(e.id) ?? 0 : completedCount
+      return {
+        therapistId: e.id,
+        fullName: e.full_name,
+        extraOnly,
+        completedCount,
+        payableCount,
+        amountUsd,
+      }
+    })
+    .sort((a, b) => b.amountUsd - a.amountUsd)
+
+  const totalUsd = Math.round(rows.reduce((s, r) => s + r.amountUsd, 0) * 100) / 100
+  return { monthLabel, rows, totalUsd }
 }
 
 // ── Helpers de formato ────────────────────────────────────────────────────
