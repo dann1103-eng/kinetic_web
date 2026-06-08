@@ -163,8 +163,16 @@ Labels en `SERVICE_TYPE_LABELS` (db.ts). Paleta visual en `KINETIC_EVENT_PALETTE
 
 ## Administración (sidebar dropdown colapsable)
 Visible si AL MENOS UN item es accesible al usuario. Cada item respeta su propio `allowedRoles`.
-- `/users` — Equipo unificado con panel lateral (tabs Perfil / Horario / Capacidad)
-- `/usuarios-portal` — Cuentas family
+> **Recepción tiene paridad en TODO el módulo de Administración** (junio 2026): además de
+> Reportes/Catálogos/Capacidad/Facturación (que ya tenía), ahora `recepcion` accede a
+> `/users` y `/usuarios-portal` y puede gestionar personal (crear/editar/borrar, **cambiar
+> roles**, salarios, horarios/capacidad) y cuentas de portal. **Guards anti-escalada**: un
+> no-admin no puede crear/asignar/borrar el rol `admin`. **Impersonación** (suplantar) y
+> **config fiscal** siguen siendo **admin-only**. Las escrituras privilegiadas (users CRUD,
+> rol, horarios, max_hours) van por **admin client** (service role) gateadas por rol en código
+> — no por RLS; por eso no hubo migración.
+- `/users` — Equipo unificado con panel lateral (tabs Perfil / Horario / Capacidad). Roles: admin, directora, **recepcion**.
+- `/usuarios-portal` — Cuentas family. Roles: admin, directora, **recepcion**.
 - `/operacion/capacidad-terapistas` — Tabla semanal comparativa de ocupación (admin/directora/coord_terapias/recepción)
 - `/catalogos` — **Catálogos de precios (cobro) y costos (pago terapista)** editables (admin/contable/recepción). Mig 0135.
 - `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion, coordinadora_terapias). Tarjetas activas: **Ingresos**, **Egresos**, **Planillas** y **Por terapista**.

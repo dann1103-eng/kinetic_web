@@ -146,7 +146,7 @@ const adminGroupItems: NavItem[] = [
   {
     href: '/users',
     label: 'Usuarios',
-    allowedRoles: ['admin', 'directora'],
+    allowedRoles: ['admin', 'directora', 'recepcion'],
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/>
@@ -156,7 +156,7 @@ const adminGroupItems: NavItem[] = [
   {
     href: '/usuarios-portal',
     label: 'Usuarios portal',
-    allowedRoles: ['admin', 'directora'],
+    allowedRoles: ['admin', 'directora', 'recepcion'],
     icon: (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
         <path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3zm0 4a3 3 0 1 1 0 6 3 3 0 0 1 0-6zm0 13c-2.4 0-4.55-1.18-5.85-3 .03-1.99 4-3.08 5.85-3.08 1.84 0 5.82 1.09 5.85 3.08-1.3 1.82-3.45 3-5.85 3z"/>

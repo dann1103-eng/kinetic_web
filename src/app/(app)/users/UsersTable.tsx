@@ -224,9 +224,10 @@ function UserCard({
 interface UsersTableProps {
   users: AppUser[]
   currentUserId: string
+  currentUserRole: UserRole
 }
 
-export function UsersTable({ users: initialUsers, currentUserId }: UsersTableProps) {
+export function UsersTable({ users: initialUsers, currentUserId, currentUserRole }: UsersTableProps) {
   const [users, setUsers] = useState<AppUser[]>(initialUsers)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
@@ -291,6 +292,7 @@ export function UsersTable({ users: initialUsers, currentUserId }: UsersTablePro
             <UserProfilePanel
               user={selectedUser}
               currentUserId={currentUserId}
+              currentUserRole={currentUserRole}
               onClose={() => setSelectedId(null)}
               onUpdated={(patch) =>
                 setUsers((prev) => prev.map((u) => (u.id === selectedUser.id ? { ...u, ...patch } : u)))

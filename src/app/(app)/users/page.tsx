@@ -17,7 +17,7 @@ export default async function UsersPage() {
     .select('role')
     .eq('id', authUser.id)
     .single()
-  if (!appUser || !['admin', 'directora'].includes(appUser.role)) redirect('/')
+  if (!appUser || !['admin', 'directora', 'recepcion'].includes(appUser.role)) redirect('/')
 
   // Solo usuarios staff: excluir 'client' (FM legacy) y 'family' (portal Kinetic).
   const { data: users } = await supabase
@@ -30,7 +30,11 @@ export default async function UsersPage() {
     <div className="flex flex-col min-h-full">
       <TopNav title="Equipo" />
       <div className="p-6 max-w-6xl mx-auto w-full">
-        <UsersTable users={(users ?? []) as AppUser[]} currentUserId={authUser.id} />
+        <UsersTable
+          users={(users ?? []) as AppUser[]}
+          currentUserId={authUser.id}
+          currentUserRole={appUser.role as AppUser['role']}
+        />
       </div>
     </div>
   )

@@ -18,7 +18,10 @@ export async function updateUserRole(targetUserId: string, role: UserRole): Prom
       .select('role')
       .eq('id', user.id)
       .single()
-    if (appUser?.role !== 'admin') return { error: 'Solo admins pueden cambiar roles de usuario' }
+    const USER_MGMT_ROLES = ['admin', 'directora', 'recepcion']
+    if (!appUser || !USER_MGMT_ROLES.includes(appUser.role)) {
+      return { error: 'Sin permisos para cambiar roles de usuario' }
+    }
 
     const { data: targetUser } = await supabase
       .from('users')
@@ -27,6 +30,11 @@ export async function updateUserRole(targetUserId: string, role: UserRole): Prom
       .single()
 
     if (!targetUser) return { error: 'Usuario no encontrado' }
+
+    // Anti-escalada: solo un admin puede asignar el rol admin o tocar a un admin.
+    if (appUser.role !== 'admin' && (role === 'admin' || targetUser.role === 'admin')) {
+      return { error: 'Solo un admin puede asignar o modificar cuentas admin.' }
+    }
 
     if ((role === 'operator' || role === 'supervisor') && targetUser.role === 'admin') {
       const { count } = await supabase

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { TherapistWorkScheduleBlock } from '@/types/db'
 import {
@@ -10,7 +11,8 @@ import {
   type WeeklyOccupancy,
 } from '@/lib/domain/therapist-capacity'
 
-const ADMIN_ROLES = ['admin', 'directora'] as const
+// Roles que gestionan horarios/capacidad desde /users (Administración).
+const SCHEDULE_MGMT_ROLES = ['admin', 'directora', 'recepcion'] as const
 
 async function getActor() {
   const supabase = await createClient()
@@ -19,8 +21,8 @@ async function getActor() {
   return { supabase, user: { id: ctx.appUser.id, role: ctx.appUser.role } }
 }
 
-function isAdmin(role: string): boolean {
-  return (ADMIN_ROLES as readonly string[]).includes(role)
+function canManageSchedules(role: string): boolean {
+  return (SCHEDULE_MGMT_ROLES as readonly string[]).includes(role)
 }
 
 export interface UpsertScheduleBlockInput {
@@ -35,9 +37,9 @@ export interface UpsertScheduleBlockInput {
 export async function upsertScheduleBlock(
   input: UpsertScheduleBlockInput,
 ): Promise<{ ok: true; block: TherapistWorkScheduleBlock } | { ok: false; error: string }> {
-  const { supabase, user } = await getActor()
-  if (!isAdmin(user.role)) {
-    return { ok: false, error: 'Solo admin/directora pueden editar horarios.' }
+  const { user } = await getActor()
+  if (!canManageSchedules(user.role)) {
+    return { ok: false, error: 'Sin permisos para editar horarios.' }
   }
 
   if (input.dayOfWeek < 0 || input.dayOfWeek > 6) {
@@ -55,9 +57,12 @@ export async function upsertScheduleBlock(
     active: input.active ?? true,
   }
 
+  // Escritura con service role: la autorización ya se validó por rol arriba
+  // (las RLS de therapist_work_schedule son admin/directora; recepción pasa por aquí).
+  const admin = createAdminClient()
   const query = input.id
-    ? supabase.from('therapist_work_schedule').update(payload).eq('id', input.id).select('*').single()
-    : supabase.from('therapist_work_schedule').insert(payload).select('*').single()
+    ? admin.from('therapist_work_schedule').update(payload).eq('id', input.id).select('*').single()
+    : admin.from('therapist_work_schedule').insert(payload).select('*').single()
 
   const { data, error } = await query
   if (error || !data) {
@@ -72,12 +77,13 @@ export async function upsertScheduleBlock(
 export async function deleteScheduleBlock(
   id: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { supabase, user } = await getActor()
-  if (!isAdmin(user.role)) {
-    return { ok: false, error: 'Solo admin/directora pueden editar horarios.' }
+  const { user } = await getActor()
+  if (!canManageSchedules(user.role)) {
+    return { ok: false, error: 'Sin permisos para editar horarios.' }
   }
 
-  const { error } = await supabase
+  const admin = createAdminClient()
+  const { error } = await admin
     .from('therapist_work_schedule')
     .delete()
     .eq('id', id)
@@ -167,15 +173,18 @@ export async function setMaxHoursPerWeek(
   therapistId: string,
   hours: number | null,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { supabase, user } = await getActor()
-  if (!isAdmin(user.role)) {
-    return { ok: false, error: 'Solo admin/directora pueden editar horarios.' }
+  const { user } = await getActor()
+  if (!canManageSchedules(user.role)) {
+    return { ok: false, error: 'Sin permisos para editar horarios.' }
   }
   if (hours != null && (hours < 0 || hours > 100)) {
     return { ok: false, error: 'Horas semanales fuera de rango (0-100).' }
   }
 
-  const { error } = await supabase
+  // Service role: actualizar max_hours de OTRO usuario no lo permite la RLS de
+  // users ("solo su propio perfil"). La autorización se validó por rol arriba.
+  const admin = createAdminClient()
+  const { error } = await admin
     .from('users')
     .update({ max_hours_per_week: hours })
     .eq('id', therapistId)

@@ -79,6 +79,8 @@ function trimSeconds(t: string): string {
 interface Props {
   user: AppUser
   currentUserId: string
+  /** Rol del usuario que está viendo el panel (para gatear acciones admin-only). */
+  currentUserRole: UserRole
   onClose: () => void
   onUpdated: (patch: Partial<AppUser>) => void
   onDeleted: (id: string) => void
@@ -91,12 +93,14 @@ type Tab = 'perfil' | 'salario' | 'horario' | 'capacidad'
 function PerfilTab({
   user,
   currentUserId,
+  currentUserRole,
   onUpdated,
   onDeleted,
   onClose,
 }: {
   user: AppUser
   currentUserId: string
+  currentUserRole: UserRole
   onUpdated: (patch: Partial<AppUser>) => void
   onDeleted: (id: string) => void
   onClose: () => void
@@ -317,7 +321,7 @@ function PerfilTab({
 
       {/* Actions */}
       <div className="pt-3 border-t border-fm-outline-variant/15 flex flex-col gap-2">
-        {user.role !== 'admin' && !isCurrentUser && (
+        {currentUserRole === 'admin' && user.role !== 'admin' && !isCurrentUser && (
           <form action={startImpersonation.bind(null, user.id)}>
             <button
               type="submit"
@@ -1018,6 +1022,7 @@ function SalarioTab({
 export function UserProfilePanel({
   user,
   currentUserId,
+  currentUserRole,
   onClose,
   onUpdated,
   onDeleted,
@@ -1069,6 +1074,7 @@ export function UserProfilePanel({
           <PerfilTab
             user={user}
             currentUserId={currentUserId}
+            currentUserRole={currentUserRole}
             onUpdated={onUpdated}
             onDeleted={onDeleted}
             onClose={onClose}

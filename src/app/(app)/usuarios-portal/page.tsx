@@ -7,7 +7,7 @@ import { UsuariosPortalClient } from './UsuariosPortalClient'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES = ['admin', 'directora']
+const ALLOWED_ROLES = ['admin', 'directora', 'recepcion']
 
 export default async function UsuariosPortalPage() {
   const ctx = await getEffectiveUser()

@@ -5,12 +5,17 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import type { UserRole } from '@/types/db'
 
-async function assertAdmin() {
+// Roles que gestionan al personal desde la interfaz /users (Administración).
+const USER_MGMT_ROLES = ['admin', 'directora', 'recepcion']
+
+/** Verifica que el actor pueda gestionar usuarios y devuelve su rol. */
+async function requireUserManager(): Promise<UserRole> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('No autenticado')
   const { data } = await supabase.from('users').select('role').eq('id', user.id).single()
-  if (data?.role !== 'admin') throw new Error('Sin permisos')
+  if (!data || !USER_MGMT_ROLES.includes(data.role)) throw new Error('Sin permisos')
+  return data.role as UserRole
 }
 
 export async function createUser(payload: {
@@ -20,7 +25,11 @@ export async function createUser(payload: {
   role: UserRole
 }) {
   try {
-    await assertAdmin()
+    const actorRole = await requireUserManager()
+    // Anti-escalada: solo un admin puede crear otro admin.
+    if (payload.role === 'admin' && actorRole !== 'admin') {
+      return { error: 'Solo un admin puede crear cuentas con rol admin.' }
+    }
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return { error: 'Falta SUPABASE_SERVICE_ROLE_KEY en variables de entorno.' }
@@ -62,7 +71,7 @@ export async function updateUserProfile(payload: {
   email?: string
 }) {
   try {
-    await assertAdmin()
+    await requireUserManager()
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return { error: 'Falta SUPABASE_SERVICE_ROLE_KEY en variables de entorno.' }
@@ -108,7 +117,7 @@ export async function adminChangeUserPassword(payload: {
   newPassword: string
 }) {
   try {
-    await assertAdmin()
+    await requireUserManager()
 
     if (payload.newPassword.length < 8) {
       return { error: 'La contraseña debe tener al menos 8 caracteres.' }
@@ -134,13 +143,21 @@ export async function adminChangeUserPassword(payload: {
 
 export async function deleteUser(targetUserId: string) {
   try {
-    await assertAdmin()
+    const actorRole = await requireUserManager()
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return { error: 'Falta SUPABASE_SERVICE_ROLE_KEY en variables de entorno.' }
     }
 
     const admin = createAdminClient()
+
+    // Anti-escalada: solo un admin puede eliminar a otro admin.
+    if (actorRole !== 'admin') {
+      const { data: target } = await admin.from('users').select('role').eq('id', targetUserId).maybeSingle()
+      if (target?.role === 'admin') {
+        return { error: 'Solo un admin puede eliminar cuentas admin.' }
+      }
+    }
 
     const { error: authError } = await admin.auth.admin.deleteUser(targetUserId)
     if (authError) return { error: authError.message }
