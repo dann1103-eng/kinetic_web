@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import { createClient } from '@/lib/supabase/server'
 import { assertNotImpersonating } from './impersonation'
 import { setPresenceStatus } from './presence'
@@ -16,39 +17,68 @@ async function syncPresenceFromShift(status: PresenceStatus) {
   }
 }
 
-// Tope de seguridad para jornadas olvidadas. Una jornada real no supera esto;
-// si alguien no marcó salida, la dejamos crecer indefinidamente (se veía como
-// "jornada activa de 200 horas"). Pasado el tope, se auto-cierra.
-const MAX_SHIFT_SECONDS = 16 * 60 * 60 // 16 h
+// El centro cierra a las 6pm. Una jornada no debería extenderse más allá; si
+// alguien olvidó marcar salida (ej. cerró el navegador, así que el prompt
+// "¿Sigues en línea?" de las 6pm nunca corrió), se auto-cierra registrando la
+// salida a las 6pm de ese día.
+const TZ = 'America/El_Salvador'
+const BUSINESS_CLOSE_HOUR = 18 // 6pm
+const MAX_SHIFT_SECONDS = 16 * 60 * 60 // tope duro de seguridad
+
+/** 6pm (hora SV) del día en que inició la jornada, como instante UTC. */
+function businessCloseFor(startedISO: string): Date {
+  const local = toZonedTime(new Date(startedISO), TZ)
+  return fromZonedTime(
+    new Date(local.getFullYear(), local.getMonth(), local.getDate(), BUSINESS_CLOSE_HOUR, 0, 0),
+    TZ,
+  )
+}
+
+function svDayKey(d: Date): string {
+  return toZonedTime(d, TZ).toDateString()
+}
 
 /**
- * Si la jornada lleva abierta más que `MAX_SHIFT_SECONDS` (olvidaron marcar
- * salida), la cierra automáticamente capando la duración al tope — así no se
- * muestran cronómetros de cientos de horas ni se inflan los reportes. Queda
- * marcada en `notes` para que un admin la revise. Devuelve true si la cerró.
+ * Cierra automáticamente una jornada olvidada y devuelve true si lo hizo.
+ * Dispara cuando la jornada quedó abierta de un día para otro (overnight) o
+ * supera el tope de seguridad. Registra la salida a las 6pm del día de inicio
+ * (cierre del centro), capada al tope. Queda marcada en `notes` para revisión.
+ *
+ * No interfiere con quien sigue trabajando con la pestaña abierta el MISMO día:
+ * ese caso lo maneja el prompt de las 6pm (IdleSchedulerWrapper), que permite
+ * "sigo aquí".
  */
 async function autoCloseIfStale(
   supabase: Awaited<ReturnType<typeof createClient>>,
   session: WorkSession,
 ): Promise<boolean> {
   const startedMs = new Date(session.started_at).getTime()
-  const elapsedSec = Math.round((new Date().getTime() - startedMs) / 1000)
-  if (elapsedSec <= MAX_SHIFT_SECONDS) return false
+  const now = new Date()
+  const elapsedSec = Math.round((now.getTime() - startedMs) / 1000)
 
-  const cappedEnd = new Date(startedMs + MAX_SHIFT_SECONDS * 1000)
+  const overnight = svDayKey(now) !== svDayKey(new Date(session.started_at))
+  const tooLong = elapsedSec > MAX_SHIFT_SECONDS
+  if (!overnight && !tooLong) return false
+
+  // Cierre = 6pm SV del día de inicio. Si inició después de las 6pm (raro),
+  // usamos el inicio; nunca pasamos el tope duro de seguridad.
+  const close = businessCloseFor(session.started_at)
+  let cappedEndMs = Math.max(close.getTime(), startedMs)
+  cappedEndMs = Math.min(cappedEndMs, startedMs + MAX_SHIFT_SECONDS * 1000)
+  const cappedEnd = new Date(cappedEndMs)
+
   const breaks = (session.breaks_json ?? []) as WorkSessionBreak[]
-  // Cerrar cualquier pausa abierta al tope.
   const updatedBreaks = breaks.map((b) =>
     b.ended_at ? b : { ...b, ended_at: cappedEnd.toISOString() },
   )
   const breaksSeconds = updatedBreaks.reduce((sum, b) => {
     if (!b.ended_at) return sum
     const s = new Date(b.started_at).getTime()
-    const e = Math.min(new Date(b.ended_at).getTime(), cappedEnd.getTime())
+    const e = Math.min(new Date(b.ended_at).getTime(), cappedEndMs)
     return sum + Math.max(0, Math.round((e - s) / 1000))
   }, 0)
-  const totalSeconds = Math.max(0, MAX_SHIFT_SECONDS - breaksSeconds)
-  const note = `${session.notes ? `${session.notes} ` : ''}[auto-cerrada: jornada abierta >16h, olvidó marcar salida — revisar]`
+  const totalSeconds = Math.max(0, Math.round((cappedEndMs - startedMs) / 1000) - breaksSeconds)
+  const note = `${session.notes ? `${session.notes} ` : ''}[auto-cerrada a las 6pm: olvidó marcar salida — revisar]`
 
   await supabase
     .from('work_sessions')
