@@ -10,9 +10,11 @@ import { LoginBackground } from '@/components/ui/background-shaders'
 
 interface LoginFormProps {
   agencyLogoUrl: string | null
+  /** Sesión ya activa en este navegador (compu compartida), si la hay. */
+  existingSession: { name: string; email: string } | null
 }
 
-export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
+export function LoginForm({ agencyLogoUrl, existingSession }: LoginFormProps) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -28,6 +30,11 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
     setLoading(true)
 
     const supabase = createClient()
+    // Si había una sesión ajena en este navegador (compu compartida), la
+    // cerramos antes de entrar para arrancar limpio con la cuenta correcta.
+    if (existingSession) {
+      try { await supabase.auth.signOut() } catch { /* ignore */ }
+    }
     const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
     if (authError) {
@@ -102,6 +109,30 @@ export function LoginForm({ agencyLogoUrl }: LoginFormProps) {
           <p className="text-sm text-fm-on-surface-variant mb-6">
             Accede con tu cuenta de Kinetic.
           </p>
+
+          {existingSession && (
+            <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900">
+              <p className="font-medium">
+                Ya hay una sesión activa en esta computadora:
+              </p>
+              <p className="mt-0.5">
+                {existingSession.name
+                  ? `${existingSession.name} (${existingSession.email})`
+                  : existingSession.email}
+              </p>
+              <p className="mt-1.5 text-[13px]">
+                Si no sos vos, cerrá esta sesión antes de ingresar con tu cuenta.
+              </p>
+              <form action="/auth/signout" method="post" className="mt-2">
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-[13px] font-semibold text-amber-900 hover:bg-amber-100"
+                >
+                  Cerrar sesión de {existingSession.name || 'esta cuenta'}
+                </button>
+              </form>
+            </div>
+          )}
 
           <form onSubmit={handlePasswordLogin} className="space-y-4">
             <div className="space-y-1.5">
