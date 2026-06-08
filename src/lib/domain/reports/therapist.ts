@@ -674,7 +674,7 @@ export async function getTherapistTherapyEarnings(
   const appts = (apptsRaw ?? []) as {
     therapist_id: string | null
     service_type: string | null
-    is_extra: boolean | null
+    is_extra: boolean
     status: string
   }[]
 
