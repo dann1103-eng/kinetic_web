@@ -47,6 +47,10 @@ export async function createUser(payload: {
     if (error) return { error: error.message }
     if (!data.user) return { error: 'No se recibió el usuario creado.' }
 
+    // El trigger on_auth_user_created ya insertó (id, email) con rol por defecto
+    // 'operator'. Acá fijamos el rol/nombre reales. Si esto falla, revertimos
+    // borrando el usuario de auth para NO dejar una cuenta a medias (que luego
+    // bloquearía recrearla por "email ya existe").
     const { error: insertError } = await admin.from('users').upsert({
       id: data.user.id,
       email: payload.email,
@@ -54,7 +58,10 @@ export async function createUser(payload: {
       role: payload.role,
     })
 
-    if (insertError) return { error: insertError.message }
+    if (insertError) {
+      await admin.auth.admin.deleteUser(data.user.id).catch(() => {})
+      return { error: `No se pudo guardar el perfil del usuario: ${insertError.message}` }
+    }
 
     revalidatePath('/users')
     return { success: true }
