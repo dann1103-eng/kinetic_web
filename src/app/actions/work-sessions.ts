@@ -16,6 +16,53 @@ async function syncPresenceFromShift(status: PresenceStatus) {
   }
 }
 
+// Tope de seguridad para jornadas olvidadas. Una jornada real no supera esto;
+// si alguien no marcó salida, la dejamos crecer indefinidamente (se veía como
+// "jornada activa de 200 horas"). Pasado el tope, se auto-cierra.
+const MAX_SHIFT_SECONDS = 16 * 60 * 60 // 16 h
+
+/**
+ * Si la jornada lleva abierta más que `MAX_SHIFT_SECONDS` (olvidaron marcar
+ * salida), la cierra automáticamente capando la duración al tope — así no se
+ * muestran cronómetros de cientos de horas ni se inflan los reportes. Queda
+ * marcada en `notes` para que un admin la revise. Devuelve true si la cerró.
+ */
+async function autoCloseIfStale(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  session: WorkSession,
+): Promise<boolean> {
+  const startedMs = new Date(session.started_at).getTime()
+  const elapsedSec = Math.round((new Date().getTime() - startedMs) / 1000)
+  if (elapsedSec <= MAX_SHIFT_SECONDS) return false
+
+  const cappedEnd = new Date(startedMs + MAX_SHIFT_SECONDS * 1000)
+  const breaks = (session.breaks_json ?? []) as WorkSessionBreak[]
+  // Cerrar cualquier pausa abierta al tope.
+  const updatedBreaks = breaks.map((b) =>
+    b.ended_at ? b : { ...b, ended_at: cappedEnd.toISOString() },
+  )
+  const breaksSeconds = updatedBreaks.reduce((sum, b) => {
+    if (!b.ended_at) return sum
+    const s = new Date(b.started_at).getTime()
+    const e = Math.min(new Date(b.ended_at).getTime(), cappedEnd.getTime())
+    return sum + Math.max(0, Math.round((e - s) / 1000))
+  }, 0)
+  const totalSeconds = Math.max(0, MAX_SHIFT_SECONDS - breaksSeconds)
+  const note = `${session.notes ? `${session.notes} ` : ''}[auto-cerrada: jornada abierta >16h, olvidó marcar salida — revisar]`
+
+  await supabase
+    .from('work_sessions')
+    .update({
+      ended_at: cappedEnd.toISOString(),
+      status: 'ended',
+      breaks_json: updatedBreaks,
+      total_seconds: totalSeconds,
+      notes: note,
+    })
+    .eq('id', session.id)
+  return true
+}
+
 async function getAuthUser() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -30,7 +77,11 @@ async function getMyActive(supabase: Awaited<ReturnType<typeof createClient>>, u
     .eq('user_id', userId)
     .is('ended_at', null)
     .maybeSingle()
-  return (data as WorkSession | null) ?? null
+  const session = (data as WorkSession | null) ?? null
+  // Auto-cerrar jornadas olvidadas: si está vencida, se cierra y se considera
+  // que ya no hay jornada activa (el usuario podrá iniciar una nueva).
+  if (session && (await autoCloseIfStale(supabase, session))) return null
+  return session
 }
 
 export async function getMyActiveShift(): Promise<WorkSession | null> {

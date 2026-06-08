@@ -107,6 +107,18 @@ export function PayrollRunActions({ run }: Props) {
         </>
       )}
 
+      {run.status === 'paid' && (
+        <button
+          type="button"
+          onClick={() => setCancelOpen(true)}
+          disabled={pending}
+          className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-50 transition-colors disabled:opacity-50"
+          title="Anular una planilla ya pagada (ej. pago registrado por error)"
+        >
+          Anular planilla pagada
+        </button>
+      )}
+
       {cancelOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl bg-fm-background shadow-xl">

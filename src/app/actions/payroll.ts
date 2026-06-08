@@ -520,7 +520,9 @@ export async function cancelPayrollRun(
   const { data: run } = await supabase.from('payroll_runs').select('status').eq('id', runId).maybeSingle()
   if (!run) return { ok: false, error: 'Planilla no encontrada.' }
   if (run.status === 'cancelled') return { ok: false, error: 'Ya está anulada.' }
-  if (run.status === 'paid') return { ok: false, error: 'No se puede anular una planilla pagada.' }
+  // Se permite anular planillas PAGADAS (ej. pago registrado por error): queda
+  // archivada con motivo/quién/cuándo. Marcar pagada no genera asientos
+  // contables, así que no hay nada que revertir más allá del estado.
 
   const admin = createAdminClient()
   const { error } = await admin
