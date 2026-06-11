@@ -5,6 +5,7 @@ import {
   currentCycleDates,
   daysUntilEnd,
   isRenewalDue,
+  RENEWAL_WINDOW_DAYS,
 } from './cycles'
 
 describe('firstCycleDates monthly', () => {
@@ -113,9 +114,11 @@ describe('daysUntilEnd / isRenewalDue', () => {
     expect(daysUntilEnd('2026-04-15', '2026-04-20')).toBe(-5)
   })
 
-  it('isRenewalDue: true si faltan ≤ 3 días', () => {
-    expect(isRenewalDue('2026-04-23', '2026-04-20')).toBe(true)
-    expect(isRenewalDue('2026-04-24', '2026-04-20')).toBe(false)
+  it('isRenewalDue: true si faltan ≤ RENEWAL_WINDOW_DAYS días', () => {
+    // Si la ventana cambia, actualizar también las fechas de abajo.
+    expect(RENEWAL_WINDOW_DAYS).toBe(10)
+    expect(isRenewalDue('2026-04-30', '2026-04-20')).toBe(true) // exactamente RENEWAL_WINDOW_DAYS
+    expect(isRenewalDue('2026-05-01', '2026-04-20')).toBe(false) // RENEWAL_WINDOW_DAYS + 1
   })
 
   it('isRenewalDue: true si ya venció', () => {
