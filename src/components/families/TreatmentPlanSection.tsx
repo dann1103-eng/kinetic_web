@@ -14,6 +14,7 @@ import type {
   TreatmentPlanScheduleSlot,
 } from '@/types/db'
 import { isMonthlyFlatEntry } from '@/lib/domain/billing/monthly-flat'
+import { parseDate } from '@/lib/domain/dates'
 
 interface TherapistOption {
   id: string
@@ -132,7 +133,7 @@ function PlanReadOnly({
         <KV label="Terapista principal" value={therapistName} />
         <KV
           label="Fecha de inicio"
-          value={plan.starts_at ? new Date(plan.starts_at).toLocaleDateString('es-SV') : '—'}
+          value={plan.starts_at ? parseDate(plan.starts_at).toLocaleDateString('es-SV') : '—'}
         />
         <KV label="Edad al inicio" value={plan.age_at_start_text ?? '—'} />
       </div>
