@@ -307,6 +307,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 therapists={therapists}
                 canEdit={canEditPlan}
                 enrolledProgram={c.enrolled_program}
+                serviceCatalog={fullCatalog}
               />
               <MonthlyCyclesSection
                 childId={childId}

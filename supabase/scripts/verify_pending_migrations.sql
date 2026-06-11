@@ -314,6 +314,29 @@ WITH checks AS (
          (SELECT COUNT(*)::int FROM information_schema.columns
           WHERE table_schema='public' AND table_name='appointments'
             AND column_name='extra_reason')
+  UNION ALL
+  -- ── 0147 (mensualidad fija programas matutinos) ───────────────────
+  SELECT 54, 'mig_0147_is_monthly_flat_helper',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_proc WHERE proname='_kn_is_monthly_flat')
+  UNION ALL
+  SELECT 55, 'mig_0147_compute_flat_sin_cuota',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_proc
+          WHERE proname='compute_monthly_appointment_candidates'
+            AND prosrc ILIKE '%_kn_is_monthly_flat%')
+  UNION ALL
+  SELECT 56, 'mig_0147_confirm_linea_mensualidad',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_proc
+          WHERE proname='confirm_monthly_payment_and_generate'
+            AND prosrc ILIKE '%_kn_is_monthly_flat%')
+  UNION ALL
+  SELECT 57, 'mig_0147_absence_autowaive_matutinos',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_proc
+          WHERE proname='mark_appointment_absence'
+            AND prosrc ILIKE '%_kn_is_monthly_flat%')
 )
 SELECT
   check_name,

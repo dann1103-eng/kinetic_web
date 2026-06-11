@@ -31,6 +31,7 @@ import type {
   Invoice,
 } from '@/types/db'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
+import { daysPerWeekLabel, isMonthlyFlatEntry } from '@/lib/domain/billing/monthly-flat'
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
@@ -57,6 +58,16 @@ function buildCycleLineItems(
       const serviceLabel =
         SERVICE_TYPE_LABELS[t.service as ServiceType] ??
         t.service.replace(/_/g, ' ')
+      // Programas matutinos: mensualidad fija de suscripción — 1 × precio,
+      // sin importar cuántos días trae el mes.
+      if (isMonthlyFlatEntry(t)) {
+        const variant = daysPerWeekLabel(t.days_per_week)
+        return {
+          description: `Mensualidad ${serviceLabel}${variant ? ` — ${variant}` : ''}`,
+          quantity: 1,
+          unit_price: t.unit_cost_usd ?? 0,
+        }
+      }
       const sessions = t.sessions_per_month ?? 1
       return {
         description: `${serviceLabel} — ${sessions} sesión${sessions !== 1 ? 'es' : ''}/mes`,

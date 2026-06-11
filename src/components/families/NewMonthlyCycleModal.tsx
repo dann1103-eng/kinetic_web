@@ -16,9 +16,15 @@ import type {
   MorningProgram,
   ServiceCatalogItem,
   ServiceType,
+  TherapyBillingMode,
   TreatmentPlan,
 } from '@/types/db'
 import { applyDiscount } from '@/lib/domain/discounts'
+import {
+  daysPerWeekLabel,
+  isMonthlyFlatEntry,
+  therapyLineAmount,
+} from '@/lib/domain/billing/monthly-flat'
 import { DiscountFields } from './DiscountFields'
 import { DraggableCycleCalendar } from './DraggableCycleCalendar'
 
@@ -40,6 +46,7 @@ function catalogPriceFor(
   catalog: ServiceCatalogItem[] | undefined,
   service: string,
   enrolledProgram: MorningProgram | null | undefined,
+  daysPerWeek?: number | null,
 ): number {
   if (!catalog) return 0
   // 1) Terapia individual por service_type.
@@ -51,12 +58,17 @@ function catalogPriceFor(
     return Number(ind.unit_price_usd)
   }
   // 2) Programa matutino (blue_kids / learning_kids / aula_educativa):
-  //    buscar mensualidad de ese programa. Como el plan no guarda días/semana,
-  //    se sugiere el precio del paquete de más días (5d) y la persona ajusta.
+  //    mensualidad fija. Se busca la variante exacta de días/semana del plan;
+  //    si el plan no la trae, se sugiere el paquete de más días y se ajusta.
   if (service === 'blue_kids' || service === 'learning_kids' || service === 'aula_educativa') {
-    const mens = catalog
-      .filter((c) => c.active && c.category === 'mensualidad' && c.morning_program === service)
-      .sort((a, b) => (b.days_per_week ?? 0) - (a.days_per_week ?? 0))[0]
+    const variants = catalog.filter(
+      (c) => c.active && c.category === 'mensualidad' && c.morning_program === service,
+    )
+    const exact = daysPerWeek
+      ? variants.find((c) => c.days_per_week === daysPerWeek)
+      : undefined
+    const mens =
+      exact ?? variants.sort((a, b) => (b.days_per_week ?? 0) - (a.days_per_week ?? 0))[0]
     if (mens) return Number(mens.unit_price_usd)
   }
   return 0
@@ -66,6 +78,9 @@ interface PricedTherapy {
   service: string
   sessions_per_month: number
   unit_cost_usd: number
+  /** 'monthly_flat' ⇒ mensualidad fija: subtotal = 1 × precio. */
+  billing_mode?: TherapyBillingMode
+  days_per_week?: number | null
 }
 
 /** Default: el próximo mes (1ro). Devuelve 'YYYY-MM'. */
@@ -105,11 +120,15 @@ export function NewMonthlyCycleModal({
       .map((t) => ({
         service: t.service,
         sessions_per_month: t.sessions_per_month || 0,
-        // Si el plan trae un precio (>0) lo respetamos; si no, jalamos del catálogo.
+        // Si el plan trae un precio (>0) lo respetamos; si no, jalamos del catálogo
+        // (para mensualidades, la variante exacta de días/semana del plan).
         unit_cost_usd:
           (t.unit_cost_usd && t.unit_cost_usd > 0)
             ? t.unit_cost_usd
-            : catalogPriceFor(therapyCatalog, t.service, enrolledProgram),
+            : catalogPriceFor(therapyCatalog, t.service, enrolledProgram, t.days_per_week),
+        // Modalidad resuelta (explícita o implícita por servicio matutino).
+        billing_mode: isMonthlyFlatEntry(t) ? 'monthly_flat' : 'per_session',
+        days_per_week: t.days_per_week ?? null,
       })),
   )
 
@@ -117,9 +136,17 @@ export function NewMonthlyCycleModal({
     setPriced((prev) => prev.map((p, i) => (i === idx ? { ...p, unit_cost_usd: unit } : p)))
   }
 
-  // Subtotal = suma(sesiones × precio) de las terapias precargadas.
+  // Subtotal: sesiones × precio para terapias; 1 × mensualidad para programas
+  // matutinos (suscripción — el mes vale lo mismo tenga 28 o 31 días).
   const planSubtotal = priced.reduce(
-    (s, t) => s + (t.sessions_per_month || 0) * (t.unit_cost_usd || 0),
+    (s, t) =>
+      s +
+      therapyLineAmount({
+        service: t.service as ServiceType,
+        billing_mode: t.billing_mode,
+        sessions_per_month: t.sessions_per_month || 0,
+        unit_cost_usd: t.unit_cost_usd || 0,
+      }),
     0,
   )
 
@@ -450,6 +477,14 @@ export function NewMonthlyCycleModal({
                     <tr key={`${t.service}-${idx}`} className="border-t border-fm-outline-variant/10">
                       <td className="px-3 py-1.5">
                         {SERVICE_TYPE_LABELS[t.service as ServiceType] ?? t.service}
+                        {t.billing_mode === 'monthly_flat' && (
+                          <span
+                            className="ml-1.5 inline-block text-[9px] px-1.5 py-0.5 rounded-full bg-fm-primary/10 text-fm-primary font-medium align-middle"
+                            title={`Mensualidad fija${daysPerWeekLabel(t.days_per_week) ? ` — ${daysPerWeekLabel(t.days_per_week)}` : ''}: se cobra 1 × precio sin importar el número de citas del mes.`}
+                          >
+                            Mensualidad{t.days_per_week ? ` ${t.days_per_week}d` : ''}
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-1.5">
                         {(() => {
@@ -502,7 +537,12 @@ export function NewMonthlyCycleModal({
                         />
                       </td>
                       <td className="text-right px-3 py-1.5 tabular-nums font-medium">
-                        ${(t.sessions_per_month * t.unit_cost_usd).toFixed(2)}
+                        ${therapyLineAmount({
+                          service: t.service as ServiceType,
+                          billing_mode: t.billing_mode,
+                          sessions_per_month: t.sessions_per_month,
+                          unit_cost_usd: t.unit_cost_usd,
+                        }).toFixed(2)}
                       </td>
                     </tr>
                   ))}
@@ -515,6 +555,12 @@ export function NewMonthlyCycleModal({
                 citas en el calendario de abajo y se cobra en consecuencia. Útil si
                 el niño no asistirá a todas (asuetos, ausencias avisadas). También
                 podés quitar una cita puntual con la ✕ en el calendario.
+                {priced.some((t) => t.billing_mode === 'monthly_flat') && (
+                  <>
+                    {' '}Las filas con <b>Mensualidad</b> se cobran a precio fijo
+                    (1 × mensualidad): quitar o agregar citas no cambia el monto.
+                  </>
+                )}
               </p>
             )}
           </div>

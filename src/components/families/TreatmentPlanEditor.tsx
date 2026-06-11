@@ -14,12 +14,14 @@ import {
 import type {
   DayOfWeek,
   MorningProgram,
+  ServiceCatalogItem,
   ServiceType,
   SlotFrequency,
   TreatmentPlan,
   TreatmentPlanScheduleSlot,
   TreatmentPlanTherapyEntry,
 } from '@/types/db'
+import { isMorningProgramService } from '@/lib/domain/billing/monthly-flat'
 
 interface TherapistOption {
   id: string
@@ -38,6 +40,11 @@ interface Props {
    * el ciclo mensual.
    */
   enrolledProgram?: MorningProgram | null
+  /**
+   * Catálogo de servicios — para listar las variantes de mensualidad de los
+   * programas matutinos (Blue Kids 2/3/4/5 días a la semana, etc.).
+   */
+  serviceCatalog?: ServiceCatalogItem[]
 }
 
 const SERVICE_OPTIONS = Object.entries(SERVICE_TYPE_LABELS) as [ServiceType, string][]
@@ -66,8 +73,29 @@ export function TreatmentPlanEditor({
   therapists,
   onClose,
   enrolledProgram,
+  serviceCatalog,
 }: Props) {
   const router = useRouter()
+
+  // Variantes de mensualidad por programa matutino (del catálogo de precios).
+  const mensualidadVariants = useMemo(() => {
+    const map = new Map<string, ServiceCatalogItem[]>()
+    for (const item of serviceCatalog ?? []) {
+      if (!item.active || item.category !== 'mensualidad' || !item.morning_program) continue
+      if (!map.has(item.morning_program)) map.set(item.morning_program, [])
+      map.get(item.morning_program)!.push(item)
+    }
+    for (const [, list] of map) list.sort((a, b) => (a.days_per_week ?? 0) - (b.days_per_week ?? 0))
+    return map
+  }, [serviceCatalog])
+
+  /** days_per_week default para un programa: 5 si existe, si no la variante mayor. */
+  function defaultDaysPerWeek(service: string): number | null {
+    const variants = mensualidadVariants.get(service) ?? []
+    if (variants.some((v) => v.days_per_week === 5)) return 5
+    const last = variants[variants.length - 1]
+    return last?.days_per_week ?? 5
+  }
   const [primaryTherapistId, setPrimaryTherapistId] = useState<string>(
     existing?.primary_therapist_id ?? '',
   )
@@ -76,9 +104,14 @@ export function TreatmentPlanEditor({
   const [ageAtStart, setAgeAtStart] = useState(existing?.age_at_start_text ?? '')
   const [observations, setObservations] = useState(existing?.observations ?? '')
   const [therapies, setTherapies] = useState<TreatmentPlanTherapyEntry[]>(() => {
-    // Plan existente: cargar tal cual
+    // Plan existente: cargar normalizando los programas matutinos a su
+    // modalidad de mensualidad fija (planes viejos no traen billing_mode).
     if (existing?.therapies_json && existing.therapies_json.length > 0) {
-      return existing.therapies_json
+      return existing.therapies_json.map((t) =>
+        isMorningProgramService(t.service) && !t.billing_mode
+          ? { ...t, billing_mode: 'monthly_flat', days_per_week: t.days_per_week ?? defaultDaysPerWeek(t.service) }
+          : t,
+      )
     }
     // Plan nuevo: si el niño está inscrito en programa matutino,
     // pre-cargar esa línea automáticamente para no obligar a buscarla.
@@ -87,7 +120,15 @@ export function TreatmentPlanEditor({
       // de la migración 0132. Cast directo porque MorningProgram es un subset.
       const programService = enrolledProgram as ServiceType
       return [
-        { service: programService, active: true, sessions_per_month: 1, unit_cost_usd: 0, therapist_id: null },
+        {
+          service: programService,
+          active: true,
+          sessions_per_month: 0,
+          unit_cost_usd: 0,
+          therapist_id: null,
+          billing_mode: 'monthly_flat',
+          days_per_week: defaultDaysPerWeek(programService),
+        },
       ]
     }
     return [emptyTherapy()]
@@ -142,21 +183,40 @@ export function TreatmentPlanEditor({
         (estimatedByService.get(s.service) ?? 0) + perMonthBy[f],
       )
     }
+    // Días distintos marcados en el horario por servicio (para mensualidades).
+    const daysByService = new Map<string, Set<DayOfWeek>>()
+    for (const s of slots) {
+      if (!daysByService.has(s.service)) daysByService.set(s.service, new Set())
+      daysByService.get(s.service)!.add(s.day_of_week)
+    }
     const warnings: string[] = []
     for (const t of therapies) {
       if (!t.active) continue
+      const label = SERVICE_TYPE_LABELS[t.service] ?? t.service
+      if (t.billing_mode === 'monthly_flat') {
+        // Mensualidad: la cuota no aplica; se compara variante vs días marcados.
+        const marked = daysByService.get(t.service)?.size ?? 0
+        if (marked === 0) {
+          warnings.push(`${label}: mensualidad sin días marcados en el horario.`)
+        } else if (t.days_per_week && marked !== t.days_per_week) {
+          warnings.push(
+            `${label}: la variante es de ${t.days_per_week} días/semana pero el horario marca ${marked} día(s).`,
+          )
+        }
+        continue
+      }
       const estimated = estimatedByService.get(t.service) ?? 0
       if (estimated === 0 && t.sessions_per_month > 0) {
         warnings.push(
-          `${t.service}: cuota ${t.sessions_per_month}/mes pero no hay slots en el horario.`,
+          `${label}: cuota ${t.sessions_per_month}/mes pero no hay slots en el horario.`,
         )
       } else if (estimated > 0 && t.sessions_per_month === 0) {
         warnings.push(
-          `${t.service}: hay slots en el horario pero la cuota mensual es 0.`,
+          `${label}: hay slots en el horario pero la cuota mensual es 0.`,
         )
       } else if (estimated > 0 && Math.abs(estimated - t.sessions_per_month) > 1) {
         warnings.push(
-          `${t.service}: cuota ${t.sessions_per_month}/mes vs ~${estimated} estimado del patrón.`,
+          `${label}: cuota ${t.sessions_per_month}/mes vs ~${estimated} estimado del patrón.`,
         )
       }
     }
@@ -302,7 +362,18 @@ export function TreatmentPlanEditor({
                 >
                   <select
                     value={t.service}
-                    onChange={(e) => patchTherapy(idx, { service: e.target.value as ServiceType })}
+                    onChange={(e) => {
+                      const service = e.target.value as ServiceType
+                      // Programas matutinos → modalidad mensualidad fija.
+                      patchTherapy(idx, isMorningProgramService(service)
+                        ? {
+                            service,
+                            billing_mode: 'monthly_flat',
+                            days_per_week: defaultDaysPerWeek(service),
+                            sessions_per_month: 0,
+                          }
+                        : { service, billing_mode: 'per_session', days_per_week: null })
+                    }}
                     className="rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
                   >
                     {SERVICE_OPTIONS.map(([v, lbl]) => (
@@ -324,19 +395,43 @@ export function TreatmentPlanEditor({
                       </option>
                     ))}
                   </select>
-                  <label className="flex items-center gap-1 text-xs text-fm-on-surface-variant">
-                    <input
-                      type="number"
-                      min={0}
-                      value={t.sessions_per_month}
+                  {t.billing_mode === 'monthly_flat' ? (
+                    <select
+                      value={t.days_per_week ?? ''}
                       onChange={(e) =>
-                        patchTherapy(idx, { sessions_per_month: Number(e.target.value) })
+                        patchTherapy(idx, { days_per_week: e.target.value ? Number(e.target.value) : null })
                       }
-                      placeholder="ses/mes"
-                      className="w-14 rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
-                    />
-                    /mes
-                  </label>
+                      title="Variante del programa (mensualidad fija del catálogo). El precio se aplica al cobrar el ciclo."
+                      className="rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-xs"
+                    >
+                      <option value="">Variante…</option>
+                      {(mensualidadVariants.get(t.service)?.length
+                        ? mensualidadVariants.get(t.service)!.map((v) => ({
+                            days: v.days_per_week ?? 0,
+                            label: `${v.days_per_week}d/sem · $${Number(v.unit_price_usd).toFixed(0)}`,
+                          }))
+                        : [2, 3, 4, 5].map((d) => ({ days: d, label: `${d}d/sem` }))
+                      ).map((opt) => (
+                        <option key={opt.days} value={opt.days}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <label className="flex items-center gap-1 text-xs text-fm-on-surface-variant">
+                      <input
+                        type="number"
+                        min={0}
+                        value={t.sessions_per_month}
+                        onChange={(e) =>
+                          patchTherapy(idx, { sessions_per_month: Number(e.target.value) })
+                        }
+                        placeholder="ses/mes"
+                        className="w-14 rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm tabular-nums"
+                      />
+                      /mes
+                    </label>
+                  )}
                   <label className="flex items-center gap-1 text-xs">
                     <input
                       type="checkbox"
@@ -358,7 +453,10 @@ export function TreatmentPlanEditor({
             </div>
 
             <p className="text-[11px] text-fm-on-surface-variant italic">
-              Los precios se definen al cobrar el ciclo mensual del niño/a.
+              Los precios se definen al cobrar el ciclo mensual del niño/a. Los
+              programas matutinos (Blue Kids, Learning Kids, Aula Educativa) se
+              cobran como <b>mensualidad fija</b>: se elige la variante de días a
+              la semana y el mes vale lo mismo tenga 28 o 31 días.
             </p>
           </section>
 

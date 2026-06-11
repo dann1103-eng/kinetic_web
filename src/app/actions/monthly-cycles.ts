@@ -8,8 +8,11 @@ import type {
   MonthlyCandidatesResult,
   MonthlySessionCycle,
   DiscountKind,
+  TherapyBillingMode,
+  TreatmentPlanTherapyEntry,
 } from '@/types/db'
 import { validateDiscount } from '@/lib/domain/discounts'
+import { isMonthlyFlatEntry, therapyLineAmount } from '@/lib/domain/billing/monthly-flat'
 import { createInvoiceForCycle } from './kinetic-invoices'
 import { fromZonedTime } from 'date-fns-tz'
 
@@ -156,12 +159,28 @@ export async function getCycleRolloverPreview(
       .map((a) => a.appointment_id as string),
   )
 
+  // Servicios con mensualidad fija (programas matutinos): suscripción —
+  // las faltas no se reponen ni se arrastran al mes siguiente.
+  const { data: activePlan } = await supabase
+    .from('treatment_plans')
+    .select('therapies_json')
+    .eq('child_id', childId)
+    .eq('active', true)
+    .maybeSingle()
+  const billingModeBy = new Map<string, TherapyBillingMode | undefined>(
+    (((activePlan?.therapies_json ?? []) as TreatmentPlanTherapyEntry[]).map((t) => [
+      t.service,
+      t.billing_mode,
+    ])),
+  )
+
   // No dadas sin reposición, por servicio.
   const missedBy = new Map<string, number>()
   for (const a of appts) {
     const notDelivered = ['no_show', 'late_cancel', 'cancelled'].includes(a.status)
     if (notDelivered && !replaced.has(a.id)) {
       const svc = a.service_type ?? 'otra'
+      if (isMonthlyFlatEntry({ service: svc as TreatmentPlanTherapyEntry['service'], billing_mode: billingModeBy.get(svc) })) continue
       missedBy.set(svc, (missedBy.get(svc) ?? 0) + 1)
     }
   }
@@ -212,8 +231,15 @@ export interface ConfirmMonthlyPaymentInput {
   /**
    * Precios finales por terapia (editados al cobrar). Sobreescriben los precios
    * del snapshot del plan en el ciclo, para que la factura use estos montos.
+   * `billing_mode: 'monthly_flat'` ⇒ el monto de la línea es 1 × unit_cost_usd
+   * (mensualidad fija de programa matutino), no sesiones × precio.
    */
-  pricedTherapies?: { service: string; sessions_per_month: number; unit_cost_usd: number }[]
+  pricedTherapies?: {
+    service: string
+    sessions_per_month: number
+    unit_cost_usd: number
+    billing_mode?: TherapyBillingMode
+  }[]
   /**
    * Fecha límite de pago (periodo de gracia) 'YYYY-MM-DD'. Si no se manda,
    * el RPC usa el día 5 del mes.
@@ -337,8 +363,16 @@ export async function confirmMonthlyPaymentAndGenerate(
       updatePayload.treatment_plan_snapshot = { ...snapshot, therapies_json: therapies }
 
       // Monto esperado del ciclo (pendiente) = subtotal priced − descuento.
+      // Mensualidades fijas (programas matutinos) cuentan 1 × precio.
       const subtotal = input.pricedTherapies.reduce(
-        (sum, p) => sum + p.sessions_per_month * p.unit_cost_usd,
+        (sum, p) =>
+          sum +
+          therapyLineAmount({
+            service: p.service as TreatmentPlanTherapyEntry['service'],
+            billing_mode: p.billing_mode,
+            sessions_per_month: p.sessions_per_month,
+            unit_cost_usd: p.unit_cost_usd,
+          }),
         0,
       )
       let expected = subtotal

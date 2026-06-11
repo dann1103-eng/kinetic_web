@@ -13,6 +13,7 @@ import type {
   DayOfWeek,
   TreatmentPlanScheduleSlot,
 } from '@/types/db'
+import { isMonthlyFlatEntry } from '@/lib/domain/billing/monthly-flat'
 
 interface TherapistOption {
   id: string
@@ -27,6 +28,8 @@ interface Props {
   canEdit: boolean
   /** Programa matutino del niño (BK/LK/Aula) — pre-carga esa terapia en el plan. */
   enrolledProgram?: import('@/types/db').MorningProgram | null
+  /** Catálogo de servicios — variantes de mensualidad para el editor. */
+  serviceCatalog?: import('@/types/db').ServiceCatalogItem[]
 }
 
 const DAY_ORDER: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
@@ -37,6 +40,7 @@ export function TreatmentPlanSection({
   therapists,
   canEdit,
   enrolledProgram,
+  serviceCatalog,
 }: Props) {
   const [showEditor, setShowEditor] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -86,6 +90,7 @@ export function TreatmentPlanSection({
           therapists={therapists}
           onClose={() => setShowEditor(false)}
           enrolledProgram={enrolledProgram}
+          serviceCatalog={serviceCatalog}
         />
       )}
 
@@ -178,7 +183,15 @@ function PlanReadOnly({
                             <span className="italic text-fm-on-surface-variant/70">Principal</span>
                           )}
                         </td>
-                        <td className="text-right px-3 py-1.5 tabular-nums">{t.sessions_per_month}</td>
+                        <td className="text-right px-3 py-1.5 tabular-nums">
+                          {isMonthlyFlatEntry(t) ? (
+                            <span className="text-xs text-fm-primary font-medium whitespace-nowrap">
+                              Mensualidad{t.days_per_week ? ` · ${t.days_per_week}d/sem` : ''}
+                            </span>
+                          ) : (
+                            t.sessions_per_month
+                          )}
+                        </td>
                       </tr>
                     )
                   })}

@@ -3470,13 +3470,24 @@ export const DAY_OF_WEEK_LABELS: Record<DayOfWeek, string> = {
   sun: 'Domingo',
 }
 
+/** Modalidad de cobro de una entrada del plan.
+ *    per_session  — sesiones × precio unitario (terapias individuales).
+ *    monthly_flat — mensualidad fija de suscripción (programas matutinos):
+ *                   se generan citas todos los días establecidos del mes sin
+ *                   cuota, y se cobra 1 × precio sin importar 28 o 31 días.
+ *  Ausente ⇒ los servicios matutinos (blue_kids/learning_kids/aula_educativa)
+ *  son monthly_flat implícito; el resto per_session (ver
+ *  src/lib/domain/billing/monthly-flat.ts). */
+export type TherapyBillingMode = 'per_session' | 'monthly_flat'
+
 /** Una terapia activa en el plan del niño. */
 export interface TreatmentPlanTherapyEntry {
   service: ServiceType
   active: boolean
-  /** Cantidad de sesiones por mes contratadas (cuadro "Cantidad de Terapias al mes" del Excel). */
+  /** Cantidad de sesiones por mes contratadas (cuadro "Cantidad de Terapias al mes" del Excel).
+   *  En modalidad monthly_flat se ignora para el cobro. */
   sessions_per_month: number
-  /** Costo por sesión en USD. */
+  /** per_session: costo por sesión. monthly_flat: mensualidad fija. USD. */
   unit_cost_usd: number
   /**
    * Terapista asignada a ESTE tipo de terapia. Si es null/ausente, se usa
@@ -3484,6 +3495,11 @@ export interface TreatmentPlanTherapyEntry {
    * cada cita del servicio se asigna a esta terapista.
    */
   therapist_id?: string | null
+  /** Modalidad de cobro. Ver TherapyBillingMode. */
+  billing_mode?: TherapyBillingMode
+  /** Variante del programa matutino (días a la semana, del catálogo de
+   *  mensualidades). Solo aplica en monthly_flat. */
+  days_per_week?: number | null
 }
 
 /** Frecuencia de un slot dentro del mes.

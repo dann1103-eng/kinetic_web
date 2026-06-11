@@ -14,6 +14,7 @@ import type {
 } from '@/types/db'
 import { SERVICE_TYPE_LABELS, DAY_OF_WEEK_LABELS } from '@/types/db'
 import { applyDiscount, validateDiscount } from '@/lib/domain/discounts'
+import { therapyLineAmount } from '@/lib/domain/billing/monthly-flat'
 
 const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'] as const
 
@@ -48,12 +49,25 @@ function validateTherapies(input: unknown): TreatmentPlanTherapyEntry[] | string
     const rawTherapist = t.therapist_id
     const therapistId =
       typeof rawTherapist === 'string' && rawTherapist.trim() ? rawTherapist.trim() : null
+    // Modalidad de cobro (opcional): mensualidad fija para programas matutinos.
+    const billingMode = t.billing_mode
+    if (billingMode !== undefined && billingMode !== 'per_session' && billingMode !== 'monthly_flat') {
+      return 'Modalidad de cobro inválida.'
+    }
+    let daysPerWeek: number | null = null
+    if (t.days_per_week !== undefined && t.days_per_week !== null) {
+      const d = Number(t.days_per_week)
+      if (!Number.isInteger(d) || d < 1 || d > 7) return 'Días por semana inválido (1-7).'
+      daysPerWeek = d
+    }
     result.push({
       service: t.service as ServiceType,
       active: t.active !== false,
       sessions_per_month: Math.floor(sessions),
       unit_cost_usd: Math.round(cost * 100) / 100,
       therapist_id: therapistId,
+      ...(billingMode ? { billing_mode: billingMode } : {}),
+      ...(daysPerWeek !== null ? { days_per_week: daysPerWeek } : {}),
     })
   }
   return result
@@ -78,11 +92,16 @@ function validateSchedule(input: unknown): TreatmentPlanScheduleSlot[] | string 
     if (!Number.isFinite(dur) || dur < 5 || dur > 240) {
       return 'Duración inválida (5-240 min).'
     }
+    const freq = s.frequency ?? 'weekly'
+    if (freq !== 'weekly' && freq !== 'biweekly' && freq !== 'monthly') {
+      return 'Frecuencia de slot inválida.'
+    }
     result.push({
       day_of_week: s.day_of_week as DayOfWeek,
       time_local: s.time_local,
       duration_minutes: Math.floor(dur),
       service: s.service as ServiceType,
+      frequency: freq,
     })
   }
   return result
@@ -92,7 +111,7 @@ function recalcSubtotal(therapies: TreatmentPlanTherapyEntry[]): number {
   return Math.round(
     therapies
       .filter((t) => t.active)
-      .reduce((sum, t) => sum + t.sessions_per_month * t.unit_cost_usd, 0) * 100,
+      .reduce((sum, t) => sum + therapyLineAmount(t), 0) * 100,
   ) / 100
 }
 
