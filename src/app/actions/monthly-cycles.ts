@@ -13,6 +13,11 @@ import type {
 } from '@/types/db'
 import { validateDiscount } from '@/lib/domain/discounts'
 import { isMonthlyFlatEntry, therapyLineAmount } from '@/lib/domain/billing/monthly-flat'
+import {
+  expectedCycleAmount,
+  isCycleEditable,
+  type PricedTherapyInput,
+} from '@/lib/domain/billing/cycle-edit'
 import { createInvoiceForCycle } from './kinetic-invoices'
 import { fromZonedTime } from 'date-fns-tz'
 
@@ -94,6 +99,60 @@ export async function dryRunMonthlyGeneration(
   }
 
   return { ok: true, result: data as MonthlyCandidatesResult }
+}
+
+/**
+ * Dry-run para REGENERAR las citas de un ciclo existente. Igual que el dry-run
+ * normal, pero descarta los conflictos contra las propias citas auto-generadas
+ * del ciclo (las que se van a reemplazar) — si no, el preview marcaría falsos
+ * choques contra sí mismas.
+ */
+export async function dryRunCycleRegeneration(
+  childId: string,
+  periodMonthInput: string,
+): Promise<{ ok: true; result: MonthlyCandidatesResult } | { ok: false; error: string }> {
+  const base = await dryRunMonthlyGeneration(childId, periodMonthInput)
+  if (!base.ok) return base
+
+  let periodMonth: string
+  try {
+    periodMonth = normalizePeriodMonth(periodMonthInput)
+  } catch {
+    return { ok: true, result: base.result }
+  }
+
+  const { supabase } = await getActor()
+  const [y, m] = periodMonth.slice(0, 7).split('-').map(Number)
+  const startISO = fromZonedTime(new Date(y, m - 1, 1, 0, 0, 0), 'America/El_Salvador').toISOString()
+  const endISO = fromZonedTime(new Date(y, m, 1, 0, 0, 0), 'America/El_Salvador').toISOString()
+
+  // IDs de las citas scheduled auto-generadas del mes (las que se reemplazarán).
+  const { data: ownRaw } = await supabase
+    .from('appointments')
+    .select('id, notes')
+    .eq('child_id', childId)
+    .eq('status', 'scheduled')
+    .gte('starts_at', startISO)
+    .lt('starts_at', endISO)
+  const ownIds = new Set(
+    ((ownRaw ?? []) as { id: string; notes: string | null }[])
+      .filter((a) => (a.notes ?? '').includes('Auto-generado del ciclo'))
+      .map((a) => a.id),
+  )
+
+  if (ownIds.size === 0) return { ok: true, result: base.result }
+
+  const conflicts = base.result.conflicts.filter(
+    (c) => !ownIds.has(c.conflicting_appointment_id),
+  )
+  return {
+    ok: true,
+    result: {
+      ...base.result,
+      conflicts,
+      summary: { ...base.result.summary, conflict_count: conflicts.length },
+    },
+  }
 }
 
 // ── Rollover: sesiones no dadas del mes anterior ───────────────────────────
@@ -480,6 +539,156 @@ export async function extendMonthlyCycleGrace(
   revalidatePath('/familias')
   revalidatePath('/ninos')
   return { ok: true, cycle: data as MonthlySessionCycle }
+}
+
+// ── Editar un ciclo pendiente (mgmt) ───────────────────────────────────────
+
+export interface EditMonthlyCycleInput {
+  cycleId: string
+  /** Detalle de cobro editado: terapias con sesiones/mes y precio unitario. */
+  pricedTherapies: PricedTherapyInput[]
+  discountKind?: DiscountKind
+  discountValue?: number
+  discountReason?: string | null
+  /** Fecha límite de pago 'YYYY-MM-DD'. Si no se manda, se respeta la actual. */
+  dueDate?: string | null
+  /** Justificación del cambio (obligatoria, queda en las notas para auditoría). */
+  reason: string
+  notes?: string | null
+  /** Si true, regenera las citas del mes según el plan/override. */
+  regenerateAppointments?: boolean
+  /** Citas exactas a crear al regenerar (override del auto-compute). */
+  appointmentsOverride?: MonthlyCandidateAppointment[] | null
+}
+
+export async function editMonthlyCycle(
+  input: EditMonthlyCycleInput,
+): Promise<{ ok: true; cycle: MonthlySessionCycle } | { ok: false; error: string }> {
+  const { supabase, user } = await getActor()
+  if (!isMgmt(user.role)) {
+    return { ok: false, error: 'Solo admin/directora/coord/recepción/contable.' }
+  }
+  if (!input.reason || input.reason.trim().length < 3) {
+    return { ok: false, error: 'Indicá una justificación del cambio.' }
+  }
+
+  const discountKind: DiscountKind = input.discountKind ?? 'none'
+  const discountValue = Number(input.discountValue ?? 0)
+  const discountError = validateDiscount({ kind: discountKind, value: discountValue })
+  if (discountError) return { ok: false, error: discountError }
+
+  // Cargar el ciclo y validar que sea editable (generado + pendiente).
+  const { data: cycleRaw, error: loadErr } = await supabase
+    .from('monthly_session_cycles')
+    .select('*')
+    .eq('id', input.cycleId)
+    .maybeSingle()
+  if (loadErr) return { ok: false, error: loadErr.message }
+  if (!cycleRaw) return { ok: false, error: 'Ciclo no encontrado.' }
+  const cycle = cycleRaw as MonthlySessionCycle
+  if (!isCycleEditable(cycle)) {
+    return {
+      ok: false,
+      error: 'Solo se pueden editar ciclos generados y aún pendientes de pago.',
+    }
+  }
+
+  // 1) Regenerar citas PRIMERO (si se pidió): si hay conflictos, no tocamos el
+  //    cobro — el usuario resuelve y reintenta.
+  if (input.regenerateAppointments) {
+    const { error: regenErr } = await supabase.rpc('regenerate_cycle_appointments', {
+      p_cycle_id: cycle.id,
+      p_appointments_override: input.appointmentsOverride ?? null,
+    })
+    if (regenErr) {
+      const msg = regenErr.message ?? ''
+      if (msg.includes('not_authorized')) return { ok: false, error: 'No autorizado.' }
+      if (msg.includes('cycle_not_editable')) {
+        return { ok: false, error: 'El ciclo ya no es editable (¿se pagó o anuló?).' }
+      }
+      if (msg.includes('no_active_treatment_plan')) {
+        return { ok: false, error: 'El niño no tiene plan de tratamiento activo.' }
+      }
+      if (msg.includes('plan_has_no_primary_therapist')) {
+        return { ok: false, error: 'El plan no tiene terapista principal asignada.' }
+      }
+      if (msg.includes('override_date_out_of_period')) {
+        return { ok: false, error: 'Una cita quedó fuera del mes. Movela dentro del mes.' }
+      }
+      if (msg.includes('has_conflicts')) {
+        return {
+          ok: false,
+          error:
+            'Hay conflictos de horario con otras citas del terapista. Resolvé en /agenda y reintentá.',
+        }
+      }
+      return { ok: false, error: msg || 'Error al regenerar las citas.' }
+    }
+  }
+
+  // 2) Reconstruir therapies_json del snapshot desde el detalle editado.
+  //    Las terapias del detalle mandan (agregar/quitar); se preservan campos
+  //    extra (therapist_id, days_per_week) de la entrada previa por servicio.
+  const snapshot = (cycle.treatment_plan_snapshot ?? {}) as {
+    therapies_json?: TreatmentPlanTherapyEntry[]
+    [k: string]: unknown
+  }
+  const existingByService = new Map<string, TreatmentPlanTherapyEntry>(
+    (snapshot.therapies_json ?? []).map((t) => [t.service, t]),
+  )
+  const newTherapies = input.pricedTherapies.map((p) => {
+    const old = existingByService.get(p.service)
+    return {
+      ...(old ?? {}),
+      service: p.service,
+      active: true,
+      sessions_per_month: p.sessions_per_month,
+      unit_cost_usd: p.unit_cost_usd,
+      ...(p.billing_mode ? { billing_mode: p.billing_mode } : {}),
+    } as TreatmentPlanTherapyEntry
+  })
+  const newSnapshot = { ...snapshot, therapies_json: newTherapies }
+
+  const expected = expectedCycleAmount(input.pricedTherapies, {
+    kind: discountKind,
+    value: discountValue,
+  })
+
+  // Auditoría: dejar una línea con la justificación en las notas del ciclo.
+  const stamp = new Date().toLocaleDateString('es-SV', { timeZone: 'America/El_Salvador' })
+  const auditLine = `[Editado ${stamp} · ${input.reason.trim()}]`
+  const baseNotes = input.notes?.trim() ?? cycle.notes ?? ''
+  const newNotes = baseNotes ? `${baseNotes}\n${auditLine}` : auditLine
+
+  // 3) Parchar el cobro del ciclo. El guard payment_status='pending' evita una
+  //    carrera si alguien lo marcó pagado entre la carga y este update.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: updated, error: updErr } = await (supabase as any)
+    .from('monthly_session_cycles')
+    .update({
+      treatment_plan_snapshot: newSnapshot,
+      payment_amount_usd: expected,
+      due_date: input.dueDate ?? cycle.due_date,
+      discount_kind: discountKind,
+      discount_value: discountKind === 'none' ? 0 : discountValue,
+      discount_reason: discountKind === 'none' ? null : input.discountReason ?? null,
+      notes: newNotes,
+    })
+    .eq('id', cycle.id)
+    .eq('payment_status', 'pending')
+    .select('*')
+    .single()
+  if (updErr) return { ok: false, error: updErr.message ?? 'Error al guardar los cambios.' }
+
+  // 4) Refrescar la factura existente (idempotente: parcha la misma factura).
+  await createInvoiceForCycle(cycle.id).catch((err) => {
+    console.error('[monthly-cycles] edit re-invoice failed:', err)
+  })
+
+  revalidatePath('/familias')
+  revalidatePath('/ninos')
+  revalidatePath('/agenda')
+  return { ok: true, cycle: updated as MonthlySessionCycle }
 }
 
 // ── Anular un ciclo (admin/directora/coordinadora_familias) ─────────────────

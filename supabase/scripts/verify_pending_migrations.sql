@@ -337,6 +337,11 @@ WITH checks AS (
           FROM pg_proc
           WHERE proname='mark_appointment_absence'
             AND prosrc ILIKE '%_kn_is_monthly_flat%')
+  UNION ALL
+  -- ── 0148 (regenerar citas de un ciclo al editarlo) ────────────────
+  SELECT 58, 'mig_0148_regenerate_cycle_appointments',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_proc WHERE proname='regenerate_cycle_appointments')
 )
 SELECT
   check_name,

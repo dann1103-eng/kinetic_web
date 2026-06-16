@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { NewMonthlyCycleModal } from './NewMonthlyCycleModal'
+import { EditMonthlyCycleModal } from './EditMonthlyCycleModal'
 import {
   cancelMonthlyCycle,
   markMonthlyCyclePaid,
@@ -60,6 +61,7 @@ export function MonthlyCyclesSection({
   const router = useRouter()
   const [cycles, setCycles] = useState(initial)
   const [showCreate, setShowCreate] = useState(false)
+  const [editingCycle, setEditingCycle] = useState<MonthlySessionCycle | null>(null)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [cancelError, setCancelError] = useState<string | null>(null)
@@ -282,6 +284,15 @@ export function MonthlyCyclesSection({
                           >
                             Marcar pagado
                           </button>
+                          {plan && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingCycle(c)}
+                              className="text-xs text-fm-primary hover:underline"
+                            >
+                              Editar
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => openExtend(c)}
@@ -320,6 +331,20 @@ export function MonthlyCyclesSection({
           onCreated={(cycle) => {
             setCycles((prev) => [cycle, ...prev])
             setShowCreate(false)
+            router.refresh()
+          }}
+        />
+      )}
+
+      {editingCycle && plan && (
+        <EditMonthlyCycleModal
+          childId={childId}
+          plan={plan}
+          cycle={editingCycle}
+          onClose={() => setEditingCycle(null)}
+          onSaved={(updated) => {
+            setCycles((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+            setEditingCycle(null)
             router.refresh()
           }}
         />
