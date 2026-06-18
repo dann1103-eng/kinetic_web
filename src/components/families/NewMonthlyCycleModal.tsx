@@ -280,6 +280,17 @@ export function NewMonthlyCycleModal({
     setHasEdits(true)
   }
 
+  // Editar la hora de una cita puntual de este mes (el patrón del plan queda
+  // intacto; solo cambia este ciclo). Misma forma que mover de día.
+  function handleRetimeCandidate(idx: number, newStartsAt: string, newEndsAt: string) {
+    setEditedCandidates((prev) =>
+      prev.map((c, i) =>
+        i === idx ? { ...c, starts_at: newStartsAt, ends_at: newEndsAt } : c,
+      ),
+    )
+    setHasEdits(true)
+  }
+
   function handleDeleteCandidate(idx: number) {
     const svc = editedCandidates[idx]?.service
     setEditedCandidates((prev) => prev.filter((_, i) => i !== idx))
@@ -709,6 +720,7 @@ export function NewMonthlyCycleModal({
                         periodMonth={`${periodMonth}-01`}
                         candidates={editedCandidates}
                         onMove={handleMoveCandidate}
+                        onRetime={handleRetimeCandidate}
                         onDelete={handleDeleteCandidate}
                       />
                       {hasEdits && (

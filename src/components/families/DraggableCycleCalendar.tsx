@@ -25,6 +25,8 @@ interface Props {
   candidates: MonthlyCandidateAppointment[]
   /** Callback cuando el usuario mueve una cita a otro día. */
   onMove: (index: number, newStartsAt: string, newEndsAt: string) => void
+  /** Callback cuando el usuario edita la hora de una cita (mismo día). */
+  onRetime?: (index: number, newStartsAt: string, newEndsAt: string) => void
   /** Callback para quitar una cita del ciclo (ej. el papá avisa que faltará). */
   onDelete?: (index: number) => void
   /** Render-only mode (sin drag, solo preview). */
@@ -55,11 +57,28 @@ function timeLabel(iso: string): string {
   return `${String(local.getHours()).padStart(2, '0')}:${String(local.getMinutes()).padStart(2, '0')}`
 }
 
+/** Cambiar la hora local SV de un appointment manteniendo el día. */
+function retimeOnDay(
+  originalISO: string,
+  hhmm: string,
+  durationMinutes: number,
+): { startsAt: string; endsAt: string } | null {
+  const [h, min] = hhmm.split(':').map(Number)
+  if (!Number.isFinite(h) || !Number.isFinite(min)) return null
+  const local = toZonedTime(new Date(originalISO), TZ)
+  const localDate = new Date(local.getFullYear(), local.getMonth(), local.getDate(), h, min, 0)
+  const startsAt = fromZonedTime(localDate, TZ).toISOString()
+  const endsAt = new Date(
+    new Date(startsAt).getTime() + durationMinutes * 60 * 1000,
+  ).toISOString()
+  return { startsAt, endsAt }
+}
+
 function serviceLabel(s: string): string {
   return SERVICE_TYPE_LABELS[s as ServiceType] ?? s
 }
 
-export function DraggableCycleCalendar({ periodMonth, candidates, onMove, onDelete, readOnly }: Props) {
+export function DraggableCycleCalendar({ periodMonth, candidates, onMove, onRetime, onDelete, readOnly }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const { firstDayOffset, days } = useMemo(() => {
@@ -117,7 +136,8 @@ export function DraggableCycleCalendar({ periodMonth, candidates, onMove, onDele
           <h3 className="text-sm font-semibold text-fm-on-surface capitalize">{monthHeader}</h3>
           {!readOnly && (
             <p className="text-[11px] text-fm-on-surface-variant">
-              Arrastrá las citas a otro día (la hora se mantiene){onDelete ? ' o quitalas con ✕' : ''}.
+              Arrastrá las citas a otro día{onRetime ? ' o editá su hora' : ' (la hora se mantiene)'}
+              {onDelete ? ' · quitalas con ✕' : ''}.
             </p>
           )}
         </div>
@@ -140,6 +160,7 @@ export function DraggableCycleCalendar({ periodMonth, candidates, onMove, onDele
               dateKey={dateKey}
               dayNum={parseInt(dateKey.slice(8, 10), 10)}
               entries={candidatesByDay.get(dateKey) ?? []}
+              onRetime={onRetime}
               onDelete={onDelete}
               readOnly={readOnly}
             />
@@ -154,12 +175,14 @@ function DayCell({
   dateKey,
   dayNum,
   entries,
+  onRetime,
   onDelete,
   readOnly,
 }: {
   dateKey: string
   dayNum: number
   entries: { idx: number; cand: MonthlyCandidateAppointment }[]
+  onRetime?: (index: number, newStartsAt: string, newEndsAt: string) => void
   onDelete?: (index: number) => void
   readOnly?: boolean
 }) {
@@ -179,6 +202,7 @@ function DayCell({
           key={`${idx}-${cand.starts_at}`}
           idx={idx}
           cand={cand}
+          onRetime={onRetime}
           onDelete={onDelete}
           readOnly={readOnly}
         />
@@ -190,11 +214,13 @@ function DayCell({
 function DraggableCandidate({
   idx,
   cand,
+  onRetime,
   onDelete,
   readOnly,
 }: {
   idx: number
   cand: MonthlyCandidateAppointment
+  onRetime?: (index: number, newStartsAt: string, newEndsAt: string) => void
   onDelete?: (index: number) => void
   readOnly?: boolean
 }) {
@@ -219,7 +245,23 @@ function DraggableCandidate({
         } ${readOnly ? 'cursor-default' : ''}`}
         title={`${serviceLabel(cand.service)} · ${timeLabel(cand.starts_at)} · ${cand.duration_minutes}m`}
       >
-        <div className="font-mono tabular-nums">{timeLabel(cand.starts_at)}</div>
+        {!readOnly && onRetime ? (
+          <input
+            type="time"
+            value={timeLabel(cand.starts_at)}
+            // Evitar que el input dispare el drag de la cita.
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              const r = retimeOnDay(cand.starts_at, e.target.value, cand.duration_minutes ?? 30)
+              if (r) onRetime(idx, r.startsAt, r.endsAt)
+            }}
+            className="w-full rounded-sm border border-emerald-300 bg-white/90 px-0.5 font-mono text-[9px] tabular-nums text-emerald-900"
+            aria-label="Editar hora de la cita"
+          />
+        ) : (
+          <div className="font-mono tabular-nums">{timeLabel(cand.starts_at)}</div>
+        )}
         <div className="truncate">{serviceLabel(cand.service)}</div>
       </div>
       {!readOnly && onDelete && (
