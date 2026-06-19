@@ -136,6 +136,22 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, onClose, onSaved }
   const [editedCandidates, setEditedCandidates] = useState<MonthlyCandidateAppointment[]>([])
   const [hasEdits, setHasEdits] = useState(false)
 
+  // Pool de citas que el patrón del plan puede generar este mes, por servicio
+  // (= candidatas mostradas + las que sobraban por cuota). Es el tope para
+  // AUMENTAR citas desde el stepper (ej. mes con 5 miércoles y cuota de 4).
+  const poolByService = useMemo(() => {
+    const map: Record<string, MonthlyCandidateAppointment[]> = {}
+    if (!dryRun) return map
+    for (const c of [...dryRun.candidates, ...dryRun.skipped_overquota]) {
+      if (!map[c.service]) map[c.service] = []
+      map[c.service].push(c)
+    }
+    for (const k of Object.keys(map)) {
+      map[k].sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    }
+    return map
+  }, [dryRun])
+
   // Solo CARGA cuando se enciende la casilla; el "apagado" limpia en el onChange
   // (evita setState síncrono dentro del effect — regla react-hooks/set-state-in-effect).
   useEffect(() => {
@@ -153,6 +169,24 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, onClose, onSaved }
       setDryRun(res.result)
       setEditedCandidates(res.result.candidates)
       setHasEdits(false)
+      // Sincronizar el cobro con las citas que realmente se generan, para que
+      // facturar y calendario coincidan (solo terapias por sesión con citas en
+      // el patrón). El stepper de abajo permite subir hasta el tope del mes.
+      const genCount: Record<string, number> = {}
+      for (const c of res.result.candidates) {
+        genCount[c.service] = (genCount[c.service] ?? 0) + 1
+      }
+      const poolCount: Record<string, number> = {}
+      for (const c of [...res.result.candidates, ...res.result.skipped_overquota]) {
+        poolCount[c.service] = (poolCount[c.service] ?? 0) + 1
+      }
+      setPriced((prev) =>
+        prev.map((row) =>
+          row.billing_mode !== 'monthly_flat' && (poolCount[row.service] ?? 0) > 0
+            ? { ...row, sessions_per_month: genCount[row.service] ?? 0 }
+            : row,
+        ),
+      )
     })
   }, [regenerate, childId, periodMonth])
 
@@ -180,6 +214,55 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, onClose, onSaved }
     if (!dryRun) return
     setEditedCandidates(dryRun.candidates)
     setHasEdits(false)
+  }
+  function handleRetimeCandidate(idx: number, newStartsAt: string, newEndsAt: string) {
+    setEditedCandidates((prev) =>
+      prev.map((c, i) => (i === idx ? { ...c, starts_at: newStartsAt, ends_at: newEndsAt } : c)),
+    )
+    setHasEdits(true)
+  }
+
+  /**
+   * Sube/baja en 1 las sesiones de una terapia cuando se regeneran las citas:
+   * agrega la próxima cita libre del patrón (ej. el 5º miércoles del mes) o
+   * quita la de fecha más tardía, manteniendo cobro = nº de citas.
+   */
+  function stepSessions(idx: number, delta: 1 | -1) {
+    const svc = priced[idx].service
+    const pool = poolByService[svc] ?? []
+    if (pool.length === 0) {
+      // Sin citas en el patrón: solo ajusta el cobro.
+      patchSessions(idx, priced[idx].sessions_per_month + delta)
+      return
+    }
+    if (delta < 0) {
+      const mine = editedCandidates
+        .map((c, i) => ({ c, i }))
+        .filter((x) => x.c.service === svc)
+        .sort((a, b) => a.c.starts_at.localeCompare(b.c.starts_at))
+      if (mine.length === 0) return
+      const removeI = mine[mine.length - 1].i
+      const newCount = mine.length - 1
+      setEditedCandidates((prev) => prev.filter((_, i) => i !== removeI))
+      setPriced((prev) =>
+        prev.map((r, i) => (i === idx ? { ...r, sessions_per_month: newCount } : r)),
+      )
+      setHasEdits(true)
+    } else {
+      const used = new Set(
+        editedCandidates.filter((c) => c.service === svc).map((c) => c.starts_at),
+      )
+      const next = pool.find((c) => !used.has(c.starts_at))
+      if (!next) return // sin más slots del patrón este mes
+      const newCount = used.size + 1
+      setEditedCandidates((prev) =>
+        [...prev, next].sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
+      )
+      setPriced((prev) =>
+        prev.map((r, i) => (i === idx ? { ...r, sessions_per_month: newCount } : r)),
+      )
+      setHasEdits(true)
+    }
   }
 
   const [error, setError] = useState<string | null>(null)
@@ -290,6 +373,46 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, onClose, onSaved }
                       <td className="px-3 py-1.5 text-right">
                         {t.billing_mode === 'monthly_flat' ? (
                           <span className="text-fm-on-surface-variant">—</span>
+                        ) : regenerate && dryRun ? (
+                          // Stepper ligado al calendario: + agrega la próxima cita
+                          // del patrón (ej. 5º miércoles), − quita la última.
+                          (() => {
+                            const poolLen = poolByService[t.service]?.length ?? 0
+                            const atMax = poolLen > 0 && t.sessions_per_month >= poolLen
+                            return (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => stepSessions(idx, -1)}
+                                    disabled={t.sessions_per_month <= 0}
+                                    className="h-6 w-6 rounded-md border border-fm-outline-variant/30 bg-white text-fm-on-surface leading-none disabled:opacity-40 hover:bg-fm-surface-container"
+                                    aria-label="Quitar una sesión"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="w-7 text-center tabular-nums font-medium">
+                                    {t.sessions_per_month}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => stepSessions(idx, 1)}
+                                    disabled={atMax}
+                                    title={atMax ? 'No hay más citas en el patrón este mes' : undefined}
+                                    className="h-6 w-6 rounded-md border border-fm-outline-variant/30 bg-white text-fm-on-surface leading-none disabled:opacity-40 hover:bg-fm-surface-container"
+                                    aria-label="Agregar una sesión"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                                {atMax && (
+                                  <span className="text-[9px] text-fm-on-surface-variant">
+                                    máx {poolLen} (patrón)
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })()
                         ) : (
                           <input
                             type="number"
@@ -415,7 +538,8 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, onClose, onSaved }
                 Regenerar también las citas del mes
                 <span className="block text-[11px] text-fm-on-surface-variant">
                   Reemplaza las citas <b>programadas</b> del mes según el plan actual. Las
-                  ya completadas o en curso se respetan.
+                  ya completadas o en curso se respetan. Usá <b>+ / −</b> en &ldquo;Ses/mes&rdquo;
+                  para agregar/quitar citas del mes (ej. un mes con 5 miércoles).
                 </span>
               </span>
             </label>
@@ -472,6 +596,7 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, onClose, onSaved }
                             periodMonth={cycle.period_month.slice(0, 10)}
                             candidates={editedCandidates}
                             onMove={handleMoveCandidate}
+                            onRetime={handleRetimeCandidate}
                             onDelete={handleDeleteCandidate}
                           />
                         </div>
