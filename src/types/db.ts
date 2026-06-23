@@ -2395,6 +2395,8 @@ export interface Database {
           discount_kind?: DiscountKind
           discount_value?: number
           discount_reason?: string | null
+          program_group_id?: string | null
+          attendance_days?: string[] | null
         }
         Update: Partial<Omit<MonthlySessionCycle, 'id' | 'created_at'>>
         Relationships: []
@@ -2422,6 +2424,69 @@ export interface Database {
           notes?: string | null
         }
         Update: Partial<Omit<ServiceCatalogItem, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      program_groups: {
+        Row: AsRow<ProgramGroup>
+        Insert: {
+          id?: string
+          program: MorningProgram
+          name: string
+          active?: boolean
+          meeting_days?: string[]
+          start_time_local?: string
+          duration_minutes?: number
+        }
+        Update: Partial<Omit<ProgramGroup, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      program_group_staff: {
+        Row: AsRow<ProgramGroupStaff>
+        Insert: {
+          group_id: string
+          user_id: string
+          is_lead?: boolean
+        }
+        Update: Partial<ProgramGroupStaff>
+        Relationships: []
+      }
+      program_group_members: {
+        Row: AsRow<ProgramGroupMember>
+        Insert: {
+          id?: string
+          group_id: string
+          child_id: string
+          attendance_days?: string[]
+          active?: boolean
+        }
+        Update: Partial<Omit<ProgramGroupMember, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      program_group_sessions: {
+        Row: AsRow<ProgramGroupSession>
+        Insert: {
+          id?: string
+          group_id: string
+          session_date: string
+          starts_at: string
+          ends_at: string
+          status?: ProgramGroupSessionStatus
+        }
+        Update: Partial<Omit<ProgramGroupSession, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      program_session_attendance: {
+        Row: AsRow<ProgramSessionAttendance>
+        Insert: {
+          id?: string
+          session_id: string
+          child_id: string
+          status?: ProgramAttendanceStatus
+          marked_by_user_id?: string | null
+          marked_at?: string
+          note?: string | null
+        }
+        Update: Partial<Omit<ProgramSessionAttendance, 'id'>>
         Relationships: []
       }
     }
@@ -3652,8 +3717,79 @@ export interface MonthlySessionCycle {
   discount_kind: DiscountKind
   discount_value: number
   discount_reason: string | null
+  /** Programa matutino: grupo al que quedó asignado el niño ese mes (mig 0148/0149). */
+  program_group_id: string | null
+  /** Días de asistencia del niño en el grupo ese mes (snapshot). */
+  attendance_days: string[] | null
   created_at: string
   updated_at: string
+}
+
+// ── Programas matutinos por grupo (mig 0148/0149) ───────────────────────────
+
+/** Código de día de la semana (igual que schedule_pattern_json.day_of_week). */
+export type WeekdayCode = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
+
+export type ProgramGroupSessionStatus = 'scheduled' | 'held' | 'cancelled'
+export type ProgramAttendanceStatus = 'present' | 'absent' | 'excused'
+
+/** Grupo permanente de un programa matutino (BlueKids/LearningKids/Aula). */
+export interface ProgramGroup {
+  id: string
+  program: MorningProgram
+  name: string
+  active: boolean
+  /** Días que se reúne el grupo (ej. ['mon','tue','wed','thu','fri']). */
+  meeting_days: string[]
+  /** Hora de inicio en SV, 'HH:MM'. */
+  start_time_local: string
+  duration_minutes: number
+  created_at: string
+  updated_at: string
+}
+
+/** Maestra/terapista del grupo (varias filas = grupo compartido). */
+export interface ProgramGroupStaff {
+  group_id: string
+  user_id: string
+  is_lead: boolean
+  created_at: string
+}
+
+/** Niño miembro de un grupo + sus días de asistencia. */
+export interface ProgramGroupMember {
+  id: string
+  group_id: string
+  child_id: string
+  /** Subconjunto de los días del grupo (ej. ['mon','wed','fri']). */
+  attendance_days: string[]
+  active: boolean
+  created_at: string
+  updated_at: string
+}
+
+/** Cada reunión del grupo (una por día). */
+export interface ProgramGroupSession {
+  id: string
+  group_id: string
+  /** Fecha de la sesión 'YYYY-MM-DD'. */
+  session_date: string
+  starts_at: string
+  ends_at: string
+  status: ProgramGroupSessionStatus
+  created_at: string
+  updated_at: string
+}
+
+/** Asistencia de un niño a una sesión de grupo (la lista pasada). */
+export interface ProgramSessionAttendance {
+  id: string
+  session_id: string
+  child_id: string
+  status: ProgramAttendanceStatus
+  marked_by_user_id: string | null
+  marked_at: string
+  note: string | null
 }
 
 /** Output del RPC `compute_monthly_appointment_candidates`. */

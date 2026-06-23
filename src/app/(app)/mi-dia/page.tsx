@@ -5,6 +5,7 @@ import { TopNav } from '@/components/layout/TopNav'
 import { MiDiaClient } from './MiDiaClient'
 import { PendingProgressReportsBanner } from '@/components/agenda/PendingProgressReportsBanner'
 import { PendingAbsencesBanner } from '@/components/agenda/PendingAbsencesBanner'
+import { GroupRosterSection, type TodayGroupSession } from '@/components/agenda/GroupRosterSection'
 import { summarizeActiveTherapiesForTherapist } from '@/lib/domain/progress-reports-pending'
 import { detectPendingAbsencesForTherapist } from '@/lib/domain/absences-pending'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
@@ -285,6 +286,41 @@ export default async function MiDiaPage() {
 
   const monthLabel = formatMonthShort(todayStart)
 
+  // Sesiones de grupo de HOY donde el usuario es staff (pasar lista).
+  const todayStr = new Intl.DateTimeFormat('en-CA', { timeZone: TZ }).format(now)
+  let todayGroupSessions: TodayGroupSession[] = []
+  const { data: staffGroupsRaw } = await supabase
+    .from('program_group_staff')
+    .select('group_id')
+    .eq('user_id', userId)
+  const myGroupIds = (staffGroupsRaw ?? []).map((g) => g.group_id as string)
+  if (myGroupIds.length > 0) {
+    const [{ data: sessRaw }, { data: grpRaw }] = await Promise.all([
+      supabase
+        .from('program_group_sessions')
+        .select('id, group_id, starts_at, status')
+        .in('group_id', myGroupIds)
+        .eq('session_date', todayStr)
+        .neq('status', 'cancelled')
+        .order('starts_at'),
+      supabase.from('program_groups').select('id, name').in('id', myGroupIds),
+    ])
+    const nameById = new Map(
+      ((grpRaw ?? []) as { id: string; name: string }[]).map((g) => [g.id, g.name]),
+    )
+    todayGroupSessions = ((sessRaw ?? []) as {
+      id: string
+      group_id: string
+      starts_at: string
+      status: string
+    }[]).map((s) => ({
+      id: s.id,
+      group_name: nameById.get(s.group_id) ?? 'Grupo',
+      starts_at: s.starts_at,
+      status: s.status,
+    }))
+  }
+
   // Resumen de terapias activas + inasistencias pendientes en paralelo.
   // El banner de progress reports usa activeTherapiesSummary; el banner de
   // inasistencias usa pendingAbsences. Ambos comparten familyIdByChild.
@@ -321,6 +357,7 @@ export default async function MiDiaPage() {
           items={pendingAbsences}
           familyIdByChild={familyIdByChild}
         />
+        <GroupRosterSection sessions={todayGroupSessions} />
         <MiDiaClient
           appointments={appointmentsEnriched}
           sessions={sessions}

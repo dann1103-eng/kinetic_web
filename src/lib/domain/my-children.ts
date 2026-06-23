@@ -51,14 +51,29 @@ export async function listMyChildren(
   if (role !== 'terapista' && role !== 'maestra') return []
   const childIdSet = new Set<string>()
 
-  // Niños donde es terapista principal de un plan activo — aplica a terapistas
-  // Y maestras por igual (mismas restricciones: solo sus asignados).
+  // (a) Niños donde es terapista principal de un plan activo (terapias 1-a-1).
   const { data: plans } = await supabase
     .from('treatment_plans')
     .select('child_id')
     .eq('primary_therapist_id', userId)
     .eq('active', true)
   for (const p of plans ?? []) childIdSet.add(p.child_id as string)
+
+  // (b) Programas matutinos: niños de los grupos donde el usuario es staff
+  //     (grupos compartidos — visibilidad por grupo, no por terapista principal).
+  const { data: staffGroups } = await supabase
+    .from('program_group_staff')
+    .select('group_id')
+    .eq('user_id', userId)
+  const groupIds = (staffGroups ?? []).map((g) => g.group_id as string)
+  if (groupIds.length > 0) {
+    const { data: members } = await supabase
+      .from('program_group_members')
+      .select('child_id')
+      .in('group_id', groupIds)
+      .eq('active', true)
+    for (const m of members ?? []) childIdSet.add(m.child_id as string)
+  }
 
   const childIds = [...childIdSet]
   if (childIds.length === 0) return []
@@ -172,8 +187,7 @@ export async function userCanViewChild(
 ): Promise<boolean> {
   if (role !== 'terapista' && role !== 'maestra') return false
 
-  // Terapista principal de un plan activo de ese niño — terapistas Y maestras
-  // por igual (mismas restricciones: solo sus asignados).
+  // (a) Terapista principal de un plan activo de ese niño.
   const { data: plan } = await supabase
     .from('treatment_plans')
     .select('id')
@@ -182,5 +196,24 @@ export async function userCanViewChild(
     .eq('active', true)
     .limit(1)
     .maybeSingle()
-  return !!plan
+  if (plan) return true
+
+  // (b) Programa matutino: el niño es miembro activo de un grupo que el usuario cubre.
+  const { data: staffGroups } = await supabase
+    .from('program_group_staff')
+    .select('group_id')
+    .eq('user_id', userId)
+  const groupIds = (staffGroups ?? []).map((g) => g.group_id as string)
+  if (groupIds.length > 0) {
+    const { data: member } = await supabase
+      .from('program_group_members')
+      .select('id')
+      .eq('child_id', childId)
+      .eq('active', true)
+      .in('group_id', groupIds)
+      .limit(1)
+      .maybeSingle()
+    if (member) return true
+  }
+  return false
 }

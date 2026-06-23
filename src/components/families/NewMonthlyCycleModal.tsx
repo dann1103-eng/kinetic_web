@@ -27,6 +27,10 @@ import {
 } from '@/lib/domain/billing/monthly-flat'
 import { DiscountFields } from './DiscountFields'
 import { DraggableCycleCalendar } from './DraggableCycleCalendar'
+import {
+  MorningProgramCycleSection,
+  type MorningGroupSelection,
+} from './MorningProgramCycleSection'
 
 interface Props {
   childId: string
@@ -151,6 +155,11 @@ export function NewMonthlyCycleModal({
   )
 
   const [periodMonth, setPeriodMonth] = useState<string>(defaultPeriodMonth())
+  // Programa matutino: grupo + días del niño (solo si el niño está inscrito).
+  const [morning, setMorning] = useState<MorningGroupSelection>({
+    groupId: null,
+    attendanceDays: [],
+  })
   // Descuento del ciclo: default = mismo que el plan, editable.
   const [discountKind, setDiscountKind] = useState<DiscountKind>(
     plan.discount_kind ?? 'none',
@@ -381,6 +390,10 @@ export function NewMonthlyCycleModal({
       setConfirmError('Resolvé los conflictos antes de confirmar.')
       return
     }
+    if (enrolledProgram && !morning.groupId) {
+      setConfirmError('Seleccioná el grupo del programa matutino.')
+      return
+    }
     startConfirm(async () => {
       const res = await confirmMonthlyPaymentAndGenerate({
         childId,
@@ -400,6 +413,9 @@ export function NewMonthlyCycleModal({
         rolloverMode,
         rolloverSessions: rolloverMode !== 'none' ? rolloverSessionsMap : null,
         rolloverDiscountUsd: rolloverMode === 'discount' ? (rollover?.totalDiscount ?? 0) : 0,
+        // Programa matutino: grupo + días del niño.
+        programGroupId: enrolledProgram ? morning.groupId : null,
+        attendanceDays: enrolledProgram ? morning.attendanceDays : null,
       })
       if (!res.ok) {
         setConfirmError(res.error)
@@ -461,6 +477,16 @@ export function NewMonthlyCycleModal({
               </p>
             </Field>
           </div>
+
+          {/* Programa matutino: selección de grupo + días + calendarización */}
+          {enrolledProgram && (
+            <MorningProgramCycleSection
+              program={enrolledProgram}
+              periodMonth={periodMonth}
+              value={morning}
+              onChange={setMorning}
+            />
+          )}
 
           {/* Precios por terapia — precargados del catálogo, editables */}
           <div className="rounded-lg border border-fm-outline-variant/20 overflow-hidden">

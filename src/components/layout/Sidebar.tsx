@@ -172,6 +172,14 @@ const adminGroupItems: NavItem[] = [
     ),
   },
   {
+    href: '/operacion/grupos',
+    label: 'Grupos matutinos',
+    allowedRoles: ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>groups</span>
+    ),
+  },
+  {
     href: '/reportes',
     label: 'Reportes',
     allowedRoles: ['admin', 'directora', 'contable', 'recepcion', 'coordinadora_terapias'],

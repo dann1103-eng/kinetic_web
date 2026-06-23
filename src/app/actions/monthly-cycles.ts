@@ -311,6 +311,10 @@ export interface ConfirmMonthlyPaymentInput {
   rolloverSessions?: Record<string, number> | null
   /** Monto del descuento por rollover (modo discount). */
   rolloverDiscountUsd?: number
+  /** Programa matutino: grupo al que se asigna el niño este mes (mig 0149). */
+  programGroupId?: string | null
+  /** Días de asistencia del niño en el grupo (ej. ['mon','wed','fri']). */
+  attendanceDays?: string[] | null
 }
 
 export async function confirmMonthlyPaymentAndGenerate(
@@ -352,6 +356,8 @@ export async function confirmMonthlyPaymentAndGenerate(
         : null,
     p_rollover_mode: input.rolloverMode ?? 'none',
     p_rollover_discount: input.rolloverDiscountUsd ?? 0,
+    p_program_group_id: input.programGroupId ?? null,
+    p_attendance_days: input.attendanceDays ?? null,
   })
 
   if (error) {
