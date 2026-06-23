@@ -317,7 +317,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 cycles={cycles}
                 canManage={canManageCycles}
                 canCancel={CAN_CANCEL_CYCLES_ROLES.includes(ctx.appUser.role)}
-                canDelete={ctx.appUser.role === 'admin'}
+                canDelete={ctx.appUser.role === 'admin' || ctx.appUser.role === 'recepcion'}
                 therapyCatalog={fullCatalog}
                 enrolledProgram={c.enrolled_program}
               />

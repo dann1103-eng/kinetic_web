@@ -735,8 +735,8 @@ export async function deleteMonthlyCycle(
   cycleId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { user } = await getActor()
-  if (user.role !== 'admin') {
-    return { ok: false, error: 'Solo un administrador puede eliminar un ciclo.' }
+  if (user.role !== 'admin' && user.role !== 'recepcion') {
+    return { ok: false, error: 'Solo admin o recepción pueden eliminar un ciclo.' }
   }
 
   const admin = createAdminClient()
