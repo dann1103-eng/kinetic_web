@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { startTherapySession, finishTherapySession } from '@/app/actions/therapy-sessions'
 import { markAbsence } from '@/app/actions/absences'
+import { dispatchChild } from '@/app/actions/dispatch'
 import { ReportButton } from '@/components/agenda/SessionCard'
 import { formatElapsed, formatDuration, getInitials } from '@/lib/domain/sessions'
 import type { Appointment, TherapySession, SessionReport } from '@/types/db'
@@ -230,6 +231,27 @@ export function BigSessionCard({
               {formatDuration(session.started_at, session.ended_at)}
             </div>
             <div className="ml-auto flex items-center gap-2">
+              {!appointment.dispatched_at ? (
+                <button
+                  type="button"
+                  disabled={isPending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      await dispatchChild(appointment.id)
+                      router.refresh()
+                    })
+                  }
+                  className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-fm-primary/10 text-fm-primary hover:bg-fm-primary/15 disabled:opacity-60"
+                  title="Marcar que el niño/a ya fue recogido por los padres"
+                >
+                  Despachar niño/a
+                </button>
+              ) : (
+                <span className="text-[10px] text-emerald-700 inline-flex items-center gap-1">
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check</span>
+                  Despachado
+                </span>
+              )}
               {onReportClick && session && (
                 <ReportButton report={report ?? null} sessionId={session.id} onClick={onReportClick} />
               )}

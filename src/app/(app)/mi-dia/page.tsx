@@ -18,7 +18,7 @@ import type {
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES = ['terapista', 'maestra']
+const ALLOWED_ROLES = ['terapista', 'maestra', 'admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias']
 const TZ = 'America/El_Salvador'
 const UPCOMING_DAYS = 3
 

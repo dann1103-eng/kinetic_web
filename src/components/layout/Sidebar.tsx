@@ -63,7 +63,7 @@ const topNavItems: NavItem[] = [
   {
     href: '/mi-dia',
     label: 'Mi día',
-    allowedRoles: ['terapista', 'maestra'],
+    allowedRoles: ['terapista', 'maestra', 'admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias'],
     icon: (
       <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>calendar_today</span>
     ),
