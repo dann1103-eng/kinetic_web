@@ -10,6 +10,7 @@ import {
   type EventType,
   type ServiceType,
   type InstitutionalClosure,
+  type MorningProgram,
 } from '@/types/db'
 import { findClosureAffecting } from '@/lib/domain/appointment'
 import { AppointmentForm } from '@/components/agenda/AppointmentForm'
@@ -18,17 +19,43 @@ import { KineticCalendar, type KineticEventDatum } from '@/components/calendar/K
 type ChildLite = Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>
 type TherapistLite = { id: string; full_name: string; role: string; avatar_url: string | null }
 
+export type GroupSessionForClient = {
+  id: string
+  groupName: string
+  program: MorningProgram
+  staffNames: string[]
+  starts_at: string
+  ends_at: string
+  status: string
+}
+
 interface AgendaPageClientProps {
   currentUserRole: string
   currentUserId: string
   initialAppointments: Appointment[]
+  groupSessions: GroupSessionForClient[]
   childrenList: ChildLite[]
   therapists: TherapistLite[]
   closures: InstitutionalClosure[]
 }
 
-interface CalendarBlock extends KineticEventDatum {
-  appointment: Appointment
+// Un bloque puede ser una cita individual O una sesión de grupo (read-only).
+type CalendarBlock = KineticEventDatum & (
+  | { kind: 'appointment'; appointment: Appointment; groupSession?: never }
+  | { kind: 'group'; groupSession: GroupSessionForClient; appointment?: never }
+)
+
+const PROGRAM_LABEL: Record<MorningProgram, string> = {
+  blue_kids: 'BlueKids',
+  learning_kids: 'LearningKids',
+  aula_educativa: 'Aula Educativa',
+}
+
+// Color fijo para cada programa matutino en el calendario.
+const PROGRAM_COLOR_KEY: Record<MorningProgram, string> = {
+  blue_kids: 'blue_kids',
+  learning_kids: 'learning_kids',
+  aula_educativa: 'aula_educativa',
 }
 
 const STAFF_ROLES_SCHEDULE = new Set([
@@ -44,6 +71,7 @@ export function AgendaPageClient({
   currentUserRole,
   currentUserId,
   initialAppointments,
+  groupSessions,
   childrenList: childrenProp,
   therapists,
   closures,
@@ -66,35 +94,36 @@ export function AgendaPageClient({
   const [filterVirtualOnly, setFilterVirtualOnly] = useState(false)
   const [exporting, setExporting] = useState(false)
 
-  // Modal
+  // Modal de cita individual
   const [modalOpen, setModalOpen] = useState(false)
   const [modalInitial, setModalInitial] = useState<{
     starts_at?: string
     appointment?: Appointment
   }>({})
 
-  // Convertir citas a bloques de calendar
+  // Popover de sesión de grupo (read-only)
+  const [groupPopover, setGroupPopover] = useState<GroupSessionForClient | null>(null)
+
+  // Convertir citas + sesiones de grupo a bloques de calendar.
   const events = useMemo<CalendarBlock[]>(() => {
+    // ── Citas individuales ────────────────────────────────────────────────
     const filtered = initialAppointments.filter((a) => {
       if (filterTherapistId && a.therapist_id !== filterTherapistId) return false
       if (filterEventTypes.size > 0 && !filterEventTypes.has(a.event_type)) return false
       if (filterServiceTypes.size > 0) {
-        // Filtro por tipo de terapia: solo aplica a citas con service_type.
         if (!a.service_type || !filterServiceTypes.has(a.service_type)) return false
       }
       if (filterVirtualOnly && a.modality !== 'virtual') return false
-      // Ocultar canceladas/reagendadas en la vista
       if (a.status === 'rescheduled') return false
       return true
     })
 
-    return filtered.map((a) => {
+    const apptBlocks: CalendarBlock[] = filtered.map((a) => {
       const child = childrenProp.find((c) => c.id === a.child_id)
       const therapist = therapists.find((t) => t.id === a.therapist_id)
       const childLabel = child?.full_name ?? 'Niño/a'
       const therapistLabel = therapist?.full_name ?? '—'
       const isTherapy = a.event_type === 'terapia'
-      // Si event_type='otro' y hay custom_event_label, usar ese en lugar de "Otro"
       const eventLabel =
         a.event_type === 'otro' && a.custom_event_label
           ? a.custom_event_label
@@ -102,12 +131,12 @@ export function AgendaPageClient({
       const title = isTherapy ? childLabel : eventLabel
       const subtitle = isTherapy ? therapistLabel : childLabel
       const colorKey = isTherapy ? a.service_type ?? a.event_type : a.event_type
-      // Tag visible para citas reposición / reagendadas / inasistencia
       let tag: { label: string; tone: 'replacement' | 'rescheduled' | 'absence' } | null = null
       if (a.status === 'replacement') tag = { label: 'Reposición', tone: 'replacement' }
       else if (a.status === 'rescheduled') tag = { label: 'Reagendada', tone: 'rescheduled' }
       else if (a.status === 'no_show' || a.status === 'late_cancel') tag = { label: 'Inasistencia', tone: 'absence' }
       return {
+        kind: 'appointment',
         id: a.id,
         title,
         subtitle,
@@ -118,14 +147,41 @@ export function AgendaPageClient({
         appointment: a,
       }
     })
-  }, [initialAppointments, filterTherapistId, filterEventTypes, filterServiceTypes, filterVirtualOnly, childrenProp, therapists])
+
+    // ── Sesiones de grupo (read-only) ────────────────────────────────────
+    // Si hay filtro de tipo de evento activo y no incluye programas matutinos,
+    // ocultarlas. Si hay filtro de terapista activo, ocultarlas (los grupos no
+    // tienen un único therapist_id). Si filterVirtualOnly, ocultarlas.
+    const showGroups =
+      !filterVirtualOnly &&
+      filterServiceTypes.size === 0 &&
+      (filterEventTypes.size === 0 || filterEventTypes.has('programa_matutino'))
+
+    const groupBlocks: CalendarBlock[] = showGroups
+      ? groupSessions.map((s) => ({
+          kind: 'group',
+          id: `group-${s.id}`,
+          title: `${PROGRAM_LABEL[s.program]} — ${s.groupName}`,
+          subtitle: s.staffNames.length > 0 ? s.staffNames.join(', ') : 'Sin maestra asignada',
+          start: new Date(s.starts_at),
+          end: new Date(s.ends_at),
+          colorKey: PROGRAM_COLOR_KEY[s.program],
+          tag: s.status === 'held'
+            ? { label: 'Lista pasada', tone: 'replacement' as const }
+            : null,
+          groupSession: s,
+        }))
+      : []
+
+    return [...apptBlocks, ...groupBlocks]
+  }, [initialAppointments, groupSessions, filterTherapistId, filterEventTypes, filterServiceTypes, filterVirtualOnly, childrenProp, therapists])
 
   // Exportar PDF de las citas actualmente visibles (respeta filtros).
   const handleExportPdf = useCallback(() => {
     setExporting(true)
     try {
       const params = new URLSearchParams()
-      const ids = events.map((e) => e.appointment.id)
+      const ids = events.filter((e) => e.kind === 'appointment').map((e) => e.appointment!.id)
       if (ids.length === 0) {
         window.alert('No hay citas que exportar con los filtros actuales.')
         return
@@ -160,6 +216,10 @@ export function AgendaPageClient({
 
   const handleSelectEvent = useCallback(
     (block: CalendarBlock) => {
+      if (block.kind === 'group') {
+        setGroupPopover(block.groupSession)
+        return
+      }
       setModalInitial({ appointment: block.appointment })
       setModalOpen(true)
     },
@@ -355,6 +415,82 @@ export function AgendaPageClient({
           isAdmin={currentUserRole === 'admin'}
           canSchedule={canSchedule}
         />
+      )}
+
+      {groupPopover && (
+        <div
+          className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4"
+          onClick={() => setGroupPopover(null)}
+        >
+          <div
+            className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-fm-primary">
+                  {PROGRAM_LABEL[groupPopover.program]}
+                </p>
+                <h3 className="text-base font-semibold text-fm-on-surface mt-0.5">
+                  {groupPopover.groupName}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGroupPopover(null)}
+                className="p-1 rounded-full hover:bg-fm-surface-container text-fm-on-surface-variant"
+              >
+                <span className="material-symbols-outlined text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-1.5 text-sm">
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-[18px] text-fm-on-surface-variant shrink-0 mt-0.5">
+                  schedule
+                </span>
+                <span className="text-fm-on-surface">
+                  {new Date(groupPopover.starts_at).toLocaleTimeString('es-SV', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                  {' – '}
+                  {new Date(groupPopover.ends_at).toLocaleTimeString('es-SV', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="material-symbols-outlined text-[18px] text-fm-on-surface-variant shrink-0 mt-0.5">
+                  person
+                </span>
+                <span className="text-fm-on-surface">
+                  {groupPopover.staffNames.length > 0
+                    ? groupPopover.staffNames.join(', ')
+                    : 'Sin maestra asignada'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-fm-on-surface-variant shrink-0">
+                  event_available
+                </span>
+                <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${
+                  groupPopover.status === 'held'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-fm-primary/10 text-fm-primary'
+                }`}>
+                  {groupPopover.status === 'held' ? 'Lista pasada' : 'Programada'}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-fm-on-surface-variant pt-1 border-t border-fm-outline-variant/20">
+              Sesión de grupo — gestioná la asistencia en Administración → Grupos
+              o en Mi día.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   )
