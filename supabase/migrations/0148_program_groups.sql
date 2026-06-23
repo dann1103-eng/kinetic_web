@@ -11,9 +11,12 @@
 --
 -- Días de la semana: 'mon','tue','wed','thu','fri','sat','sun' (igual que
 -- schedule_pattern_json.day_of_week).
+--
+-- ORDEN IMPORTANTE: kn_is_group_staff se crea DESPUÉS de program_group_staff
+-- (PostgreSQL valida los cuerpos SQL en tiempo de creación).
 -- =============================================================================
 
--- ── Helpers de autorización ──────────────────────────────────────────────────
+-- ── 1. kn_can_manage_groups — solo referencia public.users (ya existe) ────────
 create or replace function public.kn_can_manage_groups()
 returns boolean language sql stable security definer
 set search_path = public, pg_temp as $$
@@ -25,16 +28,7 @@ set search_path = public, pg_temp as $$
   );
 $$;
 
-create or replace function public.kn_is_group_staff(p_group_id uuid)
-returns boolean language sql stable security definer
-set search_path = public, pg_temp as $$
-  select exists (
-    select 1 from public.program_group_staff
-     where group_id = p_group_id and user_id = auth.uid()
-  );
-$$;
-
--- ── 1. program_groups — el grupo (permanente) ────────────────────────────────
+-- ── 2. program_groups — el grupo (permanente) ────────────────────────────────
 create table if not exists public.program_groups (
   id               uuid primary key default gen_random_uuid(),
   program          text not null check (program in
@@ -48,7 +42,7 @@ create table if not exists public.program_groups (
   updated_at       timestamptz not null default now()
 );
 
--- ── 2. program_group_staff — maestras del grupo (varias = compartido) ─────────
+-- ── 3. program_group_staff — maestras del grupo (ANTES de kn_is_group_staff) ──
 create table if not exists public.program_group_staff (
   group_id   uuid not null references public.program_groups(id) on delete cascade,
   user_id    uuid not null references public.users(id) on delete cascade,
@@ -59,7 +53,17 @@ create table if not exists public.program_group_staff (
 create index if not exists program_group_staff_user_idx
   on public.program_group_staff(user_id);
 
--- ── 3. program_group_members — niños del grupo + sus días ─────────────────────
+-- ── 4. kn_is_group_staff — creado DESPUÉS de program_group_staff ─────────────
+create or replace function public.kn_is_group_staff(p_group_id uuid)
+returns boolean language sql stable security definer
+set search_path = public, pg_temp as $$
+  select exists (
+    select 1 from public.program_group_staff
+     where group_id = p_group_id and user_id = auth.uid()
+  );
+$$;
+
+-- ── 5. program_group_members — niños del grupo + sus días ─────────────────────
 create table if not exists public.program_group_members (
   id              uuid primary key default gen_random_uuid(),
   group_id        uuid not null references public.program_groups(id) on delete cascade,
@@ -75,7 +79,7 @@ create unique index if not exists program_group_members_active_child
 create index if not exists program_group_members_group_idx
   on public.program_group_members(group_id) where active;
 
--- ── 4. program_group_sessions — cada reunión del grupo (una por día) ──────────
+-- ── 6. program_group_sessions — cada reunión del grupo (una por día) ──────────
 create table if not exists public.program_group_sessions (
   id           uuid primary key default gen_random_uuid(),
   group_id     uuid not null references public.program_groups(id) on delete cascade,
@@ -91,7 +95,7 @@ create table if not exists public.program_group_sessions (
 create index if not exists program_group_sessions_date_idx
   on public.program_group_sessions(session_date);
 
--- ── 5. program_session_attendance — la lista pasada ──────────────────────────
+-- ── 7. program_session_attendance — la lista pasada ──────────────────────────
 create table if not exists public.program_session_attendance (
   id                uuid primary key default gen_random_uuid(),
   session_id        uuid not null references public.program_group_sessions(id) on delete cascade,
@@ -106,12 +110,12 @@ create table if not exists public.program_session_attendance (
 create index if not exists program_session_attendance_session_idx
   on public.program_session_attendance(session_id);
 
--- ── 6. Columnas snapshot en monthly_session_cycles ───────────────────────────
+-- ── 8. Columnas snapshot en monthly_session_cycles ───────────────────────────
 alter table public.monthly_session_cycles
   add column if not exists program_group_id uuid references public.program_groups(id) on delete set null,
   add column if not exists attendance_days text[];
 
--- ── 7. Triggers updated_at ───────────────────────────────────────────────────
+-- ── 9. Triggers updated_at ───────────────────────────────────────────────────
 drop trigger if exists program_groups_updated_at on public.program_groups;
 create trigger program_groups_updated_at before update on public.program_groups
   for each row execute function extensions.moddatetime(updated_at);
@@ -124,7 +128,7 @@ drop trigger if exists program_group_sessions_updated_at on public.program_group
 create trigger program_group_sessions_updated_at before update on public.program_group_sessions
   for each row execute function extensions.moddatetime(updated_at);
 
--- ── 8. RLS ───────────────────────────────────────────────────────────────────
+-- ── 10. RLS ───────────────────────────────────────────────────────────────────
 alter table public.program_groups            enable row level security;
 alter table public.program_group_staff       enable row level security;
 alter table public.program_group_members     enable row level security;
@@ -190,7 +194,7 @@ create policy "psa write mgmt or staff" on public.program_session_attendance
     )
   );
 
--- ── 9. Grants ────────────────────────────────────────────────────────────────
+-- ── 11. Grants ────────────────────────────────────────────────────────────────
 grant all on public.program_groups             to anon, authenticated, service_role;
 grant all on public.program_group_staff        to anon, authenticated, service_role;
 grant all on public.program_group_members      to anon, authenticated, service_role;
