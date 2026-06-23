@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { startTherapySession, finishTherapySession } from '@/app/actions/therapy-sessions'
 import { markAbsence } from '@/app/actions/absences'
-import { dispatchChild } from '@/app/actions/dispatch'
+import { dispatchChild, handToReception } from '@/app/actions/dispatch'
 import { ReportButton } from '@/components/agenda/SessionCard'
 import { formatElapsed, formatDuration, getInitials } from '@/lib/domain/sessions'
 import type { Appointment, TherapySession, SessionReport } from '@/types/db'
@@ -230,32 +230,71 @@ export function BigSessionCard({
               </span>
               {formatDuration(session.started_at, session.ended_at)}
             </div>
-            <div className="ml-auto flex items-center gap-2">
-              {!appointment.dispatched_at ? (
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() =>
-                    startTransition(async () => {
-                      const res = await dispatchChild(appointment.id)
-                      if (!res.ok) {
-                        alert(res.error)
-                        return
-                      }
-                      router.refresh()
-                    })
-                  }
-                  className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-fm-primary/10 text-fm-primary hover:bg-fm-primary/15 disabled:opacity-60"
-                  title="Marcar que el niño/a ya fue recogido por los padres"
-                >
-                  Despachar niño/a
-                </button>
-              ) : (
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
+              {/* Estado: ya despachado */}
+              {appointment.dispatched_at ? (
                 <span className="text-[10px] text-emerald-700 inline-flex items-center gap-1">
                   <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>check</span>
-                  Despachado
+                  {(appointment as { dispatch_type?: string | null }).dispatch_type === 'internal'
+                    ? 'Entregado internamente'
+                    : (appointment as { dispatch_type?: string | null }).dispatch_type === 'to_reception'
+                      ? 'Despachado a papá'
+                      : 'Entregado a papá'}
                 </span>
+              ) : (appointment as { handed_to_reception_at?: string | null }).handed_to_reception_at ? (
+                /* Estado: en recepción esperando */
+                <span className="text-[10px] text-amber-700 inline-flex items-center gap-1">
+                  <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>notifications</span>
+                  En recepción desde{' '}
+                  {new Date((appointment as { handed_to_reception_at: string }).handed_to_reception_at)
+                    .toLocaleTimeString('es-SV', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              ) : (
+                /* Estado: pendiente — mostrar 3 botones */
+                <>
+                  <span className="text-[10px] text-fm-on-surface-variant mr-1">Entregar:</span>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => startTransition(async () => {
+                      const res = await dispatchChild(appointment.id, 'internal')
+                      if (!res.ok) alert(res.error)
+                      else router.refresh()
+                    })}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-sky-100 text-sky-800 hover:bg-sky-200 disabled:opacity-60"
+                    title="Pase a otra terapista — sin cargo"
+                  >
+                    ↪ Interna
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => startTransition(async () => {
+                      const res = await handToReception(appointment.id)
+                      if (!res.ok) alert(res.error)
+                      else router.refresh()
+                    })}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200 disabled:opacity-60"
+                    title="Recepción espera al papá — inicia timer de 15 min"
+                  >
+                    🔔 Recepción
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => startTransition(async () => {
+                      const res = await dispatchChild(appointment.id, 'to_parent')
+                      if (!res.ok) alert(res.error)
+                      else router.refresh()
+                    })}
+                    className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800 hover:bg-emerald-200 disabled:opacity-60"
+                    title="El papá ya está — despacho inmediato sin cargo"
+                  >
+                    ✓ A papá
+                  </button>
+                </>
               )}
+
               {onReportClick && session && (
                 <ReportButton report={report ?? null} sessionId={session.id} onClick={onReportClick} />
               )}
