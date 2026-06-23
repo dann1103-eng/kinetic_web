@@ -26,6 +26,7 @@ export interface PendingDispatch {
 /**
  * Despachos pendientes (terapia finalizada, niño aún no recogido).
  * Terapista ve los suyos; staff de gestión ve todos. Excluye los pospuestos.
+ * Excluye niños ya entregados a recepción (tienen su propio flujo de tarjeta flotante).
  */
 export async function listPendingDispatches(): Promise<PendingDispatch[]> {
   const actor = await getActor()
@@ -38,6 +39,8 @@ export async function listPendingDispatches(): Promise<PendingDispatch[]> {
     .eq('status', 'completed')
     .not('completed_at', 'is', null)
     .is('dispatched_at', null)
+    // Excluir niños ya entregados a recepción (tienen su propio flujo de tarjeta flotante).
+    .or('dispatch_type.is.null,dispatch_type.in.(internal,to_parent)')
 
   // Terapista/maestra: solo sus citas. Gestión: todas.
   if (!MGMT_ROLES.includes(actor.role)) {
@@ -69,6 +72,42 @@ export async function listPendingDispatches(): Promise<PendingDispatch[]> {
     completed_at: r.completed_at,
     snoozed_until: r.dispatch_snoozed_until,
   }))
+}
+
+/**
+ * Terapista entrega el niño a recepción. Inicia el timer de gracia de 15 min.
+ * Idempotente: si already handed, retorna ok sin escribir.
+ */
+export async function handToReception(
+  appointmentId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const actor = await getActor()
+  if (!actor) return { ok: false, error: 'No autenticado.' }
+
+  const admin = createAdminClient()
+  const { data: appt } = await admin
+    .from('appointments')
+    .select('id, status, dispatched_at, handed_to_reception_at')
+    .eq('id', appointmentId)
+    .maybeSingle()
+  if (!appt) return { ok: false, error: 'Cita no encontrada.' }
+  if (appt.status !== 'completed') return { ok: false, error: 'La terapia aún no se ha finalizado.' }
+  if (appt.dispatched_at) return { ok: true }
+  // Guard idempotente: ya en recepción.
+  if (appt.handed_to_reception_at) return { ok: true }
+
+  const { error } = await admin
+    .from('appointments')
+    .update({
+      dispatch_type: 'to_reception',
+      handed_to_reception_at: new Date().toISOString(),
+    })
+    .eq('id', appointmentId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/mi-dia')
+  revalidatePath('/agenda')
+  return { ok: true }
 }
 
 export interface SuggestedLateFee {
@@ -122,17 +161,65 @@ export async function listSuggestedLateFees(): Promise<SuggestedLateFee[]> {
   })
 }
 
-/** Marca al niño como despachado y calcula el cargo por recogida tardía. */
+export interface ReceptionQueueItem {
+  id: string
+  child_id: string
+  child_name: string
+  service_type: string | null
+  handed_to_reception_at: string
+}
+
+/** Niños esperando en recepción a que los papás los recojan. */
+export async function listReceptionQueue(): Promise<ReceptionQueueItem[]> {
+  const actor = await getActor()
+  if (!actor) return []
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('appointments')
+    .select('id, child_id, service_type, handed_to_reception_at')
+    .eq('dispatch_type', 'to_reception')
+    .is('dispatched_at', null)
+    .not('handed_to_reception_at', 'is', null)
+    .order('handed_to_reception_at', { ascending: true })
+
+  const rows = (data ?? []) as {
+    id: string
+    child_id: string
+    service_type: string | null
+    handed_to_reception_at: string
+  }[]
+  if (rows.length === 0) return []
+
+  const childIds = Array.from(new Set(rows.map((r) => r.child_id)))
+  const { data: childrenRaw } = await supabase
+    .from('children')
+    .select('id, full_name')
+    .in('id', childIds)
+  const nameById = new Map((childrenRaw ?? []).map((c) => [c.id, c.full_name]))
+
+  return rows.map((r) => ({
+    id: r.id,
+    child_id: r.child_id,
+    child_name: nameById.get(r.child_id) ?? 'Niño/a',
+    service_type: r.service_type,
+    handed_to_reception_at: r.handed_to_reception_at,
+  }))
+}
+
+/** Marca al niño como despachado. Para 'to_reception': llamado por recepción. */
 export async function dispatchChild(
   appointmentId: string,
+  dispatchType: 'internal' | 'to_parent' | 'to_reception' = 'to_parent',
+  waiveReason?: string,
 ): Promise<{ ok: true; feeUsd: number; minutes: number } | { ok: false; error: string }> {
   const actor = await getActor()
   if (!actor) return { ok: false, error: 'No autenticado.' }
-  const supabase = await createClient()
 
-  const { data: appt } = await supabase
+  const admin = createAdminClient()
+  const { data: appt } = await admin
     .from('appointments')
-    .select('id, child_id, therapist_id, status, completed_at, dispatched_at')
+    .select('id, child_id, therapist_id, status, completed_at, dispatched_at, handed_to_reception_at')
     .eq('id', appointmentId)
     .maybeSingle()
   if (!appt) return { ok: false, error: 'Cita no encontrada.' }
@@ -140,54 +227,144 @@ export async function dispatchChild(
   if (appt.dispatched_at) return { ok: true, feeUsd: 0, minutes: 0 }
 
   const nowISO = new Date().toISOString()
-  // Citas legacy finalizadas sin completed_at → tratar como recién completada (0 min).
-  const completedAt = appt.completed_at ?? nowISO
-  const { minutes, feeUsd } = computeLatePickup(completedAt, nowISO)
-  const status = feeUsd > 0 ? 'suggested' : 'none'
 
-  const admin = createAdminClient()
+  // Tipos sin cargo (internal, to_parent).
+  if (dispatchType === 'internal' || dispatchType === 'to_parent') {
+    const { error } = await admin
+      .from('appointments')
+      .update({
+        dispatched_at: nowISO,
+        dispatched_by_user_id: actor.id,
+        dispatch_type: dispatchType,
+        late_fee_minutes: 0,
+        late_fee_usd: 0,
+        late_fee_status: 'none',
+        dispatch_snoozed_until: null,
+      })
+      .eq('id', appointmentId)
+    if (error) return { ok: false, error: error.message }
+    revalidatePath('/mi-dia')
+    revalidatePath('/agenda')
+    revalidatePath('/aprobaciones')
+    return { ok: true, feeUsd: 0, minutes: 0 }
+  }
+
+  // to_reception: timer desde handed_to_reception_at.
+  const timerOrigin = appt.handed_to_reception_at ?? nowISO
+  const { minutes, feeUsd } = computeLatePickup(timerOrigin, nowISO)
+
+  let late_fee_status: 'none' | 'waived'
+  let late_fee_waive_reason: string | null = null
+
+  if (feeUsd > 0 && waiveReason && waiveReason.trim().length >= 3) {
+    late_fee_status = 'waived'
+    late_fee_waive_reason = waiveReason.trim()
+  } else {
+    late_fee_status = 'none'
+  }
+
   const { error } = await admin
     .from('appointments')
     .update({
       dispatched_at: nowISO,
       dispatched_by_user_id: actor.id,
+      dispatch_type: 'to_reception',
       late_fee_minutes: minutes,
       late_fee_usd: feeUsd,
-      late_fee_status: status,
+      late_fee_status,
+      late_fee_waive_reason,
       dispatch_snoozed_until: null,
     })
     .eq('id', appointmentId)
   if (error) return { ok: false, error: error.message }
 
-  // Notificar a admin/directora si hay cargo sugerido (perdonar o cobrar).
-  if (feeUsd > 0) {
-    const { data: mgmt } = await admin
-      .from('users')
-      .select('id')
-      .in('role', ['admin', 'directora'])
-    const { data: child } = await admin
-      .from('children')
-      .select('full_name')
-      .eq('id', appt.child_id)
+  revalidatePath('/mi-dia')
+  revalidatePath('/agenda')
+  revalidatePath('/aprobaciones')
+  return { ok: true, feeUsd, minutes }
+}
+
+/**
+ * Recepción despacha al niño Y cobra el cargo tardío en un solo paso.
+ * El cargo queda en 'charged' directamente, sin pasar por /aprobaciones.
+ */
+export async function dispatchAndCharge(
+  appointmentId: string,
+): Promise<{ ok: true; feeUsd: number } | { ok: false; error: string }> {
+  const actor = await getActor()
+  if (!actor) return { ok: false, error: 'No autenticado.' }
+  if (!MGMT_ROLES.includes(actor.role)) return { ok: false, error: 'No autorizado.' }
+
+  const admin = createAdminClient()
+  const { data: appt } = await admin
+    .from('appointments')
+    .select('id, child_id, starts_at, dispatched_at, handed_to_reception_at')
+    .eq('id', appointmentId)
+    .maybeSingle()
+  if (!appt) return { ok: false, error: 'Cita no encontrada.' }
+  if (appt.dispatched_at) return { ok: true, feeUsd: 0 }
+
+  const nowISO = new Date().toISOString()
+  const timerOrigin = appt.handed_to_reception_at ?? nowISO
+  const { minutes, feeUsd } = computeLatePickup(timerOrigin, nowISO)
+
+  // Guard: solo llamar cuando hay cargo real.
+  if (feeUsd <= 0) return { ok: false, error: 'Sin cargo tardío para cobrar.' }
+
+  const { error } = await admin
+    .from('appointments')
+    .update({
+      dispatched_at: nowISO,
+      dispatched_by_user_id: actor.id,
+      dispatch_type: 'to_reception',
+      late_fee_minutes: minutes,
+      late_fee_usd: feeUsd,
+      late_fee_status: 'charged',
+      dispatch_snoozed_until: null,
+    })
+    .eq('id', appointmentId)
+  if (error) return { ok: false, error: error.message }
+
+  // Acumular línea en la factura del ciclo del mes (igual que confirmLateFee).
+  const period = `${appt.starts_at.slice(0, 7)}-01`
+  const { data: cycle } = await admin
+    .from('monthly_session_cycles')
+    .select('id, invoice_id')
+    .eq('child_id', appt.child_id)
+    .eq('period_month', period)
+    .neq('status', 'cancelled')
+    .maybeSingle()
+
+  if (cycle?.invoice_id) {
+    const dateLabel = new Date(appt.starts_at).toLocaleDateString('es-SV')
+    await admin.from('invoice_items').insert({
+      invoice_id: cycle.invoice_id,
+      description: `Recogida tardía (${dateLabel})`,
+      quantity: 1,
+      unit_price: feeUsd,
+      line_total: feeUsd,
+      sort_order: 98,
+    })
+    const { data: inv } = await admin
+      .from('invoices')
+      .select('total, total_a_pagar')
+      .eq('id', cycle.invoice_id)
       .maybeSingle()
-    const childName = child?.full_name ?? 'un niño/a'
-    const rows = (mgmt ?? []).map((m) => ({
-      recipient_user_id: m.id,
-      kind: 'late_pickup_fee',
-      title: 'Cargo por recogida tardía',
-      body: `Recogida tardía de ${childName}: ${minutes} min → $${feeUsd.toFixed(2)} sugerido. Revisá para cobrar o perdonar.`,
-      payload_json: { appointment_id: appointmentId, child_id: appt.child_id, fee_usd: feeUsd },
-    }))
-    if (rows.length > 0) {
-      await (admin.from('notifications') as unknown as {
-        insert: (v: unknown) => Promise<unknown>
-      }).insert(rows)
+    if (inv) {
+      await admin
+        .from('invoices')
+        .update({
+          total: Number(inv.total ?? 0) + feeUsd,
+          total_a_pagar: Number(inv.total_a_pagar ?? 0) + feeUsd,
+        })
+        .eq('id', cycle.invoice_id)
     }
   }
 
-  revalidatePath('/agenda')
   revalidatePath('/mi-dia')
-  return { ok: true, feeUsd, minutes }
+  revalidatePath('/agenda')
+  revalidatePath('/aprobaciones')
+  return { ok: true, feeUsd }
 }
 
 /** "El niño no lo han traído aún" → pospone el pop-up (sincronizado). */
