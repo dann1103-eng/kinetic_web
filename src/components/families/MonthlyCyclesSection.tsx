@@ -9,6 +9,7 @@ import {
   cancelMonthlyCycle,
   markMonthlyCyclePaid,
   extendMonthlyCycleGrace,
+  deleteMonthlyCycle,
 } from '@/app/actions/monthly-cycles'
 import {
   MONTHLY_CYCLE_STATUS_LABELS,
@@ -27,6 +28,9 @@ interface Props {
   canManage: boolean
   /** Puede anular ciclos (admin / directora / coordinadora_familias). */
   canCancel: boolean
+  /** Puede ELIMINAR ciclos por completo (solo admin) — borra ciclo + factura
+   *  + citas auto-generadas. Para ciclos de prueba o errores. */
+  canDelete: boolean
   /** Catálogo de terapias individuales — para precargar precios al cobrar. */
   therapyCatalog?: ServiceCatalogItem[]
   /** Programa matutino del niño — activa precio BK precargado. */
@@ -55,6 +59,7 @@ export function MonthlyCyclesSection({
   cycles: initial,
   canManage,
   canCancel,
+  canDelete,
   therapyCatalog,
   enrolledProgram,
 }: Props) {
@@ -66,6 +71,26 @@ export function MonthlyCyclesSection({
   const [cancelReason, setCancelReason] = useState('')
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [isCancelling, startCancel] = useTransition()
+
+  // Eliminar ciclo (admin)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [isDeleting, startDelete] = useTransition()
+
+  function handleDelete() {
+    if (!deletingId) return
+    setDeleteError(null)
+    startDelete(async () => {
+      const res = await deleteMonthlyCycle(deletingId)
+      if (!res.ok) {
+        setDeleteError(res.error)
+        return
+      }
+      setCycles((prev) => prev.filter((c) => c.id !== deletingId))
+      setDeletingId(null)
+      router.refresh()
+    })
+  }
 
   // Marcar pagado
   const [payingId, setPayingId] = useState<string | null>(null)
@@ -311,6 +336,19 @@ export function MonthlyCyclesSection({
                           Anular
                         </button>
                       )}
+                      {canDelete && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null)
+                            setDeletingId(c.id)
+                          }}
+                          className="text-xs text-red-700 hover:underline"
+                          title="Eliminar el ciclo por completo (factura y citas auto-generadas incluidas)"
+                        >
+                          Eliminar
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -503,6 +541,43 @@ export function MonthlyCyclesSection({
                 className="px-3 py-1.5 text-sm rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60"
               >
                 {isCancelling ? 'Anulando…' : 'Confirmar anulación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingId && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+            <h3 className="text-base font-semibold text-fm-on-surface">Eliminar ciclo</h3>
+            <p className="text-xs text-fm-on-surface-variant">
+              Esto <b>borra por completo</b> el ciclo, su factura y las citas
+              auto-generadas del mes que sigan <b>programadas</b> (las ya iniciadas
+              o completadas se respetan). Útil para ciclos de prueba o errores.
+              Esta acción <b>no se puede deshacer</b>; el mes quedará libre para
+              volver a generarse.
+            </p>
+            {deleteError && <p className="text-xs text-red-700">{deleteError}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeletingId(null)
+                  setDeleteError(null)
+                }}
+                disabled={isDeleting}
+                className="px-3 py-1.5 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="px-3 py-1.5 text-sm rounded-lg bg-red-700 text-white font-medium hover:bg-red-800 disabled:opacity-60"
+              >
+                {isDeleting ? 'Eliminando…' : 'Eliminar ciclo'}
               </button>
             </div>
           </div>

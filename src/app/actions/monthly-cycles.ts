@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type {
   MonthlyCandidateAppointment,
@@ -723,4 +724,72 @@ export async function cancelMonthlyCycle(
   revalidatePath('/familias')
   revalidatePath('/agenda')
   return { ok: true, cycle: data as MonthlySessionCycle }
+}
+
+// ── Eliminar un ciclo por completo (admin) ──────────────────────────────────
+// A diferencia de "Anular" (que deja un ciclo cancelado en el historial),
+// esto BORRA el ciclo, su factura y las citas auto-generadas aún 'scheduled'
+// del mes. Pensado para ciclos de prueba / errores. Usa admin client porque
+// no hay policy DELETE en monthly_session_cycles (gateado por rol en código).
+export async function deleteMonthlyCycle(
+  cycleId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { user } = await getActor()
+  if (user.role !== 'admin') {
+    return { ok: false, error: 'Solo un administrador puede eliminar un ciclo.' }
+  }
+
+  const admin = createAdminClient()
+
+  const { data: cycleRaw, error: loadErr } = await admin
+    .from('monthly_session_cycles')
+    .select('id, child_id, period_month, invoice_id')
+    .eq('id', cycleId)
+    .maybeSingle()
+  if (loadErr) return { ok: false, error: loadErr.message }
+  if (!cycleRaw) return { ok: false, error: 'Ciclo no encontrado.' }
+  const cycle = cycleRaw as {
+    id: string
+    child_id: string
+    period_month: string
+    invoice_id: string | null
+  }
+
+  // 1) Borrar las citas auto-generadas del mes que siguen 'scheduled'
+  //    (las ya iniciadas/completadas se respetan).
+  const [y, m] = cycle.period_month.slice(0, 7).split('-').map(Number)
+  const startISO = fromZonedTime(new Date(y, m - 1, 1, 0, 0, 0), 'America/El_Salvador').toISOString()
+  const endISO = fromZonedTime(new Date(y, m, 1, 0, 0, 0), 'America/El_Salvador').toISOString()
+
+  const { data: apptsRaw } = await admin
+    .from('appointments')
+    .select('id, notes')
+    .eq('child_id', cycle.child_id)
+    .eq('status', 'scheduled')
+    .gte('starts_at', startISO)
+    .lt('starts_at', endISO)
+  const autoIds = ((apptsRaw ?? []) as { id: string; notes: string | null }[])
+    .filter((a) => (a.notes ?? '').includes('Auto-generado del ciclo'))
+    .map((a) => a.id)
+  if (autoIds.length > 0) {
+    await admin.from('appointments').delete().in('id', autoIds)
+  }
+
+  // 2) Borrar la factura asociada (items primero por la FK).
+  if (cycle.invoice_id) {
+    await admin.from('invoice_items').delete().eq('invoice_id', cycle.invoice_id)
+    await admin.from('invoices').delete().eq('id', cycle.invoice_id)
+  }
+
+  // 3) Borrar el ciclo.
+  const { error: delErr } = await admin
+    .from('monthly_session_cycles')
+    .delete()
+    .eq('id', cycle.id)
+  if (delErr) return { ok: false, error: delErr.message }
+
+  revalidatePath('/familias')
+  revalidatePath('/ninos')
+  revalidatePath('/agenda')
+  return { ok: true }
 }

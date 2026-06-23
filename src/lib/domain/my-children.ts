@@ -1,12 +1,11 @@
 /**
  * my-children — niños que un terapista/maestra puede ver en /mis-ninos.
  *
- * Reglas (se UNEN — una persona puede ser maestra Y dar terapias):
- *   • Cualquier staff: niños donde es primary_therapist_id en algún treatment_plan
- *     activo (sus niños de terapia). Esto aplica AUNQUE su rol sea maestra.
- *   • Maestra: ADEMÁS, todos los niños con enrolled_program
- *     (blue_kids / learning_kids / aula_educativa) — el programa matutino.
- * En todos los casos se excluyen fases terminales (5_*).
+ * Regla (maestras = terapistas, mismas restricciones): niños donde el usuario es
+ * primary_therapist_id en algún treatment_plan activo (sus niños asignados).
+ * Una maestra solo ve los niños del programa matutino que tiene asignados como
+ * terapista principal — NO todos los del programa.
+ * Se excluyen fases terminales (5_*).
  *
  * Devolvemos un subset minimal del Child + la última cita conocida + el próximo
  * appointment programado para mostrar en cards.
@@ -52,23 +51,14 @@ export async function listMyChildren(
   if (role !== 'terapista' && role !== 'maestra') return []
   const childIdSet = new Set<string>()
 
-  // (a) Niños donde es terapista principal de un plan activo — aplica a CUALQUIER
-  //     rol que llegue acá (incluida una maestra que también da terapias).
+  // Niños donde es terapista principal de un plan activo — aplica a terapistas
+  // Y maestras por igual (mismas restricciones: solo sus asignados).
   const { data: plans } = await supabase
     .from('treatment_plans')
     .select('child_id')
     .eq('primary_therapist_id', userId)
     .eq('active', true)
   for (const p of plans ?? []) childIdSet.add(p.child_id as string)
-
-  // (b) Maestra: además, todos los niños del programa matutino.
-  if (role === 'maestra') {
-    const { data: kids } = await supabase
-      .from('children')
-      .select('id')
-      .not('enrolled_program', 'is', null)
-    for (const k of kids ?? []) childIdSet.add(k.id as string)
-  }
 
   const childIds = [...childIdSet]
   if (childIds.length === 0) return []
@@ -107,12 +97,8 @@ export async function listMyChildren(
     .lte('starts_at', sixtyDaysAhead)
     .order('starts_at', { ascending: true })
 
-  if (role === 'terapista') {
-    apptQuery = apptQuery.eq('therapist_id', userId)
-  } else if (role === 'maestra') {
-    // Maestra-terapista: sus citas de terapia (therapist_id) O las del matutino.
-    apptQuery = apptQuery.or(`therapist_id.eq.${userId},event_type.eq.programa_matutino`)
-  }
+  // Terapista y maestra: solo sus propias citas (mismas restricciones).
+  apptQuery = apptQuery.eq('therapist_id', userId)
 
   const { data: apptsRaw } = await apptQuery
   type ApptRow = {
@@ -186,7 +172,8 @@ export async function userCanViewChild(
 ): Promise<boolean> {
   if (role !== 'terapista' && role !== 'maestra') return false
 
-  // Terapista principal de un plan activo de ese niño — aplica a cualquier rol.
+  // Terapista principal de un plan activo de ese niño — terapistas Y maestras
+  // por igual (mismas restricciones: solo sus asignados).
   const { data: plan } = await supabase
     .from('treatment_plans')
     .select('id')
@@ -195,18 +182,5 @@ export async function userCanViewChild(
     .eq('active', true)
     .limit(1)
     .maybeSingle()
-  if (plan) return true
-
-  // Maestra: además, cualquier niño del programa matutino.
-  if (role === 'maestra') {
-    const { data } = await supabase
-      .from('children')
-      .select('id, enrolled_program')
-      .eq('id', childId)
-      .not('enrolled_program', 'is', null)
-      .limit(1)
-      .maybeSingle()
-    return !!data
-  }
-  return false
+  return !!plan
 }

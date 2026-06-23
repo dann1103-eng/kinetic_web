@@ -48,7 +48,9 @@ export function AgendaPageClient({
   therapists,
   closures,
 }: AgendaPageClientProps) {
-  const isTherapist = currentUserRole === 'terapista'
+  // Maestras y terapistas quedan bloqueados a su propia agenda (mismas
+  // restricciones: solo ven las citas donde son el terapista asignado).
+  const isTherapist = currentUserRole === 'terapista' || currentUserRole === 'maestra'
   const canSchedule = STAFF_ROLES_SCHEDULE.has(currentUserRole)
   const searchParams = useSearchParams()
 
