@@ -51,13 +51,30 @@ export async function listMyChildren(
   if (role !== 'terapista' && role !== 'maestra') return []
   const childIdSet = new Set<string>()
 
-  // (a) Niños donde es terapista principal de un plan activo (terapias 1-a-1).
+  // (a) Niños donde es terapista principal de un plan activo.
   const { data: plans } = await supabase
     .from('treatment_plans')
     .select('child_id')
     .eq('primary_therapist_id', userId)
     .eq('active', true)
   for (const p of plans ?? []) childIdSet.add(p.child_id as string)
+
+  // (a2) Niños donde el usuario aparece como terapista de algún tipo de terapia
+  //      específico en el plan (therapies_json[*].therapist_id). Cubre el caso
+  //      de terapistas que dan un servicio a un niño pero no son la principal.
+  const { data: allActivePlans } = await supabase
+    .from('treatment_plans')
+    .select('child_id, therapies_json')
+    .eq('active', true)
+  for (const plan of allActivePlans ?? []) {
+    const therapies = (plan.therapies_json ?? []) as { therapist_id?: string | null; active?: boolean }[]
+    for (const t of therapies) {
+      if (t.therapist_id === userId && t.active !== false) {
+        childIdSet.add(plan.child_id as string)
+        break
+      }
+    }
+  }
 
   // (b) Programas matutinos: niños de los grupos donde el usuario es staff
   //     (grupos compartidos — visibilidad por grupo, no por terapista principal).
@@ -197,6 +214,19 @@ export async function userCanViewChild(
     .limit(1)
     .maybeSingle()
   if (plan) return true
+
+  // (a2) Terapista de algún tipo de terapia específico en el plan activo del niño.
+  const { data: planWithTherapies } = await supabase
+    .from('treatment_plans')
+    .select('therapies_json')
+    .eq('child_id', childId)
+    .eq('active', true)
+    .limit(1)
+    .maybeSingle()
+  if (planWithTherapies) {
+    const therapies = (planWithTherapies.therapies_json ?? []) as { therapist_id?: string | null; active?: boolean }[]
+    if (therapies.some((t) => t.therapist_id === userId && t.active !== false)) return true
+  }
 
   // (b) Programa matutino: el niño es miembro activo de un grupo que el usuario cubre.
   const { data: staffGroups } = await supabase

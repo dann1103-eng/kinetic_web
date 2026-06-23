@@ -1,68 +1,103 @@
 -- ═══════════════════════════════════════════════════════════════════════════
--- Fix: reasignar therapist_id en citas según el plan de tratamiento activo
+-- Fix: corregir therapist_id en citas según el plan de tratamiento activo
 -- ═══════════════════════════════════════════════════════════════════════════
--- PROBLEMA: algunas citas se generaron con therapist_id = primary_therapist_id
--- aunque el plan de tratamiento tiene un therapist_id distinto por service_type
--- (feature F2 / mig 0134). Como resultado la terapista principal ve citas de
--- otras terapistas y éstas no ven las suyas.
+-- PROBLEMA: citas generadas con therapist_id = primary_therapist_id aunque
+-- el plan tiene un therapist_id diferente por service_type en therapies_json.
+-- Resultado: terapistas secundarias no ven las citas que les corresponden
+-- y la principal ve de más.
 --
--- SOLUCIÓN: Para cada cita 'scheduled' con event_type='terapia', si el plan
--- activo del niño define un therapist_id específico para ese service_type,
--- actualizar la cita con ese terapista correcto.
---
--- ALCANCE: solo citas con status='scheduled' (no tocar las completadas ni las
--- del pasado que ya tienen sesiones/reportes).
---
--- PASO 1 — Previsualizar qué citas cambiarían (seguro, solo lectura).
+-- PASO 1 — Previsualizar qué citas cambiarían (sin modificar nada).
 -- ═══════════════════════════════════════════════════════════════════════════
 
+WITH plan_per_service AS (
+  -- Para cada plan activo, extraer el therapist_id explícito por servicio.
+  -- Solo incluye entradas que tienen therapist_id no nulo/vacío.
+  SELECT
+    tp.child_id,
+    (t->>'service')            AS service_type,
+    (t->>'therapist_id')::uuid AS plan_therapist_id
+  FROM public.treatment_plans tp
+  CROSS JOIN LATERAL jsonb_array_elements(
+    COALESCE(tp.therapies_json, '[]'::jsonb)
+  ) AS t
+  WHERE tp.active = true
+    AND (t->>'therapist_id') IS NOT NULL
+    AND (t->>'therapist_id') <> ''
+)
 SELECT
-  a.id                                  AS appointment_id,
+  c.full_name                             AS nino,
   a.service_type,
-  a.starts_at,
-  ch.full_name                          AS nino,
-  a.therapist_id                        AS therapist_actual,
-  u_actual.full_name                    AS nombre_actual,
-  (t_entry->>'therapist_id')::uuid      AS therapist_correcto,
-  u_correcto.full_name                  AS nombre_correcto
+  a.starts_at::date                       AS fecha,
+  a.status,
+  u_actual.full_name                      AS terapista_actual,
+  u_correcto.full_name                    AS terapista_correcto,
+  a.id                                    AS appointment_id
 FROM public.appointments a
-JOIN public.children ch ON ch.id = a.child_id
-JOIN public.treatment_plans tp
-  ON tp.child_id = a.child_id AND tp.active = true
-JOIN LATERAL jsonb_array_elements(
-  COALESCE(tp.therapies_json, '[]'::jsonb)
-) AS t_entry ON
-  t_entry->>'service' = a.service_type
-  AND (t_entry->>'therapist_id') IS NOT NULL
-  AND (t_entry->>'therapist_id') <> ''
-LEFT JOIN public.users u_actual    ON u_actual.id    = a.therapist_id
-LEFT JOIN public.users u_correcto  ON u_correcto.id  = (t_entry->>'therapist_id')::uuid
-WHERE
-  a.event_type = 'terapia'
-  AND a.status = 'scheduled'
-  AND a.therapist_id <> (t_entry->>'therapist_id')::uuid
-ORDER BY ch.full_name, a.starts_at;
+JOIN plan_per_service ps
+  ON ps.child_id = a.child_id
+  AND ps.service_type = a.service_type
+JOIN public.children c ON c.id = a.child_id
+JOIN public.users u_actual   ON u_actual.id   = a.therapist_id
+JOIN public.users u_correcto ON u_correcto.id = ps.plan_therapist_id
+WHERE a.event_type = 'terapia'
+  AND a.status IN ('scheduled', 'completed')  -- ambos tipos
+  AND a.therapist_id <> ps.plan_therapist_id
+ORDER BY c.full_name, a.starts_at DESC;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════
--- PASO 2 — Aplicar el fix. Correr DESPUÉS de revisar el PASO 1.
+-- PASO 2A — Corregir solo citas FUTURAS (scheduled).
+--           Más seguro: no toca el historial de sesiones completadas.
 -- ═══════════════════════════════════════════════════════════════════════════
 
+WITH plan_per_service AS (
+  SELECT
+    tp.child_id,
+    (t->>'service')            AS service_type,
+    (t->>'therapist_id')::uuid AS plan_therapist_id
+  FROM public.treatment_plans tp
+  CROSS JOIN LATERAL jsonb_array_elements(
+    COALESCE(tp.therapies_json, '[]'::jsonb)
+  ) AS t
+  WHERE tp.active = true
+    AND (t->>'therapist_id') IS NOT NULL
+    AND (t->>'therapist_id') <> ''
+)
 UPDATE public.appointments a
-SET    therapist_id = (t_entry->>'therapist_id')::uuid
-FROM   public.treatment_plans tp
-JOIN LATERAL jsonb_array_elements(
-  COALESCE(tp.therapies_json, '[]'::jsonb)
-) AS t_entry ON
-  t_entry->>'service' = a.service_type
-  AND (t_entry->>'therapist_id') IS NOT NULL
-  AND (t_entry->>'therapist_id') <> ''
-WHERE
-  tp.child_id = a.child_id
-  AND tp.active = true
-  AND a.event_type = 'terapia'
-  AND a.status = 'scheduled'
-  AND a.therapist_id <> (t_entry->>'therapist_id')::uuid;
+SET    therapist_id = ps.plan_therapist_id
+FROM   plan_per_service ps
+WHERE  a.child_id     = ps.child_id
+  AND  a.service_type = ps.service_type
+  AND  a.event_type   = 'terapia'
+  AND  a.status       = 'scheduled'
+  AND  a.therapist_id <> ps.plan_therapist_id;
 
--- Ver cuántas filas se actualizaron.
--- Si el resultado es 0, no había inconsistencias pendientes.
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- PASO 2B — Corregir TAMBIÉN citas completadas (historial).
+--           Necesario para que la agenda y perfil de las terapistas
+--           muestren el historial correcto.
+--           (Correr después de 2A o en lugar de 2A si querés el historial.)
+-- ═══════════════════════════════════════════════════════════════════════════
+
+WITH plan_per_service AS (
+  SELECT
+    tp.child_id,
+    (t->>'service')            AS service_type,
+    (t->>'therapist_id')::uuid AS plan_therapist_id
+  FROM public.treatment_plans tp
+  CROSS JOIN LATERAL jsonb_array_elements(
+    COALESCE(tp.therapies_json, '[]'::jsonb)
+  ) AS t
+  WHERE tp.active = true
+    AND (t->>'therapist_id') IS NOT NULL
+    AND (t->>'therapist_id') <> ''
+)
+UPDATE public.appointments a
+SET    therapist_id = ps.plan_therapist_id
+FROM   plan_per_service ps
+WHERE  a.child_id     = ps.child_id
+  AND  a.service_type = ps.service_type
+  AND  a.event_type   = 'terapia'
+  AND  a.status       IN ('scheduled', 'completed')
+  AND  a.therapist_id <> ps.plan_therapist_id;
