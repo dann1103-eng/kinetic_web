@@ -65,7 +65,7 @@ export default async function AppLayout({ children }: AppLayoutProps) {
           <LoginWelcomeDialog />
           <IdleSchedulerWrapper />
           <SessionSentinel />
-          <DispatchWatcher />
+          <DispatchWatcher currentUserRole={ctx.appUser.role} />
         </MobileSidebarProvider>
       </ActiveCallProvider>
     </UserProvider>
