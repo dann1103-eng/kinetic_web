@@ -100,12 +100,21 @@ export default async function CapacidadTerapistasPage({ searchParams }: PageProp
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <WeekNavigator weekStartParam={toDateParam(weekStart)} />
-        <Link
-          href="/operacion/horarios-terapistas"
-          className="text-sm font-semibold text-fm-primary hover:underline"
-        >
-          Configurar horarios →
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/operacion/capacidad-terapistas/completadas"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-fm-primary hover:underline"
+          >
+            <span className="material-symbols-outlined text-[18px]">task_alt</span>
+            Ver horas completadas →
+          </Link>
+          <Link
+            href="/operacion/horarios-terapistas"
+            className="text-sm font-semibold text-fm-primary hover:underline"
+          >
+            Configurar horarios →
+          </Link>
+        </div>
       </div>
 
       <TherapistCapacityTable rows={rows} weekStartIso={toDateParam(weekStart)} />

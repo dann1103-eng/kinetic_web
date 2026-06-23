@@ -8,6 +8,10 @@ import {
   type UpcomingDay,
 } from '@/components/mi-dia/UpcomingTimelineSection'
 import { SessionReportModal } from '@/components/agenda/SessionReportModal'
+import {
+  WeekCompletedSection,
+  type WeekCompletedItem,
+} from '@/components/mi-dia/WeekCompletedSection'
 import { createOrGetSessionReport } from '@/app/actions/session-reports'
 import type {
   Appointment,
@@ -38,6 +42,7 @@ interface MiDiaClientProps {
   todayLabels: TodayLabels
   upcomingByDay: UpcomingDay[]
   monthLabel: string
+  weekItems: WeekCompletedItem[]
 }
 
 export function MiDiaClient({
@@ -49,7 +54,9 @@ export function MiDiaClient({
   todayLabels,
   upcomingByDay,
   monthLabel,
+  weekItems,
 }: MiDiaClientProps) {
+  const [tab, setTab] = useState<'hoy' | 'semana'>('hoy')
   const [openJournalForAppt, setOpenJournalForAppt] = useState<string | null>(null)
   const [reports, setReports] = useState<Record<string, SessionReport>>(
     initialReportsBySession,
@@ -96,18 +103,41 @@ export function MiDiaClient({
       />
 
       <div className="col-span-12 lg:col-span-8 space-y-12">
-        <TodaySessionsSection
-          appointments={appointments}
-          sessionByAppt={sessionByAppt}
-          reports={reports}
-          entriesByChild={entriesByChild}
-          authorNames={authorNames}
-          openJournalForAppt={openJournalForAppt}
-          onNoteClick={handleNoteClick}
-          onReportClick={handleReportClick}
-        />
+        <div className="inline-flex rounded-full border border-fm-outline-variant/40 p-0.5 bg-fm-surface-container-low">
+          {(['hoy', 'semana'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={`px-4 py-1.5 text-sm font-semibold rounded-full transition-colors ${
+                t === tab
+                  ? 'bg-fm-primary text-white'
+                  : 'text-fm-on-surface-variant hover:text-fm-on-surface'
+              }`}
+            >
+              {t === 'hoy' ? 'Hoy' : 'Mi semana'}
+            </button>
+          ))}
+        </div>
 
-        <UpcomingTimelineSection days={upcomingByDay} monthLabel={monthLabel} />
+        {tab === 'hoy' ? (
+          <>
+            <TodaySessionsSection
+              appointments={appointments}
+              sessionByAppt={sessionByAppt}
+              reports={reports}
+              entriesByChild={entriesByChild}
+              authorNames={authorNames}
+              openJournalForAppt={openJournalForAppt}
+              onNoteClick={handleNoteClick}
+              onReportClick={handleReportClick}
+            />
+
+            <UpcomingTimelineSection days={upcomingByDay} monthLabel={monthLabel} />
+          </>
+        ) : (
+          <WeekCompletedSection items={weekItems} onReportClick={handleReportClick} />
+        )}
       </div>
 
       {openReport && activeReport && (

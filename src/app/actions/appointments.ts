@@ -346,6 +346,52 @@ export async function markAppointmentCompleted(
   return { ok: true }
 }
 
+/** Roles de gestión que pueden marcar terapias como extraordinarias (is_extra). */
+const MGMT_ROLES_EXTRA = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion']
+
+/**
+ * Marca/desmarca una terapia completada como extraordinaria (`is_extra`). Las
+ * extraordinarias entran a la planilla de servicios profesionales. Pensado para
+ * recepción/coordinadoras/admin desde la vista de horas completadas.
+ */
+export async function setAppointmentExtra(
+  appointmentId: string,
+  isExtra: boolean,
+  reason: ExtraReason | null,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+  if (!MGMT_ROLES_EXTRA.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos para marcar terapias extraordinarias' }
+  }
+
+  const supabase = await createClient()
+
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('event_type')
+    .eq('id', appointmentId)
+    .maybeSingle()
+  if (!appt) return { ok: false, error: 'Cita no encontrada.' }
+  if (appt.event_type !== 'terapia') {
+    return { ok: false, error: 'Solo las terapias pueden marcarse como extraordinarias.' }
+  }
+
+  const { error } = await supabase
+    .from('appointments')
+    .update({
+      is_extra: isExtra,
+      extra_reason: isExtra ? reason : null,
+    })
+    .eq('id', appointmentId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/operacion/capacidad-terapistas/completadas')
+  revalidatePath('/reportes/por-terapista')
+  revalidatePath('/agenda')
+  return { ok: true }
+}
+
 async function updateAppointmentStatus(
   appointmentId: string,
   status: AppointmentStatus,

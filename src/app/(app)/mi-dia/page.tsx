@@ -8,7 +8,13 @@ import { PendingAbsencesBanner } from '@/components/agenda/PendingAbsencesBanner
 import { summarizeActiveTherapiesForTherapist } from '@/lib/domain/progress-reports-pending'
 import { detectPendingAbsencesForTherapist } from '@/lib/domain/absences-pending'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
-import type { Appointment, TherapySession, ChildJournalEntry, SessionReport } from '@/types/db'
+import type {
+  Appointment,
+  TherapySession,
+  ChildJournalEntry,
+  SessionReport,
+  SessionReportStatus,
+} from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,6 +102,77 @@ export default async function MiDiaPage() {
     .order('starts_at')
 
   const upcoming = (upcomingRaw ?? []) as Appointment[]
+
+  // ── Semana actual (lunes→domingo SV): terapias completadas + estado de reporte ──
+  const nowInSV = toZonedTime(now, TZ)
+  const dow = nowInSV.getDay() // 0=dom..6=sáb
+  const mondayOffset = dow === 0 ? -6 : 1 - dow
+  const weekStart = fromZonedTime(
+    new Date(nowInSV.getFullYear(), nowInSV.getMonth(), nowInSV.getDate() + mondayOffset, 0, 0, 0),
+    TZ,
+  )
+  const weekEnd = fromZonedTime(
+    new Date(nowInSV.getFullYear(), nowInSV.getMonth(), nowInSV.getDate() + mondayOffset + 7, 0, 0, 0),
+    TZ,
+  )
+
+  const { data: weekCompletedRaw } = await supabase
+    .from('appointments')
+    .select('id, child_id, service_type, starts_at, ends_at, status')
+    .eq('therapist_id', userId)
+    .eq('status', 'completed')
+    .gte('starts_at', weekStart.toISOString())
+    .lt('starts_at', weekEnd.toISOString())
+    .order('starts_at')
+  const weekCompletedAppts = (weekCompletedRaw ?? []) as {
+    id: string
+    child_id: string | null
+    service_type: string | null
+    starts_at: string
+    ends_at: string
+    status: string
+  }[]
+
+  const weekApptIds = weekCompletedAppts.map((a) => a.id)
+  const { data: weekSessionsRaw } = weekApptIds.length
+    ? await supabase.from('therapy_sessions').select('id, appointment_id').in('appointment_id', weekApptIds)
+    : { data: [] as { id: string; appointment_id: string }[] }
+  const weekSessionByAppt = new Map(
+    ((weekSessionsRaw ?? []) as { id: string; appointment_id: string }[]).map((s) => [s.appointment_id, s.id]),
+  )
+  const weekSessionIds = Array.from(weekSessionByAppt.values())
+  const { data: weekReportsRaw } = weekSessionIds.length
+    ? await supabase.from('session_reports').select('session_id, status').in('session_id', weekSessionIds)
+    : { data: [] as { session_id: string; status: string }[] }
+  const weekReportStatusBySession = new Map(
+    ((weekReportsRaw ?? []) as { session_id: string; status: string }[]).map((r) => [r.session_id, r.status]),
+  )
+
+  const weekChildIds = Array.from(
+    new Set(weekCompletedAppts.map((a) => a.child_id).filter(Boolean) as string[]),
+  )
+  const { data: weekChildrenRaw } = weekChildIds.length
+    ? await supabase.from('children').select('id, full_name, preferred_name').in('id', weekChildIds)
+    : { data: [] as { id: string; full_name: string; preferred_name: string | null }[] }
+  const weekChildMap = new Map(
+    ((weekChildrenRaw ?? []) as { id: string; full_name: string; preferred_name: string | null }[]).map(
+      (c) => [c.id, c.preferred_name || c.full_name],
+    ),
+  )
+
+  const weekItems = weekCompletedAppts.map((a) => {
+    const sessionId = weekSessionByAppt.get(a.id) ?? null
+    return {
+      appointmentId: a.id,
+      sessionId,
+      childName: (a.child_id ? weekChildMap.get(a.child_id) : null) ?? 'Niño/a',
+      serviceType: a.service_type,
+      startsAt: a.starts_at,
+      reportStatus: (sessionId
+        ? (weekReportStatusBySession.get(sessionId) as SessionReportStatus | undefined) ?? null
+        : null) as SessionReportStatus | null,
+    }
+  })
 
   const { data: sessionsRaw } = await supabase
     .from('therapy_sessions')
@@ -254,6 +331,7 @@ export default async function MiDiaPage() {
           todayLabels={todayLabels}
           upcomingByDay={upcomingByDay}
           monthLabel={monthLabel}
+          weekItems={weekItems}
         />
       </div>
     </div>
