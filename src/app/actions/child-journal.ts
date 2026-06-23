@@ -17,6 +17,7 @@ async function getActor() {
 function revalidateJournalPaths(childId: string) {
   revalidatePath('/mi-dia')
   revalidatePath(`/familias/${childId}`)
+  revalidatePath(`/mis-ninos/${childId}`)
   revalidatePath('/portal/agenda-digital')
 }
 

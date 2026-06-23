@@ -30,10 +30,16 @@ function formatPeriod(ym: string): string {
 interface Props {
   data: NinoCardData
   phaseCatalog: IntakePhaseCatalogEntry[]
+  /** Ruta a la que vuelve el botón "Regresar" del perfil (conserva filtros). */
+  returnTo?: string
 }
 
-export function NinoCard({ data, phaseCatalog }: Props) {
+export function NinoCard({ data, phaseCatalog, returnTo }: Props) {
   const { child, plan, attendance, lastCycle } = data
+
+  const href = returnTo
+    ? `/familias/${child.family_id}/children/${child.id}?returnTo=${encodeURIComponent(returnTo)}`
+    : `/familias/${child.family_id}/children/${child.id}`
 
   const therapies = (plan?.therapies_json ?? []).filter((t) => t.active !== false)
   const attendancePct =
@@ -54,7 +60,7 @@ export function NinoCard({ data, phaseCatalog }: Props) {
 
   return (
     <Link
-      href={`/familias/${child.family_id}/children/${child.id}`}
+      href={href}
       className="group block bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-4 hover:border-fm-primary/30 hover:shadow-md transition-all duration-150 space-y-3"
     >
       {/* Header: avatar + nombre + edad */}

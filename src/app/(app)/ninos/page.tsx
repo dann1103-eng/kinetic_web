@@ -23,14 +23,20 @@ const REDIRECT_TO_MY_KIDS = ['terapista', 'maestra']
 export default async function NinosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string }>
+  searchParams: Promise<{
+    month?: string
+    q?: string
+    phase?: string
+    program?: string
+    therapist?: string
+  }>
 }) {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
   if (REDIRECT_TO_MY_KIDS.includes(ctx.appUser.role)) redirect('/mis-ninos')
   if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
 
-  const { month } = await searchParams
+  const { month, q, phase, program, therapist } = await searchParams
   const availableMonths = getAvailableMonths()
   const periodMonth =
     month && availableMonths.includes(month) ? month : availableMonths[0]
@@ -50,6 +56,10 @@ export default async function NinosPage({
         periodMonth={periodMonth}
         availableMonths={availableMonths}
         phaseCatalog={phaseCatalog}
+        initialSearch={q ?? ''}
+        initialPhase={phase ?? 'all'}
+        initialProgram={program ?? 'all'}
+        initialTherapist={therapist ?? 'all'}
       />
     </div>
   )

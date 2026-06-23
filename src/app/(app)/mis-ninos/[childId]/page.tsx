@@ -5,6 +5,7 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { ChildDashboardCalendar } from '@/components/dashboard/ChildDashboardCalendar'
 import { ChildSessionReportsHistory } from '@/components/agenda/ChildSessionReportsHistory'
+import { JournalTab } from '@/app/(app)/familias/[id]/JournalTab'
 import { getChildDashboardData } from '@/lib/domain/child-dashboard'
 import { userCanViewChild } from '@/lib/domain/my-children'
 import { formatSvDateTime } from '@/lib/format/datetime-sv'
@@ -268,6 +269,11 @@ export default async function MisNinosChildPage({ params }: PageProps) {
             childId={childId}
             childName={displayName}
           />
+        </section>
+
+        {/* Agenda digital — bitácora compartida con la familia */}
+        <section className="rounded-3xl border border-fm-outline-variant/30 bg-fm-surface-container-lowest p-5">
+          <JournalTab childId={childId} childName={displayName} />
         </section>
       </div>
     </div>

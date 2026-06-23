@@ -50,13 +50,15 @@ export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ id: string; childId: string }>
-  searchParams: Promise<{ tab?: string }>
+  searchParams: Promise<{ tab?: string; returnTo?: string }>
 }
 
 export default async function ChildProfilePage({ params, searchParams }: PageProps) {
   const { id: familyId, childId } = await params
-  const { tab: tabParam } = await searchParams
+  const { tab: tabParam, returnTo } = await searchParams
   const tab: 'resumen' | 'dashboard' = tabParam === 'dashboard' ? 'dashboard' : 'resumen'
+  // Validar returnTo (solo rutas internas) para evitar open-redirect.
+  const backHref = returnTo && returnTo.startsWith('/') ? returnTo : `/familias/${familyId}`
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
   if (REDIRECT_TO_MY_KIDS.includes(ctx.appUser.role)) {
@@ -142,7 +144,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopNav title={c.full_name} backHref={`/familias/${familyId}`} />
+      <TopNav title={c.full_name} backHref={backHref} />
 
       <div className="flex-1 px-6 pt-6 pb-12 max-w-6xl mx-auto w-full">
         {/* Header — integrado con la página, sin card chrome */}

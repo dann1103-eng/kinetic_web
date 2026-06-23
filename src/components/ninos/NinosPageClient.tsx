@@ -13,7 +13,22 @@ interface Props {
   periodMonth: string       // 'YYYY-MM' activo
   availableMonths: string[]
   phaseCatalog: IntakePhaseCatalogEntry[]
+  /** Valores iniciales de los filtros, leídos de la URL (para conservarlos
+   * al regresar desde el perfil de un niño). */
+  initialSearch: string
+  initialPhase: string
+  initialProgram: string
+  initialTherapist: string
 }
+
+// Grupos por programa para la vista seccionada (sin filtros activos).
+// Orden: programas primero, "Solo terapias" al final.
+const PROGRAM_GROUPS: { key: MorningProgram | null; label: string }[] = [
+  { key: 'blue_kids', label: 'BlueKids' },
+  { key: 'learning_kids', label: 'LearningKids' },
+  { key: 'aula_educativa', label: 'Aula Educativa' },
+  { key: null, label: 'Solo terapias' },
+]
 
 function monthLabel(ym: string): string {
   return new Date(`${ym}-01T12:00:00`).toLocaleDateString('es-SV', {
@@ -62,12 +77,54 @@ function phaseMatchesFilter(phaseCode: string | null, filter: string): boolean {
   return true
 }
 
-export function NinosPageClient({ niños, therapists, periodMonth, availableMonths, phaseCatalog }: Props) {
+export function NinosPageClient({
+  niños,
+  therapists,
+  periodMonth,
+  availableMonths,
+  phaseCatalog,
+  initialSearch,
+  initialPhase,
+  initialProgram,
+  initialTherapist,
+}: Props) {
   const router = useRouter()
-  const [search, setSearch] = useState('')
-  const [phaseFilter, setPhaseFilter] = useState<string>('all')
-  const [programFilter, setProgramFilter] = useState<string>('all')
-  const [therapistFilter, setTherapistFilter] = useState<string>('all')
+  const [search, setSearch] = useState(initialSearch)
+  const [phaseFilter, setPhaseFilter] = useState<string>(initialPhase)
+  const [programFilter, setProgramFilter] = useState<string>(initialProgram)
+  const [therapistFilter, setTherapistFilter] = useState<string>(initialTherapist)
+
+  // Query string que refleja el estado actual (mes + filtros). Lo usamos para:
+  //  1) sincronizar la URL (sin refetch del server) vía history.replaceState
+  //  2) construir el returnTo de cada card → "Regresar" vuelve a /niños igual.
+  function buildQuery(next: {
+    search: string
+    phase: string
+    program: string
+    therapist: string
+  }): string {
+    const params = new URLSearchParams()
+    params.set('month', periodMonth)
+    if (next.search) params.set('q', next.search)
+    if (next.phase !== 'all') params.set('phase', next.phase)
+    if (next.program !== 'all') params.set('program', next.program)
+    if (next.therapist !== 'all') params.set('therapist', next.therapist)
+    return params.toString()
+  }
+
+  // Sincroniza la URL sin disparar un refetch del Server Component (a
+  // diferencia del selector de mes, los demás filtros son client-side).
+  function syncUrl(next: {
+    search: string
+    phase: string
+    program: string
+    therapist: string
+  }) {
+    window.history.replaceState(null, '', `/ninos?${buildQuery(next)}`)
+  }
+
+  const currentState = { search, phase: phaseFilter, program: programFilter, therapist: therapistFilter }
+  const returnTo = `/ninos?${buildQuery(currentState)}`
 
   const filtered = niños.filter((d) => {
     if (search && !d.child.full_name.toLowerCase().includes(search.toLowerCase())) return false
@@ -82,6 +139,11 @@ export function NinosPageClient({ niños, therapists, periodMonth, availableMont
     return true
   })
 
+  // Sin filtros → vista seccionada por programa (cada grupo conserva el orden
+  // alfabético por apellido que ya trae `niños`).
+  const noFilters =
+    search === '' && phaseFilter === 'all' && programFilter === 'all' && therapistFilter === 'all'
+
   return (
     <div className="flex-1 p-4 sm:p-6 space-y-5">
       {/* Barra de filtros */}
@@ -89,7 +151,13 @@ export function NinosPageClient({ niños, therapists, periodMonth, availableMont
         {/* Selector de mes (URL-driven → server refetch) */}
         <select
           value={periodMonth}
-          onChange={(e) => router.push(`/ninos?month=${e.target.value}`)}
+          onChange={(e) => {
+            // El mes sí requiere refetch del server (cambia asistencia/ciclo);
+            // arrastramos los demás filtros para no perderlos.
+            const params = new URLSearchParams(buildQuery(currentState))
+            params.set('month', e.target.value)
+            router.push(`/ninos?${params.toString()}`)
+          }}
           className={SELECT_CLASS}
         >
           {availableMonths.map((m) => (
@@ -108,7 +176,11 @@ export function NinosPageClient({ niños, therapists, periodMonth, availableMont
             type="text"
             placeholder="Buscar niño…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value
+              setSearch(v)
+              syncUrl({ ...currentState, search: v })
+            }}
             className="pl-8 pr-3 py-1.5 text-sm border border-fm-outline-variant/30 rounded-xl bg-fm-surface-container-lowest text-fm-on-surface focus:outline-none focus:ring-2 focus:ring-fm-primary/40 w-44"
           />
         </div>
@@ -116,7 +188,11 @@ export function NinosPageClient({ niños, therapists, periodMonth, availableMont
         {/* Fase */}
         <select
           value={phaseFilter}
-          onChange={(e) => setPhaseFilter(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value
+            setPhaseFilter(v)
+            syncUrl({ ...currentState, phase: v })
+          }}
           className={SELECT_CLASS}
         >
           {PHASE_FILTER_OPTIONS.map((o) => (
@@ -129,7 +205,11 @@ export function NinosPageClient({ niños, therapists, periodMonth, availableMont
         {/* Programa */}
         <select
           value={programFilter}
-          onChange={(e) => setProgramFilter(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value
+            setProgramFilter(v)
+            syncUrl({ ...currentState, program: v })
+          }}
           className={SELECT_CLASS}
         >
           {PROGRAM_OPTIONS.map((o) => (
@@ -143,7 +223,11 @@ export function NinosPageClient({ niños, therapists, periodMonth, availableMont
         {therapists.length > 0 && (
           <select
             value={therapistFilter}
-            onChange={(e) => setTherapistFilter(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value
+              setTherapistFilter(v)
+              syncUrl({ ...currentState, therapist: v })
+            }}
             className={SELECT_CLASS}
           >
             <option value="all">Todos los terapistas</option>
@@ -169,10 +253,35 @@ export function NinosPageClient({ niños, therapists, periodMonth, availableMont
           <p className="font-medium">Sin resultados</p>
           <p className="text-sm mt-1">Ajustá los filtros o registrá el primer niño.</p>
         </div>
+      ) : noFilters ? (
+        // Vista seccionada por programa (programas primero, terapias al final).
+        <div className="space-y-8">
+          {PROGRAM_GROUPS.map(({ key, label }) => {
+            const group = niños.filter((d) => d.child.enrolled_program === key)
+            if (group.length === 0) return null
+            return (
+              <section key={label ?? 'terapias'} className="space-y-3">
+                <div className="flex items-baseline gap-2">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-fm-on-surface-variant">
+                    {label}
+                  </h2>
+                  <span className="text-xs text-fm-on-surface-variant/70">
+                    {group.length}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {group.map((d) => (
+                    <NinoCard key={d.child.id} data={d} phaseCatalog={phaseCatalog} returnTo={returnTo} />
+                  ))}
+                </div>
+              </section>
+            )
+          })}
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filtered.map((d) => (
-            <NinoCard key={d.child.id} data={d} phaseCatalog={phaseCatalog} />
+            <NinoCard key={d.child.id} data={d} phaseCatalog={phaseCatalog} returnTo={returnTo} />
           ))}
         </div>
       )}
