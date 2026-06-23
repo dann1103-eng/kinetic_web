@@ -30,6 +30,7 @@ import { DraggableCycleCalendar } from './DraggableCycleCalendar'
 import {
   MorningProgramCycleSection,
   type MorningGroupSelection,
+  type MorningCandidateOut,
 } from './MorningProgramCycleSection'
 
 interface Props {
@@ -160,6 +161,7 @@ export function NewMonthlyCycleModal({
     groupId: null,
     attendanceDays: [],
   })
+  const [morningCandidates, setMorningCandidates] = useState<MorningCandidateOut[]>([])
   // Descuento del ciclo: default = mismo que el plan, editable.
   const [discountKind, setDiscountKind] = useState<DiscountKind>(
     plan.discount_kind ?? 'none',
@@ -413,9 +415,10 @@ export function NewMonthlyCycleModal({
         rolloverMode,
         rolloverSessions: rolloverMode !== 'none' ? rolloverSessionsMap : null,
         rolloverDiscountUsd: rolloverMode === 'discount' ? (rollover?.totalDiscount ?? 0) : 0,
-        // Programa matutino: grupo + días del niño.
+        // Programa matutino: grupo + días + citas previsualizadas/iteradas.
         programGroupId: enrolledProgram ? morning.groupId : null,
         attendanceDays: enrolledProgram ? morning.attendanceDays : null,
+        morningAppointments: enrolledProgram ? morningCandidates : null,
       })
       if (!res.ok) {
         setConfirmError(res.error)
@@ -485,6 +488,7 @@ export function NewMonthlyCycleModal({
               periodMonth={periodMonth}
               value={morning}
               onChange={setMorning}
+              onCandidatesChange={setMorningCandidates}
             />
           )}
 

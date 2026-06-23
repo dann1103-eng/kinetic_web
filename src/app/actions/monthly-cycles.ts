@@ -20,7 +20,109 @@ import {
   type PricedTherapyInput,
 } from '@/lib/domain/billing/cycle-edit'
 import { createInvoiceForCycle } from './kinetic-invoices'
+import { computeMorningCandidates } from '@/lib/domain/billing/morning-candidates'
 import { fromZonedTime } from 'date-fns-tz'
+
+/** Cita matutina final a crear (la previsualización del modal o recomputada). */
+export interface MorningAppointmentInput {
+  service: string
+  starts_at: string
+  ends_at: string
+}
+
+/**
+ * (Re)genera las citas matutinas por niño del mes, ligadas a un grupo.
+ * Borra las auto-generadas 'scheduled' del mes y reinserta. La maestra es la
+ * líder del grupo. Si no se pasa `override`, recomputa del horario del grupo.
+ * Usa admin client (gateado por rol en el caller).
+ */
+async function regenerateMorningAppointments(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  opts: {
+    childId: string
+    periodMonth: string // 'YYYY-MM' o 'YYYY-MM-01'
+    programGroupId: string
+    attendanceDays: string[]
+    actorId: string
+    override?: MorningAppointmentInput[] | null
+  },
+): Promise<void> {
+  const ym = opts.periodMonth.slice(0, 7)
+  const [y, m] = ym.split('-').map(Number)
+  const startISO = fromZonedTime(new Date(y, m - 1, 1, 0, 0, 0), 'America/El_Salvador').toISOString()
+  const endISO = fromZonedTime(new Date(y, m, 1, 0, 0, 0), 'America/El_Salvador').toISOString()
+
+  // Maestra líder + datos del grupo.
+  const { data: group } = await admin
+    .from('program_groups')
+    .select('program, start_time_local, duration_minutes')
+    .eq('id', opts.programGroupId)
+    .maybeSingle()
+  if (!group) return
+  const { data: staffRaw } = await admin
+    .from('program_group_staff')
+    .select('user_id, is_lead')
+    .eq('group_id', opts.programGroupId)
+  const staff = (staffRaw ?? []) as { user_id: string; is_lead: boolean }[]
+  const leadId = staff.find((s) => s.is_lead)?.user_id ?? staff[0]?.user_id ?? null
+
+  // 1) Borrar citas matutinas auto-generadas del mes (scheduled).
+  const { data: existing } = await admin
+    .from('appointments')
+    .select('id, notes')
+    .eq('child_id', opts.childId)
+    .eq('event_type', 'programa_matutino')
+    .eq('status', 'scheduled')
+    .gte('starts_at', startISO)
+    .lt('starts_at', endISO)
+  const toDelete = ((existing ?? []) as { id: string; notes: string | null }[])
+    .filter((a) => (a.notes ?? '').includes('Auto-generado del ciclo'))
+    .map((a) => a.id)
+  if (toDelete.length > 0) await admin.from('appointments').delete().in('id', toDelete)
+
+  // 2) Candidatos: override del cliente (iteración en el calendario) o recompute.
+  let candidates: { service: string; starts_at: string; ends_at: string }[]
+  if (opts.override) {
+    candidates = opts.override
+  } else {
+    const { data: hol } = await admin
+      .from('institutional_calendar')
+      .select('date, type')
+      .gte('date', `${ym}-01`)
+      .lt('date', `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`)
+      .in('type', ['holiday', 'closure', 'gov_decree', 'kinetic_break'])
+    const holidays = ((hol ?? []) as { date: string }[]).map((h) => h.date)
+    candidates = computeMorningCandidates({
+      group: {
+        program: group.program,
+        start_time_local: group.start_time_local,
+        duration_minutes: group.duration_minutes,
+        therapist_id: leadId,
+      },
+      attendanceDays: opts.attendanceDays,
+      periodMonth: ym,
+      holidays,
+    })
+  }
+  if (candidates.length === 0) return
+
+  // 3) Insertar. La maestra (therapist_id) es siempre la líder del grupo.
+  const rows = candidates.map((c) => ({
+    child_id: opts.childId,
+    therapist_id: leadId,
+    event_type: 'programa_matutino',
+    service_type: c.service,
+    modality: 'presencial',
+    starts_at: c.starts_at,
+    ends_at: c.ends_at,
+    status: 'scheduled',
+    program_group_id: opts.programGroupId,
+    created_by_user_id: opts.actorId,
+    notes: `Auto-generado del ciclo ${ym}`,
+  }))
+  await admin.from('appointments').insert(rows)
+}
 
 const MGMT_ROLES = [
   'admin',
@@ -315,6 +417,9 @@ export interface ConfirmMonthlyPaymentInput {
   programGroupId?: string | null
   /** Días de asistencia del niño en el grupo (ej. ['mon','wed','fri']). */
   attendanceDays?: string[] | null
+  /** Citas matutinas finales (previsualización iterada en el calendario). Si se
+   *  omiten, se recomputan del horario del grupo. */
+  morningAppointments?: MorningAppointmentInput[] | null
 }
 
 export async function confirmMonthlyPaymentAndGenerate(
@@ -471,8 +576,25 @@ export async function confirmMonthlyPaymentAndGenerate(
     })
   }
 
+  // Programa matutino: generar las citas por niño del grupo (el RPC factura la
+  // mensualidad pero no crea citas matutinas).
+  if (input.programGroupId) {
+    const admin = createAdminClient()
+    await regenerateMorningAppointments(admin, {
+      childId: input.childId,
+      periodMonth,
+      programGroupId: input.programGroupId,
+      attendanceDays: input.attendanceDays ?? [],
+      actorId: user.id,
+      override: input.morningAppointments ?? null,
+    }).catch((err) => {
+      console.error('[monthly-cycles] morning appts failed:', err)
+    })
+  }
+
   revalidatePath('/familias')
   revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
   return { ok: true, cycle }
 }
 
@@ -566,6 +688,12 @@ export interface EditMonthlyCycleInput {
   regenerateAppointments?: boolean
   /** Citas exactas a crear al regenerar (override del auto-compute). */
   appointmentsOverride?: MonthlyCandidateAppointment[] | null
+  /** Programa matutino: grupo al que se (re)asigna el niño + sus días. */
+  programGroupId?: string | null
+  attendanceDays?: string[] | null
+  /** Citas matutinas finales (previsualización iterada). Si se omiten con grupo
+   *  presente, se recomputan del horario del grupo. */
+  morningAppointments?: MorningAppointmentInput[] | null
 }
 
 export async function editMonthlyCycle(
@@ -680,6 +808,9 @@ export async function editMonthlyCycle(
       discount_value: discountKind === 'none' ? 0 : discountValue,
       discount_reason: discountKind === 'none' ? null : input.discountReason ?? null,
       notes: newNotes,
+      ...(input.programGroupId
+        ? { program_group_id: input.programGroupId, attendance_days: input.attendanceDays ?? [] }
+        : {}),
     })
     .eq('id', cycle.id)
     .eq('payment_status', 'pending')
@@ -687,7 +818,49 @@ export async function editMonthlyCycle(
     .single()
   if (updErr) return { ok: false, error: updErr.message ?? 'Error al guardar los cambios.' }
 
-  // 4) Refrescar la factura existente (idempotente: parcha la misma factura).
+  // 4) Programa matutino: upsert de membresía + (re)generar las citas del niño.
+  if (input.programGroupId) {
+    const admin = createAdminClient()
+    // Membresía: un solo grupo activo por niño.
+    await admin
+      .from('program_group_members')
+      .update({ active: false })
+      .eq('child_id', cycle.child_id)
+      .eq('active', true)
+      .neq('group_id', input.programGroupId)
+    const { data: existingMember } = await admin
+      .from('program_group_members')
+      .select('id')
+      .eq('child_id', cycle.child_id)
+      .eq('group_id', input.programGroupId)
+      .maybeSingle()
+    if (existingMember) {
+      await admin
+        .from('program_group_members')
+        .update({ active: true, attendance_days: input.attendanceDays ?? [] })
+        .eq('child_id', cycle.child_id)
+        .eq('group_id', input.programGroupId)
+    } else {
+      await admin.from('program_group_members').insert({
+        group_id: input.programGroupId,
+        child_id: cycle.child_id,
+        attendance_days: input.attendanceDays ?? [],
+        active: true,
+      })
+    }
+    await regenerateMorningAppointments(admin, {
+      childId: cycle.child_id,
+      periodMonth: cycle.period_month,
+      programGroupId: input.programGroupId,
+      attendanceDays: input.attendanceDays ?? [],
+      actorId: user.id,
+      override: input.morningAppointments ?? null,
+    }).catch((err) => {
+      console.error('[monthly-cycles] edit morning appts failed:', err)
+    })
+  }
+
+  // 5) Refrescar la factura existente (idempotente: parcha la misma factura).
   await createInvoiceForCycle(cycle.id).catch((err) => {
     console.error('[monthly-cycles] edit re-invoice failed:', err)
   })
@@ -695,6 +868,7 @@ export async function editMonthlyCycle(
   revalidatePath('/familias')
   revalidatePath('/ninos')
   revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
   return { ok: true, cycle: updated as MonthlySessionCycle }
 }
 

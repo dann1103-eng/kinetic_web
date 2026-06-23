@@ -1,13 +1,18 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useState } from 'react'
 import {
   listGroups,
-  getGroupMonthCalendar,
-  generateGroupSessionsForMonth,
+  getMorningGroupContext,
   type ProgramGroupWithStaff,
+  type MorningGroupContext,
 } from '@/app/actions/program-groups'
-import type { MorningProgram, ProgramGroup, ProgramGroupSession } from '@/types/db'
+import {
+  computeMorningCandidates,
+  type MorningCandidate,
+} from '@/lib/domain/billing/morning-candidates'
+import type { MorningProgram, MonthlyCandidateAppointment } from '@/types/db'
+import { DraggableCycleCalendar } from './DraggableCycleCalendar'
 
 const WEEKDAYS: { code: string; label: string }[] = [
   { code: 'mon', label: 'Lun' },
@@ -19,15 +24,22 @@ const WEEKDAYS: { code: string; label: string }[] = [
   { code: 'sun', label: 'Dom' },
 ]
 
-const DOW_CODES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-
-function dowOf(dateStr: string): string {
-  return DOW_CODES[new Date(`${dateStr}T12:00:00`).getDay()]
+const PROGRAM_LABEL: Record<MorningProgram, string> = {
+  blue_kids: 'BlueKids',
+  learning_kids: 'LearningKids',
+  aula_educativa: 'Aula Educativa',
 }
 
 export interface MorningGroupSelection {
   groupId: string | null
   attendanceDays: string[]
+}
+
+/** Cita matutina a enviar al server (service + horario). */
+export interface MorningCandidateOut {
+  service: string
+  starts_at: string
+  ends_at: string
 }
 
 interface Props {
@@ -36,25 +48,25 @@ interface Props {
   periodMonth: string
   value: MorningGroupSelection
   onChange: (next: MorningGroupSelection) => void
+  /** Emite las citas matutinas finales (previsualizadas/iteradas). */
+  onCandidatesChange: (candidates: MorningCandidateOut[]) => void
 }
 
-const PROGRAM_LABEL: Record<MorningProgram, string> = {
-  blue_kids: 'BlueKids',
-  learning_kids: 'LearningKids',
-  aula_educativa: 'Aula Educativa',
+function toOut(c: MorningCandidate | MonthlyCandidateAppointment): MorningCandidateOut {
+  return { service: c.service as string, starts_at: c.starts_at, ends_at: c.ends_at }
 }
 
-export function MorningProgramCycleSection({ program, periodMonth, value, onChange }: Props) {
+export function MorningProgramCycleSection({
+  program,
+  periodMonth,
+  value,
+  onChange,
+  onCandidatesChange,
+}: Props) {
   const [groups, setGroups] = useState<ProgramGroupWithStaff[]>([])
   const [loadingGroups, setLoadingGroups] = useState(true)
-
-  const [group, setGroup] = useState<ProgramGroup | null>(null)
-  const [staffNames, setStaffNames] = useState<string[]>([])
-  const [sessions, setSessions] = useState<ProgramGroupSession[]>([])
-
-  const [isGenerating, startGenerate] = useTransition()
-  const [isLoadingCal, startLoadCal] = useTransition()
-  const [genMsg, setGenMsg] = useState<string | null>(null)
+  const [context, setContext] = useState<MorningGroupContext | null>(null)
+  const [candidates, setCandidates] = useState<MorningCandidate[]>([])
 
   // Cargar grupos del programa (loadingGroups inicia en true → sin setState síncrono).
   useEffect(() => {
@@ -69,49 +81,74 @@ export function MorningProgramCycleSection({ program, periodMonth, value, onChan
     }
   }, [program])
 
-  // Cargar calendario del grupo seleccionado para el mes.
+  // Cargar contexto del grupo (horario + maestra + feriados) y recomputar citas
+  // cuando cambia el grupo, el mes o los días del niño.
   useEffect(() => {
     if (!value.groupId) return
     let cancel = false
     const gid = value.groupId
-    startLoadCal(async () => {
-      const res = await getGroupMonthCalendar(gid, periodMonth)
+    const days = value.attendanceDays
+    getMorningGroupContext(gid, periodMonth).then((ctx) => {
       if (cancel) return
-      setGroup(res.group)
-      setStaffNames(res.staffNames)
-      setSessions(res.sessions)
+      setContext(ctx)
+      const base = ctx
+        ? computeMorningCandidates({
+            group: {
+              program: ctx.program,
+              start_time_local: ctx.start_time_local,
+              duration_minutes: ctx.duration_minutes,
+              therapist_id: ctx.therapist_id,
+            },
+            attendanceDays: days,
+            periodMonth,
+            holidays: ctx.holidays,
+          })
+        : []
+      setCandidates(base)
+      onCandidatesChange(base.map(toOut))
     })
     return () => {
       cancel = true
     }
-  }, [value.groupId, periodMonth, genMsg])
+    // onCandidatesChange intencionalmente fuera de deps (estable por el padre).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value.groupId, periodMonth, value.attendanceDays])
 
   function selectGroup(groupId: string) {
     const g = groups.find((x) => x.id === groupId)
-    // Por default, el niño asiste todos los días del grupo (ajustable).
+    // Por default el niño asiste todos los días del grupo (ajustable).
     onChange({ groupId, attendanceDays: g ? [...g.meeting_days] : [] })
   }
 
   function toggleDay(code: string) {
     const has = value.attendanceDays.includes(code)
-    onChange({
-      groupId: value.groupId,
-      attendanceDays: has
-        ? value.attendanceDays.filter((d) => d !== code)
-        : [...value.attendanceDays, code],
+    const nextDays = has
+      ? value.attendanceDays.filter((d) => d !== code)
+      : [...value.attendanceDays, code]
+    onChange({ groupId: value.groupId, attendanceDays: nextDays })
+  }
+
+  function handleMove(idx: number, newStartsAt: string, newEndsAt: string) {
+    setCandidates((prev) => {
+      const next = prev.map((c, i) =>
+        i === idx ? { ...c, starts_at: newStartsAt, ends_at: newEndsAt } : c,
+      )
+      onCandidatesChange(next.map(toOut))
+      return next
+    })
+  }
+  function handleDelete(idx: number) {
+    setCandidates((prev) => {
+      const next = prev.filter((_, i) => i !== idx)
+      onCandidatesChange(next.map(toOut))
+      return next
     })
   }
 
-  function handleGenerate() {
-    if (!value.groupId) return
-    setGenMsg(null)
-    startGenerate(async () => {
-      const res = await generateGroupSessionsForMonth(value.groupId!, periodMonth)
-      setGenMsg(res.ok ? `Se generaron ${res.created} sesión(es).` : res.error)
-    })
-  }
-
-  const groupDays = group?.meeting_days ?? []
+  const groupDays = context
+    ? // los días del grupo vienen de su membresía/horario; usamos los del grupo elegido
+      groups.find((g) => g.id === value.groupId)?.meeting_days ?? []
+    : groups.find((g) => g.id === value.groupId)?.meeting_days ?? []
 
   return (
     <div className="rounded-lg border border-fm-primary/30 bg-fm-primary/5 p-3 space-y-3">
@@ -124,7 +161,7 @@ export function MorningProgramCycleSection({ program, periodMonth, value, onChan
       ) : groups.length === 0 ? (
         <p className="text-xs text-amber-800">
           No hay grupos de {PROGRAM_LABEL[program]} creados. Creá uno en
-          Administración → Grupos antes de generar el ciclo.
+          Administración → Grupos matutinos antes de generar el ciclo.
         </p>
       ) : (
         <>
@@ -150,16 +187,14 @@ export function MorningProgramCycleSection({ program, periodMonth, value, onChan
 
           {value.groupId && (
             <>
-              {/* Maestra(s) asignada(s) */}
               <p className="text-xs text-fm-on-surface-variant">
                 Maestra(s):{' '}
                 <span className="font-medium text-fm-on-surface">
-                  {staffNames.length > 0 ? staffNames.join(', ') : 'sin asignar'}
+                  {context?.therapist_name ?? 'sin asignar'}
                 </span>
-                {group && ` · ${group.start_time_local} (${group.duration_minutes} min)`}
+                {context && ` · ${context.start_time_local} (${context.duration_minutes} min)`}
               </p>
 
-              {/* Días del niño */}
               <div>
                 <label className="block text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant mb-1">
                   Días que asiste el niño (de los del grupo)
@@ -185,52 +220,24 @@ export function MorningProgramCycleSection({ program, periodMonth, value, onChan
                 </div>
               </div>
 
-              {/* Calendarización del mes */}
+              {/* Calendarización del mes — iterable como las terapias de la tarde */}
               <div className="rounded-lg border border-fm-outline-variant/20 bg-white p-2.5">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-fm-on-surface-variant">
-                    Calendarización del mes
-                  </span>
-                  {sessions.length === 0 && (
-                    <button
-                      type="button"
-                      onClick={handleGenerate}
-                      disabled={isGenerating}
-                      className="text-[11px] text-fm-primary hover:underline disabled:opacity-50"
-                    >
-                      {isGenerating ? 'Generando…' : 'Generar sesiones del mes'}
-                    </button>
-                  )}
-                </div>
-                {isLoadingCal ? (
-                  <p className="text-xs text-fm-on-surface-variant">Cargando…</p>
-                ) : sessions.length === 0 ? (
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-fm-on-surface-variant mb-1.5">
+                  Calendario de las {candidates.length} citas del programa
+                </p>
+                {candidates.length === 0 ? (
                   <p className="text-xs text-fm-on-surface-variant italic">
-                    Aún no hay sesiones generadas para este mes. Generálas para ver el
-                    calendario.
+                    Elegí al menos un día para ver las citas del mes.
                   </p>
                 ) : (
-                  <div className="flex flex-wrap gap-1">
-                    {sessions.map((s) => {
-                      const attends = value.attendanceDays.includes(dowOf(s.session_date))
-                      const d = new Date(`${s.session_date}T12:00:00`)
-                      return (
-                        <span
-                          key={s.id}
-                          className={`text-[11px] px-1.5 py-0.5 rounded tabular-nums ${
-                            attends
-                              ? 'bg-fm-primary/15 text-fm-primary font-semibold'
-                              : 'bg-fm-surface-container text-fm-on-surface-variant/60 line-through'
-                          }`}
-                          title={attends ? 'El niño asiste' : 'El niño no asiste este día'}
-                        >
-                          {d.toLocaleDateString('es-SV', { day: 'numeric', month: 'short' })}
-                        </span>
-                      )
-                    })}
-                  </div>
+                  <DraggableCycleCalendar
+                    periodMonth={`${periodMonth.slice(0, 7)}-01`}
+                    candidates={candidates as unknown as MonthlyCandidateAppointment[]}
+                    onMove={handleMove}
+                    onRetime={handleMove}
+                    onDelete={handleDelete}
+                  />
                 )}
-                {genMsg && <p className="mt-1.5 text-[11px] text-fm-on-surface-variant">{genMsg}</p>}
               </div>
             </>
           )}

@@ -11,6 +11,7 @@ import type {
   MonthlyCandidateAppointment,
   MonthlyCandidatesResult,
   MonthlySessionCycle,
+  MorningProgram,
   ServiceType,
   TherapyBillingMode,
   TreatmentPlan,
@@ -24,11 +25,18 @@ import {
 } from '@/lib/domain/billing/monthly-flat'
 import { DiscountFields } from './DiscountFields'
 import { DraggableCycleCalendar } from './DraggableCycleCalendar'
+import {
+  MorningProgramCycleSection,
+  type MorningGroupSelection,
+  type MorningCandidateOut,
+} from './MorningProgramCycleSection'
 
 interface Props {
   childId: string
   plan: TreatmentPlan
   cycle: MonthlySessionCycle
+  /** Programa matutino del niño — habilita la sección de grupo. */
+  enrolledProgram?: MorningProgram | null
   onClose: () => void
   onSaved: (cycle: MonthlySessionCycle) => void
 }
@@ -56,8 +64,15 @@ function formatDateTime(iso: string): string {
   })
 }
 
-export function EditMonthlyCycleModal({ childId, plan, cycle, onClose, onSaved }: Props) {
+export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, onClose, onSaved }: Props) {
   const periodMonth = periodMonthOf(cycle.period_month)
+
+  // Programa matutino: grupo + días (precargados del ciclo) + citas iteradas.
+  const [morning, setMorning] = useState<MorningGroupSelection>({
+    groupId: cycle.program_group_id ?? null,
+    attendanceDays: cycle.attendance_days ?? [],
+  })
+  const [morningCandidates, setMorningCandidates] = useState<MorningCandidateOut[]>([])
 
   // Detalle de cobro: precargado del SNAPSHOT del ciclo (lo que se cobra hoy).
   const snapshotTherapies = useMemo(() => {
@@ -288,6 +303,10 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, onClose, onSaved }
       setError('Resolvé los conflictos de horario antes de regenerar las citas.')
       return
     }
+    if (enrolledProgram && !morning.groupId) {
+      setError('Seleccioná el grupo del programa matutino.')
+      return
+    }
     startSave(async () => {
       const res = await editMonthlyCycle({
         cycleId: cycle.id,
@@ -304,6 +323,10 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, onClose, onSaved }
         reason: reason.trim(),
         regenerateAppointments: regenerate,
         appointmentsOverride: regenerate && hasEdits ? editedCandidates : null,
+        // Programa matutino: grupo + días + citas iteradas.
+        programGroupId: enrolledProgram ? morning.groupId : null,
+        attendanceDays: enrolledProgram ? morning.attendanceDays : null,
+        morningAppointments: enrolledProgram ? morningCandidates : null,
       })
       if (!res.ok) {
         setError(res.error)
@@ -333,6 +356,17 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, onClose, onSaved }
             recalcula el monto y se actualiza la factura (mismo número). Las citas no se
             tocan salvo que marqués la casilla de abajo.
           </p>
+
+          {/* Programa matutino: grupo + días + calendarización */}
+          {enrolledProgram && (
+            <MorningProgramCycleSection
+              program={enrolledProgram}
+              periodMonth={periodMonth}
+              value={morning}
+              onChange={setMorning}
+              onCandidatesChange={setMorningCandidates}
+            />
+          )}
 
           {/* Detalle de cobro */}
           <div className="rounded-lg border border-fm-outline-variant/20 overflow-hidden">

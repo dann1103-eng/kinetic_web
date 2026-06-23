@@ -379,6 +379,7 @@ export function MonthlyCyclesSection({
           childId={childId}
           plan={plan}
           cycle={editingCycle}
+          enrolledProgram={enrolledProgram}
           onClose={() => setEditingCycle(null)}
           onSaved={(updated) => {
             setCycles((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))

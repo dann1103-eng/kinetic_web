@@ -136,6 +136,70 @@ export async function getGroupMonthCalendar(
   }
 }
 
+// ── Contexto del grupo para generar citas matutinas del ciclo ─────────────────
+
+export interface MorningGroupContext {
+  groupName: string
+  program: MorningProgram
+  start_time_local: string
+  duration_minutes: number
+  /** Maestra líder del grupo (therapist_id de las citas). */
+  therapist_id: string | null
+  therapist_name: string | null
+  /** Feriados/cierres del mes ('YYYY-MM-DD', zona SV). */
+  holidays: string[]
+}
+
+/** Horario + maestra + feriados de un grupo para un mes — alimenta la
+ *  previsualización de citas matutinas en el modal del ciclo. */
+export async function getMorningGroupContext(
+  groupId: string,
+  periodMonth: string,
+): Promise<MorningGroupContext | null> {
+  const { supabase } = await getActor()
+  const { data: group } = await supabase
+    .from('program_groups')
+    .select('*')
+    .eq('id', groupId)
+    .maybeSingle()
+  if (!group) return null
+  const g = group as ProgramGroup
+
+  const { data: staffRaw } = await supabase
+    .from('program_group_staff')
+    .select('user_id, is_lead')
+    .eq('group_id', groupId)
+  const staff = (staffRaw ?? []) as { user_id: string; is_lead: boolean }[]
+  const lead = staff.find((s) => s.is_lead)?.user_id ?? staff[0]?.user_id ?? null
+
+  let therapist_name: string | null = null
+  if (lead) {
+    const { data: u } = await supabase.from('users').select('full_name').eq('id', lead).maybeSingle()
+    therapist_name = (u as { full_name: string } | null)?.full_name ?? null
+  }
+
+  const ym = periodMonth.slice(0, 7)
+  const [y, m] = ym.split('-').map(Number)
+  const nextFirst = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`
+  const { data: hol } = await supabase
+    .from('institutional_calendar')
+    .select('date, type')
+    .gte('date', `${ym}-01`)
+    .lt('date', nextFirst)
+    .in('type', ['holiday', 'closure', 'gov_decree', 'kinetic_break'])
+  const holidays = ((hol ?? []) as { date: string }[]).map((h) => h.date)
+
+  return {
+    groupName: g.name,
+    program: g.program,
+    start_time_local: g.start_time_local,
+    duration_minutes: g.duration_minutes,
+    therapist_id: lead,
+    therapist_name,
+    holidays,
+  }
+}
+
 // ── Gestión de grupos (admin client, gateado por rol) ──────────────────────────
 
 export interface UpsertGroupInput {

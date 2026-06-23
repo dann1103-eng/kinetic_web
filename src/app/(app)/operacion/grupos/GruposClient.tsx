@@ -4,7 +4,6 @@ import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   upsertGroup,
-  generateGroupSessionsForMonth,
   listGroupMembers,
   setGroupMemberDays,
   removeGroupMember,
@@ -45,10 +44,6 @@ interface Props {
   staffUsers: StaffUser[]
 }
 
-function defaultMonth(): string {
-  const n = new Date()
-  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`
-}
 
 export function GruposClient({ initialGroups, staffUsers }: Props) {
   const router = useRouter()
@@ -99,18 +94,7 @@ export function GruposClient({ initialGroups, staffUsers }: Props) {
 
 function GroupCard({ group, onEdit }: { group: ProgramGroupWithStaff; onEdit: () => void }) {
   const router = useRouter()
-  const [month, setMonth] = useState(defaultMonth())
-  const [genMsg, setGenMsg] = useState<string | null>(null)
-  const [isGenerating, startGen] = useTransition()
   const [showMembers, setShowMembers] = useState(false)
-
-  function handleGenerate() {
-    setGenMsg(null)
-    startGen(async () => {
-      const res = await generateGroupSessionsForMonth(group.id, month)
-      setGenMsg(res.ok ? `${res.created} sesión(es) generadas para ${month}.` : res.error)
-    })
-  }
 
   return (
     <div className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-4 space-y-3">
@@ -149,20 +133,6 @@ function GroupCard({ group, onEdit }: { group: ProgramGroupWithStaff; onEdit: ()
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-fm-outline-variant/15 pt-3">
-        <input
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-          className="text-sm rounded-lg border border-fm-outline-variant/30 bg-white px-2 py-1"
-        />
-        <button
-          type="button"
-          onClick={handleGenerate}
-          disabled={isGenerating}
-          className="text-xs px-3 py-1.5 rounded-lg bg-fm-surface-container text-fm-on-surface font-medium hover:bg-fm-surface-container-high disabled:opacity-50"
-        >
-          {isGenerating ? 'Generando…' : 'Generar sesiones del mes'}
-        </button>
         <button
           type="button"
           onClick={() => setShowMembers((v) => !v)}
@@ -170,7 +140,6 @@ function GroupCard({ group, onEdit }: { group: ProgramGroupWithStaff; onEdit: ()
         >
           {showMembers ? 'Ocultar miembros' : 'Ver miembros'}
         </button>
-        {genMsg && <span className="text-xs text-fm-on-surface-variant">{genMsg}</span>}
       </div>
 
       {showMembers && <MembersList groupId={group.id} onChanged={() => router.refresh()} />}

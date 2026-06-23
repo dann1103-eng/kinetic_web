@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diseño — Nuevo flujo de despacho</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f4f4f5; color: #18181b; padding: 24px; }
+  .page { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 18px; font-weight: 700; margin-bottom: 4px; color: #18181b; }
+  .subtitle { font-size: 13px; color: #71717a; margin-bottom: 28px; }
+  h2 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #52525b; margin-bottom: 12px; }
+
+  /* ── SECTION ─────────────────────────────────────────── */
+  .section { background: white; border-radius: 16px; padding: 20px; margin-bottom: 20px; border: 1px solid #e4e4e7; }
+
+  /* ── SESSION CARD (mi-día) ───────────────────────────── */
+  .session-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
+  .session-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .avatar { width: 38px; height: 38px; border-radius: 10px; background: #00675c20; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: #00675c; flex-shrink: 0; }
+  .session-name { font-size: 15px; font-weight: 600; color: #18181b; }
+  .session-meta { font-size: 12px; color: #71717a; margin-top: 1px; }
+  .chip-completed { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; background: #d1fae5; color: #065f46; padding: 3px 8px; border-radius: 99px; }
+  .dispatch-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #52525b; margin-bottom: 8px; }
+  .dispatch-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { padding: 7px 14px; border-radius: 9px; font-size: 12px; font-weight: 600; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: opacity 0.1s; }
+  .btn:hover { opacity: 0.85; }
+  .btn-interna { background: #e0f2fe; color: #0369a1; }
+  .btn-recepcion { background: #fef3c7; color: #92400e; }
+  .btn-papa { background: #dcfce7; color: #166534; }
+  .btn-icon { font-size: 14px; }
+
+  /* ── FLOATING CARD (recepción) ─────────────────────────── */
+  .float-demo { position: relative; background: #18181b; border-radius: 14px; padding: 20px 20px 70px; min-height: 140px; overflow: hidden; }
+  .float-label { font-size: 11px; color: #a1a1aa; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 16px; }
+  .float-card { position: absolute; bottom: 12px; left: 16px; right: 16px; background: white; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.22); padding: 14px 16px; display: flex; align-items: center; gap: 12px; border-left: 4px solid #00675c; }
+  .float-card.overdue { border-left-color: #b31b25; }
+  .float-name { font-size: 14px; font-weight: 700; color: #18181b; flex: 1; min-width: 0; }
+  .float-meta { font-size: 11px; color: #71717a; margin-top: 1px; }
+  .float-timer { font-size: 20px; font-weight: 800; color: #00675c; font-variant-numeric: tabular-nums; }
+  .float-timer.overdue { color: #b31b25; }
+  .float-actions { display: flex; gap: 6px; align-items: center; }
+  .btn-dispatch { background: #00675c; color: white; padding: 6px 12px; border-radius: 8px; font-size: 11px; font-weight: 700; border: none; cursor: pointer; }
+  .btn-snooze { background: #f4f4f5; color: #52525b; padding: 6px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; }
+  .badge-overdue { background: #fef2f2; color: #b31b25; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 99px; border: 1px solid #fecaca; }
+
+  /* ── DISPATCH MODAL (después de marcar despachado) ─── */
+  .modal-demo { background: #18181b; border-radius: 14px; padding: 20px; position: relative; min-height: 200px; }
+  .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.45); border-radius: 14px; display: flex; align-items: center; justify-content: center; }
+  .modal-box { background: white; border-radius: 16px; padding: 20px; width: 280px; }
+  .modal-title { font-size: 15px; font-weight: 700; color: #18181b; margin-bottom: 4px; }
+  .modal-sub { font-size: 12px; color: #71717a; margin-bottom: 16px; }
+  .modal-fee { background: #fef3c7; border-radius: 10px; padding: 10px 12px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .modal-fee-label { font-size: 12px; color: #92400e; font-weight: 600; }
+  .modal-fee-amount { font-size: 18px; font-weight: 800; color: #b45309; }
+  .modal-btn-row { display: flex; gap: 8px; }
+  .btn-cobrar { flex: 1; background: #16a34a; color: white; padding: 9px; border-radius: 9px; font-size: 12px; font-weight: 700; border: none; cursor: pointer; }
+  .btn-perdonar { flex: 1; background: #f4f4f5; color: #52525b; padding: 9px; border-radius: 9px; font-size: 12px; font-weight: 700; border: none; cursor: pointer; }
+
+  /* ── LABELS ─────────────────────────────────────────── */
+  .row-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #a1a1aa; margin-bottom: 6px; margin-top: 18px; }
+  .row-label:first-child { margin-top: 0; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .split { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Nuevo flujo de despacho — Mockup</h1>
+  <p class="subtitle">Tres pantallas del flujo: botones en Mi día → tarjeta flotante en recepción → modal cobrar/perdonar</p>
+
+  <!-- ── PANTALLA 1: Botones de despacho ── -->
+  <div class="section">
+    <h2>1. Mi día — Tarjeta de sesión completada (terapista/maestra)</h2>
+    <p style="font-size:12px;color:#71717a;margin-bottom:14px;">Después de finalizar la terapia aparecen los 3 botones de entrega en lugar del único "Despachar niño/a" actual.</p>
+
+    <div class="session-card">
+      <div class="session-header">
+        <div class="avatar">SZ</div>
+        <div>
+          <div class="session-name">Sofía Zelaya</div>
+          <div class="session-meta">Lenguaje · 9:00 – 9:45 &nbsp;·&nbsp; <span class="chip-completed">✓ Completada</span></div>
+        </div>
+      </div>
+      <div class="dispatch-label">¿Cómo entregás al niño/a?</div>
+      <div class="dispatch-buttons">
+        <button class="btn btn-interna">
+          <span class="btn-icon">↪</span> Entrega interna
+        </button>
+        <button class="btn btn-recepcion">
+          <span class="btn-icon">🔔</span> Entregar a recepción
+        </button>
+        <button class="btn btn-papa">
+          <span class="btn-icon">✓</span> Entrega directa a papá
+        </button>
+      </div>
+      <p style="font-size:11px;color:#a1a1aa;margin-top:10px;">
+        <b>Interna</b>: pasa a otra terapista (no se inicia timer) &nbsp;·&nbsp;
+        <b>Recepción</b>: inicia timer de 15 min &nbsp;·&nbsp;
+        <b>Directo a papá</b>: despacho inmediato sin recargo
+      </p>
+    </div>
+  </div>
+
+  <!-- ── PANTALLA 2: Tarjeta flotante en recepción ── -->
+  <div class="section">
+    <h2>2. Tarjeta flotante en recepción — mismo estilo que el chat</h2>
+    <p style="font-size:12px;color:#71717a;margin-bottom:14px;">
+      Aparece en la parte inferior de la pantalla cuando la terapista hace "Entregar a recepción". Dos estados: dentro del tiempo de gracia (verde) y tardío (rojo).
+    </p>
+    <div class="split">
+      <div>
+        <div class="row-label">Dentro de la gracia (0–15 min)</div>
+        <div class="float-demo">
+          <div class="float-label">Pantalla de recepción →</div>
+          <div class="float-card">
+            <div style="flex:1;min-width:0;">
+              <div class="float-name">Sofía Zelaya</div>
+              <div class="float-meta">En recepción · Lenguaje</div>
+            </div>
+            <div class="float-timer">08:23</div>
+            <div class="float-actions">
+              <button class="btn-dispatch">Despachar a papá</button>
+              <button class="btn-snooze">···</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="row-label">Tardío &gt;15 min — timer en rojo</div>
+        <div class="float-demo">
+          <div class="float-label">Pantalla de recepción →</div>
+          <div class="float-card overdue">
+            <div style="flex:1;min-width:0;">
+              <div class="float-name">Sofía Zelaya</div>
+              <div class="float-meta">En recepción · Lenguaje &nbsp;<span class="badge-overdue">+$5 cargo</span></div>
+            </div>
+            <div class="float-timer overdue">22:47</div>
+            <div class="float-actions">
+              <button class="btn-dispatch">Despachar a papá</button>
+              <button class="btn-snooze">···</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:11px;color:#a1a1aa;margin-top:12px;">
+      Múltiples niños = múltiples tarjetas apiladas (igual que el chat). El botón <b>···</b> abre las opciones de posponer.
+    </p>
+  </div>
+
+  <!-- ── PANTALLA 3: Modal al marcar "Despachar a papá" desde recepción ── -->
+  <div class="section">
+    <h2>3. Al marcar "Despachar a papá" desde recepción — cobrar o perdonar en el acto</h2>
+    <p style="font-size:12px;color:#71717a;margin-bottom:14px;">
+      Si hay cargo tardío sugerido, el modal aparece directamente en la tarjeta flotante. Recepción decide ahí mismo sin tener que ir a /aprobaciones.
+    </p>
+    <div class="split">
+      <div>
+        <div class="row-label">Sin cargo (dentro de gracia)</div>
+        <div class="modal-demo">
+          <div class="modal-overlay">
+            <div class="modal-box">
+              <div class="modal-title">Despachar a papá</div>
+              <div class="modal-sub">Sofía Zelaya · 14 min en recepción</div>
+              <div style="background:#f0fdf4;border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:12px;color:#166534;font-weight:600;">
+                ✓ Dentro del tiempo de gracia — sin cargo
+              </div>
+              <div class="modal-btn-row">
+                <button class="btn-cobrar" style="background:#00675c;">Confirmar despacho</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="row-label">Con cargo tardío sugerido</div>
+        <div class="modal-demo">
+          <div class="modal-overlay">
+            <div class="modal-box">
+              <div class="modal-title">Despachar a papá</div>
+              <div class="modal-sub">Sofía Zelaya · 23 min en recepción</div>
+              <div class="modal-fee">
+                <div>
+                  <div class="modal-fee-label">Cargo por recogida tardía</div>
+                  <div style="font-size:11px;color:#b45309;margin-top:2px;">23 min (+8 min sobre gracia)</div>
+                </div>
+                <div class="modal-fee-amount">$5.00</div>
+              </div>
+              <div class="modal-btn-row">
+                <button class="btn-cobrar">Cobrar $5.00</button>
+                <button class="btn-perdonar">Perdonar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:12px;color:#a1a1aa;text-align:center;padding:8px 0 4px;">
+    ¿Se ve bien este diseño? Decime qué querés cambiar en el terminal.
+  </p>
+</div>
+</body>
+</html>

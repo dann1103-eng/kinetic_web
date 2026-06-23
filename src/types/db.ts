@@ -2094,6 +2094,7 @@ export interface Database {
           extra_reason?: ExtraReason | null
           dispatch_type?: 'internal' | 'to_reception' | 'to_parent' | null
           handed_to_reception_at?: string | null
+          program_group_id?: string | null
           custom_event_label?: string | null
           created_by_user_id?: string | null
         }
@@ -3071,6 +3072,8 @@ export interface Appointment {
   dispatched_at: string | null
   dispatch_type: 'internal' | 'to_reception' | 'to_parent' | null
   handed_to_reception_at: string | null
+  /** Grupo de programa matutino al que pertenece esta cita (mig 0151). */
+  program_group_id: string | null
   dispatched_by_user_id: string | null
   /** Minutos de espera para recogida (completed→dispatched). */
   late_fee_minutes: number | null
