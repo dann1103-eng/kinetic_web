@@ -237,7 +237,11 @@ export function BigSessionCard({
                   disabled={isPending}
                   onClick={() =>
                     startTransition(async () => {
-                      await dispatchChild(appointment.id)
+                      const res = await dispatchChild(appointment.id)
+                      if (!res.ok) {
+                        alert(res.error)
+                        return
+                      }
                       router.refresh()
                     })
                   }

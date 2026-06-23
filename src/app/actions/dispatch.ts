@@ -132,15 +132,17 @@ export async function dispatchChild(
 
   const { data: appt } = await supabase
     .from('appointments')
-    .select('id, child_id, therapist_id, completed_at, dispatched_at')
+    .select('id, child_id, therapist_id, status, completed_at, dispatched_at')
     .eq('id', appointmentId)
     .maybeSingle()
   if (!appt) return { ok: false, error: 'Cita no encontrada.' }
-  if (!appt.completed_at) return { ok: false, error: 'La terapia aún no se ha finalizado.' }
+  if (appt.status !== 'completed') return { ok: false, error: 'La terapia aún no se ha finalizado.' }
   if (appt.dispatched_at) return { ok: true, feeUsd: 0, minutes: 0 }
 
   const nowISO = new Date().toISOString()
-  const { minutes, feeUsd } = computeLatePickup(appt.completed_at, nowISO)
+  // Citas legacy finalizadas sin completed_at → tratar como recién completada (0 min).
+  const completedAt = appt.completed_at ?? nowISO
+  const { minutes, feeUsd } = computeLatePickup(completedAt, nowISO)
   const status = feeUsd > 0 ? 'suggested' : 'none'
 
   const admin = createAdminClient()

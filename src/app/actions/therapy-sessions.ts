@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { TherapySession } from '@/types/db'
 
@@ -69,6 +70,17 @@ export async function finishTherapySession(sessionId: string): Promise<
 
   const session = data as TherapySession
   const alreadyFinished = session.ended_at !== null && session.status === 'completed'
+
+  // Marcar el momento de finalización (inicio del timer de despacho/recogida tardía).
+  // La RPC no setea completed_at; lo hacemos acá para que "Despachar niño/a" y el
+  // watcher de despachos funcionen. Idempotente: solo si está null.
+  if (session?.appointment_id) {
+    await createAdminClient()
+      .from('appointments')
+      .update({ completed_at: new Date().toISOString() })
+      .eq('id', session.appointment_id)
+      .is('completed_at', null)
+  }
 
   revalidatePath('/mi-dia')
   return { ok: true, session, alreadyFinished }
