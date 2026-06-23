@@ -2092,6 +2092,8 @@ export interface Database {
           notes?: string | null
           is_extra?: boolean
           extra_reason?: ExtraReason | null
+          dispatch_type?: 'internal' | 'to_reception' | 'to_parent' | null
+          handed_to_reception_at?: string | null
           custom_event_label?: string | null
           created_by_user_id?: string | null
         }
@@ -3067,6 +3069,8 @@ export interface Appointment {
   completed_at: string | null
   /** Momento en que el niño fue despachado (recogido). */
   dispatched_at: string | null
+  dispatch_type: 'internal' | 'to_reception' | 'to_parent' | null
+  handed_to_reception_at: string | null
   dispatched_by_user_id: string | null
   /** Minutos de espera para recogida (completed→dispatched). */
   late_fee_minutes: number | null
