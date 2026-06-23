@@ -28,16 +28,19 @@ export interface SessionReportDraftInput {
   visible_to_family: boolean
 }
 
-/**
- * Idempotente: si ya existe reporte para la sesión lo retorna; si no, crea draft vacío.
- * Se llama al abrir el modal de reporte por primera vez.
- */
-export async function createOrGetSessionReport(sessionId: string): Promise<
-  | { ok: true; report: SessionReport }
-  | { ok: false; error: string }
-> {
-  const { supabase, user } = await getActor()
+type Actor = { id: string; role: string }
+type ServerClient = Awaited<ReturnType<typeof createClient>>
 
+/**
+ * Idempotente: dado un sessionId, retorna el reporte existente o crea un draft vacío.
+ * Valida que el actor sea la terapista de la sesión. Helper compartido entre
+ * `createOrGetSessionReport` y `createOrGetSessionReportForAppointment`.
+ */
+async function ensureReportForSession(
+  supabase: ServerClient,
+  user: Actor,
+  sessionId: string,
+): Promise<{ ok: true; report: SessionReport } | { ok: false; error: string }> {
   // Buscar reporte existente
   const { data: existing } = await supabase
     .from('session_reports')
@@ -81,8 +84,98 @@ export async function createOrGetSessionReport(sessionId: string): Promise<
     return { ok: false, error: insertErr?.message ?? 'Error al crear el reporte.' }
   }
 
-  revalidatePath('/mi-dia')
   return { ok: true, report: created as SessionReport }
+}
+
+/**
+ * Idempotente: si ya existe reporte para la sesión lo retorna; si no, crea draft vacío.
+ * Se llama al abrir el modal de reporte por primera vez.
+ */
+export async function createOrGetSessionReport(sessionId: string): Promise<
+  | { ok: true; report: SessionReport }
+  | { ok: false; error: string }
+> {
+  const { supabase, user } = await getActor()
+  const res = await ensureReportForSession(supabase, user, sessionId)
+  if (res.ok) revalidatePath('/mi-dia')
+  return res
+}
+
+/**
+ * Igual que `createOrGetSessionReport`, pero parte de una CITA en vez de una sesión.
+ * Sirve para terapias ya completadas que nunca tuvieron una `therapy_session`
+ * (citas marcadas completadas directo, datos de seed, o despacho por otro flujo):
+ * crea la sesión faltante en estado `completed` y luego el reporte.
+ */
+export async function createOrGetSessionReportForAppointment(
+  appointmentId: string,
+): Promise<
+  | { ok: true; report: SessionReport; sessionId: string }
+  | { ok: false; error: string }
+> {
+  const { supabase, user } = await getActor()
+
+  // Cargar la cita para validar dueño y derivar child_id.
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id, child_id, therapist_id, event_type')
+    .eq('id', appointmentId)
+    .maybeSingle()
+
+  if (!appt) {
+    return { ok: false, error: 'Cita no encontrada.' }
+  }
+
+  const a = appt as {
+    child_id: string | null
+    therapist_id: string | null
+    event_type: string | null
+  }
+
+  if (a.therapist_id !== user.id) {
+    return { ok: false, error: 'Solo la terapista de la cita puede subir el reporte.' }
+  }
+  if (a.event_type !== 'terapia') {
+    return { ok: false, error: 'Solo las terapias tienen reporte de sesión.' }
+  }
+  if (!a.child_id) {
+    return { ok: false, error: 'La cita no tiene un niño/a asociado.' }
+  }
+
+  // Buscar la sesión de la cita; crearla (completada) si no existe.
+  let sessionId: string
+  const { data: existingSession } = await supabase
+    .from('therapy_sessions')
+    .select('id')
+    .eq('appointment_id', appointmentId)
+    .maybeSingle()
+
+  if (existingSession) {
+    sessionId = (existingSession as { id: string }).id
+  } else {
+    const { data: createdSession, error: sessErr } = await supabase
+      .from('therapy_sessions')
+      .insert({
+        appointment_id: appointmentId,
+        therapist_id: user.id,
+        child_id: a.child_id,
+        status: 'completed',
+        ended_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single()
+
+    if (sessErr || !createdSession) {
+      return { ok: false, error: sessErr?.message ?? 'No se pudo crear la sesión.' }
+    }
+    sessionId = (createdSession as { id: string }).id
+  }
+
+  const res = await ensureReportForSession(supabase, user, sessionId)
+  if (!res.ok) return res
+
+  revalidatePath('/mi-dia')
+  return { ok: true, report: res.report, sessionId }
 }
 
 /**

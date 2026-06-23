@@ -12,7 +12,10 @@ import {
   WeekCompletedSection,
   type WeekCompletedItem,
 } from '@/components/mi-dia/WeekCompletedSection'
-import { createOrGetSessionReport } from '@/app/actions/session-reports'
+import {
+  createOrGetSessionReport,
+  createOrGetSessionReportForAppointment,
+} from '@/app/actions/session-reports'
 import type {
   Appointment,
   TherapySession,
@@ -90,6 +93,25 @@ export function MiDiaClient({
     })
   }
 
+  // Pestaña "Mi semana": una terapia completada puede no tener sesión todavía.
+  // Resolvemos por cita (crea la sesión faltante) y abrimos el modal.
+  const handleWeekReportClick = (item: WeekCompletedItem) => {
+    if (isOpening) return
+    if (item.sessionId && reports[item.sessionId]) {
+      setOpenReport({ sessionId: item.sessionId, childName: item.childName })
+      return
+    }
+    startOpenTransition(async () => {
+      const res = await createOrGetSessionReportForAppointment(item.appointmentId)
+      if (!res.ok) {
+        alert(res.error)
+        return
+      }
+      setReports((prev) => ({ ...prev, [res.sessionId]: res.report }))
+      setOpenReport({ sessionId: res.sessionId, childName: item.childName })
+    })
+  }
+
   const activeReport = openReport ? reports[openReport.sessionId] : null
 
   return (
@@ -136,7 +158,7 @@ export function MiDiaClient({
             <UpcomingTimelineSection days={upcomingByDay} monthLabel={monthLabel} />
           </>
         ) : (
-          <WeekCompletedSection items={weekItems} onReportClick={handleReportClick} />
+          <WeekCompletedSection items={weekItems} onReportClick={handleWeekReportClick} />
         )}
       </div>
 

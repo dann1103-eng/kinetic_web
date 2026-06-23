@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { AgendaPageClient } from './AgendaPageClient'
-import type { Appointment, Child, InstitutionalClosure } from '@/types/db'
+import type { Appointment, Child, InstitutionalClosure, UserRole } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,12 +50,30 @@ export default async function AgendaPage() {
     .not('current_phase_code', 'in', '(5_1_alta_terapeutica,5_2_retirado)')
     .order('full_name')
 
-  // Terapistas para filtros y autocomplete.
-  const { data: therapists } = await supabase
+  // Terapistas para filtros y autocomplete. Incluye todos los roles que pueden dar
+  // terapia (la dueña suele ser admin; las coordinadoras también atienden) UNIDO con
+  // cualquier usuario que realmente aparezca como therapist_id en las citas cargadas,
+  // para que nadie con citas quede fuera del filtro.
+  const therapyRoles: UserRole[] = [
+    'terapista',
+    'maestra',
+    'directora',
+    'admin',
+    'coordinadora_familias',
+    'coordinadora_terapias',
+  ]
+  const apptTherapistIds = Array.from(
+    new Set(((appointments ?? []) as Appointment[]).map((a) => a.therapist_id).filter(Boolean)),
+  ) as string[]
+  const therapistsQuery = supabase
     .from('users')
     .select('id, full_name, role, avatar_url')
-    .in('role', ['terapista', 'maestra', 'directora'])
-    .order('full_name')
+  const { data: therapists } = await (apptTherapistIds.length
+    ? therapistsQuery.or(
+        `role.in.(${therapyRoles.join(',')}),id.in.(${apptTherapistIds.join(',')})`,
+      )
+    : therapistsQuery.in('role', therapyRoles)
+  ).order('full_name')
 
   // Cierres institucionales del año visible.
   const { data: closures } = await supabase

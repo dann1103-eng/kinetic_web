@@ -17,7 +17,7 @@ export interface WeekCompletedItem {
 
 interface Props {
   items: WeekCompletedItem[]
-  onReportClick: (sessionId: string, childName: string) => void
+  onReportClick: (item: WeekCompletedItem) => void
 }
 
 function serviceLabel(s: string | null): string {
@@ -139,10 +139,10 @@ export function WeekCompletedSection({ items, onReportClick }: Props) {
                         >
                           {badge ? badge.label : 'Sin reporte'}
                         </span>
-                        {needsAction && it.sessionId && (
+                        {needsAction && (
                           <button
                             type="button"
-                            onClick={() => onReportClick(it.sessionId!, it.childName)}
+                            onClick={() => onReportClick(it)}
                             className="text-xs font-semibold text-fm-primary hover:underline"
                           >
                             {status === 'draft' || status === 'rejected'
