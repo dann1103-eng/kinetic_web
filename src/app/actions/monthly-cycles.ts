@@ -824,13 +824,14 @@ export async function editMonthlyCycle(
   // 4) Programa matutino: upsert de membresía + (re)generar las citas del niño.
   if (input.programGroupId) {
     const admin = createAdminClient()
-    // Membresía: un solo grupo activo por niño.
+    // [0152] Membresía idempotente: desactivar TODOS los registros activos del
+    // niño primero, luego upsert del grupo destino por (child_id, group_id).
+    // Evita la violación del índice único (child_id) WHERE active.
     await admin
       .from('program_group_members')
       .update({ active: false })
       .eq('child_id', cycle.child_id)
       .eq('active', true)
-      .neq('group_id', input.programGroupId)
     const { data: existingMember } = await admin
       .from('program_group_members')
       .select('id')
