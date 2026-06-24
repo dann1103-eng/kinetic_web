@@ -367,9 +367,13 @@ export function MonthlyCyclesSection({
           existingPeriods={cycles.filter((c) => c.status !== 'cancelled').map((c) => c.period_month)}
           onClose={() => setShowCreate(false)}
           onCreated={(cycle) => {
-            setCycles((prev) => [cycle, ...prev])
+            if (cycle?.id) {
+              setCycles((prev) => [cycle, ...prev])
+            }
             setShowCreate(false)
-            router.refresh()
+            // Forzar reload completo para que el ciclo siempre sea visible,
+            // especialmente si el data del RPC vino null en el primer intento.
+            window.location.reload()
           }}
         />
       )}
