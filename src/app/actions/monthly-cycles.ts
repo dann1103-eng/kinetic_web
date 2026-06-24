@@ -480,12 +480,23 @@ export async function confirmMonthlyPaymentAndGenerate(
     if (
       msg.includes('cycle_already_exists_for_period') ||
       msg.includes('monthly_session_cycles_child_id_period_month_key') ||
-      msg.includes('monthly_session_cycles_active_unique') ||
-      msg.includes('duplicate key value') // fallback genérico para constraint violations
+      msg.includes('monthly_session_cycles_active_unique')
     ) {
       return {
         ok: false,
         error: 'Ya existe un ciclo activo para este niño y mes. Si el anterior fue anulado, recargá la página e intentá de nuevo.',
+      }
+    }
+    if (msg.includes('program_group_members_active_child')) {
+      return {
+        ok: false,
+        error: 'Error al asignar al grupo matutino (membresía duplicada). Recargá la página e intentá de nuevo.',
+      }
+    }
+    if (msg.includes('program_group_members_child_group_idx')) {
+      return {
+        ok: false,
+        error: 'Error al asignar al grupo matutino. Recargá la página e intentá de nuevo.',
       }
     }
     if (msg.includes('override_date_out_of_period')) {
