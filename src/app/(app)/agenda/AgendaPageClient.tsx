@@ -34,6 +34,9 @@ interface AgendaPageClientProps {
   currentUserId: string
   initialAppointments: Appointment[]
   groupSessions: GroupSessionForClient[]
+  /** IDs de grupos matutinos donde el usuario es staff — sus citas programa_matutino
+   *  se muestran aunque el therapist_id sea el de la maestra líder. */
+  myGroupIds?: string[]
   childrenList: ChildLite[]
   therapists: TherapistLite[]
   closures: InstitutionalClosure[]
@@ -72,6 +75,7 @@ export function AgendaPageClient({
   currentUserId,
   initialAppointments,
   groupSessions,
+  myGroupIds = [],
   childrenList: childrenProp,
   therapists,
   closures,
@@ -107,8 +111,19 @@ export function AgendaPageClient({
   // Convertir citas + sesiones de grupo a bloques de calendar.
   const events = useMemo<CalendarBlock[]>(() => {
     // ── Citas individuales ────────────────────────────────────────────────
+    const myGroupIdSet = new Set(myGroupIds)
     const filtered = initialAppointments.filter((a) => {
-      if (filterTherapistId && a.therapist_id !== filterTherapistId) return false
+      if (filterTherapistId && a.therapist_id !== filterTherapistId) {
+        // Excepción: citas de programa matutino del propio grupo (la maestra líder
+        // puede ser distinta pero el usuario es staff del grupo).
+        if (a.event_type === 'programa_matutino' &&
+            (a as { program_group_id?: string | null }).program_group_id &&
+            myGroupIdSet.has((a as { program_group_id: string }).program_group_id)) {
+          // Mostrar — es del grupo de esta maestra
+        } else {
+          return false
+        }
+      }
       if (filterEventTypes.size > 0 && !filterEventTypes.has(a.event_type)) return false
       if (filterServiceTypes.size > 0) {
         if (!a.service_type || !filterServiceTypes.has(a.service_type)) return false
@@ -174,7 +189,7 @@ export function AgendaPageClient({
       : []
 
     return [...apptBlocks, ...groupBlocks]
-  }, [initialAppointments, groupSessions, filterTherapistId, filterEventTypes, filterServiceTypes, filterVirtualOnly, childrenProp, therapists])
+  }, [initialAppointments, groupSessions, myGroupIds, filterTherapistId, filterEventTypes, filterServiceTypes, filterVirtualOnly, childrenProp, therapists])
 
   // Exportar PDF de las citas actualmente visibles (respeta filtros).
   const handleExportPdf = useCallback(() => {

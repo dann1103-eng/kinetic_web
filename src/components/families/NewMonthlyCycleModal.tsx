@@ -416,9 +416,11 @@ export function NewMonthlyCycleModal({
         rolloverSessions: rolloverMode !== 'none' ? rolloverSessionsMap : null,
         rolloverDiscountUsd: rolloverMode === 'discount' ? (rollover?.totalDiscount ?? 0) : 0,
         // Programa matutino: grupo + días + citas previsualizadas/iteradas.
+        // Pasar null (no []) cuando el array está vacío: null → servidor recomputa
+        // del horario del grupo; [] vacío sería un override que no inserta nada.
         programGroupId: enrolledProgram ? morning.groupId : null,
         attendanceDays: enrolledProgram ? morning.attendanceDays : null,
-        morningAppointments: enrolledProgram ? morningCandidates : null,
+        morningAppointments: enrolledProgram && morningCandidates.length > 0 ? morningCandidates : null,
       })
       if (!res.ok) {
         setConfirmError(res.error)

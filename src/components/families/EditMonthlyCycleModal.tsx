@@ -326,7 +326,7 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
         // Programa matutino: grupo + días + citas iteradas.
         programGroupId: enrolledProgram ? morning.groupId : null,
         attendanceDays: enrolledProgram ? morning.attendanceDays : null,
-        morningAppointments: enrolledProgram ? morningCandidates : null,
+        morningAppointments: enrolledProgram && morningCandidates.length > 0 ? morningCandidates : null,
       })
       if (!res.ok) {
         setError(res.error)

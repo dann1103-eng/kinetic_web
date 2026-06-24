@@ -82,8 +82,11 @@ async function regenerateMorningAppointments(
   if (toDelete.length > 0) await admin.from('appointments').delete().in('id', toDelete)
 
   // 2) Candidatos: override del cliente (iteración en el calendario) o recompute.
+  //    null = recomputar del horario del grupo.
+  //    [] (vacío) puede significar "aún no cargó" — por eso el modal pasa null
+  //    cuando morningCandidates está vacío; solo pasa el array cuando ya tiene datos.
   let candidates: { service: string; starts_at: string; ends_at: string }[]
-  if (opts.override) {
+  if (opts.override !== null && opts.override !== undefined && opts.override.length > 0) {
     candidates = opts.override
   } else {
     const { data: hol } = await admin

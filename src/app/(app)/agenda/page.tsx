@@ -81,6 +81,18 @@ export default async function AgendaPage() {
     .select('*')
     .order('date')
 
+  // IDs de grupos matutinos donde el usuario es staff.
+  // Permite que maestras/terapistas vean las citas programa_matutino
+  // de su grupo aunque el therapist_id sea el de la maestra líder.
+  let myGroupIds: string[] = []
+  if (role === 'terapista' || role === 'maestra') {
+    const { data: staffGroups } = await supabase
+      .from('program_group_staff')
+      .select('group_id')
+      .eq('user_id', ctx.appUser.id)
+    myGroupIds = (staffGroups ?? []).map((g) => g.group_id as string)
+  }
+
   return (
     <div className="flex flex-col h-screen bg-fm-background">
       <TopNav title="Agenda" />
@@ -90,6 +102,7 @@ export default async function AgendaPage() {
           currentUserId={ctx.appUser.id}
           initialAppointments={(appointments ?? []) as Appointment[]}
           groupSessions={[]}
+          myGroupIds={myGroupIds}
           childrenList={(children ?? []) as Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>[]}
           therapists={therapists ?? []}
           closures={(closures ?? []) as InstitutionalClosure[]}
