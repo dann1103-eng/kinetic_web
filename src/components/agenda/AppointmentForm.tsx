@@ -27,6 +27,14 @@ import { defaultDurationMinutes, findClosureAffecting } from '@/lib/domain/appoi
 type ChildLite = Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>
 type TherapistLite = { id: string; full_name: string; role: string; avatar_url: string | null }
 
+/** Ítem del catálogo de evaluaciones (tipo + pago a quien la da). */
+export type EvalCatalogItem = {
+  code: string
+  name: string
+  cost_usd: number | null
+  duration_minutes: number | null
+}
+
 interface AppointmentFormProps {
   open: boolean
   onClose: () => void
@@ -35,6 +43,7 @@ interface AppointmentFormProps {
   childrenList: ChildLite[]
   therapists: TherapistLite[]
   closures: InstitutionalClosure[]
+  evalCatalog?: EvalCatalogItem[]
   isAdmin: boolean
   canSchedule: boolean
 }
@@ -47,6 +56,7 @@ export function AppointmentForm({
   childrenList: childrenProp,
   therapists,
   closures,
+  evalCatalog = [],
   isAdmin,
   canSchedule,
 }: AppointmentFormProps) {
@@ -94,6 +104,17 @@ export function AppointmentForm({
   const [extraReason, setExtraReason] = useState<ExtraReason>(
     existingAppointment?.extra_reason ?? 'hora_extra',
   )
+  // Evaluaciones: nombre libre de la persona evaluada + tipo de evaluación.
+  const [externalChildName, setExternalChildName] = useState<string>(
+    existingAppointment?.external_child_name ?? '',
+  )
+  const [serviceCode, setServiceCode] = useState<string>(
+    existingAppointment?.service_code ?? '',
+  )
+  const selectedEval = useMemo(
+    () => evalCatalog.find((e) => e.code === serviceCode) ?? null,
+    [evalCatalog, serviceCode],
+  )
 
   // Validación inline: cierre institucional
   const closureWarning = useMemo(() => {
@@ -125,6 +146,25 @@ export function AppointmentForm({
       return
     }
 
+    // Validación de evaluaciones: nombre libre + tipo + persona asignada.
+    if (eventType === 'evaluacion') {
+      if (externalChildName.trim().length === 0) {
+        setError('Escribí el nombre de la persona evaluada.')
+        setSubmitting(false)
+        return
+      }
+      if (!serviceCode) {
+        setError('Elegí el tipo de evaluación.')
+        setSubmitting(false)
+        return
+      }
+      if (!therapistId) {
+        setError('Asigná a quién dará la evaluación.')
+        setSubmitting(false)
+        return
+      }
+    }
+
     const startsIso = new Date(startsAt).toISOString()
     const endsIso = new Date(new Date(startsAt).getTime() + durationMin * 60_000).toISOString()
 
@@ -142,12 +182,14 @@ export function AppointmentForm({
         const res = await updateAppointment(existingAppointment.id, {
           event_type: eventType,
           service_type: eventType === 'terapia' ? (serviceType as ServiceType) : null,
-          therapist_id: eventType === 'terapia' ? therapistId : (therapistId || null),
+          therapist_id: eventType === 'terapia' || eventType === 'evaluacion' ? therapistId : (therapistId || null),
           modality,
           notes: notes || null,
           custom_event_label: eventType === 'otro' ? customEventLabel.trim() : null,
           is_extra: eventType === 'terapia' ? isExtra : false,
           extra_reason: eventType === 'terapia' && isExtra ? extraReason : null,
+          external_child_name: eventType === 'evaluacion' ? externalChildName.trim() : null,
+          service_code: eventType === 'evaluacion' ? serviceCode : null,
         })
         if (!res.ok) {
           setError(res.error)
@@ -157,8 +199,10 @@ export function AppointmentForm({
       }
     } else {
       const res = await createAppointment({
-        child_id: childId,
-        therapist_id: eventType === 'terapia' ? therapistId : therapistId || null,
+        child_id: eventType === 'evaluacion' ? null : childId,
+        external_child_name: eventType === 'evaluacion' ? externalChildName.trim() : null,
+        service_code: eventType === 'evaluacion' ? serviceCode : null,
+        therapist_id: eventType === 'terapia' || eventType === 'evaluacion' ? therapistId : therapistId || null,
         event_type: eventType,
         service_type: eventType === 'terapia' ? (serviceType as ServiceType) : null,
         modality,
@@ -293,26 +337,99 @@ export function AppointmentForm({
               )}
             </fieldset>
 
-            {/* 2. Niño */}
-            <fieldset className="space-y-1">
-              <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">
-                Niño/a
-              </legend>
-              <select
-                value={childId}
-                onChange={(e) => setChildId(e.target.value)}
-                disabled={isEdit}
-                required
-                className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary disabled:opacity-60"
-              >
-                <option value="">— Selecciona —</option>
-                {childrenProp.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.full_name} {c.code ? `(${c.code})` : ''}
-                  </option>
-                ))}
-              </select>
-            </fieldset>
+            {/* 2. Niño/a (o persona evaluada en evaluaciones) */}
+            {eventType === 'evaluacion' ? (
+              <fieldset className="space-y-1">
+                <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">
+                  Persona evaluada <span className="text-fm-error">*</span>
+                </legend>
+                <input
+                  type="text"
+                  value={externalChildName}
+                  onChange={(e) => setExternalChildName(e.target.value)}
+                  placeholder="Nombre de referencia (no es un niño/a registrado)"
+                  maxLength={120}
+                  required
+                  className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
+                />
+                <p className="text-[10px] text-fm-on-surface-variant">
+                  Las evaluaciones suelen ser a personas nuevas. Es solo un nombre de referencia.
+                </p>
+              </fieldset>
+            ) : (
+              <fieldset className="space-y-1">
+                <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">
+                  Niño/a
+                </legend>
+                <select
+                  value={childId}
+                  onChange={(e) => setChildId(e.target.value)}
+                  disabled={isEdit}
+                  required
+                  className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary disabled:opacity-60"
+                >
+                  <option value="">— Selecciona —</option>
+                  {childrenProp.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.full_name} {c.code ? `(${c.code})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </fieldset>
+            )}
+
+            {/* 2b. Evaluación: tipo (catálogo) + persona asignada + pago */}
+            {eventType === 'evaluacion' && (
+              <fieldset className="space-y-3">
+                <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">
+                  Evaluación
+                </legend>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">
+                      Tipo de evaluación <span className="text-fm-error">*</span>
+                    </label>
+                    <select
+                      value={serviceCode}
+                      onChange={(e) => {
+                        setServiceCode(e.target.value)
+                        const picked = evalCatalog.find((ev) => ev.code === e.target.value)
+                        if (picked?.duration_minutes) setDurationMin(picked.duration_minutes)
+                      }}
+                      required
+                      className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
+                    >
+                      <option value="">— Selecciona —</option>
+                      {evalCatalog.map((ev) => (
+                        <option key={ev.code} value={ev.code}>{ev.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">
+                      Asignar a <span className="text-fm-error">*</span>
+                    </label>
+                    <select
+                      value={therapistId}
+                      onChange={(e) => setTherapistId(e.target.value)}
+                      required
+                      className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
+                    >
+                      <option value="">— Selecciona —</option>
+                      {therapists.map((t) => (
+                        <option key={t.id} value={t.id}>{t.full_name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-[11px] text-fm-on-surface-variant">
+                  {selectedEval && selectedEval.cost_usd != null
+                    ? `Pago a la persona: $${selectedEval.cost_usd.toFixed(2)} — `
+                    : ''}
+                  Se contabiliza automáticamente en la planilla de servicios profesionales.
+                </p>
+              </fieldset>
+            )}
 
             {/* 3. Servicio + terapista (si aplica) */}
             {eventType === 'terapia' && (

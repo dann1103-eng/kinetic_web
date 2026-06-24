@@ -14,6 +14,7 @@ import {
 import {
   MONTHLY_CYCLE_STATUS_LABELS,
 } from '@/types/db'
+import { planHasTherapistCoverage } from '@/lib/domain/billing/monthly-flat'
 import type {
   MonthlySessionCycle,
   TreatmentPlan,
@@ -184,14 +185,14 @@ export function MonthlyCyclesSection({
         {canManage && (
           <button
             type="button"
-            disabled={!plan || !plan.primary_therapist_id}
+            disabled={!plan || !planHasTherapistCoverage(plan.therapies_json)}
             onClick={() => setShowCreate(true)}
             className="text-xs px-3 py-1.5 rounded-lg bg-fm-primary text-white font-medium hover:opacity-90 disabled:opacity-50"
             title={
               !plan
                 ? 'Primero hay que crear el plan de tratamiento'
-                : !plan.primary_therapist_id
-                  ? 'El plan no tiene terapista principal asignada'
+                : !planHasTherapistCoverage(plan.therapies_json)
+                  ? 'Cada terapia activa (no matutina) del plan necesita una terapista asignada'
                   : 'Generar el ciclo del mes (factura pendiente)'
             }
           >

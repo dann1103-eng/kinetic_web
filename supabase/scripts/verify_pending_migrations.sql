@@ -342,6 +342,39 @@ WITH checks AS (
   SELECT 58, 'mig_0148_regenerate_cycle_appointments',
          (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
           FROM pg_proc WHERE proname='regenerate_cycle_appointments')
+  UNION ALL
+  -- ── 0155 (reposiciones aprobables por ambas coordinadoras) ────────
+  SELECT 59, 'mig_0155_resolve_absence_coord_familias',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_proc
+          WHERE proname='resolve_absence_with_replacement'
+            AND prosrc ILIKE '%coordinadora_familias%')
+  UNION ALL
+  -- ── 0156 (evaluaciones agendables con nombre libre + tipo) ────────
+  SELECT 60, 'mig_0156_appointments_child_id_nullable',
+         (SELECT (CASE WHEN is_nullable='YES' THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='appointments'
+            AND column_name='child_id')
+  UNION ALL
+  SELECT 61, 'mig_0156_appointments_eval_cols',
+         (SELECT (CASE WHEN COUNT(*)=2 THEN 1 ELSE 0 END)::int
+          FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='appointments'
+            AND column_name IN ('external_child_name','service_code'))
+  UNION ALL
+  -- ── 0157 (sin terapista principal: backfill therapist_id por terapia) ─────
+  -- applied=1 cuando NO quedan terapias activas NO matutinas sin terapista en
+  -- planes activos que sí tienen primary (es decir, el backfill ya corrió).
+  SELECT 62, 'mig_0157_backfill_therapist_per_service',
+         (SELECT (CASE WHEN COUNT(*)=0 THEN 1 ELSE 0 END)::int
+          FROM public.treatment_plans tp
+          CROSS JOIN LATERAL jsonb_array_elements(COALESCE(tp.therapies_json,'[]'::jsonb)) AS e(elem)
+          WHERE tp.active = true
+            AND tp.primary_therapist_id IS NOT NULL
+            AND COALESCE(elem->>'active','true') <> 'false'
+            AND ((elem->>'therapist_id') IS NULL OR (elem->>'therapist_id') = '')
+            AND COALESCE(elem->>'service','') NOT IN ('blue_kids','learning_kids','aula_educativa'))
 )
 SELECT
   check_name,

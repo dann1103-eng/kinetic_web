@@ -16,6 +16,7 @@ import type { Database, UserRole } from '@/types/db'
 import {
   sumProfessionalServicesPay,
   professionalServicesBaseFor,
+  type CompletedTherapyForPay,
 } from '@/lib/domain/payroll/professional-services'
 
 const TZ = 'America/El_Salvador'
@@ -195,12 +196,17 @@ export async function getTherapistMonthlyReport(
     .lt('resolved_at', endISO)
   const absences = (absencesRaw ?? []) as Array<AbsenceRow & { therapist_id: string | null }>
 
-  // 4. Treatment plans activos para encontrar children por primary_therapist
+  // 4. Treatment plans activos: la responsabilidad del informe es por terapia
+  //    asignada (therapies_json[].therapist_id). Ya no hay terapista principal.
   const { data: plansRaw } = await supabase
     .from('treatment_plans')
-    .select('child_id, primary_therapist_id, active')
+    .select('child_id, therapies_json, active')
     .eq('active', true)
-  const plans = (plansRaw ?? []) as Array<{ child_id: string; primary_therapist_id: string | null; active: boolean }>
+  const plans = (plansRaw ?? []) as Array<{
+    child_id: string
+    therapies_json: Array<{ therapist_id?: string | null; active?: boolean }> | null
+    active: boolean
+  }>
 
   // 5. Progress reports que vencen este mes
   const { data: reportsRaw } = await supabase
@@ -220,7 +226,9 @@ export async function getTherapistMonthlyReport(
     const hoursLoad = computeHoursLoad(myAppts, t.max_hours_per_week, daysInMonth)
 
     const myChildIds = plans
-      .filter((p) => p.primary_therapist_id === t.id)
+      .filter((p) =>
+        (p.therapies_json ?? []).some((th) => th.therapist_id === t.id && th.active !== false),
+      )
       .map((p) => p.child_id)
     const myReports = reports.filter((r) => myChildIds.includes(r.child_id))
     const reportsCompliance = computeReportsCompliance(myChildIds.length, myReports)
@@ -415,13 +423,19 @@ export async function getTherapistDetailedReport(
     daysInMonth,
   )
 
-  // Reports compliance
+  // Reports compliance — niños donde esta terapista tiene alguna terapia asignada
+  // (therapies_json[].therapist_id). Ya no hay terapista principal.
   const { data: plansRaw } = await supabase
     .from('treatment_plans')
-    .select('child_id, primary_therapist_id, active')
+    .select('child_id, therapies_json, active')
     .eq('active', true)
-    .eq('primary_therapist_id', opts.therapistId)
-  const myChildIds = (plansRaw ?? []).map((p) => p.child_id)
+  const myChildIds = (plansRaw ?? [])
+    .filter((p) =>
+      ((p.therapies_json ?? []) as Array<{ therapist_id?: string | null; active?: boolean }>).some(
+        (th) => th.therapist_id === opts.therapistId && th.active !== false,
+      ),
+    )
+    .map((p) => p.child_id)
   const { data: reportsRaw } = await supabase
     .from('progress_reports')
     .select('child_id, status, period_ends')
@@ -661,12 +675,23 @@ export async function getTherapistTherapyEarnings(
     if (c.service_type) costByService.set(c.service_type, Number(c.cost_usd ?? 0))
   }
 
-  // Terapias completadas del mes de esos terapistas.
+  // Tarifa por tipo de evaluación, indexada por código (cost_usd del catálogo).
+  const { data: evalCatalogRaw } = await supabase
+    .from('service_catalog')
+    .select('code, cost_usd')
+    .in('category', ['evaluacion', 'evaluacion_dx_tea', 'evaluacion_psicologica'])
+    .eq('active', true)
+  const costByEvalCode = new Map<string, number>()
+  for (const c of evalCatalogRaw ?? []) {
+    if (c.code) costByEvalCode.set(c.code, Number(c.cost_usd ?? 0))
+  }
+
+  // Terapias + evaluaciones completadas del mes de esos terapistas.
   const empIds = employees.map((e) => e.id)
   const { data: apptsRaw } = await supabase
     .from('appointments')
-    .select('therapist_id, service_type, is_extra, status')
-    .eq('event_type', 'terapia')
+    .select('therapist_id, service_type, service_code, event_type, is_extra, status')
+    .in('event_type', ['terapia', 'evaluacion'])
     .eq('status', 'completed')
     .in('therapist_id', empIds)
     .gte('starts_at', startISO)
@@ -674,11 +699,20 @@ export async function getTherapistTherapyEarnings(
   const appts = (apptsRaw ?? []) as {
     therapist_id: string | null
     service_type: string | null
+    service_code: string | null
+    event_type: string
     is_extra: boolean
     status: string
   }[]
 
-  const totals = sumProfessionalServicesPay(appts, costByService)
+  const payInput: CompletedTherapyForPay[] = appts.map((a) => ({
+    therapist_id: a.therapist_id,
+    service_type: a.service_type,
+    is_extra: a.is_extra,
+    cost_override:
+      a.event_type === 'evaluacion' ? costByEvalCode.get(a.service_code ?? '') ?? 0 : null,
+  }))
+  const totals = sumProfessionalServicesPay(payInput, costByService)
 
   // Conteos por terapista (total completadas y solo-extra).
   const completedBy = new Map<string, number>()

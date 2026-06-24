@@ -14,12 +14,16 @@ import type { SessionReport, ProgressReport, ReportTemplate } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES = ['directora', 'admin']
+// Coordinadoras entran a gestionar reposiciones (y recogidas tardías); los
+// informes/reportes siguen siendo solo admin/directora (canApproveReports).
+const ALLOWED_ROLES = ['directora', 'admin', 'coordinadora_terapias', 'coordinadora_familias']
+const REPORT_APPROVER_ROLES = ['directora', 'admin']
 
 export default async function AprobacionesPage() {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
   if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
+  const canApproveReports = REPORT_APPROVER_ROLES.includes(ctx.appUser.role)
 
   const supabase = await createClient()
 
@@ -125,17 +129,20 @@ export default async function AprobacionesPage() {
     .order('full_name')
   const therapistsForReschedule = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
 
-  const totalPending =
-    sessionReports.length + progressReports.length + pendingAbsences.length + suggestedLateFees.length
+  const totalPending = canApproveReports
+    ? sessionReports.length + progressReports.length + pendingAbsences.length + suggestedLateFees.length
+    : pendingAbsences.length + suggestedLateFees.length
 
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
       <TopNav title="Aprobaciones pendientes" />
       <div className="flex-1 p-4 md:p-6 max-w-3xl mx-auto w-full space-y-8">
-        <PendingByTherapistSummary
-          groups={pendingProgressByTherapist}
-          familyIdByChild={pendingFamilyIdByChild}
-        />
+        {canApproveReports && (
+          <PendingByTherapistSummary
+            groups={pendingProgressByTherapist}
+            familyIdByChild={pendingFamilyIdByChild}
+          />
+        )}
 
         {pendingAbsences.length > 0 && (
           <section className="space-y-3">
@@ -152,11 +159,11 @@ export default async function AprobacionesPage() {
         <LateFeeApprovalList fees={suggestedLateFees} />
         {totalPending === 0 ? (
           <div className="py-20 text-center text-sm text-fm-on-surface-variant">
-            Bandeja al día. No hay reportes ni informes esperando aprobación.
+            Bandeja al día. No hay pendientes esperando aprobación.
           </div>
         ) : (
           <>
-            {progressReports.length > 0 && (
+            {canApproveReports && progressReports.length > 0 && (
               <section className="space-y-3">
                 <h2 className="text-base font-semibold text-fm-on-surface">
                   Informes de avances · {progressReports.length}
@@ -170,7 +177,7 @@ export default async function AprobacionesPage() {
               </section>
             )}
 
-            {sessionReports.length > 0 && (
+            {canApproveReports && sessionReports.length > 0 && (
               <section className="space-y-3">
                 <h2 className="text-base font-semibold text-fm-on-surface">
                   Reportes de sesión · {sessionReports.length}

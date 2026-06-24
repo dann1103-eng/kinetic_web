@@ -500,8 +500,69 @@ export async function GET() {
     }
   }
 
+  /* ── Citas asignadas / movidas a la terapista (reposición, extra, evaluación) ─ */
+  const appointmentItems: NotificationItem[] = []
+  {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { data: apptRows } = await supabase
+      .from('appointments')
+      .select(
+        'id, child_id, external_child_name, event_type, is_extra, parent_appointment_id, starts_at, created_at, created_by_user_id, status, children(full_name, preferred_name)',
+      )
+      .eq('therapist_id', user.id)
+      .in('status', ['scheduled', 'replacement'])
+      .gte('created_at', sevenDaysAgo)
+      .neq('created_by_user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    type ApptNotifRow = {
+      id: string
+      child_id: string | null
+      external_child_name: string | null
+      event_type: string
+      is_extra: boolean
+      parent_appointment_id: string | null
+      starts_at: string
+      created_at: string
+      status: string
+      children: { full_name: string; preferred_name: string | null } | { full_name: string; preferred_name: string | null }[] | null
+    }
+
+    for (const raw of (apptRows ?? []) as unknown as ApptNotifRow[]) {
+      const c = raw.children
+      const childName = c
+        ? Array.isArray(c)
+          ? c[0]?.preferred_name || c[0]?.full_name || 'Niño/a'
+          : c.preferred_name || c.full_name || 'Niño/a'
+        : raw.external_child_name || (raw.event_type === 'evaluacion' ? 'Evaluación' : 'Niño/a')
+
+      const subKind: NonNullable<NotificationItem['appointment_subkind']> =
+        raw.event_type === 'evaluacion'
+          ? 'evaluacion'
+          : raw.status === 'replacement'
+            ? 'reposicion'
+            : raw.parent_appointment_id
+              ? 'movida'
+              : raw.is_extra
+                ? 'extra'
+                : 'nueva'
+
+      appointmentItems.push({
+        kind: 'appointment',
+        id: `appt-${raw.id}`,
+        created_at: raw.created_at,
+        read: false,
+        appointment_id: raw.id,
+        appointment_subkind: subKind,
+        appointment_starts_at: raw.starts_at,
+        appointment_child_name: childName,
+      })
+    }
+  }
+
   /* ── Merge y sort: vencidos al frente, luego por fecha ─────── */
-  const items = [...overdueItems, ...cambioPendingItems, ...mentionItems, ...reviewMentionItems, ...invoiceAutoItems, ...calendarItems, ...convItems].sort((a, b) => {
+  const items = [...overdueItems, ...cambioPendingItems, ...mentionItems, ...reviewMentionItems, ...invoiceAutoItems, ...calendarItems, ...convItems, ...appointmentItems].sort((a, b) => {
     if (a.kind === 'overdue' && b.kind !== 'overdue') return -1
     if (a.kind !== 'overdue' && b.kind === 'overdue') return 1
     return a.created_at < b.created_at ? 1 : -1

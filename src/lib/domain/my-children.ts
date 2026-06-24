@@ -1,10 +1,12 @@
 /**
  * my-children — niños que un terapista/maestra puede ver en /mis-ninos.
  *
- * Regla (maestras = terapistas, mismas restricciones): niños donde el usuario es
- * primary_therapist_id en algún treatment_plan activo (sus niños asignados).
- * Una maestra solo ve los niños del programa matutino que tiene asignados como
- * terapista principal — NO todos los del programa.
+ * Regla (maestras = terapistas, mismas restricciones): YA NO hay "terapista
+ * principal". El niño aparece en "mis niños" del usuario si:
+ *   (a) el usuario es la terapista asignada de alguna terapia activa del plan
+ *       (treatment_plans.therapies_json[].therapist_id), o
+ *   (b) el usuario es staff de un grupo de programa matutino al que el niño
+ *       pertenece.
  * Se excluyen fases terminales (5_*).
  *
  * Devolvemos un subset minimal del Child + la última cita conocida + el próximo
@@ -51,17 +53,9 @@ export async function listMyChildren(
   if (role !== 'terapista' && role !== 'maestra') return []
   const childIdSet = new Set<string>()
 
-  // (a) Niños donde es terapista principal de un plan activo.
-  const { data: plans } = await supabase
-    .from('treatment_plans')
-    .select('child_id')
-    .eq('primary_therapist_id', userId)
-    .eq('active', true)
-  for (const p of plans ?? []) childIdSet.add(p.child_id as string)
-
-  // (a2) Niños donde el usuario aparece como terapista de algún tipo de terapia
-  //      específico en el plan (therapies_json[*].therapist_id). Cubre el caso
-  //      de terapistas que dan un servicio a un niño pero no son la principal.
+  // (a) Niños donde el usuario es la terapista asignada de alguna terapia activa
+  //     del plan (therapies_json[*].therapist_id). Única fuente de verdad de la
+  //     asignación — ya no existe "terapista principal".
   const { data: allActivePlans } = await supabase
     .from('treatment_plans')
     .select('child_id, therapies_json')
@@ -121,16 +115,17 @@ export async function listMyChildren(
   const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
   const sixtyDaysAhead = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString()
 
-  let apptQuery = supabase
+  // Traemos TODAS las citas de estos niños (sin filtrar por terapista): el
+  // terapista principal debe ver las terapias de sus niños aunque otra persona
+  // lo haya cubierto / hecho una reposición. La visibilidad de QUÉ niños ve no
+  // cambia (se resolvió arriba); esto solo amplía QUÉ citas de esos niños trae.
+  const apptQuery = supabase
     .from('appointments')
     .select('id, child_id, therapist_id, starts_at, ends_at, service_type, status, event_type')
     .in('child_id', activeIds)
     .gte('starts_at', sixtyDaysAgo)
     .lte('starts_at', sixtyDaysAhead)
     .order('starts_at', { ascending: true })
-
-  // Terapista y maestra: solo sus propias citas (mismas restricciones).
-  apptQuery = apptQuery.eq('therapist_id', userId)
 
   const { data: apptsRaw } = await apptQuery
   type ApptRow = {
@@ -204,18 +199,7 @@ export async function userCanViewChild(
 ): Promise<boolean> {
   if (role !== 'terapista' && role !== 'maestra') return false
 
-  // (a) Terapista principal de un plan activo de ese niño.
-  const { data: plan } = await supabase
-    .from('treatment_plans')
-    .select('id')
-    .eq('primary_therapist_id', userId)
-    .eq('child_id', childId)
-    .eq('active', true)
-    .limit(1)
-    .maybeSingle()
-  if (plan) return true
-
-  // (a2) Terapista de algún tipo de terapia específico en el plan activo del niño.
+  // (a) Terapista asignada de alguna terapia activa del plan del niño.
   const { data: planWithTherapies } = await supabase
     .from('treatment_plans')
     .select('therapies_json')

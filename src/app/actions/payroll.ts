@@ -13,6 +13,7 @@ import {
   sumProfessionalServicesPay,
   professionalServicesBaseFor,
   type TherapyPayTotals,
+  type CompletedTherapyForPay,
 } from '@/lib/domain/payroll/professional-services'
 import { fromZonedTime } from 'date-fns-tz'
 import type {
@@ -220,6 +221,17 @@ export async function createPayrollRun(input: {
       if (c.service_type) costByService.set(c.service_type, Number(c.cost_usd ?? 0))
     }
 
+    // Tarifa por tipo de evaluación, indexada por código (cost_usd del catálogo).
+    const { data: evalCatalogRaw } = await admin
+      .from('service_catalog')
+      .select('code, cost_usd')
+      .in('category', ['evaluacion', 'evaluacion_dx_tea', 'evaluacion_psicologica'])
+      .eq('active', true)
+    const costByEvalCode = new Map<string, number>()
+    for (const c of evalCatalogRaw ?? []) {
+      if (c.code) costByEvalCode.set(c.code, Number(c.cost_usd ?? 0))
+    }
+
     const periodStartISO = fromZonedTime(
       new Date(input.year, input.month - 1, 1, 0, 0, 0),
       'America/El_Salvador',
@@ -232,16 +244,25 @@ export async function createPayrollRun(input: {
     const { data: apptsRaw } = empIds.length
       ? await admin
           .from('appointments')
-          .select('therapist_id, service_type, is_extra, status')
-          .eq('event_type', 'terapia')
+          .select('therapist_id, service_type, service_code, event_type, is_extra, status')
+          .in('event_type', ['terapia', 'evaluacion'])
           .eq('status', 'completed')
           .in('therapist_id', empIds)
           .gte('starts_at', periodStartISO)
           .lt('starts_at', periodEndISO)
-      : { data: [] as { therapist_id: string | null; service_type: string | null; is_extra: boolean; status: string }[] }
+      : { data: [] as { therapist_id: string | null; service_type: string | null; service_code: string | null; event_type: string; is_extra: boolean; status: string }[] }
+
+    // Evaluaciones aportan su cost_usd por código; terapias por service_type.
+    const payInput: CompletedTherapyForPay[] = (apptsRaw ?? []).map((a) => ({
+      therapist_id: a.therapist_id,
+      service_type: a.service_type,
+      is_extra: a.is_extra,
+      cost_override:
+        a.event_type === 'evaluacion' ? costByEvalCode.get(a.service_code ?? '') ?? 0 : null,
+    }))
 
     // Suma pura y testeada (professional-services.test.ts): la duración NO interviene.
-    spTotals = sumProfessionalServicesPay(apptsRaw ?? [], costByService)
+    spTotals = sumProfessionalServicesPay(payInput, costByService)
   }
 
   const items = (empleados ?? []).map((u) => {

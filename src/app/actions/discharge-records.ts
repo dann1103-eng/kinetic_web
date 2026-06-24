@@ -190,17 +190,24 @@ export async function signDischargeAsTherapist(
     return { ok: false, error: 'Solo se puede firmar un draft.' }
   }
 
-  // Validar que el actor es la terapista principal del niño (o admin/directora)
+  // Validar que el actor es una terapista asignada del niño (o admin/directora).
+  // Ya no hay terapista principal: cualquier terapista con una terapia asignada
+  // en el plan activo del niño puede firmar.
   if (!['admin', 'directora'].includes(user.role)) {
     const { data: plan } = await admin
       .from('treatment_plans')
-      .select('primary_therapist_id')
+      .select('therapies_json')
       .eq('child_id', existing.child_id)
       .eq('active', true)
       .maybeSingle()
-    const planRow = plan as { primary_therapist_id: string | null } | null
-    if (!planRow || planRow.primary_therapist_id !== user.id) {
-      return { ok: false, error: 'Solo la terapista principal puede firmar.' }
+    const planRow = plan as {
+      therapies_json: Array<{ therapist_id?: string | null; active?: boolean }> | null
+    } | null
+    const isAssigned = (planRow?.therapies_json ?? []).some(
+      (t) => t.therapist_id === user.id && t.active !== false,
+    )
+    if (!isAssigned) {
+      return { ok: false, error: 'Solo una terapista asignada del niño/a puede firmar.' }
     }
   }
 

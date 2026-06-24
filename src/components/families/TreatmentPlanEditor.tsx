@@ -21,7 +21,7 @@ import type {
   TreatmentPlanScheduleSlot,
   TreatmentPlanTherapyEntry,
 } from '@/types/db'
-import { isMonthlyFlatEntry, isMorningProgramService } from '@/lib/domain/billing/monthly-flat'
+import { isMonthlyFlatEntry, isMorningProgramService, planHasTherapistCoverage } from '@/lib/domain/billing/monthly-flat'
 
 interface TherapistOption {
   id: string
@@ -158,9 +158,6 @@ export function TreatmentPlanEditor({
     const last = variants[variants.length - 1]
     return last?.days_per_week ?? 5
   }
-  const [primaryTherapistId, setPrimaryTherapistId] = useState<string>(
-    existing?.primary_therapist_id ?? '',
-  )
   const [diagnosisText, setDiagnosisText] = useState(existing?.diagnosis_text ?? '')
   const [startsAt, setStartsAt] = useState<string>(existing?.starts_at ?? '')
   const [ageAtStart, setAgeAtStart] = useState(existing?.age_at_start_text ?? '')
@@ -219,8 +216,8 @@ export function TreatmentPlanEditor({
   // ── Autoguardado local de borrador (sobrevive cortes de luz/internet) ──
   const user = useUser()
   const formState = useMemo(
-    () => ({ primaryTherapistId, diagnosisText, startsAt, ageAtStart, observations, therapies, slots }),
-    [primaryTherapistId, diagnosisText, startsAt, ageAtStart, observations, therapies, slots],
+    () => ({ diagnosisText, startsAt, ageAtStart, observations, therapies, slots }),
+    [diagnosisText, startsAt, ageAtStart, observations, therapies, slots],
   )
   const { draft, savedAt, online, clear } = useDraft(`treatment-plan:${childId}`, formState, {
     userId: user.id,
@@ -229,7 +226,6 @@ export function TreatmentPlanEditor({
   const [draftDismissed, setDraftDismissed] = useState(false)
 
   function applyDraft(d: typeof formState) {
-    setPrimaryTherapistId(d.primaryTherapistId)
     setDiagnosisText(d.diagnosisText)
     setStartsAt(d.startsAt)
     setAgeAtStart(d.ageAtStart)
@@ -309,11 +305,15 @@ export function TreatmentPlanEditor({
   function handleSave() {
     setError(null)
     setFailedOffline(false)
+    // Validación: cada terapia activa NO matutina necesita su terapista.
+    if (!planHasTherapistCoverage(therapies)) {
+      setError('Cada terapia activa (no matutina) necesita una terapista asignada. Asigná terapista en cada línea.')
+      return
+    }
     startTransition(async () => {
       try {
         const res = await upsertTreatmentPlan({
           childId,
-          primaryTherapistId: primaryTherapistId || null,
           diagnosisText: diagnosisText.trim() || null,
           startsAt: startsAt || null,
           ageAtStartText: ageAtStart.trim() || null,
@@ -367,20 +367,6 @@ export function TreatmentPlanEditor({
           )}
           {/* Header data */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Terapista principal">
-              <select
-                value={primaryTherapistId}
-                onChange={(e) => setPrimaryTherapistId(e.target.value)}
-                className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
-              >
-                <option value="">— Sin asignar —</option>
-                {therapists.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.full_name} ({t.role})
-                  </option>
-                ))}
-              </select>
-            </Field>
             <Field label="Fecha de inicio">
               <input
                 type="date"
@@ -477,19 +463,32 @@ export function TreatmentPlanEditor({
                       </option>
                     ))}
                   </select>
-                  <select
-                    value={t.therapist_id ?? ''}
-                    onChange={(e) => patchTherapy(idx, { therapist_id: e.target.value || null })}
-                    title="Terapista para este tipo de terapia (si se deja en principal, usa la terapista principal del plan)"
-                    className="rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1.5 text-sm"
-                  >
-                    <option value="">↳ Usar principal</option>
-                    {therapists.map((th) => (
-                      <option key={th.id} value={th.id}>
-                        {th.full_name}
-                      </option>
-                    ))}
-                  </select>
+                  {isMorningProgramService(t.service) ? (
+                    <div
+                      className="rounded-md border border-dashed border-fm-outline-variant/40 bg-fm-surface-container-low/40 px-2 py-1.5 text-[11px] text-fm-on-surface-variant flex items-center"
+                      title="Los programas matutinos los cubre el grupo (misses líderes), no llevan terapista individual."
+                    >
+                      Por grupo matutino
+                    </div>
+                  ) : (
+                    <select
+                      value={t.therapist_id ?? ''}
+                      onChange={(e) => patchTherapy(idx, { therapist_id: e.target.value || null })}
+                      title="Terapista a cargo de este tipo de terapia. Esto habilita al niño/a en 'mis niños' de esa persona."
+                      className={`rounded-md border bg-white px-2 py-1.5 text-sm ${
+                        t.active && !t.therapist_id
+                          ? 'border-amber-400 ring-1 ring-amber-300'
+                          : 'border-fm-outline-variant/30'
+                      }`}
+                    >
+                      <option value="">— Terapista… —</option>
+                      {therapists.map((th) => (
+                        <option key={th.id} value={th.id}>
+                          {th.full_name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {t.billing_mode === 'monthly_flat' ? (
                     <select
                       value={t.days_per_week ?? ''}
@@ -558,13 +557,15 @@ export function TreatmentPlanEditor({
             </div>
 
             <p className="text-[11px] text-fm-on-surface-variant italic">
-              Los precios se definen al cobrar el ciclo mensual del niño/a. Los
-              programas matutinos (Blue Kids, Learning Kids, Aula Educativa) se
-              cobran como <b>mensualidad fija</b>: se elige la variante de días a
-              la semana y el mes vale lo mismo tenga 28 o 31 días. Al elegir la
-              variante se completa automáticamente la <b>programación semanal</b>
-              de abajo (podés ajustar día/hora). <b>Guardá el plan</b> para que el
-              ciclo mensual genere las citas.
+              Cada terapia lleva su <b>terapista asignada</b> — eso es lo que
+              habilita al niño/a en <b>“mis niños”</b> de esa persona y asigna sus
+              citas. (Ya no se usa “terapista principal”.) Los programas matutinos
+              (Blue Kids, Learning Kids, Aula Educativa) los cubre el <b>grupo</b>,
+              así que no llevan terapista individual. Los precios se definen al
+              cobrar el ciclo mensual; los matutinos se cobran como <b>mensualidad
+              fija</b> (elegí la variante de días/semana). Al elegir la variante se
+              completa la <b>programación semanal</b> de abajo (ajustá día/hora).
+              <b>Guardá el plan</b> para que el ciclo genere las citas.
             </p>
           </section>
 

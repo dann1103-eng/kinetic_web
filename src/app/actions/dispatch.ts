@@ -330,7 +330,7 @@ export async function dispatchAndCharge(
   const { data: cycle } = await admin
     .from('monthly_session_cycles')
     .select('id, invoice_id')
-    .eq('child_id', appt.child_id)
+    .eq('child_id', appt.child_id ?? '')
     .eq('period_month', period)
     .neq('status', 'cancelled')
     .maybeSingle()
@@ -409,7 +409,7 @@ export async function confirmLateFee(
   const { data: cycle } = await admin
     .from('monthly_session_cycles')
     .select('id, invoice_id')
-    .eq('child_id', appt.child_id)
+    .eq('child_id', appt.child_id ?? '')
     .eq('period_month', period)
     .neq('status', 'cancelled')
     .maybeSingle()

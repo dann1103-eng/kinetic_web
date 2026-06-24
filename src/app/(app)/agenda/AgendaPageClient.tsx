@@ -13,7 +13,7 @@ import {
   type MorningProgram,
 } from '@/types/db'
 import { findClosureAffecting } from '@/lib/domain/appointment'
-import { AppointmentForm } from '@/components/agenda/AppointmentForm'
+import { AppointmentForm, type EvalCatalogItem } from '@/components/agenda/AppointmentForm'
 import { KineticCalendar, type KineticEventDatum } from '@/components/calendar/KineticCalendar'
 
 type ChildLite = Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>
@@ -40,6 +40,7 @@ interface AgendaPageClientProps {
   childrenList: ChildLite[]
   therapists: TherapistLite[]
   closures: InstitutionalClosure[]
+  evalCatalog: EvalCatalogItem[]
 }
 
 // Un bloque puede ser una cita individual O una sesión de grupo (read-only).
@@ -79,6 +80,7 @@ export function AgendaPageClient({
   childrenList: childrenProp,
   therapists,
   closures,
+  evalCatalog,
 }: AgendaPageClientProps) {
   // Maestras y terapistas quedan bloqueados a su propia agenda (mismas
   // restricciones: solo ven las citas donde son el terapista asignado).
@@ -427,6 +429,7 @@ export function AgendaPageClient({
           childrenList={childrenProp}
           therapists={therapists}
           closures={closures}
+          evalCatalog={evalCatalog}
           isAdmin={currentUserRole === 'admin'}
           canSchedule={canSchedule}
         />

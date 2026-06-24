@@ -118,7 +118,7 @@ export default async function MiDiaPage() {
 
   const { data: weekCompletedRaw } = await supabase
     .from('appointments')
-    .select('id, child_id, service_type, starts_at, ends_at, status')
+    .select('id, child_id, external_child_name, event_type, service_type, starts_at, ends_at, status')
     .eq('therapist_id', userId)
     .eq('status', 'completed')
     .gte('starts_at', weekStart.toISOString())
@@ -127,6 +127,8 @@ export default async function MiDiaPage() {
   const weekCompletedAppts = (weekCompletedRaw ?? []) as {
     id: string
     child_id: string | null
+    external_child_name: string | null
+    event_type: string
     service_type: string | null
     starts_at: string
     ends_at: string
@@ -165,7 +167,10 @@ export default async function MiDiaPage() {
     return {
       appointmentId: a.id,
       sessionId,
-      childName: (a.child_id ? weekChildMap.get(a.child_id) : null) ?? 'Niño/a',
+      childName:
+        (a.child_id ? weekChildMap.get(a.child_id) : null) ??
+        a.external_child_name ??
+        (a.event_type === 'evaluacion' ? 'Evaluación' : 'Niño/a'),
       serviceType: a.service_type,
       startsAt: a.starts_at,
       reportStatus: (sessionId
@@ -243,7 +248,13 @@ export default async function MiDiaPage() {
     )
     const enrich = (a: Appointment): AppointmentWithChild => {
       const child = a.child_id ? childMap[a.child_id] : null
-      if (!child) return a
+      if (!child) {
+        // Evaluaciones a personas nuevas: mostrar el nombre libre.
+        if (a.external_child_name) {
+          return { ...a, child_full_name: a.external_child_name }
+        }
+        return a
+      }
       return {
         ...a,
         child_full_name: child.full_name,

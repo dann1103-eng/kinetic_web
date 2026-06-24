@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
+import { userCanViewChild } from '@/lib/domain/my-children'
 import type { SessionReport } from '@/types/db'
 
 /**
@@ -63,11 +64,16 @@ async function ensureReportForSession(
     return { ok: false, error: 'Sesión no encontrada.' }
   }
 
-  if ((session as { therapist_id: string | null }).therapist_id !== user.id) {
-    return { ok: false, error: 'Solo la terapista de la sesión puede crear el reporte.' }
-  }
+  const sess = session as { appointment_id: string; child_id: string; therapist_id: string | null }
 
-  const sess = session as { appointment_id: string; child_id: string }
+  // Puede crear el reporte quien dio la sesión O la terapista principal/asignada
+  // del niño (aunque otra persona la haya cubierto). El autor del reporte = quien
+  // lo llena (user.id).
+  const isSessionTherapist = sess.therapist_id === user.id
+  const isPrincipal = await userCanViewChild(supabase, user.id, user.role, sess.child_id)
+  if (!isSessionTherapist && !isPrincipal) {
+    return { ok: false, error: 'Solo la terapista de la sesión o la principal del niño/a puede crear el reporte.' }
+  }
 
   const { data: created, error: insertErr } = await supabase
     .from('session_reports')
@@ -132,14 +138,19 @@ export async function createOrGetSessionReportForAppointment(
     event_type: string | null
   }
 
-  if (a.therapist_id !== user.id) {
-    return { ok: false, error: 'Solo la terapista de la cita puede subir el reporte.' }
-  }
   if (a.event_type !== 'terapia') {
     return { ok: false, error: 'Solo las terapias tienen reporte de sesión.' }
   }
   if (!a.child_id) {
     return { ok: false, error: 'La cita no tiene un niño/a asociado.' }
+  }
+
+  // Puede subir el reporte quien dio la cita O la terapista principal/asignada
+  // del niño (cuando alguien la cubrió). El autor será quien lo llena (user.id).
+  const isApptTherapist = a.therapist_id === user.id
+  const isPrincipal = await userCanViewChild(supabase, user.id, user.role, a.child_id)
+  if (!isApptTherapist && !isPrincipal) {
+    return { ok: false, error: 'Solo la terapista de la cita o la principal del niño/a puede subir el reporte.' }
   }
 
   // Buscar la sesión de la cita; crearla (completada) si no existe.
@@ -153,11 +164,18 @@ export async function createOrGetSessionReportForAppointment(
   if (existingSession) {
     sessionId = (existingSession as { id: string }).id
   } else {
-    const { data: createdSession, error: sessErr } = await supabase
+    // La sesión registra a quien DIO la cita (cobertura/principal). Si quien sube
+    // el reporte es la principal (no la que dio la cita), RLS de therapy_sessions
+    // (therapist_id = auth.uid()) bloquearía el insert con el therapist de la
+    // cobertura → usamos admin client en ese caso.
+    const sessionWriteClient = isApptTherapist ? supabase : createAdminClient()
+    const { data: createdSession, error: sessErr } = await sessionWriteClient
       .from('therapy_sessions')
       .insert({
         appointment_id: appointmentId,
-        therapist_id: user.id,
+        // Registra a quien DIO la cita (cobertura/principal); el autor del reporte
+        // se guarda aparte en session_reports.therapist_id.
+        therapist_id: a.therapist_id ?? user.id,
         child_id: a.child_id,
         status: 'completed',
         ended_at: new Date().toISOString(),
@@ -192,7 +210,27 @@ export async function updateSessionReportDraft(
   // Admin / coordinadoras pueden editar reportes en CUALQUIER estado
   // (incl. approved / sent_to_family). Usan admin client para bypasear RLS.
   const isSuperEditor = REPORT_SUPER_EDITORS.includes(user.role)
-  const client = isSuperEditor ? createAdminClient() : supabase
+
+  // La terapista principal del niño puede llenar el reporte aunque otra persona
+  // haya cubierto la sesión. Si no es la autora actual, usa admin client y toma
+  // la autoría (el autor del reporte = quien lo llena).
+  let client = isSuperEditor ? createAdminClient() : supabase
+  let transferAuthorTo: string | null = null
+  if (!isSuperEditor) {
+    const { data: rep } = await supabase
+      .from('session_reports')
+      .select('child_id, therapist_id')
+      .eq('id', reportId)
+      .maybeSingle()
+    const r = rep as { child_id: string; therapist_id: string | null } | null
+    if (r && r.therapist_id !== user.id) {
+      const isPrincipal = await userCanViewChild(supabase, user.id, user.role, r.child_id)
+      if (isPrincipal) {
+        client = createAdminClient()
+        transferAuthorTo = user.id
+      }
+    }
+  }
 
   const { data, error } = await client
     .from('session_reports')
@@ -207,6 +245,7 @@ export async function updateSessionReportDraft(
       file_name: null,
       file_size_bytes: null,
       file_mime_type: null,
+      ...(transferAuthorTo ? { therapist_id: transferAuthorTo } : {}),
     })
     .eq('id', reportId)
     .select('*')

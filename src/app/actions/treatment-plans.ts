@@ -14,7 +14,7 @@ import type {
 } from '@/types/db'
 import { SERVICE_TYPE_LABELS, DAY_OF_WEEK_LABELS } from '@/types/db'
 import { applyDiscount, validateDiscount } from '@/lib/domain/discounts'
-import { therapyLineAmount } from '@/lib/domain/billing/monthly-flat'
+import { therapyLineAmount, isMorningProgramService, planTherapistIds } from '@/lib/domain/billing/monthly-flat'
 
 const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'] as const
 
@@ -45,10 +45,16 @@ function validateTherapies(input: unknown): TreatmentPlanTherapyEntry[] | string
     if (!Number.isFinite(sessions) || sessions < 0) return 'Sesiones por mes inválido.'
     const cost = Number(t.unit_cost_usd ?? 0)
     if (!Number.isFinite(cost) || cost < 0) return 'Costo unitario inválido.'
-    // Terapista por tipo de terapia (opcional). null/'' → usar primary del plan.
+    // Terapista por tipo de terapia. Ya no hay "terapista principal": cada terapia
+    // NO matutina debe tener su terapista (es lo que habilita al niño en "mis niños"
+    // de esa persona y asigna sus citas). Las matutinas las cubre el grupo.
     const rawTherapist = t.therapist_id
     const therapistId =
       typeof rawTherapist === 'string' && rawTherapist.trim() ? rawTherapist.trim() : null
+    const isActive = t.active !== false
+    if (isActive && !isMorningProgramService(t.service as ServiceType) && !therapistId) {
+      return `La terapia "${SERVICE_TYPE_LABELS[t.service as ServiceType] ?? String(t.service)}" necesita una terapista asignada.`
+    }
     // Modalidad de cobro (opcional): mensualidad fija para programas matutinos.
     const billingMode = t.billing_mode
     if (billingMode !== undefined && billingMode !== 'per_session' && billingMode !== 'monthly_flat') {
@@ -155,7 +161,8 @@ export async function listTreatmentPlanChanges(
 
 export interface UpsertTreatmentPlanInput {
   childId: string
-  primaryTherapistId: string | null
+  /** @deprecated Ya no hay terapista principal. Se ignora; se deriva de las terapias. */
+  primaryTherapistId?: string | null
   diagnosisText: string | null
   startsAt: string | null
   ageAtStartText: string | null
@@ -201,9 +208,14 @@ export async function upsertTreatmentPlan(
 
   const beforeJson = (existing ?? {}) as Partial<TreatmentPlan>
 
+  // Ya no hay "terapista principal" en la UI. Mantenemos la columna por
+  // compatibilidad (fallback del RPC del ciclo, historial): la derivamos como la
+  // primera terapista asignada del plan. Si solo hay matutinos, queda null.
+  const derivedPrimary = planTherapistIds(therapiesValidated)[0] ?? null
+
   const payload = {
     child_id: input.childId,
-    primary_therapist_id: input.primaryTherapistId,
+    primary_therapist_id: derivedPrimary,
     diagnosis_text: input.diagnosisText,
     starts_at: input.startsAt,
     age_at_start_text: input.ageAtStartText,

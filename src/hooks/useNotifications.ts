@@ -112,6 +112,8 @@ export function useNotifications() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'invoices' }, scheduleFetch)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'requirement_cambio_logs' }, scheduleFetch)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'requirement_cambio_logs' }, scheduleFetch)
+      // Citas asignadas/movidas a la terapista (reposición, extra, evaluación).
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'appointments' }, scheduleFetch)
       .subscribe()
 
     safetyTimer = setInterval(fetchItems, SAFETY_POLL_MS)

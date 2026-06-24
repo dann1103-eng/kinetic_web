@@ -125,6 +125,9 @@ interface ApptJoinRow {
   id: string
   therapist_id: string | null
   service_type: string | null
+  service_code: string | null
+  external_child_name: string | null
+  event_type: string
   starts_at: string
   ends_at: string
   is_extra: boolean
@@ -134,9 +137,12 @@ interface ApptJoinRow {
 
 function childNameOf(row: ApptJoinRow): string {
   const c = row.children
-  if (!c) return 'Niño/a'
-  if (Array.isArray(c)) return c[0]?.full_name ?? 'Niño/a'
-  return c.full_name ?? 'Niño/a'
+  if (c) {
+    if (Array.isArray(c)) return c[0]?.full_name ?? 'Niño/a'
+    return c.full_name ?? 'Niño/a'
+  }
+  // Evaluaciones a personas nuevas: nombre libre.
+  return row.external_child_name ?? 'Evaluación'
 }
 
 /**
@@ -173,22 +179,40 @@ export async function getCompletedTherapiesDetail(
     if (c.service_type) costByService.set(c.service_type, Number(c.cost_usd ?? 0))
   }
 
-  // Terapias completadas en la ventana.
+  // Tarifa por tipo de evaluación, indexada por código (cost_usd del catálogo).
+  const { data: evalCatalogRaw } = await supabase
+    .from('service_catalog')
+    .select('code, cost_usd')
+    .in('category', ['evaluacion', 'evaluacion_dx_tea', 'evaluacion_psicologica'])
+    .eq('active', true)
+  const costByEvalCode = new Map<string, number>()
+  for (const c of evalCatalogRaw ?? []) {
+    if (c.code) costByEvalCode.set(c.code, Number(c.cost_usd ?? 0))
+  }
+
+  // Terapias + evaluaciones completadas en la ventana.
   const { data: apptsRaw } = await supabase
     .from('appointments')
-    .select('id, therapist_id, service_type, starts_at, ends_at, is_extra, extra_reason, children(full_name)')
-    .eq('event_type', 'terapia')
+    .select('id, therapist_id, service_type, service_code, external_child_name, event_type, starts_at, ends_at, is_extra, extra_reason, children(full_name)')
+    .in('event_type', ['terapia', 'evaluacion'])
     .eq('status', 'completed')
     .gte('starts_at', startISO)
     .lt('starts_at', endISO)
     .order('starts_at')
   const appts = (apptsRaw ?? []) as unknown as ApptJoinRow[]
 
+  // Costo por cita: evaluaciones por su código; terapias por service_type.
+  const costOfAppt = (a: ApptJoinRow): number =>
+    a.event_type === 'evaluacion'
+      ? costByEvalCode.get(a.service_code ?? '') ?? 0
+      : costByService.get(a.service_type ?? '') ?? 0
+
   // Pago acumulado por terapista (puro).
   const payInput: CompletedTherapyForPay[] = appts.map((a) => ({
     therapist_id: a.therapist_id,
     service_type: a.service_type,
     is_extra: a.is_extra,
+    cost_override: a.event_type === 'evaluacion' ? costOfAppt(a) : null,
   }))
   const totals = sumProfessionalServicesPay(payInput, costByService)
 
@@ -208,7 +232,7 @@ export async function getCompletedTherapiesDetail(
       durationMin,
       isExtra: a.is_extra,
       extraReason: a.extra_reason,
-      costUsd: costByService.get(a.service_type ?? '') ?? 0,
+      costUsd: costOfAppt(a),
     }
     const arr = rowsByTherapist.get(a.therapist_id) ?? []
     arr.push(row)

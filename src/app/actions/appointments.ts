@@ -16,7 +16,12 @@ import type {
 const STAFF_ROLES_SCHEDULE = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion']
 
 interface CreateAppointmentInput {
-  child_id: string
+  /** Requerido salvo en evaluaciones a personas nuevas (usar external_child_name). */
+  child_id?: string | null
+  /** Nombre libre de la persona evaluada (solo evaluaciones sin niño registrado). */
+  external_child_name?: string | null
+  /** Código del catálogo de evaluaciones elegido (solo evaluaciones). */
+  service_code?: string | null
   therapist_id?: string | null
   event_type: EventType
   service_type?: ServiceType | null
@@ -44,8 +49,19 @@ export async function createAppointment(
     return { ok: false, error: 'Sin permisos para agendar citas' }
   }
 
+  const isEvaluacion = input.event_type === 'evaluacion'
+
   // Validaciones básicas
-  if (!input.child_id) return { ok: false, error: 'Falta el niño/a' }
+  if (isEvaluacion) {
+    // Evaluaciones: persona nueva (nombre libre) + tipo de evaluación + quién la da.
+    if (!input.external_child_name || input.external_child_name.trim().length === 0) {
+      return { ok: false, error: 'La evaluación requiere el nombre de la persona evaluada' }
+    }
+    if (!input.service_code) return { ok: false, error: 'Elegí el tipo de evaluación' }
+    if (!input.therapist_id) return { ok: false, error: 'Asigná a quién dará la evaluación' }
+  } else if (!input.child_id) {
+    return { ok: false, error: 'Falta el niño/a' }
+  }
   if (input.event_type === 'terapia') {
     if (!input.service_type) return { ok: false, error: 'Las terapias requieren tipo de servicio' }
     if (!input.therapist_id) return { ok: false, error: 'Las terapias requieren terapista asignado' }
@@ -63,19 +79,23 @@ export async function createAppointment(
 
   const supabase = await createClient()
 
-  // Validar que el niño existe y está activo
-  const { data: child } = await supabase
-    .from('children')
-    .select('id, current_phase_code, family_id')
-    .eq('id', input.child_id)
-    .maybeSingle()
-  if (!child) return { ok: false, error: 'Niño/a no encontrado' }
-  // No agendar a niños en fase terminal (alta o retiro)
-  if (
-    child.current_phase_code === '5_1_alta_terapeutica' ||
-    child.current_phase_code === '5_2_retirado'
-  ) {
-    return { ok: false, error: 'El niño/a ya no está activo en Kinetic' }
+  // Validar que el niño existe y está activo (no aplica a evaluaciones con nombre libre)
+  let child: { id: string; current_phase_code: string | null; family_id: string } | null = null
+  if (input.child_id) {
+    const { data: childRow } = await supabase
+      .from('children')
+      .select('id, current_phase_code, family_id')
+      .eq('id', input.child_id)
+      .maybeSingle()
+    if (!childRow) return { ok: false, error: 'Niño/a no encontrado' }
+    // No agendar a niños en fase terminal (alta o retiro)
+    if (
+      childRow.current_phase_code === '5_1_alta_terapeutica' ||
+      childRow.current_phase_code === '5_2_retirado'
+    ) {
+      return { ok: false, error: 'El niño/a ya no está activo en Kinetic' }
+    }
+    child = childRow
   }
 
   // Validar cierre institucional (saltable con force por admin)
@@ -120,10 +140,21 @@ export async function createAppointment(
     }
   }
 
+  // Las evaluaciones se contabilizan automáticamente para la planilla de
+  // servicios profesionales (extraordinarias), con su pago tomado del catálogo.
+  const isExtra = isEvaluacion ? true : (input.is_extra ?? false)
+  const extraReason: ExtraReason | null = isEvaluacion
+    ? 'evaluacion'
+    : input.is_extra
+      ? (input.extra_reason ?? null)
+      : null
+
   const { data, error } = await supabase
     .from('appointments')
     .insert({
-      child_id: input.child_id,
+      child_id: input.child_id || null,
+      external_child_name: isEvaluacion ? input.external_child_name!.trim() : null,
+      service_code: isEvaluacion ? input.service_code! : null,
       therapist_id: input.therapist_id || null,
       event_type: input.event_type,
       service_type: input.service_type || null,
@@ -135,8 +166,8 @@ export async function createAppointment(
         input.event_type === 'otro' && input.custom_event_label
           ? input.custom_event_label.trim()
           : null,
-      is_extra: input.is_extra ?? false,
-      extra_reason: input.is_extra ? (input.extra_reason ?? null) : null,
+      is_extra: isExtra,
+      extra_reason: extraReason,
       created_by_user_id: ctx.appUser.id,
     })
     .select('id')
@@ -145,13 +176,14 @@ export async function createAppointment(
   if (error || !data) return { ok: false, error: error?.message ?? 'Error desconocido' }
 
   revalidatePath('/agenda')
-  revalidatePath(`/familias/${child.family_id}`)
+  revalidatePath('/mi-dia')
+  if (child) revalidatePath(`/familias/${child.family_id}`)
   return { ok: true, appointmentId: data.id }
 }
 
 export async function updateAppointment(
   appointmentId: string,
-  patch: Partial<Pick<Appointment, 'starts_at' | 'ends_at' | 'modality' | 'service_type' | 'therapist_id' | 'notes' | 'event_type' | 'custom_event_label' | 'is_extra' | 'extra_reason'>>,
+  patch: Partial<Pick<Appointment, 'starts_at' | 'ends_at' | 'modality' | 'service_type' | 'therapist_id' | 'notes' | 'event_type' | 'custom_event_label' | 'is_extra' | 'extra_reason' | 'external_child_name' | 'service_code'>>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }

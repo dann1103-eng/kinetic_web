@@ -128,20 +128,41 @@ export async function summarizeActiveTherapiesForTherapist(
   }
   if (activeChildById.size === 0) return []
 
-  // Q2b. El informe cuatrimestral es competencia SOLO de la terapista principal
-  // del niño (treatment_plans.primary_therapist_id). Si esta terapista no es
-  // la principal de un niño, no debe aparecerle como pendiente —aunque haya
-  // dado terapias de respaldo.
+  // Q2b. El informe cuatrimestral lo hace la terapista ASIGNADA a ese tipo de
+  // terapia en el plan (treatment_plans.therapies_json[].therapist_id). Ya no hay
+  // "terapista principal": cada par (niño × servicio) le pertenece a quien tiene
+  // ese servicio asignado. Filtramos los pares a solo los que esta terapista
+  // tiene asignados.
   const { data: plansRaw } = await supabase
     .from('treatment_plans')
-    .select('child_id')
+    .select('child_id, therapies_json')
     .in('child_id', Array.from(activeChildById.keys()))
-    .eq('primary_therapist_id', therapistId)
+    .eq('active', true)
 
-  const primaryChildIds = new Set((plansRaw ?? []).map((p) => p.child_id))
-  // Filtrar el mapa a solo los niños donde es la principal.
+  const assignedPairs = new Set<string>()
+  for (const p of plansRaw ?? []) {
+    const therapies = (p.therapies_json ?? []) as Array<{
+      service?: string
+      therapist_id?: string | null
+      active?: boolean
+    }>
+    for (const t of therapies) {
+      if (t.therapist_id === therapistId && t.active !== false && t.service) {
+        assignedPairs.add(`${p.child_id}|${t.service}`)
+      }
+    }
+  }
+
+  // Conservar solo los pares (niño × servicio) asignados a esta terapista.
+  for (const key of Array.from(pairs.keys())) {
+    if (!assignedPairs.has(key)) pairs.delete(key)
+  }
+  if (pairs.size === 0) return []
+
+  // Re-derivar los niños activos a partir de los pares que sobreviven.
+  const remainingChildIds = new Set(Array.from(pairs.values()).map((p) => p.childId))
   for (const id of Array.from(activeChildById.keys())) {
-    if (!primaryChildIds.has(id)) activeChildById.delete(id)
+    if (!remainingChildIds.has(id)) activeChildById.delete(id)
   }
   if (activeChildById.size === 0) return []
 

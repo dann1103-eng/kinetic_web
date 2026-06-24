@@ -11,7 +11,7 @@ import {
 import { defaultDurationMinutes } from '@/lib/domain/appointment'
 import type { Appointment, AppointmentAbsence, InstitutionalClosure } from '@/types/db'
 
-const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias'] as const
+const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias'] as const
 
 async function getActor() {
   const supabase = await createClient()
@@ -184,6 +184,7 @@ export async function resolveAbsenceWithReplacement(
 
   revalidatePath('/aprobaciones')
   revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
 
   // Revalidar el dashboard del niño (contador "pendientes de reponer").
   const newAppt = data as Appointment

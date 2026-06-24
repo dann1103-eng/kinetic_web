@@ -58,6 +58,10 @@ export function NotificationsDropdown() {
       router.push(`/pipeline?req=${item.cambio_requirement_id}`)
       return
     }
+    if (item.kind === 'appointment') {
+      router.push('/mi-dia')
+      return
+    }
     if (item.kind === 'mention') {
       startTransition(async () => {
         if (item.mention_source === 'review') {
@@ -85,6 +89,9 @@ export function NotificationsDropdown() {
       return
     }
     if (item.kind === 'invoice_auto') {
+      return
+    }
+    if (item.kind === 'appointment') {
       return
     }
     if (item.kind === 'mention') {
@@ -296,6 +303,48 @@ function NotificationRow({
               <div className="text-fm-on-surface-variant/70 text-[11px]">
                 Se emitió {totalLabel ? `por ${totalLabel}` : ''} · revísala si necesitas ajustarla
               </div>
+            </div>
+          </div>
+        </button>
+        {dismissButton}
+      </div>
+    )
+  }
+
+  if (item.kind === 'appointment') {
+    const scheduled = item.appointment_starts_at ? parseISO(item.appointment_starts_at) : null
+    const scheduledLabel = scheduled
+      ? new Intl.DateTimeFormat('es', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).format(scheduled)
+      : null
+    const titleBySub: Record<NonNullable<NotificationItem['appointment_subkind']>, string> = {
+      reposicion: 'Reposición asignada',
+      movida: 'Cita movida',
+      evaluacion: 'Evaluación asignada',
+      extra: 'Terapia extra asignada',
+      nueva: 'Nueva cita asignada',
+    }
+    const title = titleBySub[item.appointment_subkind ?? 'nueva']
+    return (
+      <div className="relative group">
+        <button
+          type="button"
+          onClick={onClick}
+          className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-fm-primary/10 transition-colors border-b border-fm-surface-container-high/60 last:border-b-0"
+        >
+          <span className="w-8 h-8 rounded-full bg-fm-primary/10 flex items-center justify-center flex-shrink-0">
+            <span className="material-symbols-outlined text-[18px] text-fm-primary">event_available</span>
+          </span>
+          <div className="flex-1 min-w-0 pr-5">
+            <div className="text-xs leading-tight">
+              <span className="font-bold text-fm-primary uppercase tracking-wide text-[10px]">
+                {title}
+              </span>
+              <div className="font-semibold text-fm-on-surface mt-0.5 truncate">
+                {item.appointment_child_name ?? 'Niño/a'}
+              </div>
+              {scheduledLabel && (
+                <div className="text-fm-on-surface-variant/70 text-[11px]">{scheduledLabel}</div>
+              )}
             </div>
           </div>
         </button>

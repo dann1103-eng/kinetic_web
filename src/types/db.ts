@@ -2075,7 +2075,9 @@ export interface Database {
         Row: AsRow<Appointment>
         Insert: {
           id?: string
-          child_id: string
+          child_id?: string | null
+          external_child_name?: string | null
+          service_code?: string | null
           therapist_id?: string | null
           event_type: EventType
           service_type?: ServiceType | null
@@ -2558,7 +2560,7 @@ export const PAYMENT_METHOD_LABELS: Record<InvoicePaymentMethod, string> = {
 
 /** Item unificado para el dropdown de notificaciones (TopNav). */
 export interface NotificationItem {
-  kind: 'mention' | 'dm' | 'channel' | 'overdue' | 'calendar' | 'invoice_auto' | 'cambio_pending'
+  kind: 'mention' | 'dm' | 'channel' | 'overdue' | 'calendar' | 'invoice_auto' | 'cambio_pending' | 'appointment'
   /** mention.id | conversation.id | requirement.id */
   id: string
   created_at: string
@@ -2605,6 +2607,11 @@ export interface NotificationItem {
   cambio_client_name?: string
   cambio_client_id?: string
   cambio_notes?: string
+  /* Para 'appointment' (cita asignada/movida a una terapista) */
+  appointment_id?: string
+  appointment_subkind?: 'reposicion' | 'movida' | 'evaluacion' | 'extra' | 'nueva'
+  appointment_starts_at?: string
+  appointment_child_name?: string
 }
 
 /** Mensaje enriquecido con autor y adjuntos para UI */
@@ -3037,17 +3044,23 @@ export const APPOINTMENT_STATUS_LABELS: Record<AppointmentStatus, string> = {
 }
 
 /** Motivo de una terapia extra (is_extra=true). Suma a la planilla de servicios profesionales. */
-export type ExtraReason = 'hora_extra' | 'sabado' | 'cobertura'
+export type ExtraReason = 'hora_extra' | 'sabado' | 'cobertura' | 'evaluacion'
 
 export const EXTRA_REASON_LABELS: Record<ExtraReason, string> = {
   hora_extra: 'Hora extra',
   sabado: 'Sábado',
   cobertura: 'Cobertura',
+  evaluacion: 'Evaluación',
 }
 
 export interface Appointment {
   id: string
-  child_id: string
+  /** Null para evaluaciones a personas nuevas no registradas (ver external_child_name). */
+  child_id: string | null
+  /** Nombre libre de la persona evaluada cuando no hay child_id (evaluaciones). */
+  external_child_name: string | null
+  /** Código de service_catalog del tipo de evaluación (para calcular el pago por cost_usd). */
+  service_code: string | null
   therapist_id: string | null
   event_type: EventType
   service_type: ServiceType | null
@@ -3562,9 +3575,11 @@ export interface TreatmentPlanTherapyEntry {
   /** per_session: costo por sesión. monthly_flat: mensualidad fija. USD. */
   unit_cost_usd: number
   /**
-   * Terapista asignada a ESTE tipo de terapia. Si es null/ausente, se usa
-   * `primary_therapist_id` del plan como fallback. Al generar el ciclo,
-   * cada cita del servicio se asigna a esta terapista.
+   * Terapista asignada a ESTE tipo de terapia — fuente única de la asignación
+   * (ya no hay "terapista principal"). Requerida para terapias no matutinas;
+   * los programas matutinos los cubre el grupo (queda null). Al generar el ciclo,
+   * cada cita del servicio se asigna a esta terapista. Habilita al niño/a en
+   * "mis niños" de esa persona.
    */
   therapist_id?: string | null
   /** Modalidad de cobro. Ver TherapyBillingMode. */

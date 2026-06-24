@@ -84,7 +84,7 @@ export async function GET(req: Request) {
   const appts = (apptData ?? []) as Appointment[]
 
   // Lookups de niños y terapistas.
-  const childIds = Array.from(new Set(appts.map((a) => a.child_id).filter(Boolean)))
+  const childIds = Array.from(new Set(appts.map((a) => a.child_id).filter(Boolean))) as string[]
   const therapistIds = Array.from(new Set(appts.map((a) => a.therapist_id).filter(Boolean))) as string[]
 
   const [{ data: childrenData }, { data: therapistData }, { data: logoSetting }] = await Promise.all([
@@ -114,7 +114,7 @@ export async function GET(req: Request) {
       dateKey: key,
       dateLabel: label,
       time: `${startTime}–${endTime}`,
-      childName: childName.get(a.child_id) ?? 'Niño/a',
+      childName: (a.child_id ? childName.get(a.child_id) : a.external_child_name) ?? 'Niño/a',
       therapistName: a.therapist_id ? therapistName.get(a.therapist_id) ?? '—' : '—',
       serviceLabel,
       modalityLabel: a.modality === 'virtual' ? 'Virtual' : 'Presencial',

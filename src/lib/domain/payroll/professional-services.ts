@@ -24,6 +24,8 @@ export interface CompletedTherapyForPay {
   service_type: string | null
   /** Terapia extra/sábado/cobertura — define qué va a SP para quien está en ambas planillas. */
   is_extra: boolean
+  /** Tarifa explícita (USD) para citas sin service_type, p.ej. evaluaciones (cost_usd del catálogo). */
+  cost_override?: number | null
 }
 
 export interface TherapyPayTotals {
@@ -50,7 +52,7 @@ export function sumProfessionalServicesPay(
 
   for (const t of therapies) {
     if (!t.therapist_id) continue
-    const rate = costByService.get(t.service_type ?? '') ?? 0
+    const rate = t.cost_override ?? costByService.get(t.service_type ?? '') ?? 0
     all.set(t.therapist_id, round2((all.get(t.therapist_id) ?? 0) + rate))
     count.set(t.therapist_id, (count.get(t.therapist_id) ?? 0) + 1)
     if (t.is_extra) {

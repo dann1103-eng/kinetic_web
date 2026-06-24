@@ -232,16 +232,18 @@ export async function getCoordTerapiasDashboardData(
   if (childIds.length > 0) {
     const { data: plansRaw } = await supabase
       .from('treatment_plans')
-      .select('child_id, primary_therapist_id, active')
+      .select('child_id, therapies_json, active')
       .in('child_id', childIds)
     const planByChild = new Map(
       (plansRaw ?? []).map((p) => [p.child_id, p]),
     )
+    const { planHasTherapistCoverage } = await import('./billing/monthly-flat')
     for (const c of activeChildren ?? []) {
       const plan = planByChild.get(c.id)
       if (!plan || !plan.active) {
         childrenWithoutPlan.push(c)
-      } else if (!plan.primary_therapist_id) {
+      } else if (!planHasTherapistCoverage(plan.therapies_json as never)) {
+        // Plan sin cobertura: alguna terapia activa no matutina no tiene terapista.
         childrenWithoutTherapist.push(c)
       }
     }

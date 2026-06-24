@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { AgendaPageClient } from './AgendaPageClient'
+import type { EvalCatalogItem } from '@/components/agenda/AppointmentForm'
 import type { Appointment, Child, InstitutionalClosure, UserRole } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -81,6 +82,15 @@ export default async function AgendaPage() {
     .select('*')
     .order('date')
 
+  // Catálogo de evaluaciones (tipo + pago) para el selector al agendar evaluaciones.
+  const { data: evalCatalog } = await supabase
+    .from('service_catalog')
+    .select('code, name, cost_usd, duration_minutes')
+    .in('category', ['evaluacion', 'evaluacion_dx_tea', 'evaluacion_psicologica'])
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+
   // IDs de grupos matutinos donde el usuario es staff.
   // Permite que maestras/terapistas vean las citas programa_matutino
   // de su grupo aunque el therapist_id sea el de la maestra líder.
@@ -106,6 +116,7 @@ export default async function AgendaPage() {
           childrenList={(children ?? []) as Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>[]}
           therapists={therapists ?? []}
           closures={(closures ?? []) as InstitutionalClosure[]}
+          evalCatalog={(evalCatalog ?? []) as EvalCatalogItem[]}
         />
       </div>
     </div>

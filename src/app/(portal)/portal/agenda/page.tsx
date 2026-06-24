@@ -92,7 +92,7 @@ export default async function PortalAgendaPage() {
     id: a.id,
     starts_at: a.starts_at,
     ends_at: a.ends_at ?? null,
-    child_id: a.child_id,
+    child_id: a.child_id ?? '',
     service_type: a.service_type ?? null,
     event_type: a.event_type ?? null,
     therapist_name: a.therapist_id ? (therapistNamesById[a.therapist_id] ?? null) : null,

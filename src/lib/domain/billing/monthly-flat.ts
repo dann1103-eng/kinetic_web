@@ -54,3 +54,33 @@ export function daysPerWeekLabel(daysPerWeek: number | null | undefined): string
   if (!daysPerWeek || daysPerWeek <= 0) return null
   return `${daysPerWeek} día${daysPerWeek === 1 ? '' : 's'} a la semana`
 }
+
+type CoverageEntry = Pick<TreatmentPlanTherapyEntry, 'service' | 'active'> &
+  Partial<Pick<TreatmentPlanTherapyEntry, 'therapist_id' | 'billing_mode'>>
+
+/**
+ * IDs de terapistas asignadas a las terapias activas del plan (sin duplicados).
+ * Los programas matutinos no asignan terapista individual (los lleva el grupo),
+ * así que su `therapist_id` ausente no cuenta.
+ */
+export function planTherapistIds(therapies: CoverageEntry[] | null | undefined): string[] {
+  const ids = new Set<string>()
+  for (const t of therapies ?? []) {
+    if (t.active === false) continue
+    if (t.therapist_id) ids.add(t.therapist_id)
+  }
+  return [...ids]
+}
+
+/**
+ * ¿El plan tiene cobertura de terapistas suficiente para operar (generar ciclo,
+ * salir en "mis niños")? Regla del modelo SIN terapista principal:
+ *   - debe haber al menos una terapia activa, y
+ *   - toda terapia activa NO matutina debe tener una terapista asignada
+ *     (las matutinas se cubren por el grupo, no requieren terapista individual).
+ */
+export function planHasTherapistCoverage(therapies: CoverageEntry[] | null | undefined): boolean {
+  const active = (therapies ?? []).filter((t) => t.active !== false)
+  if (active.length === 0) return false
+  return active.every((t) => isMorningProgramService(t.service) || !!t.therapist_id)
+}

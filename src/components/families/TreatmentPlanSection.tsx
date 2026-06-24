@@ -109,10 +109,6 @@ function PlanReadOnly({
   plan: TreatmentPlan
   therapists: TherapistOption[]
 }) {
-  const therapistName = plan.primary_therapist_id
-    ? therapists.find((t) => t.id === plan.primary_therapist_id)?.full_name ?? '—'
-    : '—'
-
   // Construir grilla día × hora desde schedule_pattern_json
   const slotsByDay = new Map<DayOfWeek, TreatmentPlanScheduleSlot[]>()
   for (const slot of plan.schedule_pattern_json ?? []) {
@@ -129,8 +125,7 @@ function PlanReadOnly({
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-        <KV label="Terapista principal" value={therapistName} />
+      <div className="grid grid-cols-2 gap-3 text-sm">
         <KV
           label="Fecha de inicio"
           value={plan.starts_at ? parseDate(plan.starts_at).toLocaleDateString('es-SV') : '—'}
@@ -181,7 +176,9 @@ function PlanReadOnly({
                         </td>
                         <td className="px-3 py-1.5 text-fm-on-surface-variant">
                           {therapistName ?? (
-                            <span className="italic text-fm-on-surface-variant/70">Principal</span>
+                            <span className="italic text-fm-on-surface-variant/70">
+                              {isMonthlyFlatEntry(t) ? 'Por grupo' : '— Sin asignar —'}
+                            </span>
                           )}
                         </td>
                         <td className="text-right px-3 py-1.5 tabular-nums">

@@ -80,7 +80,7 @@ const topNavItems: NavItem[] = [
   {
     href: '/aprobaciones',
     label: 'Aprobaciones',
-    allowedRoles: ['directora', 'admin'],
+    allowedRoles: ['directora', 'admin', 'coordinadora_terapias', 'coordinadora_familias'],
     icon: (
       <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>check_circle</span>
     ),

@@ -77,7 +77,7 @@ export function CoordTerapiasDashboard({ data, greeting }: Props) {
         <Section
           title={`Niños con plan sin terapista asignada (${data.childrenWithoutTherapist.length})`}
           tone="warn"
-          help="El plan existe pero no tiene primary_therapist_id. Bloquea la generación del ciclo mensual."
+          help="El plan existe pero alguna terapia activa (no matutina) no tiene terapista asignada. Bloquea la generación del ciclo mensual."
         >
           <ChildList items={data.childrenWithoutTherapist} action="Asignar terapista" />
         </Section>
