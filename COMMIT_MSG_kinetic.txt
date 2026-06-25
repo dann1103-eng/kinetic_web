@@ -1,0 +1,26 @@
+feat: cohesion de salarios, base SP fija y planillas quincenales
+
+Cohesion de salarios (/usuarios <-> configuracion):
+- La pagina /usuarios no seleccionaba las columnas salariales, por eso la
+  pestana Salario salia vacia. Ahora trae monthly_salary, base SP, flags de
+  planilla, etc. Se quito el disable del salario por contract_type='sin_contrato'
+  (la pertenencia a planilla es por checkbox, no por contrato). updateUserSalary
+  revalida /users.
+
+Salario base mensual de servicios profesionales (mig 0159):
+- Nueva columna users.professional_services_base_usd: honorario fijo que se paga
+  por la planilla de SP, aparte de las terapias/evaluaciones. Editable en ambos
+  editores (config y /usuarios). createPayrollRun SP ahora suma base fija +
+  terapias. Cubre a quien aun no esta formal pero recibe un fijo por SP, y a
+  quien tiene fijo SP + extras.
+
+Planillas quincenales (mig 0159):
+- payroll_runs.period_half (NULL=mensual, 1=1ra quincena 1-15, 2=2da 16-fin).
+  Indice unico incluye la quincena. createPayrollRun acepta periodHalf: prorratea
+  el sueldo fijo / base SP a la mitad y cuenta terapias solo dentro de la ventana
+  de esa quincena. Modal con selector de periodo; labels y PDFs muestran la
+  quincena.
+
+Requiere aplicar migraciones 0158 y 0159 en Supabase.
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>

@@ -812,6 +812,9 @@ function SalarioTab({
   const [monthly, setMonthly] = useState<string>(
     user.monthly_salary_usd != null ? String(user.monthly_salary_usd) : '',
   )
+  const [spBase, setSpBase] = useState<string>(
+    user.professional_services_base_usd != null ? String(user.professional_services_base_usd) : '',
+  )
   const [hourly, setHourly] = useState<string>(
     user.hourly_rate_usd != null ? String(user.hourly_rate_usd) : '',
   )
@@ -828,6 +831,7 @@ function SalarioTab({
       const res = await updateUserSalary({
         userId: user.id,
         monthlySalaryUsd: monthly === '' ? null : Number(monthly),
+        professionalServicesBaseUsd: spBase === '' ? null : Number(spBase),
         hourlyRateUsd: hourly === '' ? null : Number(hourly),
         contractType,
         inNormalPayroll: inNormal,
@@ -845,6 +849,7 @@ function SalarioTab({
       setSuccess(true)
       onUpdated({
         monthly_salary_usd: monthly === '' ? null : Number(monthly),
+        professional_services_base_usd: spBase === '' ? null : Number(spBase),
         hourly_rate_usd: hourly === '' ? null : Number(hourly),
         contract_type: contractType,
         in_normal_payroll: inNormal,
@@ -913,14 +918,24 @@ function SalarioTab({
 
         <div className="grid grid-cols-2 gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs text-fm-on-surface-variant">Salario mensual (USD)</span>
+            <span className="text-xs text-fm-on-surface-variant">Salario mensual (USD) · planilla normal</span>
             <input
               type="number"
               step="0.01"
               min={0}
               value={monthly}
               onChange={(e) => setMonthly(e.target.value)}
-              disabled={contractType === 'sin_contrato'}
+              className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium disabled:opacity-50"
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-fm-on-surface-variant">Base mensual (USD) · servicios profesionales</span>
+            <input
+              type="number"
+              step="0.01"
+              min={0}
+              value={spBase}
+              onChange={(e) => setSpBase(e.target.value)}
               className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium disabled:opacity-50"
             />
           </label>
@@ -932,11 +947,14 @@ function SalarioTab({
               min={0}
               value={hourly}
               onChange={(e) => setHourly(e.target.value)}
-              disabled={contractType === 'sin_contrato'}
               className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium disabled:opacity-50"
             />
           </label>
         </div>
+        <p className="text-[11px] text-fm-on-surface-variant -mt-1">
+          La base de servicios profesionales es un honorario fijo que se paga por esa
+          planilla, aparte de las terapias/evaluaciones que se le sumen.
+        </p>
 
         <label className="flex flex-col gap-1">
           <span className="text-xs text-fm-on-surface-variant">Fecha de contratación</span>

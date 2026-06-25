@@ -375,6 +375,25 @@ WITH checks AS (
             AND COALESCE(elem->>'active','true') <> 'false'
             AND ((elem->>'therapist_id') IS NULL OR (elem->>'therapist_id') = '')
             AND COALESCE(elem->>'service','') NOT IN ('blue_kids','learning_kids','aula_educativa'))
+  UNION ALL
+  -- ── 0158 (config fiscal: escritura para contable/recepcion) ───────────────
+  SELECT 63, 'mig_0158_fiscal_config_write_roles',
+         (SELECT (CASE WHEN COUNT(*)>0 THEN 1 ELSE 0 END)::int
+          FROM pg_policies
+          WHERE schemaname='public' AND tablename='payroll_fiscal_config'
+            AND policyname='payroll_fiscal_config_write'
+            AND with_check ILIKE '%recepcion%')
+  UNION ALL
+  -- ── 0159 (base SP por usuario + planilla quincenal) ───────────────────────
+  SELECT 64, 'mig_0159_users_sp_base',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='users'
+            AND column_name='professional_services_base_usd')
+  UNION ALL
+  SELECT 65, 'mig_0159_payroll_runs_period_half',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='payroll_runs'
+            AND column_name='period_half')
 )
 SELECT
   check_name,

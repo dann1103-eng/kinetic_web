@@ -84,7 +84,7 @@ export default async function PlanillasListPage() {
                           href={`/reportes/contabilidad/planillas/${r.id}`}
                           className="hover:text-fm-primary transition-colors"
                         >
-                          {formatPeriodLabel(r.period_year, r.period_month)}
+                          {formatPeriodLabel(r.period_year, r.period_month, r.period_half)}
                         </Link>
                       </td>
                       <td className="py-3 px-4">

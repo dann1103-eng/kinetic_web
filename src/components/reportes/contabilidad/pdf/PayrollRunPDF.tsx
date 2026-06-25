@@ -20,7 +20,7 @@ interface Props {
 }
 
 export function PayrollRunPDF({ run, items, logoUrl }: Props) {
-  const period = formatPeriodLabel(run.period_year, run.period_month)
+  const period = formatPeriodLabel(run.period_year, run.period_month, run.period_half)
   const isSp = run.payroll_type === 'servicios_profesionales'
   const totals = items.reduce(
     (acc, it) => ({

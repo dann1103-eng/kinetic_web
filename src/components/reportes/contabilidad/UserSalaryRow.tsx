@@ -17,6 +17,7 @@ interface UserRow {
   email: string
   role: string
   monthly_salary_usd: number | null
+  professional_services_base_usd: number | null
   hourly_rate_usd: number | null
   contract_type: PayrollContractType
   in_normal_payroll: boolean
@@ -39,6 +40,7 @@ export function UserSalaryRow({ user }: Props) {
   const [expanded, setExpanded] = useState(false)
 
   const [monthly, setMonthly] = useState(user.monthly_salary_usd ?? '')
+  const [spBase, setSpBase] = useState(user.professional_services_base_usd ?? '')
   const [hourly, setHourly] = useState(user.hourly_rate_usd ?? '')
   const [contract, setContract] = useState<PayrollContractType>(user.contract_type)
   const [inNormal, setInNormal] = useState<boolean>(user.in_normal_payroll)
@@ -55,6 +57,7 @@ export function UserSalaryRow({ user }: Props) {
       const res = await updateUserSalary({
         userId: user.id,
         monthlySalaryUsd: monthly === '' ? null : Number(monthly),
+        professionalServicesBaseUsd: spBase === '' ? null : Number(spBase),
         hourlyRateUsd: hourly === '' ? null : Number(hourly),
         contractType: contract,
         inNormalPayroll: inNormal,
@@ -154,7 +157,8 @@ export function UserSalaryRow({ user }: Props) {
                   { value: 'sin_contrato', label: 'Sin contrato' },
                 ]}
               />
-              <FieldNumber label="Salario mensual (USD)" value={monthly} onChange={setMonthly} step="0.01" />
+              <FieldNumber label="Salario mensual (USD) · planilla normal" value={monthly} onChange={setMonthly} step="0.01" />
+              <FieldNumber label="Base mensual (USD) · servicios profesionales" value={spBase} onChange={setSpBase} step="0.01" />
               <FieldNumber label="Tarifa por hora (USD, opcional)" value={hourly} onChange={setHourly} step="0.01" />
               <FieldText label="DUI" value={dui} onChange={setDui} placeholder="00000000-0" />
               <FieldText label="Nº ISSS" value={isssNum} onChange={setIsssNum} />

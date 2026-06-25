@@ -25,7 +25,7 @@ export default async function MiReciboDetailPage({ params }: PageProps) {
   const item = await getMyPayrollItem(id)
   if (!item) notFound()
 
-  const period = formatPeriodLabel(item.run.period_year, item.run.period_month)
+  const period = formatPeriodLabel(item.run.period_year, item.run.period_month, item.run.period_half)
 
   return (
     <div className="flex flex-col min-h-full">

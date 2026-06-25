@@ -310,6 +310,8 @@ export interface Database {
           can_quote: boolean
           max_hours_per_week: number | null
           monthly_salary_usd: number | null
+          /** Base fija mensual para la planilla de servicios profesionales. */
+          professional_services_base_usd: number | null
           hourly_rate_usd: number | null
           contract_type: PayrollContractType
           in_normal_payroll: boolean
@@ -331,6 +333,7 @@ export interface Database {
           can_quote?: boolean
           max_hours_per_week?: number | null
           monthly_salary_usd?: number | null
+          professional_services_base_usd?: number | null
           hourly_rate_usd?: number | null
           contract_type?: PayrollContractType
           in_normal_payroll?: boolean
@@ -351,6 +354,7 @@ export interface Database {
           can_quote?: boolean
           max_hours_per_week?: number | null
           monthly_salary_usd?: number | null
+          professional_services_base_usd?: number | null
           hourly_rate_usd?: number | null
           contract_type?: PayrollContractType
           in_normal_payroll?: boolean
@@ -388,6 +392,7 @@ export interface Database {
           id?: string
           period_year: number
           period_month: number
+          period_half?: number | null
           payroll_type?: PayrollType
           status?: PayrollRunStatus
           fiscal_config_snapshot_json?: Record<string, unknown> | null
@@ -4001,6 +4006,8 @@ export interface PayrollRun {
   id: string
   period_year: number
   period_month: number
+  /** NULL = planilla mensual; 1 = primera quincena (1-15); 2 = segunda (16-fin). */
+  period_half: number | null
   payroll_type: PayrollType
   status: PayrollRunStatus
   fiscal_config_snapshot_json: PayrollFiscalConfig | Record<string, unknown> | null

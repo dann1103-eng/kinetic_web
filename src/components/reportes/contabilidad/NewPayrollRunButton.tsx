@@ -21,11 +21,18 @@ export function NewPayrollRunButton() {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [payrollType, setPayrollType] = useState<PayrollType>('normal')
+  // '' = mensual; '1'/'2' = quincena.
+  const [periodHalf, setPeriodHalf] = useState<'' | '1' | '2'>('')
 
   function handleCreate() {
     setError(null)
     startTransition(async () => {
-      const res = await createPayrollRun({ year, month, payrollType })
+      const res = await createPayrollRun({
+        year,
+        month,
+        payrollType,
+        periodHalf: periodHalf === '' ? null : (Number(periodHalf) as 1 | 2),
+      })
       if (!res.ok) {
         setError(res.error)
         return
@@ -50,7 +57,7 @@ export function NewPayrollRunButton() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md rounded-2xl bg-fm-background shadow-xl">
             <div className="border-b border-fm-outline-variant/30 px-6 py-4">
-              <h2 className="text-lg font-extrabold text-fm-on-surface">Crear planilla mensual</h2>
+              <h2 className="text-lg font-extrabold text-fm-on-surface">Crear planilla</h2>
               <p className="text-xs text-fm-on-surface-variant mt-1">
                 Se generarán automáticamente ítems para los empleados que pertenecen a la planilla elegida, usando la configuración fiscal vigente.
               </p>
@@ -98,6 +105,21 @@ export function NewPayrollRunButton() {
                   </select>
                 </label>
               </div>
+              <label className="flex flex-col gap-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-fm-on-surface-variant">Período</span>
+                <select
+                  value={periodHalf}
+                  onChange={(e) => setPeriodHalf(e.target.value as '' | '1' | '2')}
+                  className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-fm-primary/30"
+                >
+                  <option value="">Mensual (todo el mes)</option>
+                  <option value="1">1ª quincena (1–15)</option>
+                  <option value="2">2ª quincena (16–fin)</option>
+                </select>
+                <span className="text-[11px] text-fm-on-surface-variant">
+                  En quincenal, el sueldo fijo / base SP se prorratea a la mitad y las terapias se cuentan solo dentro de esa quincena.
+                </span>
+              </label>
               {error && <p className="text-sm text-fm-error">{error}</p>}
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-fm-outline-variant/30 px-6 py-4">

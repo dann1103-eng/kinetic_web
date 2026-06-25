@@ -64,7 +64,7 @@ export default async function MisRecibosPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h2 className="text-base font-extrabold text-fm-on-surface">
-                        {formatPeriodLabel(it.run.period_year, it.run.period_month)}
+                        {formatPeriodLabel(it.run.period_year, it.run.period_month, it.run.period_half)}
                       </h2>
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${tone.bg} ${tone.text}`}>
                         {PAYROLL_RUN_STATUS_LABELS[it.run.status]}

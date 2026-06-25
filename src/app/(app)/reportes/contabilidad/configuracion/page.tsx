@@ -34,7 +34,7 @@ export default async function ContabilidadConfigPage() {
 
   const { data: usersRaw } = await supabase
     .from('users')
-    .select('id, full_name, email, role, monthly_salary_usd, hourly_rate_usd, contract_type, in_normal_payroll, in_professional_services_payroll, dui, isss_number, afp_number, afp_provider, hire_date')
+    .select('id, full_name, email, role, monthly_salary_usd, professional_services_base_usd, hourly_rate_usd, contract_type, in_normal_payroll, in_professional_services_payroll, dui, isss_number, afp_number, afp_provider, hire_date')
     .in('role', STAFF_ROLES)
     .order('full_name')
 
@@ -44,6 +44,7 @@ export default async function ContabilidadConfigPage() {
     email: string
     role: string
     monthly_salary_usd: number | null
+    professional_services_base_usd: number | null
     hourly_rate_usd: number | null
     contract_type: PayrollContractType
     in_normal_payroll: boolean

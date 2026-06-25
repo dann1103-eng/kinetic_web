@@ -162,13 +162,20 @@ export function calculateProfessionalServicesPayroll(
   }
 }
 
-/** Etiqueta legible mes/año en español SV. */
-export function formatPeriodLabel(year: number, month: number): string {
+/** Etiqueta legible mes/año en español SV. periodHalf: 1/2 = quincena. */
+export function formatPeriodLabel(
+  year: number,
+  month: number,
+  periodHalf?: number | null,
+): string {
   const labels = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
   ]
-  return `${labels[month - 1]} ${year}`
+  const base = `${labels[month - 1]} ${year}`
+  if (periodHalf === 1) return `${base} · 1ª quincena`
+  if (periodHalf === 2) return `${base} · 2ª quincena`
+  return base
 }
 
 /** Formato moneda USD para tablas de planilla. */

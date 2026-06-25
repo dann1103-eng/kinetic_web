@@ -75,6 +75,7 @@ function CreateUserModal({ onClose, onCreated }: {
         can_quote: false,
         max_hours_per_week: null,
         monthly_salary_usd: null,
+        professional_services_base_usd: null,
         hourly_rate_usd: null,
         contract_type: 'sin_contrato',
         in_normal_payroll: false,

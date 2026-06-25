@@ -8,6 +8,7 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import {
   calculatePayroll,
   calculateProfessionalServicesPayroll,
+  round2,
 } from '@/lib/domain/payroll/calculation'
 import {
   sumProfessionalServicesPay,
@@ -106,6 +107,8 @@ export async function updateActiveFiscalConfig(
 export interface UpdateUserSalaryInput {
   userId: string
   monthlySalaryUsd: number | null
+  /** Base fija mensual de la planilla de servicios profesionales. */
+  professionalServicesBaseUsd?: number | null
   hourlyRateUsd: number | null
   contractType: 'mensual_fijo' | 'por_terapias' | 'sin_contrato'
   inNormalPayroll: boolean
@@ -128,6 +131,7 @@ export async function updateUserSalary(
     .from('users')
     .update({
       monthly_salary_usd: input.monthlySalaryUsd,
+      professional_services_base_usd: input.professionalServicesBaseUsd ?? null,
       hourly_rate_usd: input.hourlyRateUsd,
       contract_type: input.contractType,
       in_normal_payroll: input.inNormalPayroll,
@@ -142,6 +146,7 @@ export async function updateUserSalary(
 
   if (error) return { ok: false, error: error.message }
   revalidatePath('/reportes/contabilidad/configuracion')
+  revalidatePath('/users')
   return { ok: true }
 }
 
@@ -153,6 +158,8 @@ export async function createPayrollRun(input: {
   year: number
   month: number
   payrollType: PayrollType
+  /** NULL/undefined = mensual; 1 = primera quincena (1-15); 2 = segunda (16-fin). */
+  periodHalf?: 1 | 2 | null
   notes?: string | null
 }): Promise<{ ok: true; run: PayrollRun } | { ok: false; error: string }> {
   const { supabase, user } = await getActor()
@@ -162,17 +169,21 @@ export async function createPayrollRun(input: {
     return { ok: false, error: 'Tipo de planilla inválido.' }
   }
   const isSp = input.payrollType === 'servicios_profesionales'
+  const half: 1 | 2 | null = input.periodHalf === 1 || input.periodHalf === 2 ? input.periodHalf : null
+  // Quincenal prorratea el sueldo fijo a la mitad; mensual = 1.
+  const baseFactor = half === null ? 1 : 0.5
 
-  // Validar que no exista una activa de ESTE tipo en el período.
-  const { data: existing } = await supabase
+  // Validar que no exista una activa de ESTE tipo + quincena en el período.
+  let existingQuery = supabase
     .from('payroll_runs')
     .select('id, status')
     .eq('period_year', input.year)
     .eq('period_month', input.month)
     .eq('payroll_type', input.payrollType)
     .neq('status', 'cancelled')
-    .maybeSingle()
-  if (existing) return { ok: false, error: 'Ya existe una planilla activa de este tipo para ese período.' }
+  existingQuery = half === null ? existingQuery.is('period_half', null) : existingQuery.eq('period_half', half)
+  const { data: existing } = await existingQuery.maybeSingle()
+  if (existing) return { ok: false, error: 'Ya existe una planilla activa de este tipo para ese período/quincena.' }
 
   const admin = createAdminClient()
   const { data: created, error: createErr } = await admin
@@ -180,6 +191,7 @@ export async function createPayrollRun(input: {
     .insert({
       period_year: input.year,
       period_month: input.month,
+      period_half: half,
       payroll_type: input.payrollType,
       status: 'draft',
       notes: input.notes ?? null,
@@ -201,7 +213,7 @@ export async function createPayrollRun(input: {
   const membershipColumn = isSp ? 'in_professional_services_payroll' : 'in_normal_payroll'
   const { data: empleados } = await admin
     .from('users')
-    .select('id, full_name, email, role, contract_type, in_normal_payroll, in_professional_services_payroll, monthly_salary_usd, hourly_rate_usd, dui, isss_number, afp_number, afp_provider, hire_date')
+    .select('id, full_name, email, role, contract_type, in_normal_payroll, in_professional_services_payroll, monthly_salary_usd, professional_services_base_usd, hourly_rate_usd, dui, isss_number, afp_number, afp_provider, hire_date')
     .eq(membershipColumn, true)
     .neq('role', 'client')
     .neq('role', 'family')
@@ -232,14 +244,16 @@ export async function createPayrollRun(input: {
       if (c.code) costByEvalCode.set(c.code, Number(c.cost_usd ?? 0))
     }
 
-    const periodStartISO = fromZonedTime(
-      new Date(input.year, input.month - 1, 1, 0, 0, 0),
-      'America/El_Salvador',
-    ).toISOString()
-    const periodEndISO = fromZonedTime(
-      new Date(input.year, input.month, 1, 0, 0, 0),
-      'America/El_Salvador',
-    ).toISOString()
+    // Ventana del período: mensual = todo el mes; quincena 1 = días 1-15;
+    // quincena 2 = día 16 al fin de mes.
+    const startDay = half === 2 ? 16 : 1
+    const startDate = new Date(input.year, input.month - 1, startDay, 0, 0, 0)
+    const endDate =
+      half === 1
+        ? new Date(input.year, input.month - 1, 16, 0, 0, 0)
+        : new Date(input.year, input.month, 1, 0, 0, 0)
+    const periodStartISO = fromZonedTime(startDate, 'America/El_Salvador').toISOString()
+    const periodEndISO = fromZonedTime(endDate, 'America/El_Salvador').toISOString()
     const empIds = (empleados ?? []).map((u) => u.id)
     const { data: apptsRaw } = empIds.length
       ? await admin
@@ -267,8 +281,12 @@ export async function createPayrollRun(input: {
 
   const items = (empleados ?? []).map((u) => {
     if (isSp) {
-      // Ambos (también en normal) → solo las is_extra; solo-SP → todas las completadas.
-      const base = professionalServicesBaseFor(u.id, u.in_normal_payroll, spTotals)
+      // Base SP = honorario fijo mensual (prorrateado si es quincenal) + terapias/
+      // evaluaciones completadas en el período. Ambos (también en normal) → solo las
+      // is_extra cuentan; solo-SP → todas las completadas.
+      const fixedBase = round2(Number(u.professional_services_base_usd ?? 0) * baseFactor)
+      const therapyBase = professionalServicesBaseFor(u.id, u.in_normal_payroll, spTotals)
+      const base = round2(fixedBase + therapyBase)
       const calc = calculateProfessionalServicesPayroll(
         { baseUsd: base },
         Number(config.professional_services_isr_rate ?? 0.1),
@@ -294,8 +312,9 @@ export async function createPayrollRun(input: {
         employer_cost_usd: calc.employerCostUsd,
       }
     }
-    // Planilla normal: sueldo fijo, deducciones completas. Los extras van a la SP.
-    const baseSalary = Number(u.monthly_salary_usd ?? 0)
+    // Planilla normal: sueldo fijo (prorrateado a la mitad si es quincenal),
+    // deducciones completas. Los extras van a la SP.
+    const baseSalary = round2(Number(u.monthly_salary_usd ?? 0) * baseFactor)
     const calc = calculatePayroll({ baseSalaryUsd: baseSalary }, config)
     return {
       payroll_run_id: created.id,
@@ -644,7 +663,7 @@ export async function getPayrollRunDetail(runId: string): Promise<PayrollRunDeta
 }
 
 export interface MyPayrollItem extends PayrollItem {
-  run: Pick<PayrollRun, 'id' | 'period_year' | 'period_month' | 'status' | 'sealed_at' | 'paid_at'>
+  run: Pick<PayrollRun, 'id' | 'period_year' | 'period_month' | 'period_half' | 'status' | 'sealed_at' | 'paid_at'>
 }
 
 export async function listMyPayrollItems(): Promise<MyPayrollItem[]> {
@@ -660,7 +679,7 @@ export async function listMyPayrollItems(): Promise<MyPayrollItem[]> {
 
   const { data: runs } = await supabase
     .from('payroll_runs')
-    .select('id, period_year, period_month, status, sealed_at, paid_at')
+    .select('id, period_year, period_month, period_half, status, sealed_at, paid_at')
     .in('id', runIds)
   const byId = new Map(
     ((runs ?? []) as Array<MyPayrollItem['run']>).map((r) => [r.id, r]),
@@ -687,7 +706,7 @@ export async function getMyPayrollItem(itemId: string): Promise<MyPayrollItem | 
   if (!item) return null
   const { data: run } = await supabase
     .from('payroll_runs')
-    .select('id, period_year, period_month, status, sealed_at, paid_at')
+    .select('id, period_year, period_month, period_half, status, sealed_at, paid_at')
     .eq('id', item.payroll_run_id)
     .maybeSingle()
   if (!run) return null

@@ -56,7 +56,7 @@ export default async function PayrollRunDetailPage({ params }: PageProps) {
 
   return (
     <div className="flex flex-col min-h-full">
-      <TopNav title={`Planilla ${formatPeriodLabel(run.period_year, run.period_month)}`} />
+      <TopNav title={`Planilla ${formatPeriodLabel(run.period_year, run.period_month, run.period_half)}`} />
 
       <div className="flex-1 p-6 max-w-6xl mx-auto w-full space-y-6">
         <div className="flex items-center gap-2 pt-2">
@@ -69,7 +69,7 @@ export default async function PayrollRunDetailPage({ params }: PageProps) {
           </Link>
           <span className="text-fm-on-surface-variant">/</span>
           <span className="text-sm font-bold text-fm-on-surface">
-            {formatPeriodLabel(run.period_year, run.period_month)}
+            {formatPeriodLabel(run.period_year, run.period_month, run.period_half)}
           </span>
         </div>
 
@@ -77,7 +77,7 @@ export default async function PayrollRunDetailPage({ params }: PageProps) {
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-extrabold tracking-tight text-fm-on-surface">
-                {formatPeriodLabel(run.period_year, run.period_month)}
+                {formatPeriodLabel(run.period_year, run.period_month, run.period_half)}
               </h1>
               <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
                 isSp ? 'bg-violet-100 text-violet-900' : 'bg-teal-100 text-teal-900'

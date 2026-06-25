@@ -22,7 +22,7 @@ export default async function UsersPage() {
   // Solo usuarios staff: excluir 'client' (FM legacy) y 'family' (portal Kinetic).
   const { data: users } = await supabase
     .from('users')
-    .select('id, email, full_name, role, created_at, avatar_url, default_assignee, can_quote, max_hours_per_week')
+    .select('id, email, full_name, role, created_at, avatar_url, default_assignee, can_quote, max_hours_per_week, monthly_salary_usd, professional_services_base_usd, hourly_rate_usd, contract_type, in_normal_payroll, in_professional_services_payroll, dui, isss_number, afp_number, afp_provider, hire_date')
     .not('role', 'in', '(client,family)')
     .order('full_name')
 
