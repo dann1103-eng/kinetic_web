@@ -109,6 +109,7 @@ export default async function ContabilidadConfigPage() {
                   <th className="text-left py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Rol</th>
                   <th className="text-left py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Contrato</th>
                   <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Salario mensual</th>
+                  <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Honorario SP</th>
                   <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Tarifa/hora</th>
                   <th className="py-3 px-4 w-16"></th>
                 </tr>

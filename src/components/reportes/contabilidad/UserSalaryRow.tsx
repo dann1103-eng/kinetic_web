@@ -103,6 +103,9 @@ export function UserSalaryRow({ user }: Props) {
           {user.monthly_salary_usd != null ? fmtUsd(user.monthly_salary_usd) : '—'}
         </td>
         <td className="py-3 px-4 text-right text-fm-on-surface-variant">
+          {user.professional_services_base_usd != null ? fmtUsd(user.professional_services_base_usd) : '—'}
+        </td>
+        <td className="py-3 px-4 text-right text-fm-on-surface-variant">
           {user.hourly_rate_usd != null ? fmtUsd(user.hourly_rate_usd) : '—'}
         </td>
         <td className="py-3 px-4 text-right">
@@ -117,7 +120,7 @@ export function UserSalaryRow({ user }: Props) {
       </tr>
       {expanded && (
         <tr className="bg-fm-surface-container-low border-t border-fm-outline-variant/20">
-          <td colSpan={6} className="px-4 py-4">
+          <td colSpan={7} className="px-4 py-4">
             <div className="mb-3 rounded-lg border border-fm-outline-variant/30 bg-fm-background p-3">
               <span className="text-xs font-bold uppercase tracking-wider text-fm-on-surface-variant">
                 Pertenencia a planillas
