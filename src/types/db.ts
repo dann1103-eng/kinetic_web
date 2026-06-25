@@ -321,6 +321,10 @@ export interface Database {
           afp_number: string | null
           afp_provider: AfpProvider | null
           hire_date: string | null
+          bank_name: string | null
+          account_type: string | null
+          account_number: string | null
+          nit: string | null
         }
         Insert: {
           id: string
@@ -343,6 +347,10 @@ export interface Database {
           afp_number?: string | null
           afp_provider?: AfpProvider | null
           hire_date?: string | null
+          bank_name?: string | null
+          account_type?: string | null
+          account_number?: string | null
+          nit?: string | null
         }
         Update: {
           email?: string
@@ -364,6 +372,10 @@ export interface Database {
           afp_number?: string | null
           afp_provider?: AfpProvider | null
           hire_date?: string | null
+          bank_name?: string | null
+          account_type?: string | null
+          account_number?: string | null
+          nit?: string | null
         }
         Relationships: []
       }

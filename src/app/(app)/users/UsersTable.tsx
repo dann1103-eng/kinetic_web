@@ -85,6 +85,10 @@ function CreateUserModal({ onClose, onCreated }: {
         afp_number: null,
         afp_provider: null,
         hire_date: null,
+        bank_name: null,
+        account_type: null,
+        account_number: null,
+        nit: null,
       })
       onClose()
     })

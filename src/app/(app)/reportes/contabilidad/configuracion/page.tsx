@@ -34,7 +34,7 @@ export default async function ContabilidadConfigPage() {
 
   const { data: usersRaw } = await supabase
     .from('users')
-    .select('id, full_name, email, role, monthly_salary_usd, professional_services_base_usd, hourly_rate_usd, contract_type, in_normal_payroll, in_professional_services_payroll, dui, isss_number, afp_number, afp_provider, hire_date')
+    .select('id, full_name, email, role, monthly_salary_usd, professional_services_base_usd, hourly_rate_usd, contract_type, in_normal_payroll, in_professional_services_payroll, dui, isss_number, afp_number, afp_provider, hire_date, bank_name, account_type, account_number, nit')
     .in('role', STAFF_ROLES)
     .order('full_name')
 
@@ -54,6 +54,10 @@ export default async function ContabilidadConfigPage() {
     afp_number: string | null
     afp_provider: AfpProvider | null
     hire_date: string | null
+    bank_name: string | null
+    account_type: string | null
+    account_number: string | null
+    nit: string | null
   }>
 
   const canEditConfig = ALLOWED_ROLES.includes(ctx.appUser.role)

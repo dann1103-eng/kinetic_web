@@ -118,6 +118,10 @@ export interface UpdateUserSalaryInput {
   afpNumber: string | null
   afpProvider: 'crecer' | 'confia' | null
   hireDate: string | null
+  bankName?: string | null
+  accountType?: string | null
+  accountNumber?: string | null
+  nit?: string | null
 }
 
 export async function updateUserSalary(
@@ -141,6 +145,10 @@ export async function updateUserSalary(
       afp_number: input.afpNumber,
       afp_provider: input.afpProvider,
       hire_date: input.hireDate,
+      bank_name: input.bankName ?? null,
+      account_type: input.accountType ?? null,
+      account_number: input.accountNumber ?? null,
+      nit: input.nit ?? null,
     })
     .eq('id', input.userId)
 

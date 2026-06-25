@@ -27,6 +27,10 @@ interface UserRow {
   afp_number: string | null
   afp_provider: AfpProvider | null
   hire_date: string | null
+  bank_name: string | null
+  account_type: string | null
+  account_number: string | null
+  nit: string | null
 }
 
 interface Props {
@@ -50,6 +54,10 @@ export function UserSalaryRow({ user }: Props) {
   const [afpNum, setAfpNum] = useState(user.afp_number ?? '')
   const [afpProv, setAfpProv] = useState<AfpProvider | ''>(user.afp_provider ?? '')
   const [hireDate, setHireDate] = useState(user.hire_date ?? '')
+  const [bankName, setBankName] = useState(user.bank_name ?? '')
+  const [accountType, setAccountType] = useState(user.account_type ?? '')
+  const [accountNumber, setAccountNumber] = useState(user.account_number ?? '')
+  const [nit, setNit] = useState(user.nit ?? '')
 
   function handleSave() {
     setError(null)
@@ -67,6 +75,10 @@ export function UserSalaryRow({ user }: Props) {
         afpNumber: afpNum.trim() || null,
         afpProvider: afpProv || null,
         hireDate: hireDate || null,
+        bankName: bankName.trim() || null,
+        accountType: accountType.trim() || null,
+        accountNumber: accountNumber.trim() || null,
+        nit: nit.trim() || null,
       })
       if (!res.ok) {
         setError(res.error)
@@ -186,6 +198,10 @@ export function UserSalaryRow({ user }: Props) {
                   className="rounded-lg border border-fm-outline-variant/40 bg-fm-background px-3 py-2 text-sm font-medium"
                 />
               </label>
+              <FieldText label="Banco" value={bankName} onChange={setBankName} placeholder="Ej: Banco Agrícola" />
+              <FieldText label="Tipo de cuenta" value={accountType} onChange={setAccountType} placeholder="Ahorro / Corriente" />
+              <FieldText label="Nº de cuenta" value={accountNumber} onChange={setAccountNumber} />
+              <FieldText label="NIT" value={nit} onChange={setNit} placeholder="0000-000000-000-0" />
             </div>
             {error && <p className="mt-3 text-sm text-fm-error">{error}</p>}
             <div className="mt-4 flex items-center justify-end gap-2">
