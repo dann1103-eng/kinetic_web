@@ -7,6 +7,7 @@ import {
   listGroupMembers,
   setGroupMemberDays,
   removeGroupMember,
+  generateGroupSessionsForMonth,
   type ProgramGroupWithStaff,
 } from '@/app/actions/program-groups'
 import type { MorningProgram, ProgramGroupMember } from '@/types/db'
@@ -92,9 +93,38 @@ export function GruposClient({ initialGroups, staffUsers }: Props) {
   )
 }
 
+function currentMonthSV(): string {
+  // 'YYYY-MM' en zona El Salvador.
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/El_Salvador',
+    year: 'numeric',
+    month: '2-digit',
+  }).format(new Date())
+}
+
 function GroupCard({ group, onEdit }: { group: ProgramGroupWithStaff; onEdit: () => void }) {
   const router = useRouter()
   const [showMembers, setShowMembers] = useState(false)
+  const [genMsg, setGenMsg] = useState<string | null>(null)
+  const [isGen, startGen] = useTransition()
+
+  function generateSessions() {
+    setGenMsg(null)
+    startGen(async () => {
+      const ym = currentMonthSV()
+      const res = await generateGroupSessionsForMonth(group.id, `${ym}-01`)
+      if (!res.ok) {
+        setGenMsg(res.error)
+        return
+      }
+      setGenMsg(
+        res.created > 0
+          ? `${res.created} sesión(es) generadas para ${ym}.`
+          : `Sin sesiones nuevas para ${ym} (ya estaban generadas).`,
+      )
+      router.refresh()
+    })
+  }
 
   return (
     <div className="rounded-2xl border border-fm-outline-variant/20 bg-fm-surface-container-lowest p-4 space-y-3">
@@ -132,7 +162,7 @@ function GroupCard({ group, onEdit }: { group: ProgramGroupWithStaff; onEdit: ()
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 border-t border-fm-outline-variant/15 pt-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-fm-outline-variant/15 pt-3">
         <button
           type="button"
           onClick={() => setShowMembers((v) => !v)}
@@ -140,6 +170,16 @@ function GroupCard({ group, onEdit }: { group: ProgramGroupWithStaff; onEdit: ()
         >
           {showMembers ? 'Ocultar miembros' : 'Ver miembros'}
         </button>
+        <button
+          type="button"
+          onClick={generateSessions}
+          disabled={isGen}
+          className="text-xs text-fm-primary hover:underline disabled:opacity-50"
+          title="Crea las sesiones del grupo de este mes (idempotente) para que aparezcan en la agenda y mi-día"
+        >
+          {isGen ? 'Generando…' : 'Generar sesiones del mes'}
+        </button>
+        {genMsg && <span className="text-[11px] text-fm-on-surface-variant">{genMsg}</span>}
       </div>
 
       {showMembers && <MembersList groupId={group.id} onChanged={() => router.refresh()} />}

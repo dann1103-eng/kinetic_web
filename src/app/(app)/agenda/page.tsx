@@ -2,9 +2,9 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
-import { AgendaPageClient } from './AgendaPageClient'
+import { AgendaPageClient, type GroupSessionForClient } from './AgendaPageClient'
 import type { EvalCatalogItem } from '@/components/agenda/AppointmentForm'
-import type { Appointment, Child, InstitutionalClosure, UserRole } from '@/types/db'
+import type { Appointment, Child, InstitutionalClosure, MorningProgram, UserRole } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -82,6 +82,72 @@ export default async function AgendaPage() {
     .select('*')
     .order('date')
 
+  // Sesiones de grupo matutino en el rango → se muestran como bloques de GRUPO
+  // (no como citas individuales por niño).
+  const { data: groupSessionsRaw } = await supabase
+    .from('program_group_sessions')
+    .select('id, group_id, starts_at, ends_at, status, program_groups(name, program)')
+    .gte('starts_at', rangeStart)
+    .lte('starts_at', rangeEnd)
+    .order('starts_at')
+
+  type GSRow = {
+    id: string
+    group_id: string
+    starts_at: string
+    ends_at: string
+    status: string
+    program_groups:
+      | { name: string; program: MorningProgram }
+      | { name: string; program: MorningProgram }[]
+      | null
+  }
+  const gsRows = (groupSessionsRaw ?? []) as unknown as GSRow[]
+
+  // Staff por grupo (nombres para mostrar + ids para filtrar por terapista).
+  const groupIds = Array.from(new Set(gsRows.map((s) => s.group_id)))
+  const idsByGroup = new Map<string, string[]>()
+  const namesByGroup = new Map<string, string[]>()
+  if (groupIds.length > 0) {
+    const { data: staffRows } = await supabase
+      .from('program_group_staff')
+      .select('group_id, user_id')
+      .in('group_id', groupIds)
+    const staffList = (staffRows ?? []) as { group_id: string; user_id: string }[]
+    const staffUserIds = Array.from(new Set(staffList.map((r) => r.user_id)))
+    const { data: staffUsersRaw } = staffUserIds.length
+      ? await supabase.from('users').select('id, full_name').in('id', staffUserIds)
+      : { data: [] as { id: string; full_name: string }[] }
+    const nameById = new Map(
+      ((staffUsersRaw ?? []) as { id: string; full_name: string }[]).map((u) => [u.id, u.full_name]),
+    )
+    for (const r of staffList) {
+      const ids = idsByGroup.get(r.group_id) ?? []
+      ids.push(r.user_id)
+      idsByGroup.set(r.group_id, ids)
+      const nm = nameById.get(r.user_id)
+      if (nm) {
+        const names = namesByGroup.get(r.group_id) ?? []
+        names.push(nm)
+        namesByGroup.set(r.group_id, names)
+      }
+    }
+  }
+
+  const groupSessions: GroupSessionForClient[] = gsRows.map((s) => {
+    const g = Array.isArray(s.program_groups) ? s.program_groups[0] : s.program_groups
+    return {
+      id: s.id,
+      groupName: g?.name ?? 'Grupo',
+      program: (g?.program ?? 'blue_kids') as MorningProgram,
+      staffNames: namesByGroup.get(s.group_id) ?? [],
+      staffUserIds: idsByGroup.get(s.group_id) ?? [],
+      starts_at: s.starts_at,
+      ends_at: s.ends_at,
+      status: s.status,
+    }
+  })
+
   // Catálogo de evaluaciones (tipo + pago) para el selector al agendar evaluaciones.
   const { data: evalCatalog } = await supabase
     .from('service_catalog')
@@ -91,18 +157,6 @@ export default async function AgendaPage() {
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
 
-  // IDs de grupos matutinos donde el usuario es staff.
-  // Permite que maestras/terapistas vean las citas programa_matutino
-  // de su grupo aunque el therapist_id sea el de la maestra líder.
-  let myGroupIds: string[] = []
-  if (role === 'terapista' || role === 'maestra') {
-    const { data: staffGroups } = await supabase
-      .from('program_group_staff')
-      .select('group_id')
-      .eq('user_id', ctx.appUser.id)
-    myGroupIds = (staffGroups ?? []).map((g) => g.group_id as string)
-  }
-
   return (
     <div className="flex flex-col h-screen bg-fm-background">
       <TopNav title="Agenda" />
@@ -111,8 +165,7 @@ export default async function AgendaPage() {
           currentUserRole={role}
           currentUserId={ctx.appUser.id}
           initialAppointments={(appointments ?? []) as Appointment[]}
-          groupSessions={[]}
-          myGroupIds={myGroupIds}
+          groupSessions={groupSessions}
           childrenList={(children ?? []) as Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>[]}
           therapists={therapists ?? []}
           closures={(closures ?? []) as InstitutionalClosure[]}

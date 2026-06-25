@@ -89,6 +89,21 @@ export const KINETIC_EVENT_PALETTES: Record<
   late_cancel: { bg: 'bg-fm-error/8', ring: 'ring-fm-error/25', text: 'text-fm-error', accent: 'bg-fm-error' },
   rescheduled: { bg: 'bg-fm-surface-container', ring: 'ring-fm-outline-variant/30', text: 'text-fm-on-surface-variant line-through', accent: 'bg-fm-outline-variant' },
   replacement: { bg: 'bg-fm-tertiary/15', ring: 'ring-fm-tertiary/40', text: 'text-fm-on-surface', accent: 'bg-fm-tertiary' },
+  // Inasistencia (no_show / late_cancel) → gris, como referencia visual de "no vino".
+  absence_gray: { bg: 'bg-zinc-200/80', ring: 'ring-zinc-300/70', text: 'text-zinc-600', accent: 'bg-zinc-400' },
+  // Paleta por terapeuta (color = persona). Asignada por therapistColorKey().
+  t0: { bg: 'bg-sky-100/85', ring: 'ring-sky-300/70', text: 'text-sky-950', accent: 'bg-sky-400' },
+  t1: { bg: 'bg-orange-100/85', ring: 'ring-orange-300/70', text: 'text-orange-950', accent: 'bg-orange-400' },
+  t2: { bg: 'bg-emerald-100/85', ring: 'ring-emerald-300/70', text: 'text-emerald-950', accent: 'bg-emerald-400' },
+  t3: { bg: 'bg-violet-100/85', ring: 'ring-violet-300/70', text: 'text-violet-950', accent: 'bg-violet-400' },
+  t4: { bg: 'bg-rose-100/85', ring: 'ring-rose-300/70', text: 'text-rose-950', accent: 'bg-rose-400' },
+  t5: { bg: 'bg-amber-100/85', ring: 'ring-amber-300/70', text: 'text-amber-950', accent: 'bg-amber-400' },
+  t6: { bg: 'bg-cyan-100/85', ring: 'ring-cyan-300/70', text: 'text-cyan-950', accent: 'bg-cyan-400' },
+  t7: { bg: 'bg-fuchsia-100/85', ring: 'ring-fuchsia-300/70', text: 'text-fuchsia-950', accent: 'bg-fuchsia-400' },
+  t8: { bg: 'bg-lime-100/85', ring: 'ring-lime-300/70', text: 'text-lime-950', accent: 'bg-lime-400' },
+  t9: { bg: 'bg-indigo-100/85', ring: 'ring-indigo-300/70', text: 'text-indigo-950', accent: 'bg-indigo-400' },
+  t10: { bg: 'bg-teal-100/85', ring: 'ring-teal-300/70', text: 'text-teal-950', accent: 'bg-teal-400' },
+  t11: { bg: 'bg-pink-100/85', ring: 'ring-pink-300/70', text: 'text-pink-950', accent: 'bg-pink-400' },
   // Default
   default: { bg: 'bg-fm-primary/10', ring: 'ring-fm-primary/30', text: 'text-fm-on-surface', accent: 'bg-fm-primary' },
 }
@@ -96,6 +111,22 @@ export const KINETIC_EVENT_PALETTES: Record<
 export function paletteFor(key?: string | null) {
   if (!key) return KINETIC_EVENT_PALETTES.default
   return KINETIC_EVENT_PALETTES[key] ?? KINETIC_EVENT_PALETTES.default
+}
+
+/** Claves de paleta por terapeuta (color = persona). */
+const THERAPIST_PALETTE_KEYS = ['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 't11']
+
+/**
+ * Asigna de forma estable un color a cada terapista según su id (hash → paleta).
+ * Mismo terapista ⇒ mismo color siempre, sin importar el orden de la lista.
+ */
+export function therapistColorKey(therapistId?: string | null): string {
+  if (!therapistId) return 'default'
+  let h = 0
+  for (let i = 0; i < therapistId.length; i++) {
+    h = (h * 31 + therapistId.charCodeAt(i)) >>> 0
+  }
+  return THERAPIST_PALETTE_KEYS[h % THERAPIST_PALETTE_KEYS.length]
 }
 
 /** Calcula la etiqueta del toolbar para una vista + fecha dadas. */
@@ -184,15 +215,7 @@ function KineticEventBlock({ event }: EventProps<KineticEventDatum>) {
     <div
       className={`group relative h-full w-full rounded-[10px] ring-1 ring-inset px-2 py-1.5 overflow-hidden cursor-pointer transition-shadow hover:shadow-md ${palette.bg} ${palette.ring} ${palette.text}`}
     >
-      {event.tag && (
-        <span
-          className={`absolute top-1 right-1 text-[8px] leading-none uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-full shadow-sm ${TAG_TONE_CLASSES[tagTone]}`}
-          title={event.tag.label}
-        >
-          {event.tag.label}
-        </span>
-      )}
-      <div className="text-[11px] font-semibold leading-tight line-clamp-2 pr-12">
+      <div className="text-[11px] font-semibold leading-tight line-clamp-2">
         {event.title}
       </div>
       {event.subtitle && (
@@ -201,6 +224,16 @@ function KineticEventBlock({ event }: EventProps<KineticEventDatum>) {
         </div>
       )}
       <div className="text-[10px] opacity-70 tabular-nums mt-0.5">{timeRange}</div>
+      {/* El tag (Reposición / Inasistencia / Reagendada) va DEBAJO de los detalles:
+          en la esquina superior derecha se perdía cuando las citas se superponen. */}
+      {event.tag && (
+        <span
+          className={`inline-block mt-1 text-[8px] leading-none uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-full shadow-sm ${TAG_TONE_CLASSES[tagTone]}`}
+          title={event.tag.label}
+        >
+          {event.tag.label}
+        </span>
+      )}
     </div>
   )
 }

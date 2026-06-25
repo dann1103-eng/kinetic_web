@@ -5,6 +5,7 @@ import { TopNav } from '@/components/layout/TopNav'
 import { MiDiaClient } from './MiDiaClient'
 import { PendingProgressReportsBanner } from '@/components/agenda/PendingProgressReportsBanner'
 import { PendingAbsencesBanner } from '@/components/agenda/PendingAbsencesBanner'
+import { GroupRosterSection } from '@/components/agenda/GroupRosterSection'
 import { summarizeActiveTherapiesForTherapist } from '@/lib/domain/progress-reports-pending'
 import { detectPendingAbsencesForTherapist } from '@/lib/domain/absences-pending'
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
@@ -87,6 +88,7 @@ export default async function MiDiaPage() {
     .gte('starts_at', todayStart.toISOString())
     .lt('starts_at', tomorrowStart.toISOString())
     .not('status', 'eq', 'rescheduled')
+    .neq('event_type', 'programa_matutino')
     .order('starts_at')
 
   const appointments = (appointmentsRaw ?? []) as Appointment[]
@@ -99,6 +101,7 @@ export default async function MiDiaPage() {
     .gte('starts_at', tomorrowStart.toISOString())
     .lt('starts_at', upcomingEnd.toISOString())
     .not('status', 'eq', 'rescheduled')
+    .neq('event_type', 'programa_matutino')
     .order('starts_at')
 
   const upcoming = (upcomingRaw ?? []) as Appointment[]
@@ -123,6 +126,7 @@ export default async function MiDiaPage() {
     .eq('status', 'completed')
     .gte('starts_at', weekStart.toISOString())
     .lt('starts_at', weekEnd.toISOString())
+    .neq('event_type', 'programa_matutino')
     .order('starts_at')
   const weekCompletedAppts = (weekCompletedRaw ?? []) as {
     id: string
@@ -320,6 +324,35 @@ export default async function MiDiaPage() {
     )
   }
 
+  // Sesiones de grupo matutino de HOY donde el usuario es staff (pasar lista).
+  const { data: myStaffGroups } = await supabase
+    .from('program_group_staff')
+    .select('group_id')
+    .eq('user_id', userId)
+  const myGroupIds = ((myStaffGroups ?? []) as { group_id: string }[]).map((g) => g.group_id)
+  let todayGroupSessions: { id: string; group_name: string; starts_at: string; status: string }[] = []
+  if (myGroupIds.length > 0) {
+    const { data: sessRaw } = await supabase
+      .from('program_group_sessions')
+      .select('id, group_id, starts_at, status, program_groups(name)')
+      .in('group_id', myGroupIds)
+      .gte('starts_at', todayStart.toISOString())
+      .lt('starts_at', tomorrowStart.toISOString())
+      .order('starts_at')
+    todayGroupSessions = (
+      (sessRaw ?? []) as unknown as Array<{
+        id: string
+        group_id: string
+        starts_at: string
+        status: string
+        program_groups: { name: string } | { name: string }[] | null
+      }>
+    ).map((s) => {
+      const g = Array.isArray(s.program_groups) ? s.program_groups[0] : s.program_groups
+      return { id: s.id, group_name: g?.name ?? 'Grupo', starts_at: s.starts_at, status: s.status }
+    })
+  }
+
   return (
     <div className="flex flex-col min-h-full bg-fm-background">
       <TopNav title="Mi día" />
@@ -332,6 +365,7 @@ export default async function MiDiaPage() {
           items={pendingAbsences}
           familyIdByChild={familyIdByChild}
         />
+        <GroupRosterSection sessions={todayGroupSessions} />
         <MiDiaClient
           appointments={appointmentsEnriched}
           sessions={sessions}

@@ -604,6 +604,14 @@ export async function confirmMonthlyPaymentAndGenerate(
     }).catch((err) => {
       console.error('[monthly-cycles] morning appts failed:', err)
     })
+
+    // Generar las sesiones de grupo del mes (idempotente) para que la agenda y
+    // mi-día muestren los bloques de grupo y se pueda pasar lista. Best-effort.
+    const { error: genErr } = await supabase.rpc('generate_group_sessions_for_month', {
+      p_group_id: input.programGroupId,
+      p_month: periodMonth,
+    })
+    if (genErr) console.error('[monthly-cycles] generate group sessions failed:', genErr.message)
   }
 
   revalidatePath('/familias')
@@ -873,6 +881,13 @@ export async function editMonthlyCycle(
     }).catch((err) => {
       console.error('[monthly-cycles] edit morning appts failed:', err)
     })
+
+    // Sesiones de grupo del mes (idempotente) — agenda / mi-día. Best-effort.
+    const { error: genErr } = await supabase.rpc('generate_group_sessions_for_month', {
+      p_group_id: input.programGroupId,
+      p_month: `${String(cycle.period_month).slice(0, 7)}-01`,
+    })
+    if (genErr) console.error('[monthly-cycles] edit generate group sessions failed:', genErr.message)
   }
 
   // 5) Refrescar la factura existente (idempotente: parcha la misma factura).

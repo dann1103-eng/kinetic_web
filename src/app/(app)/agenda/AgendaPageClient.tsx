@@ -15,7 +15,13 @@ import {
 } from '@/types/db'
 import { findClosureAffecting } from '@/lib/domain/appointment'
 import { AppointmentForm, type EvalCatalogItem } from '@/components/agenda/AppointmentForm'
-import { KineticCalendar, type KineticEventDatum } from '@/components/calendar/KineticCalendar'
+import {
+  KineticCalendar,
+  paletteFor,
+  therapistColorKey,
+  type KineticEventDatum,
+} from '@/components/calendar/KineticCalendar'
+import { getSessionRoster, type RosterEntry } from '@/app/actions/program-groups'
 
 type ChildLite = Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>
 type TherapistLite = { id: string; full_name: string; role: string; avatar_url: string | null }
@@ -25,6 +31,8 @@ export type GroupSessionForClient = {
   groupName: string
   program: MorningProgram
   staffNames: string[]
+  /** IDs de la(s) maestra(s) del grupo — para filtrar por terapista en la agenda. */
+  staffUserIds: string[]
   starts_at: string
   ends_at: string
   status: string
@@ -35,9 +43,6 @@ interface AgendaPageClientProps {
   currentUserId: string
   initialAppointments: Appointment[]
   groupSessions: GroupSessionForClient[]
-  /** IDs de grupos matutinos donde el usuario es staff — sus citas programa_matutino
-   *  se muestran aunque el therapist_id sea el de la maestra líder. */
-  myGroupIds?: string[]
   childrenList: ChildLite[]
   therapists: TherapistLite[]
   closures: InstitutionalClosure[]
@@ -96,7 +101,6 @@ export function AgendaPageClient({
   currentUserId,
   initialAppointments,
   groupSessions,
-  myGroupIds = [],
   childrenList: childrenProp,
   therapists,
   closures,
@@ -144,25 +148,19 @@ export function AgendaPageClient({
     appointment?: Appointment
   }>({})
 
-  // Popover de sesión de grupo (read-only)
+  // Popover de sesión de grupo (read-only) + lista del día (lazy).
   const [groupPopover, setGroupPopover] = useState<GroupSessionForClient | null>(null)
+  const [groupRoster, setGroupRoster] = useState<RosterEntry[] | null>(null)
 
   // Convertir citas + sesiones de grupo a bloques de calendar.
   const events = useMemo<CalendarBlock[]>(() => {
     // ── Citas individuales ────────────────────────────────────────────────
-    const myGroupIdSet = new Set(myGroupIds)
     const filtered = initialAppointments.filter((a) => {
-      if (filterTherapistId && a.therapist_id !== filterTherapistId) {
-        // Excepción: citas de programa matutino del propio grupo (la maestra líder
-        // puede ser distinta pero el usuario es staff del grupo).
-        if (a.event_type === 'programa_matutino' &&
-            (a as { program_group_id?: string | null }).program_group_id &&
-            myGroupIdSet.has((a as { program_group_id: string }).program_group_id)) {
-          // Mostrar — es del grupo de esta maestra
-        } else {
-          return false
-        }
-      }
+      // Los programas matutinos se muestran como bloques de GRUPO (abajo), no como
+      // citas individuales por niño. Las citas por-niño siguen existiendo para el
+      // portal/calendario de la familia, pero no se pintan en la agenda de staff.
+      if (a.event_type === 'programa_matutino') return false
+      if (filterTherapistId && a.therapist_id !== filterTherapistId) return false
       if (filterEventTypes.size > 0 && !filterEventTypes.has(a.event_type)) return false
       if (filterServiceTypes.size > 0) {
         if (!a.service_type || !filterServiceTypes.has(a.service_type)) return false
@@ -188,7 +186,15 @@ export function AgendaPageClient({
           : EVENT_TYPE_LABELS[a.event_type]
       const title = isTherapy ? childLabel : eventLabel
       const subtitle = isTherapy ? therapistLabel : childLabel
-      const colorKey = isTherapy ? a.service_type ?? a.event_type : a.event_type
+      // Color POR TERAPEUTA (cada color = una persona). Las inasistencias se
+      // pintan en gris como referencia visual; los eventos sin terapista usan
+      // el color del tipo de evento.
+      const colorKey =
+        a.status === 'no_show' || a.status === 'late_cancel'
+          ? 'absence_gray'
+          : a.therapist_id
+            ? therapistColorKey(a.therapist_id)
+            : a.event_type
       let tag: { label: string; tone: 'replacement' | 'rescheduled' | 'absence' } | null = null
       if (a.status === 'replacement') tag = { label: 'Reposición', tone: 'replacement' }
       else if (a.status === 'rescheduled') tag = { label: 'Reagendada', tone: 'rescheduled' }
@@ -215,8 +221,13 @@ export function AgendaPageClient({
       filterServiceTypes.size === 0 &&
       (filterEventTypes.size === 0 || filterEventTypes.has('programa_matutino'))
 
+    // Si hay filtro de terapista, mostrar solo los grupos donde esa persona es staff.
+    const visibleGroupSessions = filterTherapistId
+      ? groupSessions.filter((s) => s.staffUserIds.includes(filterTherapistId))
+      : groupSessions
+
     const groupBlocks: CalendarBlock[] = showGroups
-      ? groupSessions.map((s) => ({
+      ? visibleGroupSessions.map((s) => ({
           kind: 'group',
           id: `group-${s.id}`,
           title: `${PROGRAM_LABEL[s.program]} — ${s.groupName}`,
@@ -232,7 +243,7 @@ export function AgendaPageClient({
       : []
 
     return [...apptBlocks, ...groupBlocks]
-  }, [initialAppointments, groupSessions, myGroupIds, filterTherapistId, filterEventTypes, filterServiceTypes, filterVirtualOnly, childrenProp, therapists, moveOverrides])
+  }, [initialAppointments, groupSessions, filterTherapistId, filterEventTypes, filterServiceTypes, filterVirtualOnly, childrenProp, therapists, moveOverrides])
 
   // Exportar PDF de las citas actualmente visibles (respeta filtros).
   const handleExportPdf = useCallback(() => {
@@ -276,6 +287,10 @@ export function AgendaPageClient({
     (block: CalendarBlock) => {
       if (block.kind === 'group') {
         setGroupPopover(block.groupSession)
+        setGroupRoster(null)
+        getSessionRoster(block.groupSession.id).then((res) => {
+          if (res.ok) setGroupRoster(res.roster)
+        })
         return
       }
       setModalInitial({ appointment: block.appointment })
@@ -379,6 +394,25 @@ export function AgendaPageClient({
             </select>
           )}
         </div>
+
+        {!isTherapist && therapists.length > 0 && (
+          <div>
+            <h3 className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant mb-2">
+              Colores por terapeuta
+            </h3>
+            <ul className="space-y-1 max-h-44 overflow-y-auto pr-1">
+              {therapists.map((t) => (
+                <li key={t.id} className="flex items-center gap-2">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${paletteFor(therapistColorKey(t.id)).accent}`}
+                    aria-hidden="true"
+                  />
+                  <span className="text-[11px] text-fm-on-surface-variant truncate">{t.full_name}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div>
           <h3 className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant mb-2">
@@ -607,7 +641,7 @@ export function AgendaPageClient({
       {groupPopover && (
         <div
           className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4"
-          onClick={() => setGroupPopover(null)}
+          onClick={() => { setGroupPopover(null); setGroupRoster(null) }}
         >
           <div
             className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-3"
@@ -624,7 +658,7 @@ export function AgendaPageClient({
               </div>
               <button
                 type="button"
-                onClick={() => setGroupPopover(null)}
+                onClick={() => { setGroupPopover(null); setGroupRoster(null) }}
                 className="p-1 rounded-full hover:bg-fm-surface-container text-fm-on-surface-variant"
               >
                 <span className="material-symbols-outlined text-[20px]">close</span>
@@ -672,9 +706,34 @@ export function AgendaPageClient({
               </div>
             </div>
 
+            {groupRoster && groupRoster.length > 0 && (
+              <div className="pt-2 border-t border-fm-outline-variant/20">
+                <p className="text-[11px] font-semibold text-fm-on-surface-variant mb-1">
+                  Asisten hoy ({groupRoster.length})
+                </p>
+                <ul className="text-xs text-fm-on-surface space-y-0.5 max-h-40 overflow-y-auto">
+                  {groupRoster.map((r) => (
+                    <li key={r.child_id} className="flex items-center justify-between gap-2">
+                      <span className="truncate">{r.child_full_name}</span>
+                      {r.status && (
+                        <span className="text-[10px] text-fm-on-surface-variant shrink-0">
+                          {r.status === 'present' ? 'Presente' : r.status === 'absent' ? 'Ausente' : 'Justificado'}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {groupRoster && groupRoster.length === 0 && (
+              <p className="text-[11px] text-fm-on-surface-variant italic pt-1">
+                Ningún niño asignado para este día.
+              </p>
+            )}
+
             <p className="text-[11px] text-fm-on-surface-variant pt-1 border-t border-fm-outline-variant/20">
-              Sesión de grupo — gestioná la asistencia en Administración → Grupos
-              o en Mi día.
+              Sesión de grupo — la lista se pasa en Mi día (maestra del grupo) o en
+              Administración → Grupos.
             </p>
           </div>
         </div>
