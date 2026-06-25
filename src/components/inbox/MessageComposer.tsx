@@ -63,10 +63,14 @@ export function MessageComposer({ conversationId, placeholder, replyTo, onClearR
           prev.map((p) => (p.file === file ? { ...p, uploaded, uploading: false } : p))
         )
       } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Error al subir'
+        // Mostrar el motivo real también en el área de error (antes solo se veía
+        // el borde rojo del chip, sin texto). Ayuda a diagnosticar fallos de Storage.
+        setError(`"${file.name}": ${msg}`)
         setPendingFiles((prev) =>
           prev.map((p) =>
             p.file === file
-              ? { ...p, error: e instanceof Error ? e.message : 'Error al subir', uploading: false }
+              ? { ...p, error: msg, uploading: false }
               : p
           )
         )
@@ -158,6 +162,7 @@ export function MessageComposer({ conversationId, placeholder, replyTo, onClearR
                   'flex items-center space-x-2 bg-fm-surface-container-lowest border rounded-full px-3 py-1 text-xs',
                   p.error ? 'border-fm-error text-fm-error' : 'border-fm-surface-container-high text-fm-on-surface-variant'
                 )}
+                title={p.error ?? undefined}
               >
                 <svg className="w-3.5 h-3.5 text-fm-primary" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z" />
