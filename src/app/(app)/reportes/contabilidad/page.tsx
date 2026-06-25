@@ -26,9 +26,16 @@ const CARDS: SubCard[] = [
   },
   {
     title: 'Configuración fiscal y salarios',
-    description: 'Constantes legales SV (ISSS, AFP, ISR), tarifas por empleado, datos fiscales (DUI, ISSS, AFP).',
+    description: 'Constantes legales SV (ISSS, AFP, ISR), tarifas por empleado, datos fiscales y bancarios (DUI/NIT, banco, cuenta).',
     icon: 'tune',
     href: '/reportes/contabilidad/configuracion',
+    active: true,
+  },
+  {
+    title: 'Documento de transferencias',
+    description: 'Números de cuenta y total a depositar por persona, consolidando la planilla normal y la de servicios profesionales del mes. Exporta a Excel y PDF.',
+    icon: 'account_balance',
+    href: '/reportes/contabilidad/transferencias',
     active: true,
   },
 ]
