@@ -561,8 +561,47 @@ export async function GET() {
     }
   }
 
+  /* ── Cambios de cita dirigidos a la terapista (movida / reasignada / cobertura) ─ */
+  const appointmentChangeItems: NotificationItem[] = []
+  {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { data: changeRows } = await supabase
+      .from('appointment_change_events')
+      .select('id, appointment_id, change_kind, child_label, starts_at, created_at')
+      .eq('target_user_id', user.id)
+      .gte('created_at', sevenDaysAgo)
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    const subByKind: Record<string, NonNullable<NotificationItem['appointment_subkind']>> = {
+      moved: 'movida',
+      reassigned_away: 'reasignada_salida',
+      assigned: 'asignada_cobertura',
+    }
+
+    for (const row of (changeRows ?? []) as Array<{
+      id: string
+      appointment_id: string
+      change_kind: string
+      child_label: string | null
+      starts_at: string | null
+      created_at: string
+    }>) {
+      appointmentChangeItems.push({
+        kind: 'appointment',
+        id: `apptchg-${row.id}`,
+        created_at: row.created_at,
+        read: false,
+        appointment_id: row.appointment_id,
+        appointment_subkind: subByKind[row.change_kind] ?? 'movida',
+        appointment_starts_at: row.starts_at ?? undefined,
+        appointment_child_name: row.child_label ?? undefined,
+      })
+    }
+  }
+
   /* ── Merge y sort: vencidos al frente, luego por fecha ─────── */
-  const items = [...overdueItems, ...cambioPendingItems, ...mentionItems, ...reviewMentionItems, ...invoiceAutoItems, ...calendarItems, ...convItems, ...appointmentItems].sort((a, b) => {
+  const items = [...overdueItems, ...cambioPendingItems, ...mentionItems, ...reviewMentionItems, ...invoiceAutoItems, ...calendarItems, ...convItems, ...appointmentItems, ...appointmentChangeItems].sort((a, b) => {
     if (a.kind === 'overdue' && b.kind !== 'overdue') return -1
     if (a.kind !== 'overdue' && b.kind === 'overdue') return 1
     return a.created_at < b.created_at ? 1 : -1

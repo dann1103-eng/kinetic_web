@@ -322,6 +322,8 @@ function NotificationRow({
       evaluacion: 'Evaluación asignada',
       extra: 'Terapia extra asignada',
       nueva: 'Nueva cita asignada',
+      reasignada_salida: 'Terapia reasignada',
+      asignada_cobertura: 'Cobertura asignada',
     }
     const title = titleBySub[item.appointment_subkind ?? 'nueva']
     return (

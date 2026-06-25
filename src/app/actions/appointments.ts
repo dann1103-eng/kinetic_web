@@ -6,12 +6,59 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { appointmentsOverlap, findClosureAffecting } from '@/lib/domain/appointment'
 import type {
   Appointment,
+  AppointmentChangeKind,
   AppointmentStatus,
   EventType,
   ExtraReason,
   Modality,
   ServiceType,
 } from '@/types/db'
+
+type ServerSupabase = Awaited<ReturnType<typeof createClient>>
+
+/** Tipos de evento individuales cuyas terapistas se notifican al mover/reasignar. */
+const NOTIFY_EVENT_TYPES = ['terapia', 'evaluacion']
+
+/**
+ * Inserta un evento de cambio de cita dirigido a una terapista (feed de la
+ * campana). No-op si no hay destinatario o si el destinatario es el mismo actor.
+ */
+async function emitAppointmentChangeEvent(
+  supabase: ServerSupabase,
+  params: {
+    appointmentId: string
+    targetUserId: string | null
+    actorUserId: string
+    changeKind: AppointmentChangeKind
+    childLabel: string | null
+    startsAt: string | null
+  },
+): Promise<void> {
+  if (!params.targetUserId || params.targetUserId === params.actorUserId) return
+  await supabase.from('appointment_change_events').insert({
+    appointment_id: params.appointmentId,
+    target_user_id: params.targetUserId,
+    actor_user_id: params.actorUserId,
+    change_kind: params.changeKind,
+    child_label: params.childLabel,
+    starts_at: params.startsAt,
+  })
+}
+
+/** Nombre para mostrar del niño/a (o nombre libre de la persona evaluada). */
+async function fetchChildLabel(
+  supabase: ServerSupabase,
+  childId: string | null,
+  externalName: string | null,
+): Promise<string | null> {
+  if (!childId) return externalName
+  const { data } = await supabase
+    .from('children')
+    .select('preferred_name, full_name')
+    .eq('id', childId)
+    .maybeSingle()
+  return data?.preferred_name || data?.full_name || externalName || null
+}
 
 const STAFF_ROLES_SCHEDULE = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion']
 
@@ -287,7 +334,7 @@ export async function moveAppointment(
 
   const { data: appt } = await supabase
     .from('appointments')
-    .select('id, therapist_id, status, event_type')
+    .select('id, therapist_id, status, event_type, child_id, external_child_name')
     .eq('id', appointmentId)
     .maybeSingle()
   if (!appt) return { ok: false, error: 'Cita no encontrada' }
@@ -342,8 +389,144 @@ export async function moveAppointment(
     .eq('id', appointmentId)
   if (error) return { ok: false, error: error.message }
 
+  // Notificar a la terapista que se le movió la cita (solo terapias/evaluaciones).
+  if (appt.therapist_id && NOTIFY_EVENT_TYPES.includes(appt.event_type)) {
+    const childLabel = await fetchChildLabel(supabase, appt.child_id, appt.external_child_name)
+    await emitAppointmentChangeEvent(supabase, {
+      appointmentId,
+      targetUserId: appt.therapist_id,
+      actorUserId: ctx.appUser.id,
+      changeKind: 'moved',
+      childLabel,
+      startsAt: newStartsAt,
+    })
+  }
+
   revalidatePath('/agenda')
   revalidatePath('/mi-dia')
+  return { ok: true }
+}
+
+/**
+ * Reasigna UNA terapia a otra terapista (cobertura), opcionalmente moviéndola de
+ * horario en el mismo paso. Edita la misma fila (la cita le aparece a la nueva
+ * terapista en /agenda y /mi-dia). Valida que la nueva tenga el espacio libre.
+ * Notifica a la terapista vieja (se le quitó) y a la nueva (cobertura), y deja la
+ * traza `reassigned_from_therapist_id` SIN marcar is_extra (eso lo decide
+ * admin/recepción a mano). Solo terapias. Solo roles de gestión (DRAG_ROLES).
+ */
+export async function reassignTherapist(
+  appointmentId: string,
+  newTherapistId: string,
+  opts?: { startsAt?: string; endsAt?: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+  if (!DRAG_ROLES.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos para reasignar citas' }
+  }
+  if (!newTherapistId) return { ok: false, error: 'Elegí la terapista nueva' }
+
+  const supabase = await createClient()
+
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id, therapist_id, status, event_type, child_id, external_child_name, starts_at, ends_at')
+    .eq('id', appointmentId)
+    .maybeSingle()
+  if (!appt) return { ok: false, error: 'Cita no encontrada' }
+  if (appt.event_type !== 'terapia') {
+    return { ok: false, error: 'Solo se pueden reasignar terapias.' }
+  }
+  if (!['scheduled', 'replacement'].includes(appt.status)) {
+    return {
+      ok: false,
+      error: 'Solo se pueden reasignar citas programadas (no completadas, inasistencias ni canceladas).',
+    }
+  }
+
+  const oldTherapistId = appt.therapist_id
+  const startsAt = opts?.startsAt ?? appt.starts_at
+  const endsAt = opts?.endsAt ?? appt.ends_at
+  if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
+    return { ok: false, error: 'Horario inválido' }
+  }
+
+  // Nada relevante cambió.
+  if (newTherapistId === oldTherapistId && startsAt === appt.starts_at && endsAt === appt.ends_at) {
+    return { ok: true }
+  }
+
+  // Si cambia el horario, no caer en un cierre institucional.
+  if (opts?.startsAt) {
+    const { data: closures } = await supabase
+      .from('institutional_calendar')
+      .select('*')
+      .gte('date', startsAt.slice(0, 10))
+      .lte('date', endsAt.slice(0, 10))
+    const affecting = findClosureAffecting(startsAt, closures ?? [])
+    if (affecting) {
+      return { ok: false, error: `Centro cerrado ese día: ${affecting.name}. Elegí otro horario.` }
+    }
+  }
+
+  // La terapista nueva debe tener el espacio libre (excluye esta cita).
+  const dayStart = new Date(startsAt)
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(startsAt)
+  dayEnd.setHours(23, 59, 59, 999)
+  const { data: sameDay } = await supabase
+    .from('appointments')
+    .select('id, starts_at, ends_at')
+    .eq('therapist_id', newTherapistId)
+    .in('status', ['scheduled', 'in_progress', 'replacement'])
+    .gte('starts_at', dayStart.toISOString())
+    .lte('starts_at', dayEnd.toISOString())
+    .neq('id', appointmentId)
+  const overlap = (sameDay ?? []).find((a) =>
+    appointmentsOverlap(a as { starts_at: string; ends_at: string }, {
+      starts_at: startsAt,
+      ends_at: endsAt,
+    }),
+  )
+  if (overlap) {
+    return { ok: false, error: 'La terapista nueva ya tiene una cita en ese horario.' }
+  }
+
+  const { error } = await supabase
+    .from('appointments')
+    .update({
+      therapist_id: newTherapistId,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      reassigned_from_therapist_id: oldTherapistId ?? null,
+    })
+    .eq('id', appointmentId)
+  if (error) return { ok: false, error: error.message }
+
+  const childLabel = await fetchChildLabel(supabase, appt.child_id, appt.external_child_name)
+  if (oldTherapistId && oldTherapistId !== newTherapistId) {
+    await emitAppointmentChangeEvent(supabase, {
+      appointmentId,
+      targetUserId: oldTherapistId,
+      actorUserId: ctx.appUser.id,
+      changeKind: 'reassigned_away',
+      childLabel,
+      startsAt,
+    })
+  }
+  await emitAppointmentChangeEvent(supabase, {
+    appointmentId,
+    targetUserId: newTherapistId,
+    actorUserId: ctx.appUser.id,
+    changeKind: 'assigned',
+    childLabel,
+    startsAt,
+  })
+
+  revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
+  revalidatePath('/operacion/capacidad-terapistas/completadas')
   return { ok: true }
 }
 

@@ -222,7 +222,17 @@ export function CompletedTherapiesView({ report, granularity, anchorDate }: Prop
                     <span className="capitalize">{dayLabel(r.startsAt)}</span>
                     <span className="text-fm-on-surface-variant"> · {timeLabel(r.startsAt)}</span>
                   </td>
-                  <td className="px-2 py-2">{r.childName}</td>
+                  <td className="px-2 py-2">
+                    {r.childName}
+                    {r.reassignedFromName && (
+                      <span
+                        className="ml-1.5 inline-flex items-center text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-violet-100 text-violet-900 dark:bg-violet-400/20 dark:text-violet-300"
+                        title={`Cobertura — reasignada de ${r.reassignedFromName}`}
+                      >
+                        Cobertura
+                      </span>
+                    )}
+                  </td>
                   <td className="px-2 py-2">{serviceLabel(r.serviceType)}</td>
                   <td className="px-2 py-2 text-right tabular-nums text-fm-on-surface-variant">
                     ${r.costUsd.toFixed(2)}

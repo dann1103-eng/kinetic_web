@@ -82,6 +82,15 @@ const DRAG_ROLES = new Set([
   'recepcion',
 ])
 
+// Roles que pueden pre-marcar inasistencia (debe coincidir con la autorización de
+// la RPC mark_appointment_absence en la migración 0159).
+const ABSENCE_ROLES = new Set([
+  'admin',
+  'directora',
+  'coordinadora_terapias',
+  'coordinadora_familias',
+])
+
 export function AgendaPageClient({
   currentUserRole,
   currentUserId,
@@ -99,6 +108,8 @@ export function AgendaPageClient({
   const canSchedule = STAFF_ROLES_SCHEDULE.has(currentUserRole)
   // Solo coordinadoras / admin / directora / recepción pueden mover citas (DnD).
   const canDrag = DRAG_ROLES.has(currentUserRole)
+  // Pre-marcar inasistencia (coordinación) — solo terapias.
+  const canMarkAbsence = ABSENCE_ROLES.has(currentUserRole)
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -108,6 +119,11 @@ export function AgendaPageClient({
   const [moveOverrides, setMoveOverrides] = useState<
     Record<string, { starts_at: string; ends_at: string }>
   >({})
+
+  // Movimiento pendiente de confirmación (DnD/resize). Hasta confirmar no se aplica.
+  const [pendingMove, setPendingMove] = useState<
+    { event: CalendarBlock; start: Date; end: Date } | null
+  >(null)
 
   // Filtros
   // Terapista: bloqueado a sí mismo. Otros: leen ?therapistId=XX del URL
@@ -268,7 +284,8 @@ export function AgendaPageClient({
     [],
   )
 
-  // Mover una cita (drag-and-drop o resize). Cambia solo esa cita, no el ciclo.
+  // Mover una cita (drag-and-drop o resize). NO se aplica al instante: primero se
+  // pide confirmación (mover puede notificar a la terapista). Cambia solo esa cita.
   const handleMove = useCallback(
     ({ event, start, end }: { event: CalendarBlock; start: Date; end: Date }) => {
       if (!canDrag || event.kind !== 'appointment') return
@@ -277,35 +294,45 @@ export function AgendaPageClient({
       const startIso = start.toISOString()
       const endIso = end.toISOString()
       if (startIso === appt.starts_at && endIso === appt.ends_at) return
+      setPendingMove({ event, start, end })
+    },
+    [canDrag],
+  )
 
-      // Optimista: pintar de una vez en el nuevo horario.
-      setMoveOverrides((prev) => ({ ...prev, [appt.id]: { starts_at: startIso, ends_at: endIso } }))
+  // Aplica el movimiento ya confirmado (optimista + server). Revierte si falla.
+  const applyPendingMove = useCallback(() => {
+    if (!pendingMove || pendingMove.event.kind !== 'appointment') return
+    const appt = pendingMove.event.appointment
+    const startIso = pendingMove.start.toISOString()
+    const endIso = pendingMove.end.toISOString()
+    setPendingMove(null)
 
-      moveAppointment(appt.id, startIso, endIso)
-        .then((res) => {
-          if (!res.ok) {
-            // Revertir: quitar el override para que vuelva a su lugar.
-            setMoveOverrides((prev) => {
-              const next = { ...prev }
-              delete next[appt.id]
-              return next
-            })
-            window.alert(res.error)
-          } else {
-            router.refresh()
-          }
-        })
-        .catch(() => {
+    // Optimista: pintar de una vez en el nuevo horario.
+    setMoveOverrides((prev) => ({ ...prev, [appt.id]: { starts_at: startIso, ends_at: endIso } }))
+
+    moveAppointment(appt.id, startIso, endIso)
+      .then((res) => {
+        if (!res.ok) {
+          // Revertir: quitar el override para que vuelva a su lugar.
           setMoveOverrides((prev) => {
             const next = { ...prev }
             delete next[appt.id]
             return next
           })
-          window.alert('No se pudo mover la cita. Revisá tu conexión e intentá de nuevo.')
+          window.alert(res.error)
+        } else {
+          router.refresh()
+        }
+      })
+      .catch(() => {
+        setMoveOverrides((prev) => {
+          const next = { ...prev }
+          delete next[appt.id]
+          return next
         })
-    },
-    [canDrag, router],
-  )
+        window.alert('No se pudo mover la cita. Revisá tu conexión e intentá de nuevo.')
+      })
+  }, [pendingMove, router])
 
   const draggableAccessor = useCallback(
     (block: CalendarBlock) =>
@@ -512,7 +539,69 @@ export function AgendaPageClient({
           evalCatalog={evalCatalog}
           isAdmin={currentUserRole === 'admin'}
           canSchedule={canSchedule}
+          canMarkAbsence={canMarkAbsence}
         />
+      )}
+
+      {pendingMove && pendingMove.event.kind === 'appointment' && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setPendingMove(null)}
+        >
+          <div
+            className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-fm-primary">
+                Confirmar movimiento
+              </p>
+              <h3 className="text-base font-semibold text-fm-on-surface mt-1">
+                ¿Mover{' '}
+                {pendingMove.event.appointment.event_type === 'terapia'
+                  ? `la terapia de ${pendingMove.event.title}`
+                  : 'esta cita'}
+                ?
+              </h3>
+            </div>
+            <div className="text-sm text-fm-on-surface space-y-1">
+              <p className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[18px] text-fm-on-surface-variant">
+                  schedule
+                </span>
+                {new Intl.DateTimeFormat('es-SV', {
+                  weekday: 'long',
+                  day: '2-digit',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                }).format(pendingMove.start)}
+              </p>
+              {(pendingMove.event.appointment.event_type === 'terapia' ||
+                pendingMove.event.appointment.event_type === 'evaluacion') && (
+                <p className="text-[11px] text-fm-on-surface-variant">
+                  Se notificará a la terapista asignada.
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setPendingMove(null)}
+                className="min-h-[44px] px-4 py-2 text-sm rounded-xl text-fm-on-surface-variant hover:bg-fm-surface-container"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={applyPendingMove}
+                className="min-h-[44px] px-4 py-2 text-sm rounded-xl bg-fm-primary text-fm-on-primary hover:bg-fm-primary-dim"
+              >
+                Sí, mover
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {groupPopover && (

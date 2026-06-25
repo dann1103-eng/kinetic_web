@@ -2103,9 +2103,24 @@ export interface Database {
           handed_to_reception_at?: string | null
           program_group_id?: string | null
           custom_event_label?: string | null
+          reassigned_from_therapist_id?: string | null
           created_by_user_id?: string | null
         }
         Update: Partial<Omit<Appointment, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      appointment_change_events: {
+        Row: AsRow<AppointmentChangeEvent>
+        Insert: {
+          id?: string
+          appointment_id: string
+          target_user_id: string
+          actor_user_id?: string | null
+          change_kind: AppointmentChangeKind
+          child_label?: string | null
+          starts_at?: string | null
+        }
+        Update: Partial<Omit<AppointmentChangeEvent, 'id' | 'created_at'>>
         Relationships: []
       }
       institutional_calendar: {
@@ -2614,7 +2629,7 @@ export interface NotificationItem {
   cambio_notes?: string
   /* Para 'appointment' (cita asignada/movida a una terapista) */
   appointment_id?: string
-  appointment_subkind?: 'reposicion' | 'movida' | 'evaluacion' | 'extra' | 'nueva'
+  appointment_subkind?: 'reposicion' | 'movida' | 'evaluacion' | 'extra' | 'nueva' | 'reasignada_salida' | 'asignada_cobertura'
   appointment_starts_at?: string
   appointment_child_name?: string
 }
@@ -3104,9 +3119,26 @@ export interface Appointment {
   dispatch_snoozed_until: string | null
   /** Solo se usa cuando event_type='otro'. Etiqueta libre que aparece en el calendario. */
   custom_event_label: string | null
+  /** Terapista original de la que se reasignó esta cita (cobertura). Traza para
+   *  que admin/recepción decidan pagarla como extra; NO marca is_extra solo. */
+  reassigned_from_therapist_id: string | null
   created_by_user_id: string | null
   created_at: string
   updated_at: string
+}
+
+export type AppointmentChangeKind = 'moved' | 'reassigned_away' | 'assigned'
+
+/** Evento de cambio de cita dirigido a una terapista (feed de notificaciones). */
+export interface AppointmentChangeEvent {
+  id: string
+  appointment_id: string
+  target_user_id: string
+  actor_user_id: string | null
+  change_kind: AppointmentChangeKind
+  child_label: string | null
+  starts_at: string | null
+  created_at: string
 }
 
 export type InstitutionalClosureType = 'holiday' | 'closure' | 'gov_decree' | 'kinetic_break'

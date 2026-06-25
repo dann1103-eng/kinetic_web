@@ -6,9 +6,11 @@ import {
   createAppointment,
   cancelAppointment,
   deleteAppointment,
-  rescheduleAppointment,
+  moveAppointment,
+  reassignTherapist,
   updateAppointment,
 } from '@/app/actions/appointments'
+import { markAbsence } from '@/app/actions/absences'
 import { useDialogA11y } from '@/hooks/useDialogA11y'
 import {
   EVENT_TYPE_LABELS,
@@ -46,6 +48,8 @@ interface AppointmentFormProps {
   evalCatalog?: EvalCatalogItem[]
   isAdmin: boolean
   canSchedule: boolean
+  /** Puede pre-marcar inasistencia de terapias (admin/directora/coordinadoras). */
+  canMarkAbsence?: boolean
 }
 
 export function AppointmentForm({
@@ -59,6 +63,7 @@ export function AppointmentForm({
   evalCatalog = [],
   isAdmin,
   canSchedule,
+  canMarkAbsence = false,
 }: AppointmentFormProps) {
   const router = useRouter()
   const titleId = useId()
@@ -169,28 +174,69 @@ export function AppointmentForm({
     const endsIso = new Date(new Date(startsAt).getTime() + durationMin * 60_000).toISOString()
 
     if (isEdit && existingAppointment) {
-      const startsChanged = existingAppointment.starts_at !== startsIso
-      const endsChanged = existingAppointment.ends_at !== endsIso
-      if (startsChanged || endsChanged) {
-        const res = await rescheduleAppointment(existingAppointment.id, startsIso, endsIso)
+      const timeChanged =
+        existingAppointment.starts_at !== startsIso || existingAppointment.ends_at !== endsIso
+      const therapistChanged =
+        (existingAppointment.therapist_id ?? '') !== (therapistId ?? '')
+      const notifies = eventType === 'terapia' || eventType === 'evaluacion'
+
+      // Confirmación para cambios que avisan a las terapistas (reasignar / mover).
+      if (therapistChanged || timeChanged) {
+        const lines: string[] = []
+        if (therapistChanged && eventType === 'terapia') {
+          const oldName =
+            therapists.find((t) => t.id === existingAppointment.therapist_id)?.full_name ?? 'sin terapista'
+          const newName = therapists.find((t) => t.id === therapistId)?.full_name ?? '—'
+          lines.push(`Reasignar la terapia de ${oldName} a ${newName}.`)
+        }
+        if (timeChanged) {
+          lines.push(`Mover al ${formatDateTimeLabel(startsIso)}.`)
+        }
+        if (notifies) lines.push('Se notificará a la(s) terapista(s) afectada(s).')
+        lines.push('¿Confirmás?')
+        if (!window.confirm(lines.join('\n\n'))) {
+          setSubmitting(false)
+          return
+        }
+      }
+
+      // 1) Metadata (todo menos terapista de terapias y horario, que van aparte).
+      const metaPatch: Parameters<typeof updateAppointment>[1] = {
+        event_type: eventType,
+        service_type: eventType === 'terapia' ? (serviceType as ServiceType) : null,
+        modality,
+        notes: notes || null,
+        custom_event_label: eventType === 'otro' ? customEventLabel.trim() : null,
+        is_extra: eventType === 'terapia' ? isExtra : false,
+        extra_reason: eventType === 'terapia' && isExtra ? extraReason : null,
+        external_child_name: eventType === 'evaluacion' ? externalChildName.trim() : null,
+        service_code: eventType === 'evaluacion' ? serviceCode : null,
+      }
+      // La terapista de NO-terapias se guarda aquí; las terapias usan reassignTherapist.
+      if (eventType !== 'terapia') {
+        metaPatch.therapist_id = eventType === 'evaluacion' ? therapistId : therapistId || null
+      }
+      const metaRes = await updateAppointment(existingAppointment.id, metaPatch)
+      if (!metaRes.ok) {
+        setError(metaRes.error)
+        setSubmitting(false)
+        return
+      }
+
+      // 2) Reasignar terapista (solo terapias) y/o mover horario.
+      if (eventType === 'terapia' && therapistChanged) {
+        const res = await reassignTherapist(
+          existingAppointment.id,
+          therapistId,
+          timeChanged ? { startsAt: startsIso, endsAt: endsIso } : undefined,
+        )
         if (!res.ok) {
           setError(res.error)
           setSubmitting(false)
           return
         }
-      } else {
-        const res = await updateAppointment(existingAppointment.id, {
-          event_type: eventType,
-          service_type: eventType === 'terapia' ? (serviceType as ServiceType) : null,
-          therapist_id: eventType === 'terapia' || eventType === 'evaluacion' ? therapistId : (therapistId || null),
-          modality,
-          notes: notes || null,
-          custom_event_label: eventType === 'otro' ? customEventLabel.trim() : null,
-          is_extra: eventType === 'terapia' ? isExtra : false,
-          extra_reason: eventType === 'terapia' && isExtra ? extraReason : null,
-          external_child_name: eventType === 'evaluacion' ? externalChildName.trim() : null,
-          service_code: eventType === 'evaluacion' ? serviceCode : null,
-        })
+      } else if (timeChanged) {
+        const res = await moveAppointment(existingAppointment.id, startsIso, endsIso)
         if (!res.ok) {
           setError(res.error)
           setSubmitting(false)
@@ -249,6 +295,25 @@ export function AppointmentForm({
     ) return
     setSubmitting(true)
     const res = await deleteAppointment(existingAppointment.id)
+    setSubmitting(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    onClose()
+    router.refresh()
+  }
+
+  // Pre-marcar inasistencia (coordinación) — deja la terapia pendiente de reposición.
+  async function handleMarkAbsence() {
+    if (!existingAppointment) return
+    const reason = window.prompt(
+      'Marcar que el niño/a NO asistirá a esta terapia. Quedará pendiente de reposición en Aprobaciones.\n\nMotivo (opcional):',
+      '',
+    )
+    if (reason === null) return // cancelado
+    setSubmitting(true)
+    const res = await markAbsence(existingAppointment.id, reason.trim() || undefined)
     setSubmitting(false)
     if (!res.ok) {
       setError(res.error)
@@ -596,6 +661,19 @@ export function AppointmentForm({
 
           <div className="px-6 py-4 border-t border-fm-outline-variant/20 flex items-center justify-between gap-2 sticky bottom-0 bg-fm-surface-container-lowest z-10">
             <div className="flex items-center gap-2">
+              {isEdit && canMarkAbsence && existingAppointment &&
+                existingAppointment.event_type === 'terapia' &&
+                existingAppointment.status === 'scheduled' && (
+                <button
+                  type="button"
+                  onClick={handleMarkAbsence}
+                  disabled={submitting}
+                  className="min-h-[44px] px-3 py-2 text-xs rounded-xl text-amber-700 dark:text-amber-400 hover:bg-amber-400/10 border border-amber-400/40"
+                  title="Pre-marcar que el niño/a no asistirá (queda pendiente de reposición)"
+                >
+                  Marcar que no asistirá
+                </button>
+              )}
               {isEdit && canSchedule && (
                 <button
                   type="button"
@@ -650,4 +728,15 @@ function toLocalInput(iso: string): string {
   const d = new Date(iso)
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** Etiqueta legible de fecha/hora para mensajes de confirmación. */
+function formatDateTimeLabel(iso: string): string {
+  return new Intl.DateTimeFormat('es-SV', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(iso))
 }

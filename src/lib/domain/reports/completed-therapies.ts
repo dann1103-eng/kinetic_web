@@ -38,6 +38,9 @@ export interface CompletedTherapyRow {
   isExtra: boolean
   extraReason: ExtraReason | null
   costUsd: number
+  /** Si la terapia fue una cobertura (reasignada de otra terapista), nombre de
+   *  la terapista original. Null si no fue cobertura. Evidencia para decidir pago. */
+  reassignedFromName: string | null
 }
 
 export interface TherapistCompletedGroup {
@@ -132,6 +135,7 @@ interface ApptJoinRow {
   ends_at: string
   is_extra: boolean
   extra_reason: ExtraReason | null
+  reassigned_from_therapist_id: string | null
   children: { full_name: string } | { full_name: string }[] | null
 }
 
@@ -193,7 +197,7 @@ export async function getCompletedTherapiesDetail(
   // Terapias + evaluaciones completadas en la ventana.
   const { data: apptsRaw } = await supabase
     .from('appointments')
-    .select('id, therapist_id, service_type, service_code, external_child_name, event_type, starts_at, ends_at, is_extra, extra_reason, children(full_name)')
+    .select('id, therapist_id, service_type, service_code, external_child_name, event_type, starts_at, ends_at, is_extra, extra_reason, reassigned_from_therapist_id, children(full_name)')
     .in('event_type', ['terapia', 'evaluacion'])
     .eq('status', 'completed')
     .gte('starts_at', startISO)
@@ -233,6 +237,9 @@ export async function getCompletedTherapiesDetail(
       isExtra: a.is_extra,
       extraReason: a.extra_reason,
       costUsd: costOfAppt(a),
+      reassignedFromName: a.reassigned_from_therapist_id
+        ? userById.get(a.reassigned_from_therapist_id)?.full_name ?? 'otra terapista'
+        : null,
     }
     const arr = rowsByTherapist.get(a.therapist_id) ?? []
     arr.push(row)
