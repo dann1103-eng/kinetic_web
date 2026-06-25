@@ -136,19 +136,23 @@ export function calculatePayroll(
  * `payroll_items` y la UI; los campos de ISSS/AFP/patrono quedan en 0.
  */
 export function calculateProfessionalServicesPayroll(
-  inputs: { baseUsd: number; otherDeductionsUsd?: number },
+  inputs: { baseUsd: number; bonusUsd?: number; otherDeductionsUsd?: number },
   isrRate: number,
 ): PayrollCalculation {
-  const gross = round2(Math.max(0, inputs.baseUsd))
+  const base = round2(Math.max(0, inputs.baseUsd))
+  const bonus = round2(Math.max(0, inputs.bonusUsd ?? 0))
+  // Bruto = honorario base + bonos/otros ingresos. La retención (ISR) se aplica
+  // sobre el bruto, igual que un bono gravable en la planilla normal.
+  const gross = round2(base + bonus)
   const otherDeductions = round2(Math.max(0, inputs.otherDeductionsUsd ?? 0))
   const isr = round2(gross * Math.max(0, isrRate))
   const totalDeductions = round2(isr + otherDeductions)
   const netPay = round2(gross - totalDeductions)
 
   return {
-    baseSalaryUsd: gross,
+    baseSalaryUsd: base,
     extraHoursAmountUsd: 0,
-    bonusUsd: 0,
+    bonusUsd: bonus,
     grossTotalUsd: gross,
     isssEmployeeUsd: 0,
     afpEmployeeUsd: 0,

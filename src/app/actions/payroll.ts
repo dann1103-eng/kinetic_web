@@ -392,7 +392,7 @@ export async function updatePayrollItem(
   // Servicios profesionales: solo retención ISR sobre la base. Normal: deducciones completas.
   const calc = parentRun.payroll_type === 'servicios_profesionales'
     ? calculateProfessionalServicesPayroll(
-        { baseUsd: next.baseSalaryUsd, otherDeductionsUsd: next.otherDeductionsUsd },
+        { baseUsd: next.baseSalaryUsd, bonusUsd: next.bonusUsd, otherDeductionsUsd: next.otherDeductionsUsd },
         Number(config.professional_services_isr_rate ?? 0.1),
       )
     : calculatePayroll(next, config)

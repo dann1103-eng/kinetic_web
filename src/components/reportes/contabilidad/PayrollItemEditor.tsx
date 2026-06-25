@@ -140,18 +140,18 @@ export function PayrollItemEditor({ item, editable, isSp = false }: Props) {
                             className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm"
                           />
                         </Field>
-                        <Field label="Bono / pago extra">
-                          <input
-                            type="number"
-                            step="0.01"
-                            min={0}
-                            value={bonus}
-                            onChange={(e) => setBonus(parseFloat(e.target.value) || 0)}
-                            className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm"
-                          />
-                        </Field>
                       </>
                     )}
+                    <Field label={isSp ? 'Bonos / otros ingresos' : 'Bono / pago extra'}>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        value={bonus}
+                        onChange={(e) => setBonus(parseFloat(e.target.value) || 0)}
+                        className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm"
+                      />
+                    </Field>
                     <Field label="Otras deducciones">
                       <input
                         type="number"
@@ -170,9 +170,9 @@ export function PayrollItemEditor({ item, editable, isSp = false }: Props) {
                       <>
                         <ReadOnly label="Horas extras" value={`${item.extra_hours}`} />
                         <ReadOnly label="Monto horas extras" value={fmtUsd(Number(item.extra_hours_amount_usd))} />
-                        <ReadOnly label="Bono" value={fmtUsd(Number(item.bonus_usd))} />
                       </>
                     )}
+                    <ReadOnly label={isSp ? 'Bonos / otros ingresos' : 'Bono'} value={fmtUsd(Number(item.bonus_usd))} />
                     <ReadOnly label="Otras deducciones" value={fmtUsd(Number(item.other_deductions_usd))} />
                   </>
                 )}
@@ -183,6 +183,14 @@ export function PayrollItemEditor({ item, editable, isSp = false }: Props) {
                 Cálculo
               </h4>
               <div className="space-y-1 text-sm">
+                {isSp && (
+                  <>
+                    <ReadOnly label="Honorarios base" value={fmtUsd(Number(item.base_salary_usd))} />
+                    {Number(item.bonus_usd) > 0 && (
+                      <ReadOnly label="Bonos / otros ingresos" value={fmtUsd(Number(item.bonus_usd))} />
+                    )}
+                  </>
+                )}
                 <ReadOnly label={isSp ? 'Honorarios brutos' : 'Bruto'} value={fmtUsd(Number(item.gross_total_usd))} />
                 {!isSp && (
                   <>

@@ -88,8 +88,8 @@ export function PayrollItemPDF({ run, item, logoUrl }: Props) {
             value={fmtUsd(Number(item.extra_hours_amount_usd))}
           />
         )}
-        {!isSp && Number(item.bonus_usd) > 0 && (
-          <Row label="Bono / pago extra" value={fmtUsd(Number(item.bonus_usd))} />
+        {Number(item.bonus_usd) > 0 && (
+          <Row label={isSp ? 'Bonos / otros ingresos' : 'Bono / pago extra'} value={fmtUsd(Number(item.bonus_usd))} />
         )}
         <Row label={isSp ? 'Honorarios brutos' : 'Bruto'} value={fmtUsd(Number(item.gross_total_usd))} bold tone="dark" />
 
