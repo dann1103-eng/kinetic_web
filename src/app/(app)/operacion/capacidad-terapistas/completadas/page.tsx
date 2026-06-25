@@ -53,6 +53,7 @@ export default async function CompletedTherapiesPage({ searchParams }: PageProps
 
   const supabase = await createClient()
   const report = await getCompletedTherapiesDetail(supabase, { granularity, anchorDate })
+  const canEdit = ALLOWED_ROLES.includes(ctx.appUser.role)
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -80,6 +81,7 @@ export default async function CompletedTherapiesPage({ searchParams }: PageProps
         report={report}
         granularity={granularity}
         anchorDate={anchorDate}
+        canEdit={canEdit}
       />
     </div>
   )

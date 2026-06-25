@@ -4,9 +4,11 @@ import { useState, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { SERVICE_TYPE_LABELS, EXTRA_REASON_LABELS } from '@/types/db'
 import type { ServiceType, ExtraReason } from '@/types/db'
-import { setAppointmentExtra } from '@/app/actions/appointments'
+import { fromZonedTime } from 'date-fns-tz'
+import { setAppointmentExtra, adminUpdateAppointmentTimes } from '@/app/actions/appointments'
 import type {
   CompletedTherapiesReport,
+  CompletedTherapyRow,
   CompletedGranularity,
 } from '@/lib/domain/reports/completed-therapies'
 
@@ -53,6 +55,18 @@ function timeLabel(iso: string): string {
   }).format(new Date(iso))
 }
 
+/** Fecha (YYYY-MM-DD) y hora (HH:MM) de un ISO en zona SV, para los inputs. */
+function svParts(iso: string): { date: string; time: string } {
+  const d = new Date(iso)
+  const date = new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(d)
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(d)
+  return { date, time }
+}
+
 function dayLabel(iso: string): string {
   return new Intl.DateTimeFormat('es-SV', {
     timeZone: TZ,
@@ -71,13 +85,18 @@ interface Props {
   report: CompletedTherapiesReport
   granularity: CompletedGranularity
   anchorDate: string
+  /** Roles de gestión pueden corregir el tiempo real de cada terapia. */
+  canEdit: boolean
 }
 
-export function CompletedTherapiesView({ report, granularity, anchorDate }: Props) {
+export function CompletedTherapiesView({ report, granularity, anchorDate, canEdit }: Props) {
   const router = useRouter()
   const pathname = usePathname()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editStart, setEditStart] = useState('')
+  const [editEnd, setEditEnd] = useState('')
 
   function navigate(g: CompletedGranularity, d: string) {
     router.push(`${pathname}?g=${g}&d=${d}`)
@@ -91,6 +110,30 @@ export function CompletedTherapiesView({ report, granularity, anchorDate }: Prop
         setError(res.error)
         return
       }
+      router.refresh()
+    })
+  }
+
+  function startEdit(r: CompletedTherapyRow) {
+    setError(null)
+    const endIso = new Date(new Date(r.startsAt).getTime() + r.durationMin * 60_000).toISOString()
+    setEditingId(r.appointmentId)
+    setEditStart(svParts(r.startsAt).time)
+    setEditEnd(svParts(endIso).time)
+  }
+
+  function saveTimes(r: CompletedTherapyRow) {
+    const { date } = svParts(r.startsAt)
+    const startISO = fromZonedTime(`${date}T${editStart}:00`, TZ).toISOString()
+    const endISO = fromZonedTime(`${date}T${editEnd}:00`, TZ).toISOString()
+    setError(null)
+    startTransition(async () => {
+      const res = await adminUpdateAppointmentTimes(r.appointmentId, startISO, endISO)
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      setEditingId(null)
       router.refresh()
     })
   }
@@ -164,6 +207,14 @@ export function CompletedTherapiesView({ report, granularity, anchorDate }: Prop
         </p>
       </div>
 
+      {canEdit && (
+        <p className="text-[11px] text-fm-on-surface-variant -mt-2">
+          Editá la duración real con el lápiz en la columna <b>Duración</b> si alguien olvidó
+          marcar a tiempo. Corrige el conteo de horas; no cambia el pago (servicios profesionales
+          se paga por terapia, no por hora).
+        </p>
+      )}
+
       {report.groups.length === 0 && (
         <div className="rounded-2xl border border-fm-outline-variant/30 px-4 py-8 text-center text-sm text-fm-on-surface-variant">
           No hay terapias completadas en este período.
@@ -211,6 +262,7 @@ export function CompletedTherapiesView({ report, granularity, anchorDate }: Prop
                 <th className="text-left font-semibold px-4 py-2">Fecha</th>
                 <th className="text-left font-semibold px-2 py-2">Niño/a</th>
                 <th className="text-left font-semibold px-2 py-2">Terapia</th>
+                <th className="text-right font-semibold px-2 py-2">Duración</th>
                 <th className="text-right font-semibold px-2 py-2">Tarifa</th>
                 <th className="text-left font-semibold px-4 py-2">Extraordinaria</th>
               </tr>
@@ -234,6 +286,61 @@ export function CompletedTherapiesView({ report, granularity, anchorDate }: Prop
                     )}
                   </td>
                   <td className="px-2 py-2">{serviceLabel(r.serviceType)}</td>
+                  <td className="px-2 py-2 text-right whitespace-nowrap">
+                    {editingId === r.appointmentId ? (
+                      <span className="inline-flex items-center gap-1 justify-end">
+                        <input
+                          type="time"
+                          value={editStart}
+                          disabled={pending}
+                          onChange={(e) => setEditStart(e.target.value)}
+                          className="rounded border border-fm-outline-variant/40 bg-fm-surface px-1 py-0.5 text-xs tabular-nums"
+                        />
+                        <span className="text-fm-on-surface-variant">–</span>
+                        <input
+                          type="time"
+                          value={editEnd}
+                          disabled={pending}
+                          onChange={(e) => setEditEnd(e.target.value)}
+                          className="rounded border border-fm-outline-variant/40 bg-fm-surface px-1 py-0.5 text-xs tabular-nums"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => saveTimes(r)}
+                          disabled={pending}
+                          className="text-fm-primary p-0.5 disabled:opacity-50"
+                          aria-label="Guardar tiempo"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">check</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(null)}
+                          disabled={pending}
+                          className="text-fm-on-surface-variant p-0.5 disabled:opacity-50"
+                          aria-label="Cancelar"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">close</span>
+                        </button>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 justify-end">
+                        <span className="tabular-nums text-fm-on-surface">{Math.round(r.durationMin)} min</span>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={() => startEdit(r)}
+                            disabled={pending}
+                            className="text-fm-on-surface-variant hover:text-fm-primary p-0.5 disabled:opacity-50"
+                            aria-label="Editar tiempo"
+                            title="Editar tiempo"
+                          >
+                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                          </button>
+                        )}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-2 py-2 text-right tabular-nums text-fm-on-surface-variant">
                     ${r.costUsd.toFixed(2)}
                   </td>

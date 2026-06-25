@@ -697,6 +697,55 @@ export async function setAppointmentExtra(
   return { ok: true }
 }
 
+/**
+ * Corrige las horas reales de inicio/fin de una terapia/evaluación COMPLETADA.
+ * Pensado para que recepción/coordinadoras/admin ajusten el tiempo cuando alguien
+ * olvidó marcar a tiempo. Afecta el conteo de horas/capacidad, NO el pago de
+ * servicios profesionales (que es por terapia, no por hora).
+ */
+export async function adminUpdateAppointmentTimes(
+  appointmentId: string,
+  startsAtISO: string,
+  endsAtISO: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+  if (!MGMT_ROLES_EXTRA.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos para editar el tiempo de la terapia' }
+  }
+
+  const start = new Date(startsAtISO)
+  const end = new Date(endsAtISO)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return { ok: false, error: 'Fechas inválidas.' }
+  }
+  if (end.getTime() <= start.getTime()) {
+    return { ok: false, error: 'La hora de fin debe ser posterior a la de inicio.' }
+  }
+
+  const supabase = await createClient()
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('status')
+    .eq('id', appointmentId)
+    .maybeSingle()
+  if (!appt) return { ok: false, error: 'Cita no encontrada.' }
+  if (appt.status !== 'completed') {
+    return { ok: false, error: 'Solo se puede editar el tiempo de terapias completadas.' }
+  }
+
+  const { error } = await supabase
+    .from('appointments')
+    .update({ starts_at: start.toISOString(), ends_at: end.toISOString() })
+    .eq('id', appointmentId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/operacion/capacidad-terapistas/completadas')
+  revalidatePath('/reportes/por-terapista')
+  revalidatePath('/agenda')
+  return { ok: true }
+}
+
 async function updateAppointmentStatus(
   appointmentId: string,
   status: AppointmentStatus,
