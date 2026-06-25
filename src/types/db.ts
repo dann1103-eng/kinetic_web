@@ -1873,6 +1873,7 @@ export interface Database {
           productive_seconds?: number | null
         }
         Update: {
+          started_at?: string
           ended_at?: string | null
           status?: WorkSessionStatus
           notes?: string | null
