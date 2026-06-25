@@ -210,6 +210,7 @@ export function TreatmentPlanEditor({
     return initial
   })
   const [error, setError] = useState<string | null>(null)
+  const [regenWarning, setRegenWarning] = useState<string | null>(null)
   const [failedOffline, setFailedOffline] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -331,6 +332,16 @@ export function TreatmentPlanEditor({
         }
         clear() // envío exitoso → ya no hace falta el borrador local
         router.refresh()
+        // Si algún ciclo pendiente no pudo regenerar sus citas (conflicto de
+        // horario), dejamos el modal abierto con un aviso en vez de cerrar.
+        if (res.regen && res.regen.conflictMonths.length > 0) {
+          setRegenWarning(
+            `El plan se guardó, pero las citas de ${res.regen.conflictMonths.join(', ')} ` +
+              'no se pudieron regenerar por un conflicto de horario del terapista. ' +
+              'Resolvé el choque en la agenda o desde “Editar ciclo” de ese mes.',
+          )
+          return
+        }
         onClose()
       } catch {
         // Falla de red (sin internet): el borrador sigue a salvo en el dispositivo.
@@ -701,6 +712,12 @@ export function TreatmentPlanEditor({
 
           {failedOffline && (
             <OfflineSaveError onRetry={handleSave} retrying={isPending} />
+          )}
+
+          {regenWarning && (
+            <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-800">
+              {regenWarning}
+            </div>
           )}
 
           {error && (

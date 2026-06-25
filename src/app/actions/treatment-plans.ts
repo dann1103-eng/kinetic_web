@@ -15,6 +15,7 @@ import type {
 import { SERVICE_TYPE_LABELS, DAY_OF_WEEK_LABELS } from '@/types/db'
 import { applyDiscount, validateDiscount } from '@/lib/domain/discounts'
 import { therapyLineAmount, isMorningProgramService, planTherapistIds } from '@/lib/domain/billing/monthly-flat'
+import { toZonedTime } from 'date-fns-tz'
 
 const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'] as const
 
@@ -176,9 +177,43 @@ export interface UpsertTreatmentPlanInput {
   discountReason?: string | null
 }
 
+/** Resultado de regenerar las citas de los ciclos pendientes tras editar el plan. */
+export interface PlanRegenSummary {
+  /** Cuántos ciclos pendientes se regeneraron OK. */
+  regenerated: number
+  /** Meses ('YYYY-MM') cuyo ciclo no se pudo regenerar (conflicto de horario u otro). */
+  conflictMonths: string[]
+}
+
+/** Campos del plan que afectan QUÉ citas se generan (para detectar cambios reales). */
+function computeRelevantSignature(
+  therapies: TreatmentPlanTherapyEntry[],
+  schedule: TreatmentPlanScheduleSlot[],
+): string {
+  const t = therapies.map((x) => ({
+    service: x.service,
+    active: x.active !== false,
+    sessions: x.sessions_per_month,
+    therapist: x.therapist_id ?? null,
+    mode: x.billing_mode ?? null,
+    dpw: x.days_per_week ?? null,
+  }))
+  const s = schedule.map((x) => ({
+    d: x.day_of_week,
+    t: x.time_local,
+    dur: x.duration_minutes,
+    svc: x.service,
+    f: x.frequency ?? 'weekly',
+  }))
+  return JSON.stringify({ t, s })
+}
+
 export async function upsertTreatmentPlan(
   input: UpsertTreatmentPlanInput,
-): Promise<{ ok: true; plan: TreatmentPlan } | { ok: false; error: string }> {
+): Promise<
+  | { ok: true; plan: TreatmentPlan; regen?: PlanRegenSummary }
+  | { ok: false; error: string }
+> {
   const { supabase, user } = await getActor()
   if (!isMgmt(user.role)) {
     return { ok: false, error: 'Solo admin/directora/coordinadora pueden editar planes.' }
@@ -207,6 +242,10 @@ export async function upsertTreatmentPlan(
     .maybeSingle()
 
   const beforeJson = (existing ?? {}) as Partial<TreatmentPlan>
+  const beforeSignature = computeRelevantSignature(
+    (beforeJson.therapies_json ?? []) as TreatmentPlanTherapyEntry[],
+    (beforeJson.schedule_pattern_json ?? []) as TreatmentPlanScheduleSlot[],
+  )
 
   // Ya no hay "terapista principal" en la UI. Mantenemos la columna por
   // compatibilidad (fallback del RPC del ciclo, historial): la derivamos como la
@@ -265,8 +304,51 @@ export async function upsertTreatmentPlan(
     notes: input.notes ?? null,
   })
 
+  // ── Sincronizar la agenda: si cambió el horario/terapias y ya hay ciclos
+  //    PENDIENTES, regenerar sus citas para que la agenda refleje el plan nuevo.
+  //    (El plan es plantilla; las citas las crea el ciclo. Sin esto, editar el
+  //    plan no movía las citas ya generadas — bug reportado.)
+  //    Solo planes SIN programa matutino: los matutinos se generan por grupo y se
+  //    ajustan desde el ciclo, no desde el horario del plan.
+  let regen: PlanRegenSummary | undefined
+  const afterSignature = computeRelevantSignature(therapiesValidated, scheduleValidated)
+  const hasMorning = therapiesValidated.some(
+    (t) => t.active && isMorningProgramService(t.service),
+  )
+  if (kind === 'update' && afterSignature !== beforeSignature && !hasMorning) {
+    const sv = toZonedTime(new Date(), 'America/El_Salvador')
+    const currentMonthStart = `${sv.getFullYear()}-${String(sv.getMonth() + 1).padStart(2, '0')}-01`
+
+    const { data: cyclesRaw } = await supabase
+      .from('monthly_session_cycles')
+      .select('id, period_month')
+      .eq('child_id', input.childId)
+      .eq('status', 'generated')
+      .eq('payment_status', 'pending')
+      .gte('period_month', currentMonthStart)
+
+    let regenerated = 0
+    const conflictMonths: string[] = []
+    for (const c of (cyclesRaw ?? []) as { id: string; period_month: string }[]) {
+      const { error: rErr } = await supabase.rpc('regenerate_cycle_appointments', {
+        p_cycle_id: c.id,
+        p_appointments_override: null,
+      })
+      if (rErr) {
+        conflictMonths.push(c.period_month.slice(0, 7))
+      } else {
+        regenerated += 1
+      }
+    }
+    if (regenerated > 0 || conflictMonths.length > 0) {
+      regen = { regenerated, conflictMonths }
+    }
+  }
+
   revalidatePath(`/familias`)
-  return { ok: true, plan: saved }
+  revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
+  return { ok: true, plan: saved, regen }
 }
 
 export async function deactivateTreatmentPlan(
