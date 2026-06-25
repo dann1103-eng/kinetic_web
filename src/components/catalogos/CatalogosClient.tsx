@@ -8,6 +8,7 @@ import {
 } from '@/app/actions/service-catalog'
 import {
   SERVICE_CATEGORY_LABELS,
+  SERVICE_CATEGORY_ORDER,
   SERVICE_TYPE_LABELS,
   type ServiceCatalogItem,
   type ServiceCategory,
@@ -30,10 +31,24 @@ export function CatalogosClient({ items: initial }: Props) {
   const [tab, setTab] = useState<Tab>('precios')
   const [items, setItems] = useState<ServiceCatalogItem[]>(initial)
 
-  const therapyItems = useMemo(
-    () => items.filter((i) => i.category === 'terapia_individual'),
-    [items],
-  )
+  // Categorías con costo interno (pago a quien realiza el servicio): no solo
+  // terapias — también entrevistas, asesorías y evaluaciones de todo tipo.
+  const costGrouped = useMemo(() => {
+    const allowed = new Set<ServiceCategory>([
+      'terapia_individual', 'entrevista', 'asesoria',
+      'evaluacion', 'evaluacion_dx_tea', 'evaluacion_psicologica',
+    ])
+    const map = new Map<ServiceCategory, ServiceCatalogItem[]>()
+    for (const it of items) {
+      if (!allowed.has(it.category)) continue
+      const arr = map.get(it.category) ?? []
+      arr.push(it)
+      map.set(it.category, arr)
+    }
+    return SERVICE_CATEGORY_ORDER.filter((c) => map.has(c)).map(
+      (c) => [c, map.get(c)!] as [ServiceCategory, ServiceCatalogItem[]],
+    )
+  }, [items])
 
   // Agrupar por categoría para la pestaña de precios.
   const grouped = useMemo(() => {
@@ -95,33 +110,40 @@ export function CatalogosClient({ items: initial }: Props) {
           ))}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-6">
           <p className="text-xs text-fm-on-surface-variant">
-            Costo interno por terapia (lo que se le paga a la terapista). Alimenta la planilla
-            por terapias y las terapias extra de contratos mensuales fijos.
+            Costo interno (lo que se le paga a quien realiza el servicio). Alimenta la planilla
+            de servicios profesionales y las terapias extra de contratos mensuales fijos.
           </p>
-          {therapyItems.length === 0 ? (
+          {costGrouped.length === 0 ? (
             <p className="text-sm text-fm-on-surface-variant">
-              No hay terapias individuales en el catálogo.
+              No hay servicios con costo en el catálogo.
             </p>
           ) : (
-            <div className="rounded-xl border border-fm-outline-variant/20 overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-fm-surface-container-low text-[10px] uppercase tracking-wide text-fm-on-surface-variant">
-                  <tr>
-                    <th className="text-left px-3 py-2 font-semibold">Terapia</th>
-                    <th className="text-right px-3 py-2 font-semibold w-28">Precio cobro</th>
-                    <th className="text-right px-3 py-2 font-semibold w-32">Costo / terapia</th>
-                    <th className="w-24" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {therapyItems.map((it) => (
-                    <CostRow key={it.id} item={it} onSaved={applyLocal} />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            costGrouped.map(([cat, rows]) => (
+              <section key={cat} className="space-y-1.5">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">
+                  {SERVICE_CATEGORY_LABELS[cat] ?? cat}
+                </h3>
+                <div className="rounded-xl border border-fm-outline-variant/20 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-fm-surface-container-low text-[10px] uppercase tracking-wide text-fm-on-surface-variant">
+                      <tr>
+                        <th className="text-left px-3 py-2 font-semibold">Servicio</th>
+                        <th className="text-right px-3 py-2 font-semibold w-28">Precio cobro</th>
+                        <th className="text-right px-3 py-2 font-semibold w-32">Costo interno</th>
+                        <th className="w-24" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((it) => (
+                        <CostRow key={it.id} item={it} onSaved={applyLocal} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ))
           )}
         </div>
       )}
