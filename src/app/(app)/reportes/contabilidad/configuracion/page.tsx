@@ -55,7 +55,7 @@ export default async function ContabilidadConfigPage() {
     hire_date: string | null
   }>
 
-  const canEditConfig = ctx.appUser.role === 'admin'
+  const canEditConfig = ALLOWED_ROLES.includes(ctx.appUser.role)
 
   return (
     <div className="flex flex-col min-h-full">
