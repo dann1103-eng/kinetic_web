@@ -72,7 +72,7 @@ export async function updateActiveFiscalConfig(
   },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { supabase, user } = await getActor()
-  if (user.role !== 'admin') return { ok: false, error: 'Solo admin puede modificar la configuración fiscal.' }
+  if (!canManagePayroll(user.role)) return { ok: false, error: 'Solo admin/directora/contable/recepción pueden modificar la configuración fiscal.' }
 
   // Crea nueva versión "activa desde hoy". Mantiene el historial.
   const today = new Date().toISOString().slice(0, 10)
