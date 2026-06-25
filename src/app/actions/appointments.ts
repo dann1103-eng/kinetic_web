@@ -257,6 +257,96 @@ export async function rescheduleAppointment(
   return { ok: true, newAppointmentId: created.id }
 }
 
+/** Roles que pueden mover citas por drag-and-drop en la agenda. */
+const DRAG_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion']
+
+/**
+ * Mueve UNA cita a un nuevo horario (drag-and-drop en la agenda). Cambia solo
+ * starts_at/ends_at de esa fila — NO crea reagendamiento ni toca otras citas ni
+ * el ciclo. Valida que el espacio esté libre (sin solape del mismo terapista) y
+ * que no caiga en un cierre institucional. Solo coordinadoras/admin/recepción.
+ */
+export async function moveAppointment(
+  appointmentId: string,
+  newStartsAt: string,
+  newEndsAt: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+  if (!DRAG_ROLES.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos para mover citas' }
+  }
+
+  const start = new Date(newStartsAt)
+  const end = new Date(newEndsAt)
+  if (!(end.getTime() > start.getTime())) {
+    return { ok: false, error: 'Horario inválido' }
+  }
+
+  const supabase = await createClient()
+
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id, therapist_id, status, event_type')
+    .eq('id', appointmentId)
+    .maybeSingle()
+  if (!appt) return { ok: false, error: 'Cita no encontrada' }
+
+  // Solo se mueven citas que aún no se realizaron.
+  if (!['scheduled', 'replacement'].includes(appt.status)) {
+    return {
+      ok: false,
+      error: 'Solo se pueden mover citas programadas (no completadas, inasistencias ni canceladas).',
+    }
+  }
+
+  // No mover a un día de cierre institucional.
+  const { data: closures } = await supabase
+    .from('institutional_calendar')
+    .select('*')
+    .gte('date', newStartsAt.slice(0, 10))
+    .lte('date', newEndsAt.slice(0, 10))
+  const affecting = findClosureAffecting(newStartsAt, closures ?? [])
+  if (affecting) {
+    return { ok: false, error: `Centro cerrado ese día: ${affecting.name}. Elegí otro horario.` }
+  }
+
+  // Validar que el terapista tenga el espacio libre (sin solape), excluyendo esta cita.
+  if (appt.therapist_id) {
+    const dayStart = new Date(start)
+    dayStart.setHours(0, 0, 0, 0)
+    const dayEnd = new Date(start)
+    dayEnd.setHours(23, 59, 59, 999)
+    const { data: sameDay } = await supabase
+      .from('appointments')
+      .select('id, starts_at, ends_at')
+      .eq('therapist_id', appt.therapist_id)
+      .in('status', ['scheduled', 'in_progress', 'replacement'])
+      .gte('starts_at', dayStart.toISOString())
+      .lte('starts_at', dayEnd.toISOString())
+      .neq('id', appointmentId)
+    const overlap = (sameDay ?? []).find((a) =>
+      appointmentsOverlap(a as { starts_at: string; ends_at: string }, {
+        starts_at: newStartsAt,
+        ends_at: newEndsAt,
+      }),
+    )
+    if (overlap) {
+      return { ok: false, error: 'Ese espacio ya está ocupado por otra cita del terapista.' }
+    }
+  }
+
+  const { error } = await supabase
+    .from('appointments')
+    .update({ starts_at: newStartsAt, ends_at: newEndsAt })
+    .eq('id', appointmentId)
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
+  return { ok: true }
+}
+
 export async function cancelAppointment(
   appointmentId: string,
   reason: 'late_cancel' | 'no_show' | 'sick' | 'other' = 'other',

@@ -15,18 +15,23 @@
  * deriva las clases de fondo/anillo desde KINETIC_EVENT_PALETTES.
  */
 
-import { useMemo, useState, useCallback } from 'react'
+import { useMemo, useState, useCallback, type ComponentType } from 'react'
 import {
   Calendar,
   dateFnsLocalizer,
   Views,
   type View,
   type EventProps,
+  type CalendarProps,
   type Event as RBCEvent,
 } from 'react-big-calendar'
+import withDragAndDrop, {
+  type EventInteractionArgs,
+} from 'react-big-calendar/lib/addons/dragAndDrop'
 import { format, parse, startOfWeek, getDay } from 'date-fns'
 import { es } from 'date-fns/locale'
 import 'react-big-calendar/lib/css/react-big-calendar.css'
+import 'react-big-calendar/lib/addons/dragAndDrop/styles.css'
 
 const locales = { es }
 const localizer = dateFnsLocalizer({
@@ -36,6 +41,12 @@ const localizer = dateFnsLocalizer({
   getDay,
   locales,
 })
+
+/** Calendario con drag-and-drop (addon de react-big-calendar). Se usa solo
+ *  cuando el consumer habilita `onEventDrop`; el resto usa el Calendar normal. */
+const DragAndDropCalendar = withDragAndDrop<KineticEventDatum>(
+  Calendar as ComponentType<CalendarProps<KineticEventDatum>>,
+)
 
 /** Paleta de colores de evento. Cada `colorKey` mapea a un set bg + ring + text. */
 export const KINETIC_EVENT_PALETTES: Record<
@@ -389,6 +400,13 @@ interface KineticCalendarProps<T extends KineticEventDatum> {
   hideToolbar?: boolean
   /** Componentes custom para drag-and-drop wrappers etc. */
   components?: Record<string, unknown>
+  /** Habilita drag-and-drop: mover una cita a otro horario. Si se provee, el
+   *  calendario usa el addon de DnD. */
+  onEventDrop?: (args: { event: T; start: Date; end: Date }) => void
+  /** Redimensionar una cita (cambiar duración) arrastrando el borde. */
+  onEventResize?: (args: { event: T; start: Date; end: Date }) => void
+  /** Decide qué eventos son arrastrables (default: todos, si hay onEventDrop). */
+  draggableAccessor?: (event: T) => boolean
 }
 
 const DEFAULT_VIEWS: View[] = [Views.MONTH, Views.WEEK, Views.DAY]
@@ -412,6 +430,9 @@ export function KineticCalendar<T extends KineticEventDatum>({
   toolbarRightSlot,
   hideToolbar = false,
   components: extraComponents,
+  onEventDrop,
+  onEventResize,
+  draggableAccessor,
 }: KineticCalendarProps<T>) {
   const [internalView, setInternalView] = useState<View>(defaultView)
   const [internalDate, setInternalDate] = useState<Date>(() => new Date())
@@ -479,42 +500,67 @@ export function KineticCalendar<T extends KineticEventDatum>({
         />
       )}
       <div className="flex-1 calendar-wrapper min-h-0">
-        <Calendar<T>
-          localizer={localizer}
-          events={events}
-          startAccessor="start"
-          endAccessor="end"
-          view={view}
-          onView={setView}
-          date={date}
-          onNavigate={setDate}
-          views={views}
-          step={step}
-          timeslots={timeslots}
-          min={min}
-          max={max}
-          selectable={selectable}
-          onSelectSlot={onSelectSlot}
-          onSelectEvent={onSelectEvent}
-          eventPropGetter={eventStyleGetter}
-          dayPropGetter={dayPropGetter}
-          culture="es"
-          components={calComponents}
-          messages={{
-            today: 'Hoy',
-            previous: 'Anterior',
-            next: 'Siguiente',
-            month: 'Mes',
-            week: 'Semana',
-            day: 'Día',
-            agenda: 'Lista',
-            date: 'Fecha',
-            time: 'Hora',
-            event: 'Evento',
-            noEventsInRange: 'Sin citas en este rango.',
-            showMore: (n) => `+${n} más`,
-          }}
-        />
+        {(() => {
+          const sharedProps = {
+            localizer,
+            events,
+            startAccessor: 'start' as const,
+            endAccessor: 'end' as const,
+            view,
+            onView: setView,
+            date,
+            onNavigate: setDate,
+            views,
+            step,
+            timeslots,
+            min,
+            max,
+            selectable,
+            onSelectSlot,
+            onSelectEvent,
+            eventPropGetter: eventStyleGetter,
+            dayPropGetter,
+            culture: 'es',
+            components: calComponents,
+            messages: {
+              today: 'Hoy',
+              previous: 'Anterior',
+              next: 'Siguiente',
+              month: 'Mes',
+              week: 'Semana',
+              day: 'Día',
+              agenda: 'Lista',
+              date: 'Fecha',
+              time: 'Hora',
+              event: 'Evento',
+              noEventsInRange: 'Sin citas en este rango.',
+              showMore: (n: number) => `+${n} más`,
+            },
+          }
+
+          if (onEventDrop) {
+            return (
+              <DragAndDropCalendar
+                {...(sharedProps as unknown as CalendarProps<KineticEventDatum>)}
+                onEventDrop={(a: EventInteractionArgs<KineticEventDatum>) =>
+                  onEventDrop({ event: a.event as T, start: new Date(a.start), end: new Date(a.end) })
+                }
+                onEventResize={
+                  onEventResize
+                    ? (a: EventInteractionArgs<KineticEventDatum>) =>
+                        onEventResize({ event: a.event as T, start: new Date(a.start), end: new Date(a.end) })
+                    : undefined
+                }
+                draggableAccessor={
+                  draggableAccessor ? (e) => draggableAccessor(e as T) : undefined
+                }
+                resizable={!!onEventResize}
+              />
+            )
+          }
+
+          return <Calendar {...(sharedProps as unknown as CalendarProps<T>)} />
+        })()}
       </div>
     </div>
   )

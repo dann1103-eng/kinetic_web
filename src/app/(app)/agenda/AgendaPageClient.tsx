@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { moveAppointment } from '@/app/actions/appointments'
 import {
   EVENT_TYPE_LABELS,
   SERVICE_TYPE_LABELS,
@@ -71,6 +72,16 @@ const STAFF_ROLES_SCHEDULE = new Set([
   'recepcion',
 ])
 
+// Roles que pueden mover citas por drag-and-drop (debe coincidir con DRAG_ROLES
+// del server action moveAppointment).
+const DRAG_ROLES = new Set([
+  'admin',
+  'directora',
+  'coordinadora_terapias',
+  'coordinadora_familias',
+  'recepcion',
+])
+
 export function AgendaPageClient({
   currentUserRole,
   currentUserId,
@@ -86,7 +97,17 @@ export function AgendaPageClient({
   // restricciones: solo ven las citas donde son el terapista asignado).
   const isTherapist = currentUserRole === 'terapista' || currentUserRole === 'maestra'
   const canSchedule = STAFF_ROLES_SCHEDULE.has(currentUserRole)
+  // Solo coordinadoras / admin / directora / recepción pueden mover citas (DnD).
+  const canDrag = DRAG_ROLES.has(currentUserRole)
+  const router = useRouter()
   const searchParams = useSearchParams()
+
+  // Posiciones optimistas tras un drag (id → nuevo rango). Se aplican sobre las
+  // citas del prop para que el movimiento se vea al instante; el revalidate del
+  // server las confirma. Si la acción falla, se revierte borrando el override.
+  const [moveOverrides, setMoveOverrides] = useState<
+    Record<string, { starts_at: string; ends_at: string }>
+  >({})
 
   // Filtros
   // Terapista: bloqueado a sí mismo. Otros: leen ?therapistId=XX del URL
@@ -136,6 +157,10 @@ export function AgendaPageClient({
     })
 
     const apptBlocks: CalendarBlock[] = filtered.map((a) => {
+      // Posición optimista tras un drag (si la hay) para que se vea al instante.
+      const ov = moveOverrides[a.id]
+      const startIso = ov?.starts_at ?? a.starts_at
+      const endIso = ov?.ends_at ?? a.ends_at
       const child = childrenProp.find((c) => c.id === a.child_id)
       const therapist = therapists.find((t) => t.id === a.therapist_id)
       const childLabel = child?.full_name ?? 'Niño/a'
@@ -157,8 +182,8 @@ export function AgendaPageClient({
         id: a.id,
         title,
         subtitle,
-        start: new Date(a.starts_at),
-        end: new Date(a.ends_at),
+        start: new Date(startIso),
+        end: new Date(endIso),
         colorKey,
         tag,
         appointment: a,
@@ -191,7 +216,7 @@ export function AgendaPageClient({
       : []
 
     return [...apptBlocks, ...groupBlocks]
-  }, [initialAppointments, groupSessions, myGroupIds, filterTherapistId, filterEventTypes, filterServiceTypes, filterVirtualOnly, childrenProp, therapists])
+  }, [initialAppointments, groupSessions, myGroupIds, filterTherapistId, filterEventTypes, filterServiceTypes, filterVirtualOnly, childrenProp, therapists, moveOverrides])
 
   // Exportar PDF de las citas actualmente visibles (respeta filtros).
   const handleExportPdf = useCallback(() => {
@@ -241,6 +266,53 @@ export function AgendaPageClient({
       setModalOpen(true)
     },
     [],
+  )
+
+  // Mover una cita (drag-and-drop o resize). Cambia solo esa cita, no el ciclo.
+  const handleMove = useCallback(
+    ({ event, start, end }: { event: CalendarBlock; start: Date; end: Date }) => {
+      if (!canDrag || event.kind !== 'appointment') return
+      const appt = event.appointment
+      if (!['scheduled', 'replacement'].includes(appt.status)) return
+      const startIso = start.toISOString()
+      const endIso = end.toISOString()
+      if (startIso === appt.starts_at && endIso === appt.ends_at) return
+
+      // Optimista: pintar de una vez en el nuevo horario.
+      setMoveOverrides((prev) => ({ ...prev, [appt.id]: { starts_at: startIso, ends_at: endIso } }))
+
+      moveAppointment(appt.id, startIso, endIso)
+        .then((res) => {
+          if (!res.ok) {
+            // Revertir: quitar el override para que vuelva a su lugar.
+            setMoveOverrides((prev) => {
+              const next = { ...prev }
+              delete next[appt.id]
+              return next
+            })
+            window.alert(res.error)
+          } else {
+            router.refresh()
+          }
+        })
+        .catch(() => {
+          setMoveOverrides((prev) => {
+            const next = { ...prev }
+            delete next[appt.id]
+            return next
+          })
+          window.alert('No se pudo mover la cita. Revisá tu conexión e intentá de nuevo.')
+        })
+    },
+    [canDrag, router],
+  )
+
+  const draggableAccessor = useCallback(
+    (block: CalendarBlock) =>
+      canDrag &&
+      block.kind === 'appointment' &&
+      ['scheduled', 'replacement'].includes(block.appointment.status),
+    [canDrag],
   )
 
   const dayPropGetter = useCallback(
@@ -401,6 +473,11 @@ export function AgendaPageClient({
           <p>
             Click en slot vacío para crear cita.
           </p>
+          {canDrag && (
+            <p>
+              Arrastrá una cita para moverla a otro horario (solo si el espacio está libre).
+            </p>
+          )}
         </div>
       </aside>
 
@@ -417,6 +494,9 @@ export function AgendaPageClient({
           onSelectSlot={handleSelectSlot}
           onSelectEvent={handleSelectEvent}
           dayPropGetter={dayPropGetter}
+          onEventDrop={canDrag ? handleMove : undefined}
+          onEventResize={canDrag ? handleMove : undefined}
+          draggableAccessor={canDrag ? draggableAccessor : undefined}
         />
       </div>
 
