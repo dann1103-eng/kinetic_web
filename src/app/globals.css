@@ -558,6 +558,18 @@
     margin-right: 0 !important;
   }
 
+  /* ── Zoom horizontal de columnas (control en /agenda) ──
+     Cuando .kn-zoom está activo, el wrapper hace scroll horizontal y el time-view
+     toma un ancho mínimo (var --kn-week-min-width). Las columnas de día son flex:1,
+     así que se ensanchan por igual para llenar ese ancho — header y grid quedan
+     alineados sin tocar cada columna por separado. */
+  .calendar-wrapper.kn-zoom {
+    overflow-x: auto;
+  }
+  .calendar-wrapper.kn-zoom .rbc-time-view {
+    min-width: var(--kn-week-min-width, 100%);
+  }
+
   /* ── Month view: alturas y eventos ── */
   .calendar-wrapper .rbc-month-row {
     overflow: hidden;

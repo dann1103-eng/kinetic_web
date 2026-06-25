@@ -440,6 +440,10 @@ interface KineticCalendarProps<T extends KineticEventDatum> {
   onEventResize?: (args: { event: T; start: Date; end: Date }) => void
   /** Decide qué eventos son arrastrables (default: todos, si hay onEventDrop). */
   draggableAccessor?: (event: T) => boolean
+  /** Clase extra para el div `.calendar-wrapper` (ej. zoom horizontal). */
+  wrapperClassName?: string
+  /** Estilo inline para el wrapper (ej. variable CSS de ancho). */
+  wrapperStyle?: React.CSSProperties
 }
 
 const DEFAULT_VIEWS: View[] = [Views.MONTH, Views.WEEK, Views.DAY]
@@ -466,6 +470,8 @@ export function KineticCalendar<T extends KineticEventDatum>({
   onEventDrop,
   onEventResize,
   draggableAccessor,
+  wrapperClassName,
+  wrapperStyle,
 }: KineticCalendarProps<T>) {
   const [internalView, setInternalView] = useState<View>(defaultView)
   const [internalDate, setInternalDate] = useState<Date>(() => new Date())
@@ -532,7 +538,7 @@ export function KineticCalendar<T extends KineticEventDatum>({
           rightSlot={toolbarRightSlot}
         />
       )}
-      <div className="flex-1 calendar-wrapper min-h-0">
+      <div className={`flex-1 calendar-wrapper min-h-0 ${wrapperClassName ?? ''}`} style={wrapperStyle}>
         {(() => {
           const sharedProps = {
             localizer,

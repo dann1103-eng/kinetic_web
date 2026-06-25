@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, type CSSProperties } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { moveAppointment } from '@/app/actions/appointments'
 import {
@@ -140,6 +140,22 @@ export function AgendaPageClient({
   const [filterServiceTypes, setFilterServiceTypes] = useState<Set<ServiceType>>(new Set())
   const [filterVirtualOnly, setFilterVirtualOnly] = useState(false)
   const [exporting, setExporting] = useState(false)
+
+  // Filtros colapsables en pantallas angostas (móvil/tablet/ventana lateral).
+  const [filtersOpen, setFiltersOpen] = useState(false)
+
+  // Ancho de columnas de día (0 = automático). Persistido por usuario en localStorage.
+  const [dayWidth, setDayWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 0
+    return Number(window.localStorage.getItem('kn-agenda-day-width')) || 0
+  })
+  const setZoom = useCallback((w: number) => {
+    setDayWidth(w)
+    if (typeof window !== 'undefined') {
+      if (w > 0) window.localStorage.setItem('kn-agenda-day-width', String(w))
+      else window.localStorage.removeItem('kn-agenda-day-width')
+    }
+  }, [])
 
   // Modal de cita individual
   const [modalOpen, setModalOpen] = useState(false)
@@ -371,10 +387,81 @@ export function AgendaPageClient({
     [closures],
   )
 
+  const activeFilterCount =
+    (!isTherapist && filterTherapistId ? 1 : 0) +
+    filterEventTypes.size +
+    filterServiceTypes.size +
+    (filterVirtualOnly ? 1 : 0)
+
+  // Control de ancho de columnas (zoom horizontal). 0 = automático.
+  const ZOOM_MIN = 160
+  const ZOOM_MAX = 360
+  const ZOOM_STEP = 40
+  function zoomIn() {
+    setZoom(dayWidth === 0 ? ZOOM_MIN : Math.min(ZOOM_MAX, dayWidth + ZOOM_STEP))
+  }
+  function zoomOut() {
+    if (dayWidth === 0) return
+    const next = dayWidth - ZOOM_STEP
+    setZoom(next < ZOOM_MIN ? 0 : next)
+  }
+  const zoomStyle: CSSProperties | undefined =
+    dayWidth > 0 ? ({ '--kn-week-min-width': `${64 + 7 * dayWidth}px` } as CSSProperties) : undefined
+  const zoomSlot = (
+    <div
+      className="hidden sm:flex items-center gap-0.5 rounded-full border border-fm-outline-variant/40 bg-fm-surface-container-low p-0.5"
+      title="Ancho de columnas de día"
+    >
+      <button
+        type="button"
+        aria-label="Columnas más angostas"
+        onClick={zoomOut}
+        disabled={dayWidth === 0}
+        className="w-7 h-7 inline-flex items-center justify-center rounded-full hover:bg-fm-surface-container text-fm-on-surface-variant disabled:opacity-40"
+      >
+        <span className="material-symbols-outlined text-[18px]">remove</span>
+      </button>
+      <span className="material-symbols-outlined text-[16px] text-fm-on-surface-variant px-0.5" aria-hidden="true">
+        width
+      </span>
+      <button
+        type="button"
+        aria-label="Columnas más anchas"
+        onClick={zoomIn}
+        disabled={dayWidth >= ZOOM_MAX}
+        className="w-7 h-7 inline-flex items-center justify-center rounded-full hover:bg-fm-surface-container text-fm-on-surface-variant disabled:opacity-40"
+      >
+        <span className="material-symbols-outlined text-[18px]">add</span>
+      </button>
+    </div>
+  )
+
   return (
     <div className="flex flex-col lg:flex-row h-full">
       {/* Sidebar de filtros */}
-      <aside className="lg:w-64 border-b lg:border-b-0 lg:border-r border-fm-outline-variant/20 bg-fm-surface-container-low p-4 space-y-5 overflow-y-auto">
+      <aside className="lg:w-64 border-b lg:border-b-0 lg:border-r border-fm-outline-variant/20 bg-fm-surface-container-low overflow-y-auto shrink-0">
+        {/* Toggle: solo en pantallas angostas. En lg+ los filtros van fijos. */}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          aria-expanded={filtersOpen}
+          className="lg:hidden w-full flex items-center justify-between gap-2 px-4 py-3 text-sm font-semibold text-fm-on-surface"
+        >
+          <span className="inline-flex items-center gap-2">
+            <span className="material-symbols-outlined text-[20px]">tune</span>
+            Filtros
+            {activeFilterCount > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-fm-primary text-fm-on-primary">
+                {activeFilterCount}
+              </span>
+            )}
+          </span>
+          <span className="material-symbols-outlined text-[20px]">
+            {filtersOpen ? 'expand_less' : 'expand_more'}
+          </span>
+        </button>
+
+        <div className={`${filtersOpen ? 'block' : 'hidden'} lg:block p-4 space-y-5`}>
         <div>
           <h3 className="text-[10px] font-semibold uppercase tracking-wider text-fm-on-surface-variant mb-2">
             Terapista
@@ -540,6 +627,7 @@ export function AgendaPageClient({
             </p>
           )}
         </div>
+        </div>
       </aside>
 
       {/* Calendario */}
@@ -558,6 +646,9 @@ export function AgendaPageClient({
           onEventDrop={canDrag ? handleMove : undefined}
           onEventResize={canDrag ? handleMove : undefined}
           draggableAccessor={canDrag ? draggableAccessor : undefined}
+          toolbarRightSlot={zoomSlot}
+          wrapperClassName={dayWidth > 0 ? 'kn-zoom' : undefined}
+          wrapperStyle={zoomStyle}
         />
       </div>
 
