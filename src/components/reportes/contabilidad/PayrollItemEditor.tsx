@@ -87,6 +87,21 @@ export function PayrollItemEditor({ item, editable, isSp = false }: Props) {
           fmtUsd(Number(item.base_salary_usd))
         )}
       </td>
+      <td className="py-3 px-4 text-right">
+        {editable ? (
+          <input
+            type="number"
+            step="0.01"
+            min={0}
+            value={bonus}
+            onChange={(e) => setBonus(parseFloat(e.target.value) || 0)}
+            title="Otros ingresos (bonos / honorarios extra). Suman al bruto."
+            className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm font-medium"
+          />
+        ) : (
+          fmtUsd(Number(item.bonus_usd))
+        )}
+      </td>
       <td className="py-3 px-4 text-right text-fm-on-surface">
         {fmtUsd(Number(item.gross_total_usd))}
       </td>
@@ -109,7 +124,7 @@ export function PayrollItemEditor({ item, editable, isSp = false }: Props) {
       </td>
 
       {expanded && (
-        <td colSpan={6} className="px-4 pb-4 pt-0 bg-fm-surface-container-low">
+        <td colSpan={7} className="px-4 pb-4 pt-0 bg-fm-surface-container-low">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
             <div>
               <h4 className="text-xs font-extrabold uppercase tracking-wider text-fm-on-surface-variant mb-2">
@@ -142,16 +157,6 @@ export function PayrollItemEditor({ item, editable, isSp = false }: Props) {
                         </Field>
                       </>
                     )}
-                    <Field label={isSp ? 'Bonos / otros ingresos' : 'Bono / pago extra'}>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min={0}
-                        value={bonus}
-                        onChange={(e) => setBonus(parseFloat(e.target.value) || 0)}
-                        className="w-24 rounded border border-fm-outline-variant/40 bg-fm-background px-2 py-1 text-right text-sm"
-                      />
-                    </Field>
                     <Field label="Otras deducciones">
                       <input
                         type="number"

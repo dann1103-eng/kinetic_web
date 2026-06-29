@@ -135,6 +135,7 @@ export default async function PayrollRunDetailPage({ params }: PageProps) {
                 <tr>
                   <th className="text-left py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Empleado</th>
                   <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Base</th>
+                  <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Otros ingresos</th>
                   <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Bruto</th>
                   <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">{isSp ? 'Retención ISR' : 'Deducciones'}</th>
                   <th className="text-right py-3 px-4 font-extrabold text-fm-on-surface-variant uppercase text-xs tracking-wider">Neto</th>
@@ -149,6 +150,7 @@ export default async function PayrollRunDetailPage({ params }: PageProps) {
               <tfoot className="bg-fm-surface-container border-t-2 border-fm-on-surface/30">
                 <tr>
                   <td className="py-3 px-4 font-extrabold text-fm-on-surface">Totales</td>
+                  <td className="py-3 px-4 text-right text-fm-on-surface-variant">—</td>
                   <td className="py-3 px-4 text-right text-fm-on-surface-variant">—</td>
                   <td className="py-3 px-4 text-right font-extrabold text-fm-on-surface">{fmtUsd(totals.gross)}</td>
                   <td className="py-3 px-4 text-right font-extrabold text-rose-700">
