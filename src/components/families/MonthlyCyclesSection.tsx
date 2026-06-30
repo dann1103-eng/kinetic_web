@@ -204,7 +204,7 @@ export function MonthlyCyclesSection({
       {cycles.length === 0 ? (
         <p className="text-sm text-fm-on-surface-variant">
           Sin ciclos registrados. {canManage && plan
-            ? 'Cuando recepción registre un pago, se generan las citas del mes y la factura.'
+            ? 'Al generar el ciclo se crean las citas del mes en la agenda y la factura queda pendiente. El pago se registra después con “Marcar pagado” (no hace falta para que aparezca la agenda).'
             : ''}
         </p>
       ) : (

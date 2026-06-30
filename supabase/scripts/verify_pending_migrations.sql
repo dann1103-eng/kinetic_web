@@ -394,6 +394,23 @@ WITH checks AS (
          (SELECT COUNT(*)::int FROM information_schema.columns
           WHERE table_schema='public' AND table_name='payroll_runs'
             AND column_name='period_half')
+  UNION ALL
+  -- ── 0163 (el ciclo genera la agenda al GENERAR, no al pagar) ──────────────
+  -- confirm debe existir UNA sola vez (sin sobrecargas) y crear las citas.
+  SELECT 66, 'mig_0163_confirm_crea_citas_al_generar',
+         (SELECT (CASE WHEN COUNT(*) = 1
+                        AND bool_and(prosrc ILIKE '%insert into public.appointments%')
+                       THEN 1 ELSE 0 END)::int
+          FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid
+          WHERE n.nspname='public' AND p.proname='confirm_monthly_payment_and_generate')
+  UNION ALL
+  -- mark_paid NO debe crear citas (si las creara, habría duplicados al cobrar).
+  SELECT 67, 'mig_0163_markpaid_no_crea_citas',
+         (SELECT (CASE WHEN COUNT(*) >= 1
+                        AND bool_and(prosrc NOT ILIKE '%insert into public.appointments%')
+                       THEN 1 ELSE 0 END)::int
+          FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid
+          WHERE n.nspname='public' AND p.proname='mark_monthly_cycle_paid')
 )
 SELECT
   check_name,
