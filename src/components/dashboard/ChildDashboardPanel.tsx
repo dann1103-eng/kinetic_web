@@ -110,6 +110,9 @@ export function ChildDashboardPanel({ data, familyId, childId, childName }: Prop
             upcoming={upcoming}
             periodMonth={period_month}
             childName={childName}
+            // Que las flechas de la barra del calendario naveguen el mes por URL
+            // (server fetch), igual que las flechas de arriba del panel.
+            monthUrlBase={dashBase}
           />
         </section>
 

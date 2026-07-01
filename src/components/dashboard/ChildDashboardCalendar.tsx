@@ -16,6 +16,7 @@
  */
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { SERVICE_TYPE_LABELS, type ServiceType } from '@/types/db'
 import type {
   AttendanceCell,
@@ -38,6 +39,10 @@ interface Props {
   periodMonth: string
   /** Nombre del niño/a — usado como título al exportar el calendario a PDF. */
   childName?: string
+  /** Si se pasa, la navegación de mes de la barra del calendario hace fetch por
+   *  URL (igual que las flechas de arriba del panel) en vez de solo mover la
+   *  vista sin traer datos. Ej: '/familias/ID/children/CID?tab=dashboard'. */
+  monthUrlBase?: string
 }
 
 interface ChildEvent extends KineticEventDatum {
@@ -76,9 +81,27 @@ function serviceLabel(s: string | null | undefined): string {
 
 const VIEWS: View[] = ['month', 'week', 'day']
 
-export function ChildDashboardCalendar({ attendance, upcoming, periodMonth, childName }: Props) {
+export function ChildDashboardCalendar({ attendance, upcoming, periodMonth, childName, monthUrlBase }: Props) {
+  const router = useRouter()
   const [view, setView] = useState<View>('month')
   const [date, setDate] = useState<Date>(() => new Date(`${periodMonth}T12:00:00`))
+
+  // Navegación de la barra del calendario. En vista MENSUAL con monthUrlBase,
+  // mover de mes hace fetch por URL (trae los datos del nuevo mes) en vez de
+  // solo cambiar la vista sin datos — que era el control "muerto" de abajo.
+  function handleNavigate(action: 'PREV' | 'NEXT' | 'TODAY') {
+    if (monthUrlBase && view === 'month') {
+      if (action === 'TODAY') {
+        router.push(monthUrlBase)
+        return
+      }
+      const base = new Date(date.getFullYear(), date.getMonth() + (action === 'NEXT' ? 1 : -1), 1)
+      const nm = `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`
+      router.push(`${monthUrlBase}&month=${nm}`)
+      return
+    }
+    setDate(navigateCalendarDate(view, date, action))
+  }
 
   const events = useMemo<ChildEvent[]>(() => {
     const seen = new Set<string>()
@@ -140,7 +163,7 @@ export function ChildDashboardCalendar({ attendance, upcoming, periodMonth, chil
           view={view}
           views={VIEWS}
           onView={setView}
-          onNavigate={(action) => setDate(navigateCalendarDate(view, date, action))}
+          onNavigate={handleNavigate}
         />
         <button
           type="button"
