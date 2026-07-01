@@ -145,8 +145,13 @@ export async function getChildDashboardData(
   supabase: SupabaseClient<Database>,
   childId: string,
   now: Date = new Date(),
+  /** Mes a mostrar en la grilla ('YYYY-MM'). Default = mes de `now`. Permite
+   *  navegar a meses futuros/pasados (ej. ver el ciclo del próximo mes ya
+   *  agendado). "Hoy" y "próximas 14 días" siguen siendo relativas a `now`. */
+  viewMonth?: string,
 ): Promise<ChildDashboardData> {
-  const periodMonth = monthStartInSV(now)
+  const periodMonth =
+    viewMonth && /^\d{4}-\d{2}$/.test(viewMonth) ? `${viewMonth}-01` : monthStartInSV(now)
   const { startISO, endISO } = monthBoundsISO(periodMonth)
   const todayKey = todayInSVKey(now)
 
@@ -163,7 +168,7 @@ export async function getChildDashboardData(
 
   // Absences asociadas a esos appointments
   const apptIds = monthAppts.map((a) => a.id)
-  let absencesById = new Map<string, AppointmentAbsence>()
+  const absencesById = new Map<string, AppointmentAbsence>()
   if (apptIds.length > 0) {
     const { data: absRaw } = await supabase
       .from('appointment_absences')

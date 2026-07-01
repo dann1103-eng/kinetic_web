@@ -43,8 +43,47 @@ export function ChildDashboardPanel({ data, familyId, childId, childName }: Prop
   const hasPendingReplace = kpis.noShowPendingReplace > 0
   const next = upcoming[0] ?? null
 
+  // Navegación de mes de la grilla — permite ver la agenda de un ciclo futuro
+  // (o pasado) ya generado. Los KPIs y la grilla son del mes mostrado.
+  const dashBase = `/familias/${familyId}/children/${childId}?tab=dashboard`
+  const prevMonthHref = `${dashBase}&month=${shiftMonth(period_month, -1)}`
+  const nextMonthHref = `${dashBase}&month=${shiftMonth(period_month, 1)}`
+
   return (
     <div className="space-y-8">
+      {/* Navegación de mes */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1.5">
+          <Link
+            href={prevMonthHref}
+            aria-label="Mes anterior"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-fm-on-surface-variant hover:bg-fm-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fm-primary"
+          >
+            <span className="material-symbols-outlined text-xl" aria-hidden="true">
+              chevron_left
+            </span>
+          </Link>
+          <h2 className="text-base font-semibold text-fm-on-surface capitalize min-w-[8.5rem] text-center">
+            {monthLabel(period_month)}
+          </h2>
+          <Link
+            href={nextMonthHref}
+            aria-label="Mes siguiente"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-fm-on-surface-variant hover:bg-fm-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fm-primary"
+          >
+            <span className="material-symbols-outlined text-xl" aria-hidden="true">
+              chevron_right
+            </span>
+          </Link>
+        </div>
+        <Link
+          href={dashBase}
+          className="text-[11px] font-medium text-fm-primary hover:underline px-2 py-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fm-primary"
+        >
+          Mes actual
+        </Link>
+      </div>
+
       {/* Stats — KPIs como overview superior */}
       <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Kpi label="Programadas" value={kpis.scheduled} />
@@ -144,6 +183,13 @@ function monthLabel(periodMonth: string): string {
     month: 'long',
     year: 'numeric',
   })
+}
+
+/** 'YYYY-MM-01' (+/- delta meses) → 'YYYY-MM'. Determinista (sin leer el reloj). */
+function shiftMonth(periodMonth: string, delta: number): string {
+  const [y, m] = periodMonth.slice(0, 7).split('-').map(Number)
+  const base = new Date(y, m - 1 + delta, 1)
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}`
 }
 
 type KpiTone = 'ok' | 'ok-soft' | 'error' | 'neutral'

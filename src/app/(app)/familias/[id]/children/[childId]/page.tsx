@@ -50,12 +50,12 @@ export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ id: string; childId: string }>
-  searchParams: Promise<{ tab?: string; returnTo?: string }>
+  searchParams: Promise<{ tab?: string; returnTo?: string; month?: string }>
 }
 
 export default async function ChildProfilePage({ params, searchParams }: PageProps) {
   const { id: familyId, childId } = await params
-  const { tab: tabParam, returnTo } = await searchParams
+  const { tab: tabParam, returnTo, month: monthParam } = await searchParams
   const tab: 'resumen' | 'dashboard' = tabParam === 'dashboard' ? 'dashboard' : 'resumen'
   // Validar returnTo (solo rutas internas) para evitar open-redirect.
   const backHref = returnTo && returnTo.startsWith('/') ? returnTo : `/familias/${familyId}`
@@ -112,7 +112,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
     cycles = (cyclesRaw ?? []) as MonthlySessionCycle[]
     fullCatalog = (catalogRaw ?? []) as import('@/types/db').ServiceCatalogItem[]
   } else {
-    dashboardData = await getChildDashboardData(supabase, childId)
+    dashboardData = await getChildDashboardData(supabase, childId, new Date(), monthParam)
   }
 
   const ageYears = c.birth_date
