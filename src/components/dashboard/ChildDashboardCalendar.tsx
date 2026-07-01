@@ -154,7 +154,9 @@ export function ChildDashboardCalendar({ attendance, upcoming, periodMonth, chil
       </div>
 
       {view === 'month' ? (
-        <KineticMonthGrid<ChildEvent> events={events} date={date} />
+        // maxPillsPerCell alto: en el dashboard del niño queremos ver TODAS las
+        // citas del día sin el colapso "+N" (requerimiento: sin límites de vista).
+        <KineticMonthGrid<ChildEvent> events={events} date={date} maxPillsPerCell={99} />
       ) : (
         <KineticCalendar<ChildEvent>
           events={events}
