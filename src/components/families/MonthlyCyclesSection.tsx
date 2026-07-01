@@ -175,6 +175,132 @@ export function MonthlyCyclesSection({
     })
   }
 
+  // Render helpers compartidos por la tabla (desktop) y las tarjetas (móvil).
+  const renderStatusChips = (c: MonthlySessionCycle) => (
+    <>
+      <span className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_CHIP[c.status]}`}>
+        {MONTHLY_CYCLE_STATUS_LABELS[c.status]}
+      </span>
+      {c.status !== 'cancelled' && (
+        <span
+          className={`text-[10px] px-2 py-0.5 rounded-full ${
+            c.payment_status === 'paid'
+              ? 'bg-emerald-100 text-emerald-700'
+              : 'bg-amber-100 text-amber-800'
+          }`}
+        >
+          {c.payment_status === 'paid' ? 'Pagado' : 'Pendiente'}
+        </span>
+      )}
+    </>
+  )
+
+  const renderDuePaid = (c: MonthlySessionCycle) =>
+    c.payment_status === 'paid' ? (
+      c.paid_at ? new Date(c.paid_at).toLocaleDateString('es-SV') : '—'
+    ) : (
+      (() => {
+        const due = c.grace_extended_to ?? c.due_date
+        if (!due) return '—'
+        const overdue =
+          new Date(`${due.slice(0, 10)}T23:59:59`).getTime() < new Date().getTime()
+        return (
+          <span className={overdue ? 'text-fm-error font-medium' : ''}>
+            vence {new Date(`${due.slice(0, 10)}T12:00:00`).toLocaleDateString('es-SV')}
+            {c.grace_extended_to && <span title="Gracia prorrogada"> *</span>}
+          </span>
+        )
+      })()
+    )
+
+  const renderMoney = (c: MonthlySessionCycle) => (
+    <>
+      <div>{formatMoney(c.payment_amount_usd)}</div>
+      {c.surcharge_amount_usd > 0 && (
+        <div className="text-[10px] font-medium text-fm-error mt-0.5">
+          incl. recargo {formatMoney(c.surcharge_amount_usd)}
+        </div>
+      )}
+      {c.discount_kind && c.discount_kind !== 'none' && c.discount_value > 0 && (
+        <div className="text-[10px] font-medium text-emerald-700 mt-0.5">
+          {c.discount_kind === 'percent'
+            ? `−${c.discount_value}%`
+            : `−$${c.discount_value.toFixed(2)}`}
+          {c.discount_reason && (
+            <span className="text-fm-on-surface-variant" title={c.discount_reason}>
+              {' · '}
+              {c.discount_reason.length > 18
+                ? `${c.discount_reason.slice(0, 18)}…`
+                : c.discount_reason}
+            </span>
+          )}
+        </div>
+      )}
+    </>
+  )
+
+  const renderActions = (c: MonthlySessionCycle) => (
+    <>
+      {c.invoice_id && (
+        <Link
+          href={`/billing/invoices/${c.invoice_id}`}
+          className="text-xs font-semibold text-fm-primary hover:underline underline-offset-2"
+        >
+          Factura
+        </Link>
+      )}
+      {c.status === 'generated' && c.payment_status === 'pending' && canManage && (
+        <>
+          <button
+            type="button"
+            onClick={() => openPay(c.id)}
+            className="text-xs font-semibold text-emerald-700 hover:underline"
+          >
+            Marcar pagado
+          </button>
+          {plan && (
+            <button
+              type="button"
+              onClick={() => setEditingCycle(c)}
+              className="text-xs text-fm-primary hover:underline"
+            >
+              Editar
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => openExtend(c)}
+            className="text-xs text-fm-on-surface-variant hover:underline"
+          >
+            Prorrogar gracia
+          </button>
+        </>
+      )}
+      {c.status === 'generated' && canCancel && (
+        <button
+          type="button"
+          onClick={() => setCancellingId(c.id)}
+          className="text-xs text-red-600 hover:underline"
+        >
+          Anular
+        </button>
+      )}
+      {canDelete && (
+        <button
+          type="button"
+          onClick={() => {
+            setDeleteError(null)
+            setDeletingId(c.id)
+          }}
+          className="text-xs text-red-700 hover:underline"
+          title="Eliminar el ciclo por completo (factura y citas auto-generadas incluidas)"
+        >
+          Eliminar
+        </button>
+      )}
+    </>
+  )
+
   return (
     <div className="bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5 space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -208,7 +334,9 @@ export function MonthlyCyclesSection({
             : ''}
         </p>
       ) : (
-        <div className="rounded-xl border border-fm-outline-variant/20 overflow-hidden">
+        <>
+        {/* Desktop: tabla. overflow-x-auto (no -hidden) para no recortar acciones. */}
+        <div className="hidden sm:block rounded-xl border border-fm-outline-variant/20 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-fm-surface-container-low text-[10px] uppercase tracking-wide text-fm-on-surface-variant">
               <tr>
@@ -227,129 +355,20 @@ export function MonthlyCyclesSection({
                     {formatPeriod(c.period_month)}
                   </td>
                   <td className="px-3 py-1.5">
-                    <div className="flex flex-col gap-0.5 items-start">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full ${STATUS_CHIP[c.status]}`}>
-                        {MONTHLY_CYCLE_STATUS_LABELS[c.status]}
-                      </span>
-                      {c.status !== 'cancelled' && (
-                        <span
-                          className={`text-[10px] px-2 py-0.5 rounded-full ${
-                            c.payment_status === 'paid'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {c.payment_status === 'paid' ? 'Pagado' : 'Pendiente'}
-                        </span>
-                      )}
-                    </div>
+                    <div className="flex flex-col gap-0.5 items-start">{renderStatusChips(c)}</div>
                   </td>
-                  <td className="text-right px-3 py-1.5 tabular-nums text-fm-on-surface-variant">
-                    {c.payment_status === 'paid'
-                      ? c.paid_at
-                        ? new Date(c.paid_at).toLocaleDateString('es-SV')
-                        : '—'
-                      : (() => {
-                          const due = c.grace_extended_to ?? c.due_date
-                          if (!due) return '—'
-                          const overdue =
-                            new Date(`${due.slice(0, 10)}T23:59:59`).getTime() < new Date().getTime()
-                          return (
-                            <span className={overdue ? 'text-fm-error font-medium' : ''}>
-                              vence {new Date(`${due.slice(0, 10)}T12:00:00`).toLocaleDateString('es-SV')}
-                              {c.grace_extended_to && <span title="Gracia prorrogada"> *</span>}
-                            </span>
-                          )
-                        })()}
+                  <td className="text-right px-3 py-1.5 tabular-nums text-fm-on-surface-variant whitespace-nowrap">
+                    {renderDuePaid(c)}
                   </td>
                   <td className="text-right px-3 py-1.5 tabular-nums">
                     {c.appointments_generated_count}
                   </td>
                   <td className="text-right px-3 py-1.5 tabular-nums font-medium">
-                    <div>{formatMoney(c.payment_amount_usd)}</div>
-                    {c.surcharge_amount_usd > 0 && (
-                      <div className="text-[10px] font-medium text-fm-error mt-0.5">
-                        incl. recargo {formatMoney(c.surcharge_amount_usd)}
-                      </div>
-                    )}
-                    {c.discount_kind && c.discount_kind !== 'none' && c.discount_value > 0 && (
-                      <div className="text-[10px] font-medium text-emerald-700 mt-0.5">
-                        {c.discount_kind === 'percent'
-                          ? `−${c.discount_value}%`
-                          : `−$${c.discount_value.toFixed(2)}`}
-                        {c.discount_reason && (
-                          <span
-                            className="text-fm-on-surface-variant"
-                            title={c.discount_reason}
-                          >
-                            {' · '}
-                            {c.discount_reason.length > 18
-                              ? `${c.discount_reason.slice(0, 18)}…`
-                              : c.discount_reason}
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    {renderMoney(c)}
                   </td>
                   <td className="px-3 py-1.5 text-right">
-                    <div className="flex items-center justify-end gap-3">
-                      {c.invoice_id && (
-                        <Link
-                          href={`/billing/invoices/${c.invoice_id}`}
-                          className="text-xs font-semibold text-fm-primary hover:underline underline-offset-2"
-                        >
-                          Factura
-                        </Link>
-                      )}
-                      {c.status === 'generated' && c.payment_status === 'pending' && canManage && (
-                        <>
-                          <button
-                            type="button"
-                            onClick={() => openPay(c.id)}
-                            className="text-xs font-semibold text-emerald-700 hover:underline"
-                          >
-                            Marcar pagado
-                          </button>
-                          {plan && (
-                            <button
-                              type="button"
-                              onClick={() => setEditingCycle(c)}
-                              className="text-xs text-fm-primary hover:underline"
-                            >
-                              Editar
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => openExtend(c)}
-                            className="text-xs text-fm-on-surface-variant hover:underline"
-                          >
-                            Prorrogar gracia
-                          </button>
-                        </>
-                      )}
-                      {c.status === 'generated' && canCancel && (
-                        <button
-                          type="button"
-                          onClick={() => setCancellingId(c.id)}
-                          className="text-xs text-red-600 hover:underline"
-                        >
-                          Anular
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDeleteError(null)
-                            setDeletingId(c.id)
-                          }}
-                          className="text-xs text-red-700 hover:underline"
-                          title="Eliminar el ciclo por completo (factura y citas auto-generadas incluidas)"
-                        >
-                          Eliminar
-                        </button>
-                      )}
+                    <div className="flex items-center justify-end gap-3 whitespace-nowrap">
+                      {renderActions(c)}
                     </div>
                   </td>
                 </tr>
@@ -357,6 +376,35 @@ export function MonthlyCyclesSection({
             </tbody>
           </table>
         </div>
+
+        {/* Móvil: tarjetas apiladas — todas las acciones visibles (sin recorte). */}
+        <div className="sm:hidden space-y-3">
+          {cycles.map((c) => (
+            <div
+              key={c.id}
+              className="rounded-xl border border-fm-outline-variant/20 p-3.5 space-y-2.5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="font-medium text-fm-on-surface capitalize">
+                  {formatPeriod(c.period_month)}
+                </span>
+                <div className="text-right tabular-nums font-medium text-fm-on-surface">
+                  {renderMoney(c)}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">{renderStatusChips(c)}</div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fm-on-surface-variant tabular-nums">
+                <span>{renderDuePaid(c)}</span>
+                <span aria-hidden="true">·</span>
+                <span>{c.appointments_generated_count} citas</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 border-t border-fm-outline-variant/10">
+                {renderActions(c)}
+              </div>
+            </div>
+          ))}
+        </div>
+        </>
       )}
 
       {showCreate && plan && (
