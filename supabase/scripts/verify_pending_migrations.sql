@@ -411,6 +411,15 @@ WITH checks AS (
                        THEN 1 ELSE 0 END)::int
           FROM pg_proc p JOIN pg_namespace n ON p.pronamespace = n.oid
           WHERE n.nspname='public' AND p.proname='mark_monthly_cycle_paid')
+  UNION ALL
+  -- ── 0164 (agendar evaluaciones: extra_reason permite 'evaluacion') ────────
+  SELECT 68, 'mig_0164_extra_reason_permite_evaluacion',
+         (SELECT (CASE WHEN COUNT(*) >= 1 THEN 1 ELSE 0 END)::int
+          FROM pg_constraint
+          WHERE conrelid = 'public.appointments'::regclass
+            AND contype = 'c'
+            AND pg_get_constraintdef(oid) ILIKE '%extra_reason%'
+            AND pg_get_constraintdef(oid) ILIKE '%evaluacion%')
 )
 SELECT
   check_name,
