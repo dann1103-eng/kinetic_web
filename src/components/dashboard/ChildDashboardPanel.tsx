@@ -102,6 +102,10 @@ export function ChildDashboardPanel({ data, familyId, childId, childName }: Prop
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <section className="lg:col-span-8 bg-fm-surface-container-lowest rounded-2xl border border-fm-outline-variant/20 p-5">
           <ChildDashboardCalendar
+            // Remonta el calendario al cambiar de mes: su fecha interna se
+            // inicializa desde periodMonth solo al montar, así que sin este key
+            // navegar a julio dejaría la grilla en junio (mostrando vacío).
+            key={period_month}
             attendance={attendance}
             upcoming={upcoming}
             periodMonth={period_month}
