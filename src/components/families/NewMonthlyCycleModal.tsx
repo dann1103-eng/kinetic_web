@@ -257,24 +257,26 @@ export function NewMonthlyCycleModal({
         return
       }
       setDryRun(res.result)
-      setEditedCandidates(res.result.candidates)
+      // WYSIWYG: el calendario arranca con TODO el patrón del mes — las dentro de
+      // cuota MÁS las que la cuota del plan dejaba fuera (skipped_overquota). Lo
+      // que se ve = lo que se crea. La persona puede quitar las que no quiera con
+      // − o ✕. Así no se "corta a media de mes" por una cuota más baja que el patrón.
+      const fullPattern = [...res.result.candidates, ...res.result.skipped_overquota].sort(
+        (a, b) => a.starts_at.localeCompare(b.starts_at),
+      )
+      setEditedCandidates(fullPattern)
       setHasEdits(false)
-      // Sincronizar las sesiones a COBRAR con las que realmente se generan
-      // (ej. menos por asuetos), pero solo para terapias con citas en el
-      // calendario y sin rollover acumulado (ese modo suma citas sin recobrar).
+      // Sincronizar las sesiones a COBRAR con las citas mostradas (todo el patrón),
+      // salvo en rollover acumulado (ese modo suma citas sin recobrar).
       if (rolloverMode === 'none') {
         const genCount: Record<string, number> = {}
-        for (const c of res.result.candidates) {
+        for (const c of fullPattern) {
           genCount[c.service] = (genCount[c.service] ?? 0) + 1
-        }
-        const poolCount: Record<string, number> = {}
-        for (const c of [...res.result.candidates, ...res.result.skipped_overquota]) {
-          poolCount[c.service] = (poolCount[c.service] ?? 0) + 1
         }
         setPriced((prev) =>
           prev.map((row) =>
-            (poolCount[row.service] ?? 0) > 0
-              ? { ...row, sessions_per_month: genCount[row.service] ?? 0 }
+            (genCount[row.service] ?? 0) > 0
+              ? { ...row, sessions_per_month: genCount[row.service] }
               : row,
           ),
         )
@@ -374,7 +376,11 @@ export function NewMonthlyCycleModal({
 
   function handleResetEdits() {
     if (!dryRun) return
-    setEditedCandidates(dryRun.candidates)
+    // Restaurar = TODO el patrón del mes (igual que al cargar la previsualización).
+    const fullPattern = [...dryRun.candidates, ...dryRun.skipped_overquota].sort(
+      (a, b) => a.starts_at.localeCompare(b.starts_at),
+    )
+    setEditedCandidates(fullPattern)
     setHasEdits(false)
   }
 
@@ -402,8 +408,11 @@ export function NewMonthlyCycleModal({
         periodMonth,
         paymentAmountUsd: computedTotal,
         notes: notes.trim() || null,
-        // Si el usuario movió fechas, mandar el override; si no, dejar que el RPC re-compute.
-        appointmentsOverride: hasEdits ? editedCandidates : undefined,
+        // WYSIWYG: se crean EXACTAMENTE las citas que muestra el calendario (todo el
+        // patrón del mes, menos las que la persona haya quitado). Sin tope de cuota
+        // oculto. Si no hay ninguna (ej. niño solo con programa matutino) va []
+        // y el RPC no inserta citas por-sesión (las matutinas van por su propio flujo).
+        appointmentsOverride: editedCandidates,
         discountKind,
         discountValue,
         discountReason: discountReason.trim() || null,
@@ -721,9 +730,14 @@ export function NewMonthlyCycleModal({
                     tone="info"
                   />
                   <Stat
-                    label="Saltadas (cuota)"
-                    value={dryRun.summary.skipped_overquota_count}
-                    tone={dryRun.summary.skipped_overquota_count > 0 ? 'info' : 'ok'}
+                    label="Quitadas"
+                    value={Math.max(
+                      0,
+                      dryRun.candidates.length +
+                        dryRun.skipped_overquota.length -
+                        editedCandidates.length,
+                    )}
+                    tone="info"
                   />
                 </div>
 
@@ -780,27 +794,9 @@ export function NewMonthlyCycleModal({
                   </details>
                 )}
 
-                {dryRun.skipped_overquota.length > 0 && (
-                  <details className="text-xs" open>
-                    <summary className="cursor-pointer text-amber-800 hover:underline font-medium">
-                      Ver {dryRun.skipped_overquota.length} cita(s) saltada(s) por cuota
-                    </summary>
-                    <ul className="mt-1 ml-4 space-y-0.5">
-                      {dryRun.skipped_overquota.map((c, i) => (
-                        <li key={i} className="text-amber-900">
-                          • {formatDateTime(c.starts_at)} —{' '}
-                          {SERVICE_TYPE_LABELS[c.service as ServiceType] ?? c.service}
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="mt-1 ml-4 text-[11px] text-amber-700/80 italic">
-                      El patrón semanal generaba más sesiones que la cuota
-                      mensual del plan. Se mantienen las primeras cronológicas.
-                      Si el caso real es esa cantidad mayor, subí la cuota en
-                      el plan.
-                    </p>
-                  </details>
-                )}
+                {/* La cuota del plan ya no recorta la agenda: el calendario arriba
+                    muestra TODO el patrón del mes y esas son las citas que se crean.
+                    Para dar menos, quitalas con − o ✕. */}
               </div>
             )}
           </section>
