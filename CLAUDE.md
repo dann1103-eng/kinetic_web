@@ -324,13 +324,16 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0162** | Bucket de Storage para adjuntos del chat. |
 | **0163** | **El ciclo crea las citas al GENERAR, no al pagar.** Re-asegura `confirm_monthly_payment_and_generate` (crea citas + factura `pending`, `paid_at` NULL) y `mark_monthly_cycle_paid` (solo pago, NO crea citas). Backfill de ciclos viejos: `scripts/backfill_0163_cycle_appointments.sql` (en tandas). |
 | **0164** | Amplía el CHECK de `appointments.extra_reason` para incluir `'evaluacion'`. Sin esto, agendar evaluaciones truena con `appointments_extra_*_check` (el código inserta `extra_reason='evaluacion'` desde 0156, pero ninguna migración había ampliado el dominio que nació en 0142). |
+| **0165** | **Comentarios en lista de espera**: tabla `waitlist_entry_comments` (bitácora por entrada) + RLS (mismos roles de gestión que la lista). UI en el modal de detalle (pipeline) y en modal desde la tabla. |
+| **0166** | **Auto-archivar niños dados de baja hace >3 meses** (reversible): `children.archived_at` + RPC `archive_stale_discharged_children()` (idempotente, la llama `daily-cycle-runner` STEP 0). Listados ocultan archivados (`/ninos` con toggle "Ver archivados"); acción `unarchiveChild` + banner "Restaurar" en la ficha. |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
-> migración automática. **El repo va hasta 0164; próximo libre = 0165.**
-> ✅ **Todas las migraciones (hasta 0164) están aplicadas y verificadas en
-> producción** (jul 2026 — 0164 confirmada con un insert de prueba real vía
-> REST API). Correr `supabase/scripts/verify_pending_migrations.sql` para
-> confirmar en cualquier momento (checks hasta la fila 68).
+> migración automática. **El repo va hasta 0166; próximo libre = 0167.**
+> ✅ Migraciones hasta **0164** aplicadas y verificadas en producción (jul 2026).
+> ⚠️ **PENDIENTES DE APLICAR: 0165 (waitlist_entry_comments) y 0166
+> (children.archived_at + RPC).** Sin 0165, los comentarios de lista de espera
+> truenan; sin 0166, el auto-archivado y el filtro de archivados no funcionan.
+> Correr `supabase/scripts/verify_pending_migrations.sql` para confirmar.
 >
 > **GOTCHA recurrente**: `create or replace function` con DISTINTO # de args
 > NO reemplaza — crea una **sobrecarga** y deja la llamada ambigua. Al cambiar
