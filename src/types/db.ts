@@ -2083,6 +2083,7 @@ export interface Database {
           enrollment_ended_at?: string | null
           notes?: string | null
           photo_url?: string | null
+          photo_consent?: boolean
           created_by_user_id?: string | null
           current_phase_code?: string | null
         }
@@ -3282,6 +3283,9 @@ export interface Child {
   enrollment_ended_at: string | null
   notes: string | null
   photo_url: string | null
+  /** Mig 0128: consentimiento de la familia para publicar fotos del niño en
+   *  redes sociales / material institucional (Facebook, afiches, etc.). */
+  photo_consent: boolean
   created_at: string
   created_by_user_id: string | null
   updated_at: string

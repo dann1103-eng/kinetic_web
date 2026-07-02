@@ -74,6 +74,9 @@ export function ChildForm({ familyId, initialChild }: ChildFormProps) {
   const [diagnoses, setDiagnoses] = useState<DiagnosisCode[]>(
     initialChild?.diagnoses_json ?? []
   )
+  const [photoConsent, setPhotoConsent] = useState<boolean>(
+    initialChild?.photo_consent ?? false
+  )
 
   const previewCode = form.full_name.trim() ? computeChildCodeBase(form.full_name) : ''
 
@@ -87,7 +90,7 @@ export function ChildForm({ familyId, initialChild }: ChildFormProps) {
 
   // ── Autoguardado local del borrador ──
   const user = useUser()
-  const draftValue = useMemo(() => ({ form, diagnoses }), [form, diagnoses])
+  const draftValue = useMemo(() => ({ form, diagnoses, photoConsent }), [form, diagnoses, photoConsent])
   const { draft, savedAt, online, clear } = useDraft(
     `child:${initialChild?.id ?? `new:${familyId}`}`,
     draftValue,
@@ -98,6 +101,7 @@ export function ChildForm({ familyId, initialChild }: ChildFormProps) {
   function applyDraft(d: typeof draftValue) {
     setForm(d.form)
     setDiagnoses(d.diagnoses)
+    setPhotoConsent(d.photoConsent ?? false)
     setDraftDismissed(true)
   }
 
@@ -124,6 +128,7 @@ export function ChildForm({ familyId, initialChild }: ChildFormProps) {
           diagnoses_display_text: form.diagnoses_display_text || null,
           enrolled_program: form.enrolled_program || null,
           notes: form.notes || null,
+          photo_consent: photoConsent,
         })
         setSubmitting(false)
         if (!res.ok) { setError(res.error); return }
@@ -147,6 +152,7 @@ export function ChildForm({ familyId, initialChild }: ChildFormProps) {
           diagnoses_display_text: form.diagnoses_display_text || null,
           enrolled_program: form.enrolled_program || null,
           notes: form.notes || null,
+          photo_consent: photoConsent,
         })
         setSubmitting(false)
         if (!res.ok) { setError(res.error); return }
@@ -292,6 +298,24 @@ export function ChildForm({ familyId, initialChild }: ChildFormProps) {
                       <option key={p.code} value={p.code}>{p.label}</option>
                     ))}
                   </select>
+                </fieldset>
+
+                <fieldset className="space-y-3">
+                  <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">Autorizaciones</legend>
+                  <label className="flex items-start gap-3 cursor-pointer select-none rounded-xl border border-fm-surface-container-high bg-fm-background px-3 py-2.5 hover:border-fm-primary/40 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={photoConsent}
+                      onChange={(e) => setPhotoConsent(e.target.checked)}
+                      className="mt-0.5 accent-fm-primary w-4 h-4"
+                    />
+                    <span className="text-sm text-fm-on-surface">
+                      Tiene permiso para salir en redes sociales
+                      <span className="block text-[11px] text-fm-on-surface-variant">
+                        Autorización de la familia para publicar fotos del niño/a en redes y material institucional (Facebook, afiches, etc.).
+                      </span>
+                    </span>
+                  </label>
                 </fieldset>
 
                 <Textarea label="Notas internas" value={form.notes} onChange={(v) => setField('notes', v)} />

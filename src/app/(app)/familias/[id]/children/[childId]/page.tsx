@@ -17,7 +17,11 @@ import { MORNING_PROGRAM_LABELS } from '@/types/db'
 import type { Child, MonthlySessionCycle, TreatmentPlan, UserRole } from '@/types/db'
 import Link from 'next/link'
 import { ChildForm } from '@/components/families/ChildForm'
+import { DeleteChildButton } from '@/components/families/DeleteChildButton'
 
+// Eliminar PERMANENTEMENTE un niño (borra en cascada su historial). Roles de
+// gestión: dirección, ambas coordinadoras y recepción (paridad con deleteChild).
+const CAN_DELETE_CHILD_ROLES = ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion']
 const MGMT_ROLES_PLAN = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable']
 const CAN_EDIT_CHILD_INFO_ROLES = ['admin', 'directora', 'coordinadora_familias', 'contable', 'recepcion']
 const MGMT_ROLES_CYCLES = [
@@ -80,6 +84,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
   const canEditChildInfo = CAN_EDIT_CHILD_INFO_ROLES.includes(ctx.appUser.role)
   const canEditPlan = MGMT_ROLES_PLAN.includes(ctx.appUser.role)
   const canManageCycles = MGMT_ROLES_CYCLES.includes(ctx.appUser.role)
+  const canDeleteChild = CAN_DELETE_CHILD_ROLES.includes(ctx.appUser.role)
 
   // Lazy: solo fetch lo que el tab activo necesita.
   let plan: TreatmentPlan | null = null
@@ -161,6 +166,9 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 {c.full_name}
               </h1>
               {canEditChildInfo && <ChildForm initialChild={c} />}
+              {canDeleteChild && (
+                <DeleteChildButton childId={childId} familyId={familyId} childName={c.full_name} />
+              )}
               {c.code && (
                 <span className="text-xs font-mono text-fm-on-surface-variant bg-fm-surface-container px-2 py-0.5 rounded">
                   {c.code}

@@ -118,6 +118,7 @@ export async function createChild(input: {
   current_phase_code?: string
   enrolled_program?: MorningProgram | null
   notes?: string | null
+  photo_consent?: boolean
 }): Promise<{ ok: true; childId: string; code: string } | { ok: false; error: string }> {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }
@@ -153,6 +154,7 @@ export async function createChild(input: {
       current_phase_code: input.current_phase_code ?? '1_1_contacto_inicial',
       enrolled_program: input.enrolled_program ?? null,
       notes: input.notes?.trim() || null,
+      photo_consent: input.photo_consent ?? false,
       created_by_user_id: ctx.appUser.id,
       // code: se autoasigna por trigger BEFORE INSERT
     })
@@ -201,14 +203,26 @@ export async function updateChild(
 // src/app/actions/intake-pipeline.ts — gestiona validación, history,
 // cancelación de citas y notificaciones.
 
+// Roles que pueden ELIMINAR permanentemente un niño (borra en cascada todo su
+// historial). Paridad con la gestión operativa: dirección, ambas coordinadoras
+// y recepción. Distinto de "dar de baja" (que solo cambia de fase).
+const CAN_DELETE_CHILD_ROLES = [
+  'admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion',
+]
+
 export async function deleteChild(
   childId: string,
 ): Promise<{ ok: true; familyId: string } | { ok: false; error: string }> {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }
-  if (ctx.appUser.role !== 'admin') return { ok: false, error: 'Solo admin puede eliminar' }
+  if (!CAN_DELETE_CHILD_ROLES.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos para eliminar niños' }
+  }
 
-  const supabase = await createClient()
+  // Escritura privilegiada: la RLS de children solo permite DELETE a admin. Para
+  // habilitar a los roles de gestión usamos el admin client, gateado por rol en
+  // código (patrón Kinetic para escrituras privilegiadas).
+  const supabase = createAdminClient()
   const { data: childRow } = await supabase
     .from('children')
     .select('family_id')
