@@ -260,7 +260,12 @@ export async function waiveAbsence(
 
 // ── Sugerencias de slots para reposición ───────────────────────────────────
 
-const SUGGESTION_WINDOW_DAYS = 14
+// La ventana de sugerencias cubre TODO el periodo de reposición (30 días), no
+// solo 14. Antes, con 14 días, los slots libres del MES SIGUIENTE nunca se
+// sugerían y parecía que "no se podía reponer al siguiente mes" (bug reportado).
+// Reponer al siguiente mes siempre estuvo permitido (el RPC no valida solape);
+// lo que faltaba era mostrar esos horarios libres.
+const SUGGESTION_WINDOW_DAYS = REPLACEMENT_WINDOW_DAYS
 
 export interface ReplacementSuggestion extends SuggestedSlot {
   /** Duración en minutos del slot, igual a la cita original. */

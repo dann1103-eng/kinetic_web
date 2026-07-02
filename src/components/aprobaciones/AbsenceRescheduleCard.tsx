@@ -255,7 +255,7 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-medium uppercase tracking-wide text-fm-on-surface-variant">
-                Sugerencias automáticas (próximos 14 días)
+                Sugerencias automáticas (próximos {REPLACEMENT_WINDOW_DAYS} días, incluye el mes siguiente)
               </span>
               <button
                 type="button"
@@ -268,7 +268,7 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
             </div>
             {suggestions && suggestions.length === 0 && (
               <p className="text-xs text-amber-900 bg-amber-100/60 rounded-md px-2 py-1.5">
-                No se encontraron slots libres en los próximos 14 días.
+                No se encontraron slots libres en los próximos {REPLACEMENT_WINDOW_DAYS} días.
               </p>
             )}
             {suggestions && suggestions.length > 0 && (
