@@ -7,6 +7,7 @@ import {
   updateDischargeDraft,
   signDischargeAsTherapist,
   signDischargeAsDirectora,
+  finalizeDischarge,
   sendDischargeToFamily,
   listDischargeRecordsForChild,
 } from '@/app/actions/discharge-records'
@@ -55,6 +56,9 @@ export function DischargeFormModal({
 
   const isAlta = dischargeType === 'alta'
   const canDirectora = ['admin', 'directora'].includes(user.role)
+  // Coordinadora de terapias puede finalizar la baja SIN la firma bloqueante de
+  // directora (a la directora se le notifica al enviar a familia / cambiar fase).
+  const canFinalizeSolo = user.role === 'coordinadora_terapias'
   const isEditable = !record || record.status === 'draft'
 
   // Cargar o crear draft al abrir
@@ -149,6 +153,30 @@ export function DischargeFormModal({
         signed_by_directora_at: new Date().toISOString(),
         status: 'signed',
       })
+    })
+  }
+
+  function handleFinalizeSolo() {
+    if (!record) return
+    setError(null)
+    startTransition(async () => {
+      // Persistir ediciones antes de cerrar el registro.
+      const upd = await updateDischargeDraft(record.id, {
+        objectives_achieved: objectives.trim() || null,
+        recommendations: recommendations.trim() || null,
+        follow_up_plan: followUp.trim() || null,
+        discharge_reason: reason.trim() || null,
+      })
+      if (!upd.ok) {
+        setError(upd.error)
+        return
+      }
+      const res = await finalizeDischarge(record.id)
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      setRecord({ ...record, status: 'signed' })
     })
   }
 
@@ -302,6 +330,17 @@ export function DischargeFormModal({
               className="px-3 py-1.5 text-sm rounded-lg bg-fm-primary text-white font-semibold hover:bg-fm-primary/90 disabled:opacity-50"
             >
               Firmar como directora
+            </button>
+          )}
+          {isEditable && canFinalizeSolo && (
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={handleFinalizeSolo}
+              title="Cierra la baja sin la firma de directora. Se le notificará al enviar a la familia."
+              className="px-3 py-1.5 text-sm rounded-lg bg-fm-primary text-white font-semibold hover:bg-fm-primary/90 disabled:opacity-50"
+            >
+              Finalizar baja
             </button>
           )}
           {record.status === 'signed' && (

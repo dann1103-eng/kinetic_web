@@ -257,6 +257,49 @@ export async function signDischargeAsDirectora(
   return { ok: true, data: null }
 }
 
+// Finalizar la baja SIN la firma bloqueante de directora. La coordinadora de
+// terapias (y admin) puede cerrar el registro (status='signed') para poder
+// enviarlo a la familia y avanzar la fase del niño; a la directora se le
+// notifica cuando se saca al niño del horario (createDischargeNotifications en
+// advanceChildPhase, al "Enviar a familia"). Pedido de dirección: "una vez Diana
+// lo cambie de fase se efectúe sin mi aprobación; a mí solo se me notifica".
+const CAN_FINALIZE_DISCHARGE: UserRole[] = ['admin', 'directora', 'coordinadora_terapias']
+
+export async function finalizeDischarge(recordId: string): Promise<Result<null>> {
+  const { user } = await getActor()
+  if (!CAN_FINALIZE_DISCHARGE.includes(user.role)) {
+    return { ok: false, error: 'Sin permisos para finalizar la baja.' }
+  }
+
+  const admin = createAdminClient()
+  const { data: existing } = await admin
+    .from('child_discharge_records')
+    .select('id, status')
+    .eq('id', recordId)
+    .maybeSingle()
+  if (!existing) return { ok: false, error: 'Registro no encontrado.' }
+  if (existing.status !== 'draft') {
+    return { ok: false, error: 'Solo se puede finalizar un borrador.' }
+  }
+
+  // Si quien finaliza es directora/admin, además queda estampada su firma. Si es
+  // coordinadora_terapias, se cierra sin firma de directora (no bloqueante).
+  const update: Partial<Omit<ChildDischargeRecord, 'id' | 'created_at'>> = { status: 'signed' }
+  if (['admin', 'directora'].includes(user.role)) {
+    update.signed_by_directora_id = user.id
+    update.signed_by_directora_name = user.full_name
+    update.signed_by_directora_at = new Date().toISOString()
+  }
+
+  const { error } = await admin
+    .from('child_discharge_records')
+    .update(update)
+    .eq('id', recordId)
+  if (error) return { ok: false, error: error.message }
+
+  return { ok: true, data: null }
+}
+
 export async function sendDischargeToFamily(
   recordId: string,
 ): Promise<Result<null>> {
