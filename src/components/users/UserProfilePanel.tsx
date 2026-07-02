@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AppUser, UserRole, TherapistWorkScheduleBlock } from '@/types/db'
 import { UserAvatar } from '@/components/ui/UserAvatar'
+import { ReassignTherapistSection } from '@/components/users/ReassignTherapistSection'
 import { updateUserProfile, adminChangeUserPassword, deleteUser } from '@/app/actions/users'
 import { updateUserRole } from '@/app/actions/updateUserRole'
 import { startImpersonation } from '@/app/actions/impersonation'
@@ -318,6 +319,15 @@ function PerfilTab({
           </div>
         )}
       </div>
+
+      {/* Sustituir/redirigir terapias — para relevos sin borrar el perfil */}
+      {['admin', 'directora', 'coordinadora_terapias', 'recepcion'].includes(currentUserRole) &&
+        !isCurrentUser && (
+          <ReassignTherapistSection
+            fromUserId={user.id}
+            fromUserName={user.full_name ?? user.email}
+          />
+        )}
 
       {/* Actions */}
       <div className="pt-3 border-t border-fm-outline-variant/15 flex flex-col gap-2">
