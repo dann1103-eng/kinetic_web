@@ -34,6 +34,15 @@ async function assertAdminOrSupervisor() {
   return ctx
 }
 
+async function assertCanManageChannels() {
+  const ctx = await getCurrentUser()
+  const allowed = ['admin', 'supervisor', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion']
+  if (!allowed.includes(ctx.role)) {
+    throw new Error('Sin permisos para gestionar canales')
+  }
+  return ctx
+}
+
 /* ─────────────────────────────────────────────────────────────────
  * createOrGetDM — idempotente
  * Busca un DM existente entre currentUser y otherUserId; si no, lo crea
@@ -91,7 +100,7 @@ export async function createOrGetDM(otherUserId: string) {
 }
 
 /* ─────────────────────────────────────────────────────────────────
- * createChannel — solo admin
+ * createChannel — admin, supervisor, coordinadoras, recepcion
  * ───────────────────────────────────────────────────────────────── */
 export async function createChannel(payload: {
   name: string
@@ -100,7 +109,7 @@ export async function createChannel(payload: {
   memberIds: string[]
 }) {
   try {
-    const { userId } = await assertAdminOrSupervisor()
+    const { userId } = await assertCanManageChannels()
 
     const name = payload.name.trim().toLowerCase().replace(/\s+/g, '-')
     if (!name) return { error: 'El nombre del canal es obligatorio.' }
@@ -319,7 +328,7 @@ export async function leaveChannel(conversationId: string) {
 
 export async function addChannelMembers(conversationId: string, userIds: string[]) {
   try {
-    await assertAdminOrSupervisor()
+    await assertCanManageChannels()
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return { error: 'Falta SUPABASE_SERVICE_ROLE_KEY en variables de entorno.' }
@@ -350,7 +359,7 @@ export async function addChannelMembers(conversationId: string, userIds: string[
 
 export async function removeChannelMember(conversationId: string, targetUserId: string) {
   try {
-    const { userId } = await assertAdminOrSupervisor()
+    const { userId } = await assertCanManageChannels()
     if (targetUserId === userId) {
       return { error: 'Usa "Salir del canal" para removerte a ti mismo.' }
     }
@@ -384,7 +393,7 @@ export async function removeChannelMember(conversationId: string, targetUserId: 
  * ───────────────────────────────────────────────────────────────── */
 export async function deleteChannel(conversationId: string) {
   try {
-    await assertAdminOrSupervisor()
+    await assertCanManageChannels()
 
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
       return { error: 'Falta SUPABASE_SERVICE_ROLE_KEY en variables de entorno.' }
@@ -586,7 +595,7 @@ export async function updateChannelMeta(payload: {
   topic?: string | null
 }) {
   try {
-    await assertAdminOrSupervisor()
+    await assertCanManageChannels()
 
     const update: {
       name?: string
