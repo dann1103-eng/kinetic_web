@@ -1,14 +1,13 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import {
-  getMonthlyRevenue,
-  getAnnualComparison,
-  getPaymentMethodBreakdown,
-  getChurnBreakdown,
-} from '@/lib/domain/reports/financial'
+  getCachedMonthlyRevenue,
+  getCachedAnnualComparison,
+  getCachedPaymentMethodBreakdown,
+  getCachedChurnBreakdown,
+} from '@/lib/domain/reports/reports-cache'
 import { MonthlyRevenueSection } from '@/components/reportes/MonthlyRevenueSection'
 import { AnnualComparisonSection } from '@/components/reportes/AnnualComparisonSection'
 import { PaymentMethodSection } from '@/components/reportes/PaymentMethodSection'
@@ -76,13 +75,11 @@ export default async function ReportesFinancierosPage({ searchParams }: PageProp
   const churnFrom = parseDate(params.churnFrom, range12m.from)
   const churnTo = parseDate(params.churnTo, range12m.to)
 
-  const supabase = await createClient()
-
   const [monthlyRows, annualData, paymentMethodData, churnData] = await Promise.all([
-    getMonthlyRevenue(supabase, { year }),
-    getAnnualComparison(supabase, { year: annualYear }),
-    getPaymentMethodBreakdown(supabase, { fromDate: pmFrom, toDate: pmTo }),
-    getChurnBreakdown(supabase, { fromDate: churnFrom, toDate: churnTo }),
+    getCachedMonthlyRevenue({ year }),
+    getCachedAnnualComparison({ year: annualYear }),
+    getCachedPaymentMethodBreakdown({ fromDate: pmFrom, toDate: pmTo }),
+    getCachedChurnBreakdown({ fromDate: churnFrom, toDate: churnTo }),
   ])
 
   return (
