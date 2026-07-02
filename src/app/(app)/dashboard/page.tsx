@@ -11,13 +11,15 @@ import { RecepcionDashboard } from '@/components/dashboard/RecepcionDashboard'
 import { TerapistaDashboard } from '@/components/dashboard/TerapistaDashboard'
 import { CoordFamiliasDashboard } from '@/components/dashboard/CoordFamiliasDashboard'
 import {
-  getMgmtDashboardData,
   getCoordTerapiasDashboardData,
   getRecepcionDashboardData,
   todayBoundsSV,
   weekAheadISO,
 } from '@/lib/domain/global-dashboard'
-import { getMgmtWidgetsData } from '@/lib/domain/dashboard-widgets'
+import {
+  getCachedMgmtDashboardData,
+  getCachedMgmtWidgetsData,
+} from '@/lib/domain/dashboard-cache'
 import { toZonedTime } from 'date-fns-tz'
 import type { ClientWithPlan, BillingCycle, Requirement } from '@/types/db'
 import { daysUntilEnd } from '@/lib/domain/cycles'
@@ -69,8 +71,8 @@ export default async function DashboardPage({
   // ─── Routing por rol Kinetic ──────────────────────────────────────────────
   if (KINETIC_MGMT.includes(role)) {
     const [data, widgets] = await Promise.all([
-      getMgmtDashboardData(supabase),
-      getMgmtWidgetsData(supabase),
+      getCachedMgmtDashboardData(),
+      getCachedMgmtWidgetsData(),
     ])
     const nowSV = toZonedTime(new Date(), 'America/El_Salvador')
     const firstWeekdayOfMonth = new Date(
