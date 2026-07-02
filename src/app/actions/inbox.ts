@@ -111,7 +111,12 @@ export async function createChannel(payload: {
   try {
     const { userId } = await assertCanManageChannels()
 
-    const name = payload.name.trim().toLowerCase().replace(/\s+/g, '-')
+    const name = payload.name
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')                    // separa acentos (á → a + combinante)
+      .replace(/[̀-ͯ]/g, '')      // elimina los diacriticos combinantes
+      .replace(/\s+/g, '-')
     if (!name) return { error: 'El nombre del canal es obligatorio.' }
     if (!/^[a-z0-9-]+$/.test(name)) {
       return { error: 'El nombre solo puede contener letras, números y guiones.' }
