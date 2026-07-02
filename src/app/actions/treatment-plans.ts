@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type {
   TreatmentPlan,
@@ -335,6 +336,10 @@ export async function upsertTreatmentPlan(
         p_appointments_override: null,
       })
       if (rErr) {
+        // Cualquier error de regeneración (conflicto u otro) se reporta como mes
+        // en conflicto para no bloquear el guardado. Logueamos el detalle real
+        // para diagnóstico (ej. plan_has_no_primary_therapist, cycle_not_editable).
+        console.error(`[upsertTreatmentPlan] regen ${c.period_month} falló:`, rErr.message)
         conflictMonths.push(c.period_month.slice(0, 7))
       } else {
         regenerated += 1
@@ -345,7 +350,40 @@ export async function upsertTreatmentPlan(
     }
   }
 
-  revalidatePath(`/familias`)
+  // ── Sincronizar el TERAPEUTA en las citas futuras ya generadas ────────────
+  //    Refleja en el horario los cambios de terapeuta por servicio del plan,
+  //    INCLUSO en ciclos ya pagados (la regeneración de arriba solo cubre ciclos
+  //    pendientes). Es no destructivo: no mueve horarios ni recrea citas, solo
+  //    reasigna therapist_id de las citas futuras 'scheduled'/'replacement'. Los
+  //    programas matutinos se manejan por grupo y se excluyen.
+  if (kind === 'update') {
+    try {
+      const admin = createAdminClient()
+      const nowIso = new Date().toISOString()
+      for (const t of therapiesValidated) {
+        if (!t.active || !t.therapist_id) continue
+        if (isMorningProgramService(t.service)) continue
+        await admin
+          .from('appointments')
+          .update({ therapist_id: t.therapist_id })
+          .eq('child_id', input.childId)
+          .eq('service_type', t.service)
+          .eq('event_type', 'terapia')
+          .gte('starts_at', nowIso)
+          .in('status', ['scheduled', 'replacement'])
+          .neq('therapist_id', t.therapist_id)
+      }
+    } catch (e) {
+      console.error('[upsertTreatmentPlan] sync de terapeuta en citas falló:', e)
+    }
+  }
+
+  revalidatePath('/familias')
+  // Revalidar la ficha del niño donde se muestra el plan/horario. Sin esto, el
+  // plan recién guardado aparecía viejo y había que guardar 2-3 veces (bug
+  // reportado): revalidatePath('/familias') NO cubre la ruta anidada dinámica.
+  revalidatePath('/familias/[id]/children/[childId]', 'page')
+  revalidatePath('/mis-ninos/[childId]', 'page')
   revalidatePath('/agenda')
   revalidatePath('/mi-dia')
   return { ok: true, plan: saved, regen }
