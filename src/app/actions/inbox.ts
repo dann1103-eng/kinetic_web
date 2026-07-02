@@ -380,15 +380,22 @@ export async function removeChannelMember(conversationId: string, targetUserId: 
       return { error: 'Usa "Salir del canal" para removerte a ti mismo.' }
     }
 
-    const supabase = await createClient()
-    const { data: conv } = await supabase
+    // Vía admin client (service role): la RLS no deja leer/borrar miembros de un
+    // canal donde el actor no es miembro (ni borrar a otros), por eso antes daba
+    // "Solo aplica a canales." y nunca quitaba. La autorización ya la hizo
+    // assertCanManageChannels() en código. Mismo patrón que addChannelMembers.
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return { error: 'Falta SUPABASE_SERVICE_ROLE_KEY en variables de entorno.' }
+    }
+    const admin = createAdminClient()
+    const { data: conv } = await admin
       .from('conversations')
       .select('type')
       .eq('id', conversationId)
       .single()
     if (!conv || conv.type !== 'channel') return { error: 'Solo aplica a canales.' }
 
-    const { error } = await supabase
+    const { error } = await admin
       .from('conversation_members')
       .delete()
       .eq('conversation_id', conversationId)
@@ -619,7 +626,12 @@ export async function updateChannelMeta(payload: {
       topic?: string | null
     } = {}
     if (payload.name !== undefined) {
-      const name = payload.name.trim().toLowerCase().replace(/\s+/g, '-')
+      const name = payload.name
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')                    // separa acentos (á → a + combinante)
+        .replace(/[̀-ͯ]/g, '')     // elimina los diacríticos combinantes
+        .replace(/\s+/g, '-')
       if (!/^[a-z0-9-]+$/.test(name)) {
         return { error: 'El nombre solo puede contener letras, números y guiones.' }
       }
@@ -628,8 +640,13 @@ export async function updateChannelMeta(payload: {
     if (payload.description !== undefined) update.description = payload.description?.trim() || null
     if (payload.topic !== undefined) update.topic = payload.topic?.trim() || null
 
-    const supabase = await createClient()
-    const { error } = await supabase
+    // Vía admin client: la RLS no deja editar un canal donde el actor no es
+    // miembro, así que con el cliente RLS el update afectaba 0 filas en silencio.
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return { error: 'Falta SUPABASE_SERVICE_ROLE_KEY en variables de entorno.' }
+    }
+    const admin = createAdminClient()
+    const { error } = await admin
       .from('conversations')
       .update(update)
       .eq('id', payload.conversationId)
