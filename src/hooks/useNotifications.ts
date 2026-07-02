@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NotificationItem } from '@/types/db'
 import { createClient } from '@/lib/supabase/client'
 
-const SAFETY_POLL_MS = 15_000
+const SAFETY_POLL_MS = 30_000
 const DEBOUNCE_MS = 400
 const DISMISSAL_KEY = 'overdue-seen'
 const LOCAL_DISMISSAL_KEY = 'notif-dismissed'
@@ -118,7 +118,12 @@ export function useNotifications() {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'appointment_change_events' }, scheduleFetch)
       .subscribe()
 
-    safetyTimer = setInterval(fetchItems, SAFETY_POLL_MS)
+    // Solo pollear si la pestaña está visible. En tabs de fondo no golpeamos
+    // /api/notifications (endpoint pesado); al volver a visible, onVisibility
+    // dispara un fetch inmediato, así no hay staleness al regresar.
+    safetyTimer = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchItems()
+    }, SAFETY_POLL_MS)
 
     const onVisibility = () => {
       if (document.visibilityState === 'visible') fetchItems()

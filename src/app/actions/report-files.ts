@@ -315,11 +315,47 @@ export async function removeSessionReportFile(
  * almacenado en `path` dentro del bucket reports-files. Se llama desde
  * componentes server cuando se necesita el link de download.
  */
+const REPORT_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export async function getReportFileSignedUrl(
   path: string,
 ): Promise<Result<string>> {
   const auth = await getAuthedUser()
   if (!auth) return { ok: false, error: 'No autenticado.' }
+
+  // Autorización antes de firmar: el path es `${kind}/${reportId}/...`.
+  // Verificamos VÍA RLS (createClient, no admin) que el usuario pueda VER ese
+  // informe. Sin esto, cualquier autenticado (incluida una cuenta family del
+  // portal) podría descargar el archivo de cualquier niño pasando un path
+  // arbitrario — el admin client ignora RLS (IDOR). Firmamos solo si pasa.
+  const segments = path.split('/')
+  const [kind, reportId] = segments
+  if (
+    (kind !== 'progress' && kind !== 'session') ||
+    !reportId ||
+    !REPORT_UUID_RE.test(reportId) ||
+    segments.some((s) => s === '' || s === '..')
+  ) {
+    return { ok: false, error: 'Ruta de archivo inválida.' }
+  }
+
+  const supabase = await createClient()
+  const { data: report } =
+    kind === 'progress'
+      ? await supabase
+          .from('progress_reports')
+          .select('id')
+          .eq('id', reportId)
+          .maybeSingle()
+      : await supabase
+          .from('session_reports')
+          .select('id')
+          .eq('id', reportId)
+          .maybeSingle()
+  if (!report) {
+    return { ok: false, error: 'Informe no encontrado o sin acceso.' }
+  }
 
   const admin = createAdminClient()
   const { data, error } = await admin.storage

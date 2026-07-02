@@ -8,6 +8,14 @@ import { computeLatePickup } from '@/lib/domain/billing/late-pickup'
 
 const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'recepcion', 'contable']
 
+// Staff que participa en el flujo de despacho (terapistas entregan; recepción/gestión
+// despachan). Excluye cuentas de portal (family/client): son las que NO deben tocar
+// el estado de despacho de una cita. (H6 del audit de seguridad)
+const DISPATCH_ROLES = [
+  'admin', 'directora', 'supervisor', 'coordinadora_terapias',
+  'coordinadora_familias', 'recepcion', 'contable', 'terapista', 'maestra',
+]
+
 async function getActor() {
   const ctx = await getEffectiveUser()
   if (!ctx) return null
@@ -83,6 +91,7 @@ export async function handToReception(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const actor = await getActor()
   if (!actor) return { ok: false, error: 'No autenticado.' }
+  if (!DISPATCH_ROLES.includes(actor.role)) return { ok: false, error: 'No autorizado.' }
 
   const admin = createAdminClient()
   const { data: appt } = await admin
@@ -215,6 +224,7 @@ export async function dispatchChild(
 ): Promise<{ ok: true; feeUsd: number; minutes: number } | { ok: false; error: string }> {
   const actor = await getActor()
   if (!actor) return { ok: false, error: 'No autenticado.' }
+  if (!DISPATCH_ROLES.includes(actor.role)) return { ok: false, error: 'No autorizado.' }
 
   const admin = createAdminClient()
   const { data: appt } = await admin
@@ -374,6 +384,7 @@ export async function snoozeDispatch(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const actor = await getActor()
   if (!actor) return { ok: false, error: 'No autenticado.' }
+  if (!DISPATCH_ROLES.includes(actor.role)) return { ok: false, error: 'No autorizado.' }
   const until = new Date(Date.now() + minutes * 60_000).toISOString()
   const admin = createAdminClient()
   const { error } = await admin

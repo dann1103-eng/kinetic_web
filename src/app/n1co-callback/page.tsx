@@ -23,7 +23,15 @@ interface Props {
 export default async function N1coCallbackPage({ searchParams }: Props) {
   const params = await searchParams
   const status = params.status === 'cancel' ? 'cancel' : 'success'
-  const invoiceId = params.invoice ?? params.paid ?? ''
+  // Solo aceptamos un UUID (el id real de la factura). Cualquier otro valor se
+  // descarta para no reflejar input arbitrario en el <script> inline (anti-XSS).
+  const rawInvoice = params.invoice ?? params.paid ?? ''
+  const invoiceId =
+    /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+      rawInvoice,
+    )
+      ? rawInvoice
+      : ''
 
   return (
     <Suspense>
@@ -47,10 +55,16 @@ function CallbackUI({ status, invoiceId }: { status: 'success' | 'cancel'; invoi
     type: isSuccess ? 'payment_success' : 'payment_cancel',
     invoiceId: invoiceId || null,
   }
+  // Escapamos `<`, `>` y `&` para que el JSON no pueda cerrar el <script>
+  // (ej. `</script>`) ni inyectar markup. Junto al UUID de arriba, cierra el XSS.
+  const safeMsg = JSON.stringify(messagePayload)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
   const inlineScript = `
     (function() {
       try {
-        var msg = ${JSON.stringify(messagePayload)};
+        var msg = ${safeMsg};
         msg.ts = Date.now();
         if (window.parent && window.parent !== window) {
           window.parent.postMessage(msg, '*');

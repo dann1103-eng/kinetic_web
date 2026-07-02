@@ -24,14 +24,12 @@ export default async function AppLayout({ children }: AppLayoutProps) {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
 
-  // Cliente real (sin suplantación) → portal
-  if (!ctx.isImpersonating && ctx.realAppUser.role === 'client') {
-    redirect('/portal/dashboard')
-  }
-  // Admin suplantando a un cliente → portal
-  if (ctx.isImpersonating && ctx.appUser.role === 'client') {
-    redirect('/portal/dashboard')
-  }
+  // Las cuentas de portal NO deben renderizar el shell de staff. Redirigimos por
+  // ROL efectivo (respeta suplantación) en vez de depender de la lista de rutas del
+  // middleware: `client` → portal FM, `family` → portal Kinetic. (H8 del audit)
+  const portalRole = ctx.isImpersonating ? ctx.appUser.role : ctx.realAppUser.role
+  if (portalRole === 'client') redirect('/portal/dashboard')
+  if (portalRole === 'family') redirect('/portal')
 
   const supabase = await createClient()
 

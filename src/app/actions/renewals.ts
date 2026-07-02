@@ -31,6 +31,12 @@ interface RenewArgs {
 
 export async function renewCycle(args: RenewArgs) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+  const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
+  if (appUser?.role !== 'admin' && appUser?.role !== 'supervisor') {
+    return { error: 'Solo admin o supervisor puede renovar ciclos' }
+  }
   const immediate = args.immediate === true
 
   const [{ data: cycleRow }, { data: clientRow }, { data: planRow }, { data: reqs }] = await Promise.all([
@@ -146,14 +152,12 @@ export async function renewCycle(args: RenewArgs) {
 
   if (insertErr || !newCycle?.id) return { error: 'Error al crear el nuevo ciclo.' }
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (user) {
-    await migrateOpenPipelineItems(supabase, {
-      previousCycleId: args.cycleId,
-      newCycleId: newCycle.id,
-      movedBy: user.id,
-    })
-  }
+  // `user` ya está resuelto y garantizado no-nulo por el gate del inicio.
+  await migrateOpenPipelineItems(supabase, {
+    previousCycleId: args.cycleId,
+    newCycleId: newCycle.id,
+    movedBy: user.id,
+  })
 
   const { data: remainingReqs } = await supabase
     .from('requirements')
@@ -173,6 +177,12 @@ export async function renewCycle(args: RenewArgs) {
 
 export async function markCyclePaid(cycleId: string, clientId: string) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+  const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
+  if (appUser?.role !== 'admin' && appUser?.role !== 'supervisor') {
+    return { error: 'Solo admin o supervisor puede marcar el ciclo como pagado' }
+  }
   const { error } = await supabase
     .from('billing_cycles')
     .update({ payment_status: 'paid', payment_date: todayString() })
@@ -188,6 +198,12 @@ export async function markCyclePaid(cycleId: string, clientId: string) {
 
 export async function pauseClient(clientId: string, cycleId: string) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+  const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
+  if (appUser?.role !== 'admin' && appUser?.role !== 'supervisor') {
+    return { error: 'Solo admin o supervisor puede pausar al cliente' }
+  }
   const [{ error: e1 }, { error: e2 }] = await Promise.all([
     supabase.from('clients').update({ status: 'paused' }).eq('id', clientId),
     supabase.from('billing_cycles').update({ status: 'archived' }).eq('id', cycleId),

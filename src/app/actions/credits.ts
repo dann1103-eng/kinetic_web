@@ -7,6 +7,15 @@ import { consumeCredit, refundCredit, getAvailableContentCredits, getAvailableCa
 import { CONTENT_TYPE_TO_CREDIT_KIND } from '@/types/db'
 import type { ContentType } from '@/types/db'
 
+// Roles de staff (agencia) que pueden mover contabilidad de créditos. Excluye
+// cuentas de portal (family/client): son las que NO deben consumir/reembolsar
+// créditos de un cliente vía admin client (RLS bypass). (H4 del audit de seguridad)
+const STAFF_ROLES = [
+  'admin', 'directora', 'supervisor',
+  'coordinadora_familias', 'coordinadora_terapias',
+  'terapista', 'maestra', 'recepcion', 'contable', 'operator',
+]
+
 /**
  * Devuelve los créditos disponibles de un cliente (cambios + contenido).
  * Usado por la UI del perfil del cliente para mostrar el saldo y por
@@ -35,6 +44,10 @@ export async function consumeContentCreditForRequirement(args: {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }
+  const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
+  if (!appUser || !STAFF_ROLES.includes(appUser.role)) {
+    return { ok: false, error: 'No autorizado' }
+  }
 
   const admin = createAdminClient()
 
@@ -82,6 +95,10 @@ export async function refundContentCreditForRequirement(args: {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { ok: false, error: 'No autenticado' }
+  const { data: appUser } = await supabase.from('users').select('role').eq('id', user.id).single()
+  if (!appUser || !STAFF_ROLES.includes(appUser.role)) {
+    return { ok: false, error: 'No autorizado' }
+  }
 
   const admin = createAdminClient()
   const { data: req } = await admin

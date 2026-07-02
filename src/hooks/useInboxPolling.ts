@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ConversationListItem, MessageWithMeta } from '@/types/db'
 import { createClient } from '@/lib/supabase/client'
 
-const SAFETY_POLL_MS = 10_000
+// Poll de respaldo del realtime. El efecto ya se desmonta cuando la pestaña se
+// oculta (ver useVisible), así que en background no se pollea. 20s es suficiente
+// como red de seguridad; el realtime entrega los cambios al instante.
+const SAFETY_POLL_MS = 20_000
 const DEBOUNCE_MS = 300
 
 function useVisible(): boolean {
