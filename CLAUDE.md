@@ -311,11 +311,26 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0145** | **Paridad de roles planes+ciclos**: set único de 6 roles (admin, directora, ambas coordinadoras, recepcion, contable) puede crear planes Y generar/cobrar ciclos. Suma `recepcion` a las RLS de `treatment_plans`/`treatment_plan_changes` (supersede 0133/0144) y `coordinadora_familias` a los ciclos. Helper nuevo `kn_can_manage_cycles()` centraliza la lista; redefine RPCs `confirm_monthly_payment_and_generate` (12-args, de 0139) y `mark_monthly_cycle_paid` (4-args, de 0136) verbatim cambiando solo la autorización, y las policies `msc insert/update mgmt`. Acompaña `MGMT_ROLES` en treatment-plans.ts + monthly-cycles.ts y `MGMT_ROLES_PLAN`/`MGMT_ROLES_CYCLES` en la página del niño. |
 | **0146** | `coordinadora_familias` puede **anular** ciclos: redefine RPC `cancel_monthly_cycle` (verbatim de 0101, solo cambia el rol → `admin/directora/coordinadora_familias`). Acompaña `CAN_CANCEL_ROLES` en monthly-cycles.ts, `CAN_CANCEL_CYCLES_ROLES` en la página del niño y nuevo prop `canCancel` en `MonthlyCyclesSection` (antes el botón "Anular" se mostraba a todo `canManage` pero la acción solo permitía admin/directora). |
 | **0147** | **Mensualidad fija de programas matutinos** (blue_kids/learning_kids/aula_educativa): helper SQL `_kn_is_monthly_flat(entry)` + redefine con misma firma `compute_monthly_appointment_candidates` (servicios flat sin cuota — se generan todas las fechas del patrón, nada a `skipped_overquota`), `confirm_monthly_payment_and_generate` (línea de factura = 1 × mensualidad, no sesiones × precio) y `mark_appointment_absence` (falta de programa matutino → absence auto-`waived` con motivo, no entra a /aprobaciones ni al rollover). Espejo TS de la regla: `src/lib/domain/billing/monthly-flat.ts`. **Modalidad implícita**: entrada de `therapies_json` sin `billing_mode` con servicio matutino = `monthly_flat` (corrige planes existentes sin re-guardar). Campos nuevos del jsonb: `billing_mode` (`per_session`\|`monthly_flat`) y `days_per_week` (variante del catálogo de mensualidades). |
+| **0148** | RPC `regenerate_cycle_appointments` (regenerar las citas de un ciclo al editarlo). |
+| **0149–0152** | **Programas matutinos por grupo**: `program_groups`/`program_group_members`/`program_group_staff`/`program_group_sessions` + RPC `generate_group_sessions_for_month`; compute/confirm reciben `p_program_group_id`/`p_attendance_days`. 0152 = fix idempotente de membresía. Las citas `programa_matutino` por-niño se conservan (portal) pero se **ocultan del staff** (la agenda muestra bloques de grupo). |
+| **0153–0154** | Iteraciones intermedias (ver git). |
+| **0155** | RPC `resolve_absence_with_replacement` autoriza también a `coordinadora_familias`. |
+| **0156** | **Evaluaciones agendables**: `appointments.child_id` NULLABLE + `external_child_name` + `service_code` (evaluación a persona nueva, sin niño registrado). |
+| **0157** | Backfill `therapist_id` por terapia en `therapies_json` (fin del "terapista principal"; la primary se deriva). |
+| **0158** | RLS `payroll_fiscal_config`: escritura para `contable`/`recepcion`. |
+| **0159** | `users.professional_services_base_usd` (base SP fija) + `payroll_runs.period_half` (planillas quincenales). |
+| **0160** | Reasignación de terapias (cobertura) + **notificaciones de cambio de cita** (`appointment_change_events`, RLS + realtime). |
+| **0161** | `users`: datos bancarios. |
+| **0162** | Bucket de Storage para adjuntos del chat. |
+| **0163** | **El ciclo crea las citas al GENERAR, no al pagar.** Re-asegura `confirm_monthly_payment_and_generate` (crea citas + factura `pending`, `paid_at` NULL) y `mark_monthly_cycle_paid` (solo pago, NO crea citas). Backfill de ciclos viejos: `scripts/backfill_0163_cycle_appointments.sql` (en tandas). |
+| **0164** | ⚠️ **PENDIENTE DE APLICAR**: amplía el CHECK de `appointments.extra_reason` para incluir `'evaluacion'`. Sin esto, agendar evaluaciones truena con `appointments_extra_*_check` (el código inserta `extra_reason='evaluacion'` desde 0156, pero ninguna migración había ampliado el dominio que nació en 0142). |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
-> migración automática. **Aplicar 0134→0147 en orden.** Correr
-> `supabase/scripts/verify_pending_migrations.sql` (checks hasta `mig_0147_*`)
-> para ver cuáles faltan.
+> migración automática. **El repo va hasta 0164; próximo libre = 0165.**
+> ⚠️ **Solo 0164 (evaluaciones) está PENDIENTE de aplicar** — el resto (hasta
+> 0163) ya está en producción (verificado jul 2026). Correr
+> `supabase/scripts/verify_pending_migrations.sql` (checks hasta la **fila 68**
+> = `mig_0164_extra_reason_permite_evaluacion`) para ver cuáles faltan.
 >
 > **GOTCHA recurrente**: `create or replace function` con DISTINTO # de args
 > NO reemplaza — crea una **sobrecarga** y deja la llamada ambigua. Al cambiar
@@ -324,7 +339,29 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 
 ---
 
-# Estado del proyecto — junio 2026
+# Estado del proyecto — junio–julio 2026
+
+## Sesión julio 2026 — ciclo WYSIWYG + navegación de mes en dashboard
+Todo en `master` (auto-deploy Vercel, verificado live). Ver [[kinetic_cycle_generates_agenda_2026_06]].
+- **Generar ciclo = MES COMPLETO (WYSIWYG).** El modal `NewMonthlyCycleModal`
+  arranca la previsualización con TODO el patrón del mes (`candidates` +
+  `skipped_overquota`) y pasa siempre ese set como `appointmentsOverride` → se
+  crean **exactamente las citas que se ven**, sin el tope oculto de
+  `sessions_per_month`. Se quitan citas con − / ✕. **Ojo: cobra por TODAS las
+  sesiones del patrón.** (Antes topaba a la cuota del plan y amontonaba las
+  primeras 2 semanas.)
+- **Dashboard del niño con navegación de mes** (para ver ciclos futuros ya
+  agendados). `getChildDashboardData(supabase, childId, now, viewMonth?)`; la
+  página de familia lee `?month=YYYY-MM`; `ChildDashboardPanel` tiene flechas
+  ‹ › arriba **y** la barra del calendario navega el mes por URL (`monthUrlBase`).
+  Claves: `key={period_month}` **remonta** el calendario al cambiar de mes (su
+  `date` interna solo se inicializa al montar), y `KineticMonthGrid` sin tope de
+  pills (`maxPillsPerCell=99`) muestra TODAS las citas del día. La lista
+  "Próximas 14 días" siempre es de 14 días — no es el lugar para ver el mes.
+- **`MonthlyCyclesSection` responsivo en móvil**: tabla en desktop
+  (`overflow-x-auto`) + tarjetas apiladas en móvil (las acciones ya no se recortan).
+- **Acceso/diagnóstico sin intervención del usuario**: SQL vía REST + service_role
+  key; estado de deploy vía GitHub deployments API. Ver [[kinetic_supabase_access]].
 
 ## Bloque "feedback operativo" (junio 2026) — 8 features + cobros
 Todo en `master`. **Requiere aplicar migraciones 0134–0141 en orden.**
@@ -421,8 +458,9 @@ Todo en `master`. **Requiere aplicar migraciones 0134–0141 en orden.**
     - Tarjeta "Por terapista" activada en `/reportes`. Usa `appointment_absences` con status='replaced' para contar reposiciones cumplidas.
 
 ## Pendiente (próximas sesiones)
-- **APLICAR migraciones 0134–0141 en Supabase** (en orden) — sin esto, generar
-  ciclo / planilla por terapia / despacho fallan. Verificar con verify script.
+- **APLICAR migración 0164 en Supabase** (evaluaciones: CHECK `extra_reason`
+  con `'evaluacion'`). Es la única pendiente — el resto (hasta 0163) ya está en
+  producción. Verificar con `verify_pending_migrations.sql` (fila 68).
 - (Backlog) Botón "Eliminar niño/a" (admin, con confirmación) en perfil del niño
   — hoy no existe; se borran por SQL.
 - (Backlog) Permitir a recepción cobrar/perdonar recogidas tardías (hoy
