@@ -20,7 +20,8 @@ interface ChannelDetailsPanelProps {
   allUsers: Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[]
   attachments: MessageAttachment[]
   currentUserId: string
-  isAdmin: boolean
+  /** Puede gestionar el canal: editar tema/nombre, agregar/quitar miembros, eliminar. */
+  canManage: boolean
   onClose: () => void
 }
 
@@ -30,7 +31,7 @@ export function ChannelDetailsPanel({
   allUsers,
   attachments,
   currentUserId,
-  isAdmin,
+  canManage,
   onClose,
 }: ChannelDetailsPanelProps) {
   const router = useRouter()
@@ -127,7 +128,7 @@ export function ChannelDetailsPanel({
       <div className="p-5 border-b border-fm-surface-container-high flex items-center justify-between">
         <h3 className="font-bold text-fm-on-surface">Detalles del canal</h3>
         <div className="flex items-center gap-1">
-          {isAdmin && (
+          {canManage && (
             <button
               onClick={() => setConfirmDelete(true)}
               className="p-1 text-fm-error hover:bg-fm-error/10 rounded"
@@ -155,7 +156,7 @@ export function ChannelDetailsPanel({
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-[10px] font-bold uppercase tracking-widest text-fm-on-surface-variant">Acerca</h4>
-            {isAdmin && !editingAbout && (
+            {canManage && !editingAbout && (
               <button
                 onClick={() => setEditingAbout(true)}
                 className="text-[10px] font-bold text-fm-primary"
@@ -230,7 +231,7 @@ export function ChannelDetailsPanel({
             <h4 className="text-[10px] font-bold uppercase tracking-widest text-fm-on-surface-variant">
               Miembros ({members.length})
             </h4>
-            {isAdmin && !addMode && (
+            {canManage && !addMode && (
               <button
                 onClick={() => setAddMode(true)}
                 className="text-[10px] font-bold text-fm-primary"
@@ -298,7 +299,7 @@ export function ChannelDetailsPanel({
                       <span className="text-[10px] text-fm-on-surface-variant/70"> · Admin</span>
                     )}
                   </div>
-                  {isAdmin && m.id !== currentUserId && (
+                  {canManage && m.id !== currentUserId && (
                     <button
                       onClick={() => handleRemove(m.id)}
                       className="opacity-0 group-hover:opacity-100 text-fm-error p-1"

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { FORCE_CHANNEL_MEMBER_IDS } from '@/lib/domain/team'
+import { canManageChannels } from '@/lib/domain/permissions'
 import { assertNotImpersonating } from './impersonation'
 
 async function getCurrentUser() {
@@ -36,8 +37,7 @@ async function assertAdminOrSupervisor() {
 
 async function assertCanManageChannels() {
   const ctx = await getCurrentUser()
-  const allowed = ['admin', 'supervisor', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion']
-  if (!allowed.includes(ctx.role)) {
+  if (!canManageChannels(ctx.role)) {
     throw new Error('Sin permisos para gestionar canales')
   }
   return ctx

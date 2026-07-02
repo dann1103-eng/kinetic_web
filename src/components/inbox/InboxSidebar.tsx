@@ -13,6 +13,7 @@ import { useUser } from '@/contexts/UserContext'
 import { useUsersPresence } from '@/hooks/useUsersPresence'
 import { PresenceIndicator } from '@/components/presence/PresenceIndicator'
 import { createOrGetDM } from '@/app/actions/inbox'
+import { canManageChannels } from '@/lib/domain/permissions'
 import type { ConversationListItem, AppUser, EffectivePresenceStatus } from '@/types/db'
 
 interface InboxSidebarProps {
@@ -27,7 +28,7 @@ export function InboxSidebar({ initialList, allUsers }: InboxSidebarProps) {
   const { getEffective, isConvInCall } = useUsersPresence()
   const [dialogOpen, setDialogOpen] = useState(false)
 
-  const canCreateChannels = user.role === 'admin' || user.role === 'supervisor' || user.role === 'coordinadora_familias' || user.role === 'coordinadora_terapias' || user.role === 'recepcion'
+  const canCreateChannels = canManageChannels(user.role)
 
   const { channels, totalUnread } = useMemo(() => {
     const channels = data.filter((c) => c.type === 'channel')

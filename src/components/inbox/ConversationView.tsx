@@ -22,6 +22,7 @@ interface ConversationViewProps {
   channelAttachments: MessageAttachment[]
   currentUserId: string
   isAdmin: boolean
+  canManageChannel: boolean
 }
 
 export function ConversationView({
@@ -34,6 +35,7 @@ export function ConversationView({
   channelAttachments,
   currentUserId,
   isAdmin,
+  canManageChannel,
 }: ConversationViewProps) {
   const [detailsOpen, setDetailsOpen] = useState(conversation.type === 'channel')
   const [replyTo, setReplyTo] = useState<{ id: string; body: string; authorName: string } | null>(null)
@@ -90,7 +92,7 @@ export function ConversationView({
           allUsers={allUsers}
           attachments={channelAttachments}
           currentUserId={currentUserId}
-          isAdmin={isAdmin}
+          canManage={canManageChannel}
           onClose={() => setDetailsOpen(false)}
         />
       )}

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
+import { canManageChannels } from '@/lib/domain/permissions'
 import { ConversationView } from '@/components/inbox/ConversationView'
 import { dayBoundsLocal, dayKeyFromIso, DAY_PAGE_CAP } from '@/lib/domain/inbox-pagination'
 import type {
@@ -22,6 +23,9 @@ export default async function ConversationPage({ params }: PageProps) {
   if (!ctx) notFound()
   const effectiveUserId = ctx.appUser.id
   const isAdmin = ctx.appUser.role === 'admin'
+  // Gestión de canales (editar/miembros/eliminar): coordinadoras y recepción
+  // tienen paridad con admin. La moderación de mensajes ajenos sigue admin-only.
+  const canManageChannel = canManageChannels(ctx.appUser.role)
   // Cuando se está suplantando, las RLS bloquearían las queries del admin
   // (no es miembro) → bypass con admin client.
   let supabase = ctx.isImpersonating ? createAdminClient() : await createClient()
@@ -194,7 +198,7 @@ export default async function ConversationPage({ params }: PageProps) {
 
   // Lista de todos los usuarios (para "Agregar miembros" en canales)
   let allUsers: Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>[] = []
-  if (conversation.type === 'channel' && isAdmin) {
+  if (conversation.type === 'channel' && canManageChannel) {
     const { data: allUsersRaw } = await supabase
       .from('users')
       .select('id, full_name, avatar_url, role')
@@ -213,6 +217,7 @@ export default async function ConversationPage({ params }: PageProps) {
       channelAttachments={channelAttachments}
       currentUserId={effectiveUserId}
       isAdmin={isAdmin}
+      canManageChannel={canManageChannel}
     />
   )
 }
