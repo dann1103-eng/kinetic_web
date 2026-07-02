@@ -68,13 +68,14 @@ export function getAvailableMonths(): string[] {
 export async function getNinosDashboardData(
   supabase: SupabaseClient<Database>,
   periodMonth: string, // 'YYYY-MM'
+  includeArchived = false,
 ): Promise<NinosDashboardResult> {
   const { startISO, endISO } = monthBoundsForPeriod(periodMonth)
 
-  // 1. Niños
-  const { data: childrenRaw } = await supabase
-    .from('children')
-    .select('*')
+  // 1. Niños (por defecto excluye los archivados — mig 0166).
+  let childrenQuery = supabase.from('children').select('*')
+  if (!includeArchived) childrenQuery = childrenQuery.is('archived_at', null)
+  const { data: childrenRaw } = await childrenQuery
 
   // Orden alfabético por apellido (apellido paterno) del nombre completo.
   const children = ((childrenRaw ?? []) as Child[])

@@ -2084,6 +2084,7 @@ export interface Database {
           notes?: string | null
           photo_url?: string | null
           photo_consent?: boolean
+          archived_at?: string | null
           created_by_user_id?: string | null
           current_phase_code?: string | null
         }
@@ -3316,6 +3317,9 @@ export interface Child {
   current_phase_changed_at: string
   /** Mig 0124: notas asociadas al cambio de fase actual. */
   current_phase_notes: string | null
+  /** Mig 0166: si no es null, el niño está archivado (oculto de listados). Se
+   *  setea 3 meses después de la baja; reversible. */
+  archived_at: string | null
 }
 
 // ──────────────────────────────────────────────────────────────────────────

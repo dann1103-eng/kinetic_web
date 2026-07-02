@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
@@ -29,6 +30,7 @@ export default async function NinosPage({
     phase?: string
     program?: string
     therapist?: string
+    archived?: string
   }>
 }) {
   const ctx = await getEffectiveUser()
@@ -36,20 +38,32 @@ export default async function NinosPage({
   if (REDIRECT_TO_MY_KIDS.includes(ctx.appUser.role)) redirect('/mis-ninos')
   if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
 
-  const { month, q, phase, program, therapist } = await searchParams
+  const { month, q, phase, program, therapist, archived } = await searchParams
+  const showArchived = archived === '1'
   const availableMonths = getAvailableMonths()
   const periodMonth =
     month && availableMonths.includes(month) ? month : availableMonths[0]
 
   const supabase = await createClient()
   const [dashboard, phaseCatalog] = await Promise.all([
-    getNinosDashboardData(supabase, periodMonth),
+    getNinosDashboardData(supabase, periodMonth, showArchived),
     listPhaseCatalog(),
   ])
 
   return (
     <div className="flex flex-col min-h-full">
       <TopNav title="Niños" />
+      <div className="px-6 pt-3">
+        <Link
+          href={showArchived ? '/ninos' : '/ninos?archived=1'}
+          className="inline-flex items-center gap-1.5 text-xs font-semibold text-fm-on-surface-variant hover:text-fm-primary"
+        >
+          <span className="material-symbols-outlined text-[16px]">
+            {showArchived ? 'visibility_off' : 'inventory_2'}
+          </span>
+          {showArchived ? 'Ocultar archivados' : 'Ver archivados (baja +3 meses)'}
+        </Link>
+      </div>
       <NinosPageClient
         niños={dashboard.niños}
         therapists={dashboard.therapists}

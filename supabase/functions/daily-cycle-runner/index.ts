@@ -297,6 +297,20 @@ Deno.serve(async (_req) => {
   const log: string[] = []
 
   try {
+    // ========== STEP 0: AUTO-ARCHIVE (niños dados de baja hace >3 meses) ==========
+    try {
+      const { data: archivedCount, error: archiveErr } = await supabase.rpc(
+        'archive_stale_discharged_children'
+      )
+      if (archiveErr) {
+        log.push(`⚠ Auto-archive falló: ${archiveErr.message}`)
+      } else if ((archivedCount ?? 0) > 0) {
+        log.push(`🗄 Archivados ${archivedCount} niño(s) con baja >3 meses`)
+      }
+    } catch (e) {
+      log.push(`⚠ Auto-archive excepción: ${e instanceof Error ? e.message : String(e)}`)
+    }
+
     // ========== STEP 1: AUTO-BILLING ==========
     const { data: autoCycles } = await supabase
       .from('billing_cycles')

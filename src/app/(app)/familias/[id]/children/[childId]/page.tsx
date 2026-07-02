@@ -18,6 +18,7 @@ import type { Child, MonthlySessionCycle, TreatmentPlan, UserRole } from '@/type
 import Link from 'next/link'
 import { ChildForm } from '@/components/families/ChildForm'
 import { DeleteChildButton } from '@/components/families/DeleteChildButton'
+import { RestoreChildBanner } from '@/components/families/RestoreChildBanner'
 
 // Eliminar PERMANENTEMENTE un niño (borra en cascada su historial). Roles de
 // gestión: dirección, ambas coordinadoras y recepción (paridad con deleteChild).
@@ -206,6 +207,10 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
             </div>
           )}
         </header>
+
+        {canDeleteChild && c.archived_at && (
+          <RestoreChildBanner childId={childId} archivedAt={c.archived_at} />
+        )}
 
         {/* Pipeline de admisión (mig 0121) */}
         <div className="mt-6">

@@ -198,6 +198,29 @@ export async function updateChild(
   return { ok: true }
 }
 
+// Restaurar un niño archivado (mig 0166). El archivado es reversible: pone
+// archived_at=null para que vuelva a los listados. Roles de gestión.
+export async function unarchiveChild(
+  childId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+  if (!CAN_DELETE_CHILD_ROLES.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos para restaurar niños' }
+  }
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('children')
+    .update({ archived_at: null })
+    .eq('id', childId)
+    .select('family_id')
+    .single()
+  if (error) return { ok: false, error: error.message }
+  if (data?.family_id) revalidatePath(`/familias/${data.family_id}`)
+  revalidatePath('/ninos')
+  return { ok: true }
+}
+
 // setChildIntakePhase y setChildTreatmentStatus eliminadas en mig 0124.
 // Para cambiar la fase de un niño usar `advanceChildPhase` de
 // src/app/actions/intake-pipeline.ts — gestiona validación, history,
