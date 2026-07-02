@@ -144,9 +144,20 @@ export async function createChannel(payload: {
       return { error: createErr?.message ?? 'No se pudo crear el canal' }
     }
 
-    const memberIds = Array.from(
+    const requestedIds = Array.from(
       new Set([userId, ...payload.memberIds, ...FORCE_CHANNEL_MEMBER_IDS])
     )
+    // Filtro defensivo: solo insertamos user_ids que existan en public.users.
+    // Evita FK violation ("conversation_members_user_id_fkey") si algún ID
+    // forzado/seleccionado quedó obsoleto. Siempre garantizamos al creador.
+    const { data: existingUsers } = await admin
+      .from('users')
+      .select('id')
+      .in('id', requestedIds)
+    const validIds = new Set((existingUsers ?? []).map((u) => u.id))
+    validIds.add(userId) // el creador siempre va, aunque la query fallara
+    const memberIds = Array.from(validIds)
+
     const { error: memberErr } = await admin
       .from('conversation_members')
       .insert(memberIds.map((uid) => ({ conversation_id: created.id, user_id: uid })))

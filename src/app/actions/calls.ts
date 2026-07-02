@@ -342,9 +342,19 @@ export async function createVoiceChannel(payload: {
       return { error: createErr?.message ?? 'No se pudo crear el canal de voz' }
     }
 
-    const memberIds = Array.from(
+    const requestedIds = Array.from(
       new Set([user.id, ...payload.memberIds, ...FORCE_CHANNEL_MEMBER_IDS])
     )
+    // Filtro defensivo: solo user_ids que existan en public.users (evita FK
+    // violation por IDs obsoletos). El creador siempre va.
+    const { data: existingUsers } = await admin
+      .from('users')
+      .select('id')
+      .in('id', requestedIds)
+    const validIds = new Set((existingUsers ?? []).map((u) => u.id))
+    validIds.add(user.id)
+    const memberIds = Array.from(validIds)
+
     const { error: memberErr } = await admin
       .from('conversation_members')
       .insert(memberIds.map((uid) => ({ conversation_id: created.id, user_id: uid })))
