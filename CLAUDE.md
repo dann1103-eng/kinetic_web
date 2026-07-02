@@ -323,14 +323,14 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0161** | `users`: datos bancarios. |
 | **0162** | Bucket de Storage para adjuntos del chat. |
 | **0163** | **El ciclo crea las citas al GENERAR, no al pagar.** Re-asegura `confirm_monthly_payment_and_generate` (crea citas + factura `pending`, `paid_at` NULL) y `mark_monthly_cycle_paid` (solo pago, NO crea citas). Backfill de ciclos viejos: `scripts/backfill_0163_cycle_appointments.sql` (en tandas). |
-| **0164** | ⚠️ **PENDIENTE DE APLICAR**: amplía el CHECK de `appointments.extra_reason` para incluir `'evaluacion'`. Sin esto, agendar evaluaciones truena con `appointments_extra_*_check` (el código inserta `extra_reason='evaluacion'` desde 0156, pero ninguna migración había ampliado el dominio que nació en 0142). |
+| **0164** | Amplía el CHECK de `appointments.extra_reason` para incluir `'evaluacion'`. Sin esto, agendar evaluaciones truena con `appointments_extra_*_check` (el código inserta `extra_reason='evaluacion'` desde 0156, pero ninguna migración había ampliado el dominio que nació en 0142). |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
 > migración automática. **El repo va hasta 0164; próximo libre = 0165.**
-> ⚠️ **Solo 0164 (evaluaciones) está PENDIENTE de aplicar** — el resto (hasta
-> 0163) ya está en producción (verificado jul 2026). Correr
-> `supabase/scripts/verify_pending_migrations.sql` (checks hasta la **fila 68**
-> = `mig_0164_extra_reason_permite_evaluacion`) para ver cuáles faltan.
+> ✅ **Todas las migraciones (hasta 0164) están aplicadas y verificadas en
+> producción** (jul 2026 — 0164 confirmada con un insert de prueba real vía
+> REST API). Correr `supabase/scripts/verify_pending_migrations.sql` para
+> confirmar en cualquier momento (checks hasta la fila 68).
 >
 > **GOTCHA recurrente**: `create or replace function` con DISTINTO # de args
 > NO reemplaza — crea una **sobrecarga** y deja la llamada ambigua. Al cambiar
@@ -458,9 +458,7 @@ Todo en `master`. **Requiere aplicar migraciones 0134–0141 en orden.**
     - Tarjeta "Por terapista" activada en `/reportes`. Usa `appointment_absences` con status='replaced' para contar reposiciones cumplidas.
 
 ## Pendiente (próximas sesiones)
-- **APLICAR migración 0164 en Supabase** (evaluaciones: CHECK `extra_reason`
-  con `'evaluacion'`). Es la única pendiente — el resto (hasta 0163) ya está en
-  producción. Verificar con `verify_pending_migrations.sql` (fila 68).
+- (Ninguna migración pendiente — todas hasta 0164 aplicadas y verificadas jul 2026.)
 - (Backlog) Botón "Eliminar niño/a" (admin, con confirmación) en perfil del niño
   — hoy no existe; se borran por SQL.
 - (Backlog) Permitir a recepción cobrar/perdonar recogidas tardías (hoy
