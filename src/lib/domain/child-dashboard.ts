@@ -155,13 +155,16 @@ export async function getChildDashboardData(
   const { startISO, endISO } = monthBoundsISO(periodMonth)
   const todayKey = todayInSVKey(now)
 
-  // Citas del mes
+  // Citas del mes. Se excluyen las 'rescheduled' (movidas/superadas por una
+  // regeneración del ciclo) y 'cancelled': si no, al regenerar el ciclo se
+  // apilaban las viejas tachadas junto a las nuevas y la grilla se veía "rara".
   const { data: monthApptsRaw } = await supabase
     .from('appointments')
     .select('*')
     .eq('child_id', childId)
     .gte('starts_at', startISO)
     .lt('starts_at', endISO)
+    .not('status', 'in', '(rescheduled,cancelled)')
     .order('starts_at')
 
   const monthAppts = (monthApptsRaw ?? []) as Appointment[]
