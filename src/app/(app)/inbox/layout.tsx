@@ -125,29 +125,40 @@ async function _loadInitialList(): Promise<ConversationListItem[]> {
     if (!previewByConv.has(m.conversation_id)) previewByConv.set(m.conversation_id, formatSharePreview(m.body))
   }
 
-  // Unread counts — todas las queries en paralelo para evitar N+1 secuencial
-  // que desborda el timeout de Vercel cuando el usuario tiene muchas conversaciones.
-  const unreadCounts = await Promise.all(
-    convs.map(async (c) => {
-      const lastRead = lastReadByConv.get(c.id)
-      if (!lastRead) return 0
-      const { count } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('conversation_id', c.id)
-        .is('deleted_at', null)
-        .neq('user_id', userId)
-        .gt('created_at', lastRead)
-      return count ?? 0
-    })
-  )
+  // Unread counts — UNA sola query (antes: un COUNT por conversación = N+1 que
+  // desbordaba el timeout de Vercel con muchas conversaciones). Traemos los
+  // candidatos desde el last_read más viejo y contamos en memoria por conversación.
+  const unreadByConv = new Map<string, number>()
+  const convIdsWithLastRead = convs
+    .map((c) => c.id)
+    .filter((id) => lastReadByConv.has(id))
+  if (convIdsWithLastRead.length > 0) {
+    let minLastRead = lastReadByConv.get(convIdsWithLastRead[0]) as string
+    for (const id of convIdsWithLastRead) {
+      const lr = lastReadByConv.get(id) as string
+      if (new Date(lr).getTime() < new Date(minLastRead).getTime()) minLastRead = lr
+    }
+    const { data: unreadRows } = await supabase
+      .from('messages')
+      .select('conversation_id, created_at')
+      .in('conversation_id', convIdsWithLastRead)
+      .is('deleted_at', null)
+      .neq('user_id', userId)
+      .gt('created_at', minLastRead)
+    for (const m of (unreadRows ?? []) as { conversation_id: string; created_at: string }[]) {
+      const lr = lastReadByConv.get(m.conversation_id)
+      if (lr && new Date(m.created_at).getTime() > new Date(lr).getTime()) {
+        unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) ?? 0) + 1)
+      }
+    }
+  }
 
-  const items: ConversationListItem[] = convs.map((c, i) => ({
+  const items: ConversationListItem[] = convs.map((c) => ({
     id: c.id,
     type: c.type,
     name: c.name,
     last_message_at: c.last_message_at,
-    unread_count: unreadCounts[i],
+    unread_count: unreadByConv.get(c.id) ?? 0,
     counterpart: c.type === 'dm' ? counterpartByConv.get(c.id) ?? null : null,
     last_message_preview: previewByConv.get(c.id) ?? null,
   }))

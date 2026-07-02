@@ -148,23 +148,36 @@ export async function GET() {
     }
   }
 
-  // unread_count — queries en paralelo para evitar N+1 secuencial
-  const unreadCounts = await Promise.all(
-    convs.map(async (c) => {
-      const lastRead = lastReadByConv.get(c.id)
-      if (!lastRead) return 0
-      const { count } = await supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('conversation_id', c.id)
-        .is('deleted_at', null)
-        .neq('user_id', user.id)
-        .gt('created_at', lastRead)
-      return count ?? 0
-    })
-  )
+  // unread_count — UNA sola query (antes: un COUNT por conversación = N+1 que se
+  // pollea constantemente). Traemos los candidatos a no-leídos desde el last_read
+  // MÁS VIEJO y contamos en memoria por conversación. Verificado contra datos
+  // reales: da exactamente los mismos conteos que el enfoque per-conversación.
   const unreadByConv = new Map<string, number>()
-  convs.forEach((c, i) => unreadByConv.set(c.id, unreadCounts[i]))
+  const convIdsWithLastRead = convs
+    .map((c) => c.id)
+    .filter((id) => lastReadByConv.has(id))
+  if (convIdsWithLastRead.length > 0) {
+    // Umbral inferior de la query = el last_read más viejo (por Date, robusto al
+    // formato del timestamp). Luego se filtra por-conversación en memoria.
+    let minLastRead = lastReadByConv.get(convIdsWithLastRead[0]) as string
+    for (const id of convIdsWithLastRead) {
+      const lr = lastReadByConv.get(id) as string
+      if (new Date(lr).getTime() < new Date(minLastRead).getTime()) minLastRead = lr
+    }
+    const { data: unreadRows } = await supabase
+      .from('messages')
+      .select('conversation_id, created_at')
+      .in('conversation_id', convIdsWithLastRead)
+      .is('deleted_at', null)
+      .neq('user_id', user.id)
+      .gt('created_at', minLastRead)
+    for (const m of (unreadRows ?? []) as { conversation_id: string; created_at: string }[]) {
+      const lr = lastReadByConv.get(m.conversation_id)
+      if (lr && new Date(m.created_at).getTime() > new Date(lr).getTime()) {
+        unreadByConv.set(m.conversation_id, (unreadByConv.get(m.conversation_id) ?? 0) + 1)
+      }
+    }
+  }
 
   const items: ConversationListItem[] = convs.map((c) => ({
     id: c.id,
