@@ -27,7 +27,7 @@ export function InboxSidebar({ initialList, allUsers }: InboxSidebarProps) {
   const { getEffective, isConvInCall } = useUsersPresence()
   const [dialogOpen, setDialogOpen] = useState(false)
 
-  const canCreateChannels = ['admin', 'supervisor', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion'].includes(user.role)
+  const canCreateChannels = user.role === 'admin' || user.role === 'supervisor' || user.role === 'coordinadora_familias' || user.role === 'coordinadora_terapias' || user.role === 'recepcion'
 
   const { channels, totalUnread } = useMemo(() => {
     const channels = data.filter((c) => c.type === 'channel')
