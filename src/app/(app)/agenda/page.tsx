@@ -30,17 +30,18 @@ export default async function AgendaPage() {
 
   const supabase = await createClient()
 
-  // Rango inicial: mes actual ± 1 mes (para week/month views).
+  // Rango: desde el mes anterior en adelante SIN tope superior. La agenda debe
+  // mostrar TODO lo programado por lejos que se navegue — no hay límite de carga
+  // (bug reportado: "solo se ve hasta el 7 de julio"). El piso de "mes anterior"
+  // solo evita arrastrar historial muy antiguo; hacia el futuro no hay corte.
   const now = new Date()
   const rangeStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
-  const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0, 23, 59, 59).toISOString()
 
-  // Citas. RLS filtra: terapistas solo ven las suyas.
+  // Citas. RLS filtra: is_agency_user() ve todas; el resto solo las suyas.
   const { data: appointments } = await supabase
     .from('appointments')
     .select('*')
     .gte('starts_at', rangeStart)
-    .lte('starts_at', rangeEnd)
     .order('starts_at')
 
   // Niños activos para autocomplete del modal (no críticos para la grid).
@@ -88,7 +89,6 @@ export default async function AgendaPage() {
     .from('program_group_sessions')
     .select('id, group_id, starts_at, ends_at, status, program_groups(name, program)')
     .gte('starts_at', rangeStart)
-    .lte('starts_at', rangeEnd)
     .order('starts_at')
 
   type GSRow = {
