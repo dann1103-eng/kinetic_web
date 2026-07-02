@@ -17,6 +17,7 @@ import {
   EXTRA_REASON_LABELS,
   SERVICE_TYPE_LABELS,
   usesFreePerson,
+  usesMultiAssign,
   type Appointment,
   type Child,
   type EventType,
@@ -90,6 +91,15 @@ export function AppointmentForm({
   )
   const [therapistId, setTherapistId] = useState<string>(
     existingAppointment?.therapist_id ?? '',
+  )
+  // Eventos multi-persona (reuniones, entrega de avances, entrevistas, otro):
+  // uno o varios asignados. Se inicializa desde assignee_ids (o el therapist_id).
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(
+    existingAppointment?.assignee_ids && existingAppointment.assignee_ids.length > 0
+      ? existingAppointment.assignee_ids
+      : existingAppointment?.therapist_id
+        ? [existingAppointment.therapist_id]
+        : [],
   )
   const [modality, setModality] = useState<Modality>(
     existingAppointment?.modality ?? 'presencial',
@@ -170,12 +180,24 @@ export function AppointmentForm({
         setSubmitting(false)
         return
       }
-      if (!therapistId) {
+      if (usesMultiAssign(eventType)) {
+        if (assigneeIds.length === 0) {
+          setError('Asigná al menos una persona del equipo.')
+          setSubmitting(false)
+          return
+        }
+      } else if (!therapistId) {
         setError('Asigná a quién lo atenderá.')
         setSubmitting(false)
         return
       }
     }
+
+    // Asignación: multi-persona usa la lista; el resto usa el dropdown único. El
+    // therapist_id "principal" es el primero de la lista (para display/compat).
+    const isMulti = usesMultiAssign(eventType)
+    const primaryTherapist = isMulti ? (assigneeIds[0] ?? '') : therapistId
+    const assigneeArr = isMulti ? assigneeIds : null
 
     const startsIso = new Date(startsAt).toISOString()
     const endsIso = new Date(new Date(startsAt).getTime() + durationMin * 60_000).toISOString()
@@ -218,10 +240,11 @@ export function AppointmentForm({
         extra_reason: eventType === 'terapia' && isExtra ? extraReason : null,
         external_child_name: usesFreePerson(eventType) ? externalChildName.trim() : null,
         service_code: eventType === 'evaluacion' ? serviceCode : null,
+        assignee_ids: assigneeArr,
       }
       // La terapista de NO-terapias se guarda aquí; las terapias usan reassignTherapist.
       if (eventType !== 'terapia') {
-        metaPatch.therapist_id = usesFreePerson(eventType) ? therapistId : therapistId || null
+        metaPatch.therapist_id = usesFreePerson(eventType) ? (primaryTherapist || null) : therapistId || null
       }
       const metaRes = await updateAppointment(existingAppointment.id, metaPatch)
       if (!metaRes.ok) {
@@ -255,7 +278,8 @@ export function AppointmentForm({
         child_id: usesFreePerson(eventType) ? null : childId,
         external_child_name: usesFreePerson(eventType) ? externalChildName.trim() : null,
         service_code: eventType === 'evaluacion' ? serviceCode : null,
-        therapist_id: eventType === 'terapia' || usesFreePerson(eventType) ? therapistId : therapistId || null,
+        therapist_id: primaryTherapist || null,
+        assignee_ids: assigneeArr,
         event_type: eventType,
         service_type: eventType === 'terapia' ? (serviceType as ServiceType) : null,
         modality,
@@ -480,22 +504,61 @@ export function AppointmentForm({
                       </select>
                     </div>
                   )}
-                  <div>
-                    <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">
-                      Asignar a <span className="text-fm-error">*</span>
-                    </label>
-                    <select
-                      value={therapistId}
-                      onChange={(e) => setTherapistId(e.target.value)}
-                      required
-                      className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
-                    >
-                      <option value="">— Selecciona —</option>
-                      {assignableStaff.map((t) => (
-                        <option key={t.id} value={t.id}>{t.full_name}</option>
-                      ))}
-                    </select>
-                  </div>
+                  {eventType === 'evaluacion' ? (
+                    <div>
+                      <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">
+                        Asignar a <span className="text-fm-error">*</span>
+                      </label>
+                      <select
+                        value={therapistId}
+                        onChange={(e) => setTherapistId(e.target.value)}
+                        required
+                        className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
+                      >
+                        <option value="">— Selecciona —</option>
+                        {assignableStaff.map((t) => (
+                          <option key={t.id} value={t.id}>{t.full_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">
+                        Asignar a <span className="text-fm-on-surface-variant/70">(una o varias personas)</span>{' '}
+                        <span className="text-fm-error">*</span>
+                      </label>
+                      <div className="max-h-44 overflow-y-auto border border-fm-surface-container-high rounded-xl divide-y divide-fm-surface-container-high">
+                        {assignableStaff.map((t) => {
+                          const checked = assigneeIds.includes(t.id)
+                          return (
+                            <label
+                              key={t.id}
+                              className="flex items-center gap-2 px-3 py-2 hover:bg-fm-background cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() =>
+                                  setAssigneeIds((prev) =>
+                                    prev.includes(t.id)
+                                      ? prev.filter((x) => x !== t.id)
+                                      : [...prev, t.id],
+                                  )
+                                }
+                                className="accent-fm-primary"
+                              />
+                              <span className="text-sm text-fm-on-surface">{t.full_name}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                      <p className="text-[10px] text-fm-on-surface-variant mt-1">
+                        {assigneeIds.length === 0
+                          ? 'Marcá a cada persona que atenderá este evento — lo verá en su agenda y en su “mi día”.'
+                          : `${assigneeIds.length} persona(s) asignada(s).`}
+                      </p>
+                    </div>
+                  )}
                 </div>
                 {eventType === 'evaluacion' && (
                   <p className="text-[11px] text-fm-on-surface-variant">

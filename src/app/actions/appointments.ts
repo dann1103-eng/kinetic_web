@@ -71,6 +71,9 @@ interface CreateAppointmentInput {
   /** Código del catálogo de evaluaciones elegido (solo evaluaciones). */
   service_code?: string | null
   therapist_id?: string | null
+  /** Asignados de un evento multi-persona (reuniones, entrega de avances, etc.).
+   *  Incluye al principal; therapist_id se deriva como el primero. */
+  assignee_ids?: string[] | null
   event_type: EventType
   service_type?: ServiceType | null
   modality: Modality
@@ -208,6 +211,8 @@ export async function createAppointment(
       external_child_name: freePerson ? input.external_child_name!.trim() : null,
       service_code: isEvaluacion ? input.service_code! : null,
       therapist_id: input.therapist_id || null,
+      assignee_ids:
+        input.assignee_ids && input.assignee_ids.length > 0 ? input.assignee_ids : null,
       event_type: input.event_type,
       service_type: input.service_type || null,
       modality: input.modality,
@@ -235,7 +240,7 @@ export async function createAppointment(
 
 export async function updateAppointment(
   appointmentId: string,
-  patch: Partial<Pick<Appointment, 'starts_at' | 'ends_at' | 'modality' | 'service_type' | 'therapist_id' | 'notes' | 'event_type' | 'custom_event_label' | 'is_extra' | 'extra_reason' | 'external_child_name' | 'service_code'>>,
+  patch: Partial<Pick<Appointment, 'starts_at' | 'ends_at' | 'modality' | 'service_type' | 'therapist_id' | 'notes' | 'event_type' | 'custom_event_label' | 'is_extra' | 'extra_reason' | 'external_child_name' | 'service_code' | 'assignee_ids'>>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }

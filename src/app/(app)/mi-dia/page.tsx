@@ -84,7 +84,8 @@ export default async function MiDiaPage() {
   const { data: appointmentsRaw } = await supabase
     .from('appointments')
     .select('*')
-    .eq('therapist_id', userId)
+    // Propias (therapist_id) O donde soy uno de los asignados (eventos multi-persona).
+    .or(`therapist_id.eq.${userId},assignee_ids.cs.{${userId}}`)
     .gte('starts_at', todayStart.toISOString())
     .lt('starts_at', tomorrowStart.toISOString())
     .not('status', 'eq', 'rescheduled')
@@ -97,7 +98,7 @@ export default async function MiDiaPage() {
   const { data: upcomingRaw } = await supabase
     .from('appointments')
     .select('*')
-    .eq('therapist_id', userId)
+    .or(`therapist_id.eq.${userId},assignee_ids.cs.{${userId}}`)
     .gte('starts_at', tomorrowStart.toISOString())
     .lt('starts_at', upcomingEnd.toISOString())
     .not('status', 'eq', 'rescheduled')

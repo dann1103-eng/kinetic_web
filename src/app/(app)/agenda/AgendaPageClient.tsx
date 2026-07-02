@@ -179,7 +179,15 @@ export function AgendaPageClient({
       // citas individuales por niño. Las citas por-niño siguen existiendo para el
       // portal/calendario de la familia, pero no se pintan en la agenda de staff.
       if (a.event_type === 'programa_matutino') return false
-      if (filterTherapistId && a.therapist_id !== filterTherapistId) return false
+      // Al filtrar por una persona (o en la vista bloqueada de terapista/maestra),
+      // mostrar sus citas propias Y los eventos multi-persona donde es asignada.
+      if (
+        filterTherapistId &&
+        a.therapist_id !== filterTherapistId &&
+        !a.assignee_ids?.includes(filterTherapistId)
+      ) {
+        return false
+      }
       if (filterEventTypes.size > 0 && !filterEventTypes.has(a.event_type)) return false
       if (filterServiceTypes.size > 0) {
         if (!a.service_type || !filterServiceTypes.has(a.service_type)) return false

@@ -2099,6 +2099,7 @@ export interface Database {
           external_child_name?: string | null
           service_code?: string | null
           therapist_id?: string | null
+          assignee_ids?: string[] | null
           event_type: EventType
           service_type?: ServiceType | null
           modality?: Modality
@@ -2986,6 +2987,14 @@ export const FREE_PERSON_EVENT_TYPES: EventType[] = [
 export const usesFreePerson = (t: EventType): boolean =>
   FREE_PERSON_EVENT_TYPES.includes(t)
 
+/**
+ * Eventos que pueden asignarse a MÁS DE UNA persona del equipo (reuniones,
+ * entrega de avances, entrevistas, "otro"). Excluye evaluación (servicio
+ * individual, va a una sola persona por planilla) además de terapia/matutino.
+ */
+export const usesMultiAssign = (t: EventType): boolean =>
+  usesFreePerson(t) && t !== 'evaluacion'
+
 export type ServiceType =
   | 'lenguaje'
   | 'motricidad_gruesa'
@@ -3129,6 +3138,9 @@ export interface Appointment {
   /** Código de service_catalog del tipo de evaluación (para calcular el pago por cost_usd). */
   service_code: string | null
   therapist_id: string | null
+  /** Mig 0168: todos los asignados de un evento multi-persona (incluye al
+   *  principal, therapist_id). NULL en terapias/evaluaciones. */
+  assignee_ids: string[] | null
   event_type: EventType
   service_type: ServiceType | null
   modality: Modality
