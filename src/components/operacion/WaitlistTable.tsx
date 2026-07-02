@@ -16,6 +16,7 @@ import { groupPhaseCatalog } from '@/lib/domain/intake-pipeline'
 import { daysSinceAdded } from '@/lib/domain/waitlist-alerts'
 import { advanceWaitlistPhase } from '@/app/actions/intake-pipeline'
 import { TransformWaitlistModal } from './TransformWaitlistModal'
+import { WaitlistComments } from './WaitlistComments'
 import { PhaseChip } from '@/components/pipeline/PhaseChip'
 
 interface Props {
@@ -61,6 +62,7 @@ export function WaitlistTable({
   const [dropReason, setDropReason] = useState('')
   const [transformTarget, setTransformTarget] = useState<WaitlistEntry | null>(null)
   const [phaseTarget, setPhaseTarget] = useState<WaitlistEntry | null>(null)
+  const [commentsTarget, setCommentsTarget] = useState<WaitlistEntry | null>(null)
 
   const catalogByCode: Record<string, IntakePhaseCatalogEntry> = {}
   for (const p of phaseCatalog) catalogByCode[p.code] = p
@@ -250,6 +252,14 @@ export function WaitlistTable({
                         </button>
                       )}
 
+                      <button
+                        type="button"
+                        onClick={() => setCommentsTarget(e)}
+                        className="text-xs text-fm-on-surface-variant hover:text-fm-primary hover:underline"
+                      >
+                        Comentarios
+                      </button>
+
                       {!isInscribed && !isTerminal && (
                         <button
                           type="button"
@@ -310,6 +320,39 @@ export function WaitlistTable({
           entry={transformTarget}
           onClose={() => setTransformTarget(null)}
         />
+      )}
+
+      {/* Comments modal */}
+      {commentsTarget && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4"
+          onClick={() => setCommentsTarget(null)}
+        >
+          <div
+            className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] overflow-y-auto p-5"
+            onClick={(ev) => ev.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-fm-on-surface-variant">
+                  Lista de espera
+                </p>
+                <h3 className="text-base font-bold text-fm-on-surface truncate">
+                  {commentsTarget.child_full_name}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCommentsTarget(null)}
+                className="text-fm-on-surface-variant hover:text-fm-on-surface flex-shrink-0"
+                aria-label="Cerrar"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <WaitlistComments entryId={commentsTarget.id} />
+          </div>
+        </div>
       )}
 
       {/* Drop modal */}

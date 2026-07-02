@@ -2292,6 +2292,18 @@ export interface Database {
         Update: Partial<Omit<WaitlistEntry, 'id' | 'added_at'>>
         Relationships: []
       }
+      waitlist_entry_comments: {
+        Row: AsRow<WaitlistEntryComment>
+        Insert: {
+          id?: string
+          entry_id: string
+          author_user_id?: string | null
+          body: string
+          created_at?: string
+        }
+        Update: Partial<Omit<WaitlistEntryComment, 'id' | 'created_at'>>
+        Relationships: []
+      }
       intake_phase_catalog: {
         Row: AsRow<IntakePhaseCatalogEntry>
         Insert: Omit<IntakePhaseCatalogEntry, 'created_at'> & { created_at?: string }
@@ -3243,6 +3255,15 @@ export interface WaitlistEntry {
   referral_channel: ReferralChannel | null
   referral_channel_other: string | null
   interest_text: string | null
+}
+
+/** Mig 0165: comentario/bitácora de una entrada de lista de espera. */
+export interface WaitlistEntryComment {
+  id: string
+  entry_id: string
+  author_user_id: string | null
+  body: string
+  created_at: string
 }
 
 export interface VirtualMeeting {

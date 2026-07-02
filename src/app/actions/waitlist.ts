@@ -147,6 +147,87 @@ export async function listWaitlist(
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Comentarios / bitácora por entrada (mig 0165)
+// ──────────────────────────────────────────────────────────────────────────
+
+export interface WaitlistCommentView {
+  id: string
+  body: string
+  created_at: string
+  author_user_id: string | null
+  author_name: string | null
+}
+
+export async function listWaitlistComments(entryId: string): Promise<WaitlistCommentView[]> {
+  const { supabase } = await getActor()
+  const { data } = await supabase
+    .from('waitlist_entry_comments')
+    .select('id, body, created_at, author_user_id, author:users!waitlist_entry_comments_author_user_id_fkey(full_name)')
+    .eq('entry_id', entryId)
+    .order('created_at', { ascending: true })
+
+  type Row = {
+    id: string
+    body: string
+    created_at: string
+    author_user_id: string | null
+    author: { full_name: string } | { full_name: string }[] | null
+  }
+  return ((data ?? []) as unknown as Row[]).map((r) => {
+    const author = Array.isArray(r.author) ? r.author[0] : r.author
+    return {
+      id: r.id,
+      body: r.body,
+      created_at: r.created_at,
+      author_user_id: r.author_user_id,
+      author_name: author?.full_name ?? null,
+    }
+  })
+}
+
+export async function addWaitlistComment(
+  entryId: string,
+  body: string,
+): Promise<{ ok: true; comment: WaitlistCommentView } | { ok: false; error: string }> {
+  const { supabase, user } = await getActor()
+  if (!isCoord(user.role)) return { ok: false, error: 'No autorizado.' }
+  const trimmed = body.trim()
+  if (!trimmed) return { ok: false, error: 'El comentario no puede estar vacío.' }
+
+  const { data, error } = await supabase
+    .from('waitlist_entry_comments')
+    .insert({ entry_id: entryId, author_user_id: user.id, body: trimmed })
+    .select('id, body, created_at, author_user_id, author:users!waitlist_entry_comments_author_user_id_fkey(full_name)')
+    .single()
+
+  if (error || !data) {
+    return { ok: false, error: error?.message ?? 'No se pudo guardar el comentario.' }
+  }
+
+  type Row = {
+    id: string
+    body: string
+    created_at: string
+    author_user_id: string | null
+    author: { full_name: string } | { full_name: string }[] | null
+  }
+  const row = data as unknown as Row
+  const author = Array.isArray(row.author) ? row.author[0] : row.author
+
+  revalidatePath('/operacion/lista-de-espera')
+  return {
+    ok: true,
+    comment: {
+      id: row.id,
+      body: row.body,
+      created_at: row.created_at,
+      author_user_id: row.author_user_id,
+      author_name: author?.full_name ?? null,
+    },
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Transformación manual a familia (override admin con formulario completo)
 // ──────────────────────────────────────────────────────────────────────────
 //

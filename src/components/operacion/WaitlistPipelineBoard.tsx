@@ -27,6 +27,7 @@ import {
 import { groupPhaseCatalog } from '@/lib/domain/intake-pipeline'
 import { advanceWaitlistPhase } from '@/app/actions/intake-pipeline'
 import { daysSinceAdded } from '@/lib/domain/waitlist-alerts'
+import { WaitlistComments } from './WaitlistComments'
 
 interface Props {
   entries: WaitlistEntry[]
@@ -649,6 +650,8 @@ function DetailModal({
                   Ver ficha del niño →
                 </Link>
               )}
+
+              <WaitlistComments entryId={entry.id} />
             </div>
           ) : (
             /* ── Vista de selección de fase ── */
