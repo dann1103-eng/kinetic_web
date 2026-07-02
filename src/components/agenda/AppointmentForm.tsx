@@ -16,6 +16,7 @@ import {
   EVENT_TYPE_LABELS,
   EXTRA_REASON_LABELS,
   SERVICE_TYPE_LABELS,
+  usesFreePerson,
   type Appointment,
   type Child,
   type EventType,
@@ -44,6 +45,9 @@ interface AppointmentFormProps {
   existingAppointment?: Appointment         // modo edit
   childrenList: ChildLite[]
   therapists: TherapistLite[]
+  /** Todo el staff — para asignar eventos particulares (entrevistas, reuniones,
+   *  entrega de avances, evaluación, otro) a cualquier persona del equipo. */
+  assignableStaff: TherapistLite[]
   closures: InstitutionalClosure[]
   evalCatalog?: EvalCatalogItem[]
   isAdmin: boolean
@@ -59,6 +63,7 @@ export function AppointmentForm({
   existingAppointment,
   childrenList: childrenProp,
   therapists,
+  assignableStaff,
   closures,
   evalCatalog = [],
   isAdmin,
@@ -151,20 +156,22 @@ export function AppointmentForm({
       return
     }
 
-    // Validación de evaluaciones: nombre libre + tipo + persona asignada.
-    if (eventType === 'evaluacion') {
+    // Eventos con persona de texto libre (evaluación, entrevistas, reuniones,
+    // entrega de avances, otro): nombre libre + a quién se asigna. Evaluación
+    // además exige el tipo (catálogo).
+    if (usesFreePerson(eventType)) {
       if (externalChildName.trim().length === 0) {
-        setError('Escribí el nombre de la persona evaluada.')
+        setError('Escribí el nombre de la persona a atender.')
         setSubmitting(false)
         return
       }
-      if (!serviceCode) {
+      if (eventType === 'evaluacion' && !serviceCode) {
         setError('Elegí el tipo de evaluación.')
         setSubmitting(false)
         return
       }
       if (!therapistId) {
-        setError('Asigná a quién dará la evaluación.')
+        setError('Asigná a quién lo atenderá.')
         setSubmitting(false)
         return
       }
@@ -209,12 +216,12 @@ export function AppointmentForm({
         custom_event_label: eventType === 'otro' ? customEventLabel.trim() : null,
         is_extra: eventType === 'terapia' ? isExtra : false,
         extra_reason: eventType === 'terapia' && isExtra ? extraReason : null,
-        external_child_name: eventType === 'evaluacion' ? externalChildName.trim() : null,
+        external_child_name: usesFreePerson(eventType) ? externalChildName.trim() : null,
         service_code: eventType === 'evaluacion' ? serviceCode : null,
       }
       // La terapista de NO-terapias se guarda aquí; las terapias usan reassignTherapist.
       if (eventType !== 'terapia') {
-        metaPatch.therapist_id = eventType === 'evaluacion' ? therapistId : therapistId || null
+        metaPatch.therapist_id = usesFreePerson(eventType) ? therapistId : therapistId || null
       }
       const metaRes = await updateAppointment(existingAppointment.id, metaPatch)
       if (!metaRes.ok) {
@@ -245,10 +252,10 @@ export function AppointmentForm({
       }
     } else {
       const res = await createAppointment({
-        child_id: eventType === 'evaluacion' ? null : childId,
-        external_child_name: eventType === 'evaluacion' ? externalChildName.trim() : null,
+        child_id: usesFreePerson(eventType) ? null : childId,
+        external_child_name: usesFreePerson(eventType) ? externalChildName.trim() : null,
         service_code: eventType === 'evaluacion' ? serviceCode : null,
-        therapist_id: eventType === 'terapia' || eventType === 'evaluacion' ? therapistId : therapistId || null,
+        therapist_id: eventType === 'terapia' || usesFreePerson(eventType) ? therapistId : therapistId || null,
         event_type: eventType,
         service_type: eventType === 'terapia' ? (serviceType as ServiceType) : null,
         modality,
@@ -402,23 +409,24 @@ export function AppointmentForm({
               )}
             </fieldset>
 
-            {/* 2. Niño/a (o persona evaluada en evaluaciones) */}
-            {eventType === 'evaluacion' ? (
+            {/* 2. Persona: texto libre (evaluación/entrevistas/reuniones/otro) o niño registrado (terapia) */}
+            {usesFreePerson(eventType) ? (
               <fieldset className="space-y-1">
                 <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">
-                  Persona evaluada <span className="text-fm-error">*</span>
+                  {eventType === 'evaluacion' ? 'Persona evaluada' : 'Persona a atender'}{' '}
+                  <span className="text-fm-error">*</span>
                 </legend>
                 <input
                   type="text"
                   value={externalChildName}
                   onChange={(e) => setExternalChildName(e.target.value)}
-                  placeholder="Nombre de referencia (no es un niño/a registrado)"
+                  placeholder="Nombre de referencia (texto libre, no es un niño/a registrado)"
                   maxLength={120}
                   required
                   className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
                 />
                 <p className="text-[10px] text-fm-on-surface-variant">
-                  Las evaluaciones suelen ser a personas nuevas. Es solo un nombre de referencia.
+                  Nombre de referencia (no tiene que estar registrado en el sistema).
                 </p>
               </fieldset>
             ) : (
@@ -443,33 +451,35 @@ export function AppointmentForm({
               </fieldset>
             )}
 
-            {/* 2b. Evaluación: tipo (catálogo) + persona asignada + pago */}
-            {eventType === 'evaluacion' && (
+            {/* 2b. Asignación (todos los eventos de persona libre) + catálogo (solo evaluación) */}
+            {usesFreePerson(eventType) && (
               <fieldset className="space-y-3">
                 <legend className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">
-                  Evaluación
+                  {eventType === 'evaluacion' ? 'Evaluación' : 'Asignación'}
                 </legend>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">
-                      Tipo de evaluación <span className="text-fm-error">*</span>
-                    </label>
-                    <select
-                      value={serviceCode}
-                      onChange={(e) => {
-                        setServiceCode(e.target.value)
-                        const picked = evalCatalog.find((ev) => ev.code === e.target.value)
-                        if (picked?.duration_minutes) setDurationMin(picked.duration_minutes)
-                      }}
-                      required
-                      className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
-                    >
-                      <option value="">— Selecciona —</option>
-                      {evalCatalog.map((ev) => (
-                        <option key={ev.code} value={ev.code}>{ev.name}</option>
-                      ))}
-                    </select>
-                  </div>
+                <div className={eventType === 'evaluacion' ? 'grid grid-cols-1 sm:grid-cols-2 gap-3' : ''}>
+                  {eventType === 'evaluacion' && (
+                    <div>
+                      <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">
+                        Tipo de evaluación <span className="text-fm-error">*</span>
+                      </label>
+                      <select
+                        value={serviceCode}
+                        onChange={(e) => {
+                          setServiceCode(e.target.value)
+                          const picked = evalCatalog.find((ev) => ev.code === e.target.value)
+                          if (picked?.duration_minutes) setDurationMin(picked.duration_minutes)
+                        }}
+                        required
+                        className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
+                      >
+                        <option value="">— Selecciona —</option>
+                        {evalCatalog.map((ev) => (
+                          <option key={ev.code} value={ev.code}>{ev.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="text-xs font-medium text-fm-on-surface-variant block mb-1">
                       Asignar a <span className="text-fm-error">*</span>
@@ -481,18 +491,20 @@ export function AppointmentForm({
                       className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary"
                     >
                       <option value="">— Selecciona —</option>
-                      {therapists.map((t) => (
+                      {assignableStaff.map((t) => (
                         <option key={t.id} value={t.id}>{t.full_name}</option>
                       ))}
                     </select>
                   </div>
                 </div>
-                <p className="text-[11px] text-fm-on-surface-variant">
-                  {selectedEval && selectedEval.cost_usd != null
-                    ? `Pago a la persona: $${selectedEval.cost_usd.toFixed(2)} — `
-                    : ''}
-                  Se contabiliza automáticamente en la planilla de servicios profesionales.
-                </p>
+                {eventType === 'evaluacion' && (
+                  <p className="text-[11px] text-fm-on-surface-variant">
+                    {selectedEval && selectedEval.cost_usd != null
+                      ? `Pago a la persona: $${selectedEval.cost_usd.toFixed(2)} — `
+                      : ''}
+                    Se contabiliza automáticamente en la planilla de servicios profesionales.
+                  </p>
+                )}
               </fieldset>
             )}
 

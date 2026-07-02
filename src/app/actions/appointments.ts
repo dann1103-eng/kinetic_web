@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { appointmentsOverlap, findClosureAffecting } from '@/lib/domain/appointment'
+import { usesFreePerson } from '@/types/db'
 import type {
   Appointment,
   AppointmentChangeKind,
@@ -97,15 +98,19 @@ export async function createAppointment(
   }
 
   const isEvaluacion = input.event_type === 'evaluacion'
+  const freePerson = usesFreePerson(input.event_type)
 
   // Validaciones básicas
-  if (isEvaluacion) {
-    // Evaluaciones: persona nueva (nombre libre) + tipo de evaluación + quién la da.
+  if (freePerson) {
+    // Persona nueva (nombre libre) + a quién se asigna. Evaluación además exige
+    // el tipo (catálogo). Aplica a evaluaciones, entrevistas, reuniones, etc.
     if (!input.external_child_name || input.external_child_name.trim().length === 0) {
-      return { ok: false, error: 'La evaluación requiere el nombre de la persona evaluada' }
+      return { ok: false, error: 'Escribí el nombre de la persona a atender' }
     }
-    if (!input.service_code) return { ok: false, error: 'Elegí el tipo de evaluación' }
-    if (!input.therapist_id) return { ok: false, error: 'Asigná a quién dará la evaluación' }
+    if (isEvaluacion && !input.service_code) {
+      return { ok: false, error: 'Elegí el tipo de evaluación' }
+    }
+    if (!input.therapist_id) return { ok: false, error: 'Asigná a quién lo atenderá' }
   } else if (!input.child_id) {
     return { ok: false, error: 'Falta el niño/a' }
   }
@@ -199,8 +204,8 @@ export async function createAppointment(
   const { data, error } = await supabase
     .from('appointments')
     .insert({
-      child_id: input.child_id || null,
-      external_child_name: isEvaluacion ? input.external_child_name!.trim() : null,
+      child_id: freePerson ? null : input.child_id || null,
+      external_child_name: freePerson ? input.external_child_name!.trim() : null,
       service_code: isEvaluacion ? input.service_code! : null,
       therapist_id: input.therapist_id || null,
       event_type: input.event_type,

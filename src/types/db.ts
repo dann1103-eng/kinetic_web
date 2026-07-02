@@ -2966,6 +2966,26 @@ export const EVENT_TYPE_LABELS: Record<EventType, string> = {
   otro: 'Otro',
 }
 
+/**
+ * Tipos de evento cuya "persona" se escribe como TEXTO LIBRE (no un niño/a
+ * registrado) y se asigna a cualquier miembro del equipo — igual que las
+ * evaluaciones. Aplica a evaluación, entrevistas, reuniones, entrega de avances
+ * y "otro". Se excluyen `terapia` (usa niño registrado) y `programa_matutino`
+ * (se maneja por grupo). El nombre libre se guarda en `external_child_name`.
+ */
+export const FREE_PERSON_EVENT_TYPES: EventType[] = [
+  'evaluacion',
+  'entrevista_antecedentes',
+  'entrevista_conocimiento',
+  'reunion_padres',
+  'reunion_colegio',
+  'entrega_avances',
+  'otro',
+]
+
+export const usesFreePerson = (t: EventType): boolean =>
+  FREE_PERSON_EVENT_TYPES.includes(t)
+
 export type ServiceType =
   | 'lenguaje'
   | 'motricidad_gruesa'

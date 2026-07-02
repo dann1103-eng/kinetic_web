@@ -97,6 +97,15 @@ export default async function AgendaPage() {
     : therapistsQuery.in('role', therapyRoles)
   ).order('full_name')
 
+  // Todo el staff (excluye portal: client/family) para el selector "Asignar a"
+  // de eventos particulares (entrevistas, reuniones, entrega de avances, otro,
+  // evaluación): se pueden asignar a cualquier persona del equipo.
+  const { data: assignableStaffRaw } = await supabase
+    .from('users')
+    .select('id, full_name, role, avatar_url')
+    .not('role', 'in', '(client,family)')
+    .order('full_name')
+
   // Cierres institucionales del año visible.
   const { data: closures } = await supabase
     .from('institutional_calendar')
@@ -190,6 +199,7 @@ export default async function AgendaPage() {
           groupSessions={groupSessions}
           childrenList={(children ?? []) as Pick<Child, 'id' | 'code' | 'full_name' | 'family_id' | 'current_phase_code'>[]}
           therapists={therapists ?? []}
+          assignableStaff={assignableStaffRaw ?? []}
           closures={(closures ?? []) as InstitutionalClosure[]}
           evalCatalog={(evalCatalog ?? []) as EvalCatalogItem[]}
         />

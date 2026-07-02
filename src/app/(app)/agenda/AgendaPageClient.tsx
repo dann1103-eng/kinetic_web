@@ -45,6 +45,8 @@ interface AgendaPageClientProps {
   groupSessions: GroupSessionForClient[]
   childrenList: ChildLite[]
   therapists: TherapistLite[]
+  /** Todo el staff — para asignar eventos particulares a cualquiera del equipo. */
+  assignableStaff: TherapistLite[]
   closures: InstitutionalClosure[]
   evalCatalog: EvalCatalogItem[]
 }
@@ -103,6 +105,7 @@ export function AgendaPageClient({
   groupSessions,
   childrenList: childrenProp,
   therapists,
+  assignableStaff,
   closures,
   evalCatalog,
 }: AgendaPageClientProps) {
@@ -193,7 +196,9 @@ export function AgendaPageClient({
       const endIso = ov?.ends_at ?? a.ends_at
       const child = childrenProp.find((c) => c.id === a.child_id)
       const therapist = therapists.find((t) => t.id === a.therapist_id)
-      const childLabel = child?.full_name ?? 'Niño/a'
+      // Eventos de persona libre (evaluación, entrevistas, reuniones, etc.) no
+      // tienen niño registrado: se muestra el nombre libre (external_child_name).
+      const childLabel = child?.full_name ?? a.external_child_name ?? 'Niño/a'
       const therapistLabel = therapist?.full_name ?? '—'
       const isTherapy = a.event_type === 'terapia'
       const eventLabel =
@@ -660,6 +665,7 @@ export function AgendaPageClient({
           existingAppointment={modalInitial.appointment}
           childrenList={childrenProp}
           therapists={therapists}
+          assignableStaff={assignableStaff}
           closures={closures}
           evalCatalog={evalCatalog}
           isAdmin={currentUserRole === 'admin'}
