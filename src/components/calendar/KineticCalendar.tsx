@@ -92,18 +92,25 @@ export const KINETIC_EVENT_PALETTES: Record<
   // Inasistencia (no_show / late_cancel) → gris, como referencia visual de "no vino".
   absence_gray: { bg: 'bg-zinc-200/80', ring: 'ring-zinc-300/70', text: 'text-zinc-600', accent: 'bg-zinc-400' },
   // Paleta por terapeuta (color = persona). Asignada por therapistColorKey().
-  t0: { bg: 'bg-sky-100/85', ring: 'ring-sky-300/70', text: 'text-sky-950', accent: 'bg-sky-400' },
-  t1: { bg: 'bg-orange-100/85', ring: 'ring-orange-300/70', text: 'text-orange-950', accent: 'bg-orange-400' },
-  t2: { bg: 'bg-emerald-100/85', ring: 'ring-emerald-300/70', text: 'text-emerald-950', accent: 'bg-emerald-400' },
-  t3: { bg: 'bg-violet-100/85', ring: 'ring-violet-300/70', text: 'text-violet-950', accent: 'bg-violet-400' },
-  t4: { bg: 'bg-rose-100/85', ring: 'ring-rose-300/70', text: 'text-rose-950', accent: 'bg-rose-400' },
-  t5: { bg: 'bg-amber-100/85', ring: 'ring-amber-300/70', text: 'text-amber-950', accent: 'bg-amber-400' },
-  t6: { bg: 'bg-cyan-100/85', ring: 'ring-cyan-300/70', text: 'text-cyan-950', accent: 'bg-cyan-400' },
-  t7: { bg: 'bg-fuchsia-100/85', ring: 'ring-fuchsia-300/70', text: 'text-fuchsia-950', accent: 'bg-fuchsia-400' },
-  t8: { bg: 'bg-lime-100/85', ring: 'ring-lime-300/70', text: 'text-lime-950', accent: 'bg-lime-400' },
-  t9: { bg: 'bg-indigo-100/85', ring: 'ring-indigo-300/70', text: 'text-indigo-950', accent: 'bg-indigo-400' },
-  t10: { bg: 'bg-teal-100/85', ring: 'ring-teal-300/70', text: 'text-teal-950', accent: 'bg-teal-400' },
-  t11: { bg: 'bg-pink-100/85', ring: 'ring-pink-300/70', text: 'text-pink-950', accent: 'bg-pink-400' },
+  // 17 colores con hue + intensidad variada (claro/medio/profundo) para que aun
+  // los tonos cercanos (azules, verdes, rosas) se distingan bien entre sí.
+  t0: { bg: 'bg-sky-200/85', ring: 'ring-sky-400/70', text: 'text-sky-950', accent: 'bg-sky-500' },
+  t1: { bg: 'bg-orange-200/85', ring: 'ring-orange-400/70', text: 'text-orange-950', accent: 'bg-orange-500' },
+  t2: { bg: 'bg-emerald-200/85', ring: 'ring-emerald-400/70', text: 'text-emerald-950', accent: 'bg-emerald-600' },
+  t3: { bg: 'bg-fuchsia-200/85', ring: 'ring-fuchsia-400/70', text: 'text-fuchsia-950', accent: 'bg-fuchsia-500' },
+  t4: { bg: 'bg-rose-300/85', ring: 'ring-rose-400/70', text: 'text-rose-950', accent: 'bg-rose-600' },
+  t5: { bg: 'bg-amber-200/85', ring: 'ring-amber-400/70', text: 'text-amber-950', accent: 'bg-amber-500' },
+  t6: { bg: 'bg-indigo-300/85', ring: 'ring-indigo-400/70', text: 'text-indigo-950', accent: 'bg-indigo-600' },
+  t7: { bg: 'bg-teal-300/85', ring: 'ring-teal-400/70', text: 'text-teal-950', accent: 'bg-teal-600' },
+  t8: { bg: 'bg-lime-200/85', ring: 'ring-lime-400/70', text: 'text-lime-950', accent: 'bg-lime-600' },
+  t9: { bg: 'bg-purple-300/85', ring: 'ring-purple-400/70', text: 'text-purple-950', accent: 'bg-purple-600' },
+  t10: { bg: 'bg-cyan-100/85', ring: 'ring-cyan-400/70', text: 'text-cyan-950', accent: 'bg-cyan-500' },
+  t11: { bg: 'bg-pink-200/85', ring: 'ring-pink-400/70', text: 'text-pink-950', accent: 'bg-pink-500' },
+  t12: { bg: 'bg-blue-300/85', ring: 'ring-blue-400/70', text: 'text-blue-950', accent: 'bg-blue-700' },
+  t13: { bg: 'bg-red-200/85', ring: 'ring-red-400/70', text: 'text-red-950', accent: 'bg-red-600' },
+  t14: { bg: 'bg-violet-200/85', ring: 'ring-violet-400/70', text: 'text-violet-950', accent: 'bg-violet-500' },
+  t15: { bg: 'bg-yellow-200/85', ring: 'ring-yellow-400/70', text: 'text-yellow-950', accent: 'bg-yellow-600' },
+  t16: { bg: 'bg-green-300/85', ring: 'ring-green-500/70', text: 'text-green-950', accent: 'bg-green-700' },
   // Default
   default: { bg: 'bg-fm-primary/10', ring: 'ring-fm-primary/30', text: 'text-fm-on-surface', accent: 'bg-fm-primary' },
 }
@@ -113,8 +120,11 @@ export function paletteFor(key?: string | null) {
   return KINETIC_EVENT_PALETTES[key] ?? KINETIC_EVENT_PALETTES.default
 }
 
-/** Claves de paleta por terapeuta (color = persona). */
-const THERAPIST_PALETTE_KEYS = ['t0', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8', 't9', 't10', 't11']
+/** Claves de paleta por terapeuta (color = persona). 17 colores variados. */
+const THERAPIST_PALETTE_KEYS = [
+  't0', 't1', 't2', 't3', 't4', 't5', 't6', 't7', 't8',
+  't9', 't10', 't11', 't12', 't13', 't14', 't15', 't16',
+]
 
 /**
  * Asigna de forma estable un color a cada terapista según su id (hash → paleta).
