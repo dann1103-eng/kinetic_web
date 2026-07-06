@@ -6,7 +6,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import type { UserRole } from '@/types/db'
 
 // Roles que gestionan al personal desde la interfaz /users (Administración).
-const USER_MGMT_ROLES = ['admin', 'directora', 'recepcion']
+// coordinadora_familias tiene paridad con recepción (guards anti-escalada de
+// admin siguen aplicando: no puede crear/asignar/borrar el rol admin).
+const USER_MGMT_ROLES = ['admin', 'directora', 'recepcion', 'coordinadora_familias']
 
 /** Verifica que el actor pueda gestionar usuarios y devuelve su rol. */
 async function requireUserManager(): Promise<UserRole> {

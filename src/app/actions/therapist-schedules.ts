@@ -12,7 +12,7 @@ import {
 } from '@/lib/domain/therapist-capacity'
 
 // Roles que gestionan horarios/capacidad desde /users (Administración).
-const SCHEDULE_MGMT_ROLES = ['admin', 'directora', 'recepcion'] as const
+const SCHEDULE_MGMT_ROLES = ['admin', 'directora', 'recepcion', 'coordinadora_familias'] as const
 
 async function getActor() {
   const supabase = await createClient()

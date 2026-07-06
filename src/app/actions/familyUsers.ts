@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 
-const PORTAL_MGMT_ROLES = ['admin', 'directora', 'recepcion']
+const PORTAL_MGMT_ROLES = ['admin', 'directora', 'recepcion', 'coordinadora_familias']
 
 async function requireAdminOrDirectora() {
   const supabase = await createClient()

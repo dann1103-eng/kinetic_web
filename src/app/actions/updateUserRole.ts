@@ -18,7 +18,7 @@ export async function updateUserRole(targetUserId: string, role: UserRole): Prom
       .select('role')
       .eq('id', user.id)
       .single()
-    const USER_MGMT_ROLES = ['admin', 'directora', 'recepcion']
+    const USER_MGMT_ROLES = ['admin', 'directora', 'recepcion', 'coordinadora_familias']
     if (!appUser || !USER_MGMT_ROLES.includes(appUser.role)) {
       return { error: 'Sin permisos para cambiar roles de usuario' }
     }

@@ -17,7 +17,7 @@ export default async function UsersPage() {
     .select('role')
     .eq('id', authUser.id)
     .single()
-  if (!appUser || !['admin', 'directora', 'recepcion'].includes(appUser.role)) redirect('/')
+  if (!appUser || !['admin', 'directora', 'recepcion', 'coordinadora_familias'].includes(appUser.role)) redirect('/')
 
   // Solo usuarios staff: excluir 'client' (FM legacy) y 'family' (portal Kinetic).
   const { data: users } = await supabase
