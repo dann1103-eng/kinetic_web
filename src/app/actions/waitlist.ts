@@ -136,7 +136,10 @@ export async function listWaitlist(
   }
 
   if (!filters.includeHistorical) {
-    // Default: ocultar terminales (5_x) y la boundary (3_2) que ya tiene child creado.
+    // Default: ocultar terminales (5_x) y la boundary 3_2 (ya convertido a niño).
+    // Nota: 3_3/4_1/4_2 NO se excluyen aquí — sí vuelven en el listado; el
+    // pipeline les crea columna aunque estén marcadas is_waitlist_visible=false
+    // (ver WaitlistPipelineBoard) para que ninguna entrada quede sin verse.
     query = query.not('current_phase_code', 'in', '(3_2_inscripcion_activa,5_1_alta_terapeutica,5_2_retirado)')
   }
 

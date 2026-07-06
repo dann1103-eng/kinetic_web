@@ -71,12 +71,6 @@ export function WaitlistPipelineBoard({
   const [dropReason, setDropReason] = useState('')
   const [activeEntry, setActiveEntry] = useState<WaitlistEntry | null>(null)
 
-  const visiblePhases = useMemo(
-    () => phaseCatalog.filter((p) => p.is_waitlist_visible).sort((a, b) => a.sort_order - b.sort_order),
-    [phaseCatalog],
-  )
-  const groups = useMemo(() => groupPhaseCatalog(visiblePhases), [visiblePhases])
-
   const byPhase = useMemo(() => {
     const map: Record<string, WaitlistEntry[]> = {}
     for (const e of entries) {
@@ -86,6 +80,19 @@ export function WaitlistPipelineBoard({
     }
     return map
   }, [entries])
+
+  // Columnas: las fases visibles del pipeline MÁS cualquier fase que tenga
+  // entradas aunque normalmente esté oculta (3_3/4_x/etc.). Así ninguna entrada
+  // queda sin columna e invisible en el pipeline (antes: aparecía en tabla pero
+  // no acá).
+  const visiblePhases = useMemo(
+    () =>
+      phaseCatalog
+        .filter((p) => p.is_waitlist_visible || (byPhase[p.code]?.length ?? 0) > 0)
+        .sort((a, b) => a.sort_order - b.sort_order),
+    [phaseCatalog, byPhase],
+  )
+  const groups = useMemo(() => groupPhaseCatalog(visiblePhases), [visiblePhases])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -180,8 +187,11 @@ export function WaitlistPipelineBoard({
                   </span>
                 </header>
 
-                <div className="overflow-x-auto pb-2">
-                  <div className="flex gap-3 min-w-min">
+                {/* flex-wrap: las columnas bajan de línea en vez de esconderse
+                    a la derecha con scroll (antes las fases 2_6/2_7 quedaban
+                    fuera de pantalla y parecía que faltaban niños). */}
+                <div className="pb-2">
+                  <div className="flex flex-wrap gap-3">
                     {g.phases.map((phase) => {
                       const items = byPhase[phase.code] ?? []
                       return (
