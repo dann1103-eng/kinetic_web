@@ -17,6 +17,25 @@ const ALLOWED_MIME_TYPES = [
   'image/heic',
   'image/heif',
 ]
+
+// Extensión → MIME canónico. Validamos y subimos por EXTENSIÓN porque el MIME
+// que reporta el navegador NO es confiable: Word/Excel llegan a veces como
+// 'application/octet-stream' o vacío (según SO/navegador), y así el bucket —que
+// tiene whitelist de MIME— rechazaba el archivo aunque el formato fuera válido.
+// El contentType que mandamos al bucket se deriva de la extensión.
+const EXT_TO_MIME: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+}
 const MAX_BYTES = 15 * 1024 * 1024 // 15 MB (fotos de iPhone HEIC ~5MB, JPEG ~10MB)
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
@@ -35,17 +54,22 @@ async function getAuthedUser() {
   return appUser
 }
 
-function validateFile(file: unknown): { error: string } | { file: File } {
+function validateFile(file: unknown): { error: string } | { file: File; contentType: string } {
   if (!(file instanceof File)) return { error: 'Archivo inválido.' }
   if (file.size <= 0) return { error: 'Archivo vacío.' }
-  if (file.size > MAX_BYTES) return { error: 'El archivo supera el límite de 10 MB.' }
-  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+  if (file.size > MAX_BYTES) {
+    return { error: `El archivo supera el límite de ${Math.floor(MAX_BYTES / 1024 / 1024)} MB.` }
+  }
+  // Aceptamos por EXTENSIÓN (confiable) y sólo caemos al MIME del navegador si la
+  // extensión no está mapeada. El contentType para el bucket sale de la extensión.
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const contentType = EXT_TO_MIME[ext] ?? (ALLOWED_MIME_TYPES.includes(file.type) ? file.type : null)
+  if (!contentType) {
     return {
-      error:
-        'Formato no permitido. Usa PDF, Word, Excel o imagen (PNG/JPG/WebP).',
+      error: 'Formato no permitido. Usa PDF, Word, Excel o imagen (PNG/JPG/WebP/HEIC).',
     }
   }
-  return { file }
+  return { file, contentType }
 }
 
 function safeFileName(name: string): string {
@@ -60,6 +84,7 @@ async function uploadToBucket(
   kind: 'progress' | 'session',
   reportId: string,
   file: File,
+  contentType: string,
 ): Promise<{ path: string; url: string }> {
   const admin = createAdminClient()
   const cleanName = safeFileName(file.name)
@@ -69,7 +94,9 @@ async function uploadToBucket(
     .from('reports-files')
     .upload(path, arrayBuffer, {
       upsert: true,
-      contentType: file.type,
+      // contentType canónico (derivado de la extensión), no el del navegador,
+      // para que la whitelist de MIME del bucket lo acepte.
+      contentType,
     })
   if (error) throw new Error(`Error al subir el archivo: ${error.message}`)
   return { path, url: path }
@@ -98,6 +125,7 @@ export async function uploadProgressReportFile(
   const validation = validateFile(formData.get('file'))
   if ('error' in validation) return { ok: false, error: validation.error }
   const file = validation.file
+  const contentType = validation.contentType
 
   const supabase = await createClient()
   const { data: report } = await supabase
@@ -122,7 +150,7 @@ export async function uploadProgressReportFile(
 
   let uploaded
   try {
-    uploaded = await uploadToBucket('progress', reportId, file)
+    uploaded = await uploadToBucket('progress', reportId, file, contentType)
   } catch (err) {
     return {
       ok: false,
@@ -138,7 +166,7 @@ export async function uploadProgressReportFile(
       file_url: uploaded.path,
       file_name: file.name,
       file_size_bytes: file.size,
-      file_mime_type: file.type,
+      file_mime_type: contentType,
       updated_at: new Date().toISOString(),
     })
     .eq('id', reportId)
@@ -210,6 +238,7 @@ export async function uploadSessionReportFile(
   const validation = validateFile(formData.get('file'))
   if ('error' in validation) return { ok: false, error: validation.error }
   const file = validation.file
+  const contentType = validation.contentType
 
   const supabase = await createClient()
   const { data: report } = await supabase
@@ -231,7 +260,7 @@ export async function uploadSessionReportFile(
 
   let uploaded
   try {
-    uploaded = await uploadToBucket('session', reportId, file)
+    uploaded = await uploadToBucket('session', reportId, file, contentType)
   } catch (err) {
     return {
       ok: false,
@@ -247,7 +276,7 @@ export async function uploadSessionReportFile(
       file_url: uploaded.path,
       file_name: file.name,
       file_size_bytes: file.size,
-      file_mime_type: file.type,
+      file_mime_type: contentType,
       // Limpia campos del editor cuando se sube archivo
       actividades: '',
       respuesta_del_nino: '',

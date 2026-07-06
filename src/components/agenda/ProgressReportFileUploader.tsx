@@ -262,8 +262,8 @@ export function ProgressReportFileUploader({
           Archivo del informe
         </h2>
         <p className="text-xs text-fm-on-surface-variant">
-          PDF, Word (.doc/.docx), Excel (.xls/.xlsx) o imagen (PNG/JPG/WebP).
-          Máximo 10 MB.
+          PDF, Word (.doc/.docx), Excel (.xls/.xlsx) o imagen (PNG/JPG/WebP/HEIC).
+          Máximo 14 MB.
         </p>
 
         {fileName ? (
@@ -334,7 +334,7 @@ export function ProgressReportFileUploader({
             </p>
             <input
               type="file"
-              accept=".pdf,.doc,.docx,.xls,.xlsx,image/png,image/jpeg,image/webp"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.heic,.heif,image/png,image/jpeg,image/webp,image/heic,image/heif,image/*"
               onChange={handleFileChange}
               disabled={isUploading}
               className="hidden"
@@ -348,6 +348,18 @@ export function ProgressReportFileUploader({
           </div>
         )}
       </section>
+
+      {/* Mensajes de subida — junto a la zona de archivo para que se vean al instante */}
+      {error && (
+        <div className="rounded-xl border border-fm-error/30 bg-fm-error/10 px-4 py-3 text-sm text-fm-error">
+          {error}
+        </div>
+      )}
+      {okMsg && !error && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          {okMsg}
+        </div>
+      )}
 
       {/* Notas para la familia */}
       {(isEditable || familyNotes) && (
@@ -388,18 +400,6 @@ export function ProgressReportFileUploader({
             </div>
           )}
         </section>
-      )}
-
-      {/* Mensajes */}
-      {error && (
-        <div className="rounded-xl border border-fm-error/30 bg-fm-error/10 px-4 py-3 text-sm text-fm-error">
-          {error}
-        </div>
-      )}
-      {okMsg && !error && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          {okMsg}
-        </div>
       )}
 
       {/* Acciones de workflow */}
