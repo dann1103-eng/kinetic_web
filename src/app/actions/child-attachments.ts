@@ -18,6 +18,23 @@ const ALLOWED_MIME_TYPES = [
   'image/heic',
   'image/heif',
 ]
+
+// Extensión → MIME canónico. Se valida y sube por EXTENSIÓN porque el MIME del
+// navegador no es confiable (un PDF puede llegar como application/octet-stream o
+// vacío según SO/navegador, y el bucket —con whitelist de MIME— lo rechazaba).
+const EXT_TO_MIME: Record<string, string> = {
+  pdf: 'application/pdf',
+  doc: 'application/msword',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xls: 'application/vnd.ms-excel',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  heic: 'image/heic',
+  heif: 'image/heif',
+}
 const MAX_BYTES = 15 * 1024 * 1024 // 15 MB (fotos de iPhone HEIC ~5MB, JPEG ~10MB)
 
 const STAFF_UPLOAD_ROLES = [
@@ -55,16 +72,20 @@ function safeFileName(name: string): string {
     .slice(-80)
 }
 
-function validateFile(file: unknown): { error: string } | { file: File } {
+function validateFile(file: unknown): { error: string } | { file: File; contentType: string } {
   if (!(file instanceof File)) return { error: 'Archivo inválido.' }
   if (file.size <= 0) return { error: 'Archivo vacío.' }
-  if (file.size > MAX_BYTES) return { error: 'El archivo supera el límite de 10 MB.' }
-  if (!ALLOWED_MIME_TYPES.includes(file.type)) {
+  if (file.size > MAX_BYTES) {
+    return { error: `El archivo supera el límite de ${Math.floor(MAX_BYTES / 1024 / 1024)} MB.` }
+  }
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const contentType = EXT_TO_MIME[ext] ?? (ALLOWED_MIME_TYPES.includes(file.type) ? file.type : null)
+  if (!contentType) {
     return {
-      error: 'Formato no permitido. Usa PDF, Word, Excel o imagen (PNG/JPG/WebP).',
+      error: 'Formato no permitido. Usa PDF, Word, Excel o imagen (PNG/JPG/WebP/HEIC).',
     }
   }
-  return { file }
+  return { file, contentType }
 }
 
 /**
@@ -98,6 +119,7 @@ export async function uploadChildAttachment(
   const validation = validateFile(formData.get('file'))
   if ('error' in validation) return { ok: false, error: validation.error }
   const file = validation.file
+  const contentType = validation.contentType
 
   const kindRaw = formData.get('kind')
   const kind: ChildAttachmentKind =
@@ -135,7 +157,9 @@ export async function uploadChildAttachment(
     .from('reports-files')
     .upload(path, arrayBuffer, {
       upsert: false,
-      contentType: file.type,
+      // contentType canónico (por extensión), no el del navegador, para que la
+      // whitelist de MIME del bucket acepte el archivo.
+      contentType,
     })
   if (uploadError) {
     return { ok: false, error: `Error al subir el archivo: ${uploadError.message}` }
@@ -152,7 +176,7 @@ export async function uploadChildAttachment(
       file_url: path,
       file_name: file.name,
       file_size_bytes: file.size,
-      file_mime_type: file.type,
+      file_mime_type: contentType,
       title,
       description,
       kind,
