@@ -71,7 +71,12 @@ export function BigSessionCard({
   const handleStart = () => {
     startTransition(async () => {
       const result = await startTherapySession(appointment.id)
-      if (!result.ok) alert(result.error)
+      if (!result.ok) {
+        alert(result.error)
+        // La cita pudo cambiar de estado (reagendada/duplicada/reasignada) mientras
+        // la página estaba abierta: refrescamos para que el día muestre el estado real.
+        router.refresh()
+      }
     })
   }
 

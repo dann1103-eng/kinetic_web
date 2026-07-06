@@ -34,7 +34,12 @@ export async function startTherapySession(appointmentId: string): Promise<
   if (error) {
     const msg = error.message ?? ''
     if (msg.includes('appointment_not_found_or_not_eligible')) {
-      return { ok: false, error: 'La cita no está disponible para iniciar.' }
+      return {
+        ok: false,
+        error:
+          'Esta cita ya no está disponible para iniciar (pudo reagendarse, ' +
+          'duplicarse o cambiar de terapeuta). Actualizamos tu día — revisá e intentá de nuevo.',
+      }
     }
     if (msg.includes('unique') || msg.includes('23505')) {
       return { ok: false, error: 'La sesión ya fue iniciada.' }
