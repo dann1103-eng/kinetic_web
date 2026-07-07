@@ -695,7 +695,16 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
           )}
         </div>
 
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-fm-outline-variant/20 bg-fm-surface">
+        <div className="flex justify-end items-center gap-2 px-6 py-4 border-t border-fm-outline-variant/20 bg-fm-surface">
+          <a
+            href={`/api/ciclos/${cycle.id}/detalle`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mr-auto px-4 py-2 text-sm rounded-lg border border-fm-primary text-fm-primary font-medium hover:bg-fm-primary/5"
+            title="Descargar el detalle de pago (para enviar al padre antes de cobrar)"
+          >
+            Descargar detalle de pago
+          </a>
           <button
             type="button"
             onClick={onClose}

@@ -241,6 +241,15 @@ export function MonthlyCyclesSection({
 
   const renderActions = (c: MonthlySessionCycle) => (
     <>
+      <a
+        href={`/api/ciclos/${c.id}/detalle`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs font-semibold text-fm-primary hover:underline underline-offset-2"
+        title="Descargar el detalle de pago del mes (citas, fechas y costos) para enviárselo al padre antes de cobrar"
+      >
+        Detalle de pago
+      </a>
       {c.invoice_id && (
         <Link
           href={`/billing/invoices/${c.invoice_id}`}
