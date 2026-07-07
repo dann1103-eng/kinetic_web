@@ -29,11 +29,15 @@ export async function GET(
     .maybeSingle()
   if (!itemRaw) return NextResponse.json({ error: 'Recibo no encontrado' }, { status: 404 })
 
-  const { data: userRaw } = await supabase
-    .from('users')
-    .select('id, full_name, email, role')
-    .eq('id', (itemRaw as PayrollItem).user_id)
-    .maybeSingle()
+  // user_id puede ser null (empleado eliminado — mig 0170): saltamos el join.
+  const itemUserId = (itemRaw as PayrollItem).user_id
+  const { data: userRaw } = itemUserId
+    ? await supabase
+        .from('users')
+        .select('id, full_name, email, role')
+        .eq('id', itemUserId)
+        .maybeSingle()
+    : { data: null }
 
   // Empleado eliminado/desvinculado → snapshot congelado al sellar.
   const snap = (itemRaw as PayrollItem).user_snapshot_json as { full_name?: string; role?: string } | null
