@@ -120,6 +120,16 @@ export function ProgressReportFileUploader({
         setFileName(res.data.file_name)
         setOkMsg('Archivo guardado.')
       }
+    } catch (err) {
+      // Antes esto NO se capturaba: si el server action rechazaba la promesa
+      // (excepción inesperada, corte de red), la pantalla volvía a "Seleccionar
+      // archivo" sin ningún aviso — parecía que "se quedaba subiendo" sin
+      // explicación. Ahora siempre queda un mensaje visible.
+      setError(
+        err instanceof Error
+          ? `Error inesperado al subir: ${err.message}`
+          : 'Error inesperado al subir el archivo. Probá de nuevo.',
+      )
     } finally {
       setUploading(false)
       e.target.value = ''

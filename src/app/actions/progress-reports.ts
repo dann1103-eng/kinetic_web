@@ -8,9 +8,11 @@ import type { ProgressReport, ProgressReportData } from '@/types/db'
 
 /**
  * Roles con poder para editar/eliminar informes en CUALQUIER estado
- * (no solo borrador). Bypassean RLS via admin client.
+ * (no solo borrador). Bypassean RLS via admin client. 'recepcion' tiene
+ * paridad con las coordinadoras aquí (igual que en el resto de Administración)
+ * — el caso típico es subir el archivo que la terapista le entregó.
  */
-const REPORT_SUPER_EDITORS = ['admin', 'coordinadora_familias', 'coordinadora_terapias']
+const REPORT_SUPER_EDITORS = ['admin', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion']
 
 /** Respeta impersonación. */
 async function getActor() {

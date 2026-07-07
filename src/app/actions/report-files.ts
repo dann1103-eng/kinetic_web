@@ -111,72 +111,101 @@ async function removeFromBucket(path: string) {
 // PROGRESS REPORTS — solo archivo en Fase A
 // ──────────────────────────────────────────────────────────────────────────
 
+// Roles con paridad de "super editor" sobre informes cuatrimestrales — pueden
+// subir/reemplazar/quitar el archivo de CUALQUIER informe, no solo el propio.
+// Antes solo incluía admin/directora/coordinadoras; 'recepcion' quedaba afuera
+// pese a tener paridad en el resto de Administración, así que si recepción
+// abría el informe de un niño creado por la terapista (el caso más común: la
+// terapista le entrega el archivo a recepción para que lo suba), el guard de
+// abajo la rechazaba con un error que el cliente no siempre mostraba.
+const PROGRESS_FILE_SUPER_ROLES = [
+  'admin',
+  'directora',
+  'coordinadora_familias',
+  'coordinadora_terapias',
+  'recepcion',
+]
+
 export async function uploadProgressReportFile(
   formData: FormData,
 ): Promise<Result<{ file_url: string; file_name: string }>> {
-  const reportId = formData.get('reportId')
-  if (typeof reportId !== 'string' || !reportId) {
-    return { ok: false, error: 'reportId requerido.' }
-  }
-
-  const auth = await getAuthedUser()
-  if (!auth) return { ok: false, error: 'No autenticado.' }
-
-  const validation = validateFile(formData.get('file'))
-  if ('error' in validation) return { ok: false, error: validation.error }
-  const file = validation.file
-  const contentType = validation.contentType
-
-  const supabase = await createClient()
-  const { data: report } = await supabase
-    .from('progress_reports')
-    .select('id, authored_by_user_id, child_id, file_url')
-    .eq('id', reportId)
-    .single()
-  if (!report) return { ok: false, error: 'Informe no encontrado.' }
-
-  const isAuthor = report.authored_by_user_id === auth.id
-  const isAdmin = ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias'].includes(auth.role)
-  if (!isAuthor && !isAdmin) {
-    return { ok: false, error: 'Solo el autor o un admin pueden subir el archivo.' }
-  }
-
-  // Borrar archivo anterior si existe
-  if (report.file_url) {
-    await removeFromBucket(report.file_url).catch(() => {
-      /* best effort */
-    })
-  }
-
-  let uploaded
+  // Blindaje: TODA la función queda envuelta en try/catch. Antes, si
+  // getAuthedUser() o el select inicial lanzaban una excepción no controlada
+  // (en vez de devolver { ok:false }), la promesa del cliente se rechazaba SIN
+  // pasar por ningún setError (el handler del cliente no tenía catch) — el
+  // botón volvía a "Seleccionar archivo" sin ningún mensaje, dando la
+  // sensación de "se quedó subiendo sin cargar". Ahora cualquier excepción
+  // imprevista también vuelve como un error visible.
   try {
-    uploaded = await uploadToBucket('progress', reportId, file, contentType)
+    const reportId = formData.get('reportId')
+    if (typeof reportId !== 'string' || !reportId) {
+      return { ok: false, error: 'reportId requerido.' }
+    }
+
+    const auth = await getAuthedUser()
+    if (!auth) return { ok: false, error: 'No autenticado.' }
+
+    const validation = validateFile(formData.get('file'))
+    if ('error' in validation) return { ok: false, error: validation.error }
+    const file = validation.file
+    const contentType = validation.contentType
+
+    const supabase = await createClient()
+    const { data: report } = await supabase
+      .from('progress_reports')
+      .select('id, authored_by_user_id, child_id, file_url')
+      .eq('id', reportId)
+      .single()
+    if (!report) return { ok: false, error: 'Informe no encontrado.' }
+
+    const isAuthor = report.authored_by_user_id === auth.id
+    const isAdmin = PROGRESS_FILE_SUPER_ROLES.includes(auth.role)
+    if (!isAuthor && !isAdmin) {
+      return { ok: false, error: 'Solo el autor o un admin/recepción pueden subir el archivo.' }
+    }
+
+    // Borrar archivo anterior si existe
+    if (report.file_url) {
+      await removeFromBucket(report.file_url).catch(() => {
+        /* best effort */
+      })
+    }
+
+    let uploaded
+    try {
+      uploaded = await uploadToBucket('progress', reportId, file, contentType)
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Error al subir el archivo.',
+      }
+    }
+
+    const admin = createAdminClient()
+    const { error: updateError } = await admin
+      .from('progress_reports')
+      .update({
+        upload_kind: 'file',
+        file_url: uploaded.path,
+        file_name: file.name,
+        file_size_bytes: file.size,
+        file_mime_type: contentType,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', reportId)
+
+    if (updateError) {
+      return { ok: false, error: `Error al guardar: ${updateError.message}` }
+    }
+
+    revalidatePath(`/familias`, 'layout')
+    return { ok: true, data: { file_url: uploaded.path, file_name: file.name } }
   } catch (err) {
     return {
       ok: false,
-      error: err instanceof Error ? err.message : 'Error al subir el archivo.',
+      error: err instanceof Error ? `Error inesperado al subir: ${err.message}` : 'Error inesperado al subir el archivo.',
     }
   }
-
-  const admin = createAdminClient()
-  const { error: updateError } = await admin
-    .from('progress_reports')
-    .update({
-      upload_kind: 'file',
-      file_url: uploaded.path,
-      file_name: file.name,
-      file_size_bytes: file.size,
-      file_mime_type: contentType,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', reportId)
-
-  if (updateError) {
-    return { ok: false, error: `Error al guardar: ${updateError.message}` }
-  }
-
-  revalidatePath(`/familias`, 'layout')
-  return { ok: true, data: { file_url: uploaded.path, file_name: file.name } }
 }
 
 export async function removeProgressReportFile(
@@ -194,7 +223,7 @@ export async function removeProgressReportFile(
   if (!report) return { ok: false, error: 'Informe no encontrado.' }
 
   const isAuthor = report.authored_by_user_id === auth.id
-  const isAdmin = ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias'].includes(auth.role)
+  const isAdmin = PROGRESS_FILE_SUPER_ROLES.includes(auth.role)
   if (!isAuthor && !isAdmin) {
     return { ok: false, error: 'Sin permisos.' }
   }
