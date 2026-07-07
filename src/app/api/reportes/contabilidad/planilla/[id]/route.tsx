@@ -36,7 +36,7 @@ export async function GET(
     .eq('payroll_run_id', id)
     .order('created_at')
 
-  const userIds = ((itemsRaw ?? []) as PayrollItem[]).map((i) => i.user_id)
+  const userIds = ((itemsRaw ?? []) as PayrollItem[]).map((i) => i.user_id).filter(Boolean) as string[]
   let usersById = new Map<string, { id: string; full_name: string; email: string; role: string }>()
   if (userIds.length > 0) {
     const { data: usersRaw } = await supabase
@@ -47,10 +47,18 @@ export async function GET(
       ((usersRaw ?? []) as Array<{ id: string; full_name: string; email: string; role: string }>).map((u) => [u.id, u]),
     )
   }
-  const items = ((itemsRaw ?? []) as PayrollItem[]).map((it) => ({
-    ...it,
-    user: usersById.get(it.user_id) ?? null,
-  }))
+  const items = ((itemsRaw ?? []) as PayrollItem[]).map((it) => {
+    // Empleado eliminado/desvinculado → usar el snapshot congelado al sellar.
+    const snap = it.user_snapshot_json as { full_name?: string; role?: string } | null
+    const fromSnapshot =
+      snap?.full_name
+        ? { id: it.user_id ?? '', full_name: snap.full_name, email: '', role: snap.role ?? '' }
+        : null
+    return {
+      ...it,
+      user: (it.user_id ? usersById.get(it.user_id) : undefined) ?? fromSnapshot,
+    }
+  })
 
   const { data: logoSetting } = await supabase
     .from('app_settings')

@@ -483,7 +483,7 @@ export async function sealPayrollRun(
     .eq('payroll_run_id', runId)
 
   if (items && items.length > 0) {
-    const userIds = items.map((i) => i.user_id)
+    const userIds = items.map((i) => i.user_id).filter(Boolean) as string[]
     const { data: users } = await admin
       .from('users')
       .select('id, full_name, email, role, contract_type, dui, isss_number, afp_number, afp_provider, hire_date')
@@ -491,6 +491,7 @@ export async function sealPayrollRun(
     const byId = new Map((users ?? []).map((u) => [u.id, u]))
 
     for (const it of items) {
+      if (!it.user_id) continue // empleado desvinculado: conserva su snapshot previo
       const u = byId.get(it.user_id)
       if (!u) continue
       const snapshot: PayrollItemUserSnapshot = {
@@ -649,7 +650,7 @@ export async function getPayrollRunDetail(runId: string): Promise<PayrollRunDeta
     .eq('payroll_run_id', runId)
     .order('created_at')
 
-  const userIds = (itemsRaw ?? []).map((i) => i.user_id)
+  const userIds = (itemsRaw ?? []).map((i) => i.user_id).filter(Boolean) as string[]
   let usersById: Map<string, { id: string; full_name: string; email: string; role: UserRole }> = new Map()
   if (userIds.length > 0) {
     const { data: usersRaw } = await supabase
@@ -661,13 +662,26 @@ export async function getPayrollRunDetail(runId: string): Promise<PayrollRunDeta
 
   const items = ((itemsRaw ?? []) as PayrollItem[]).map((it) => ({
     ...it,
-    user: usersById.get(it.user_id) ?? null,
+    // Si el usuario fue eliminado (user_id null o sin fila viva), usamos el
+    // snapshot congelado al sellar la planilla: el registro contable conserva el
+    // nombre/rol del empleado aunque el perfil ya no exista.
+    user: (it.user_id ? usersById.get(it.user_id) : undefined) ?? userFromSnapshot(it),
   }))
 
   return {
     run: run as PayrollRun,
     items,
   }
+}
+
+/** Reconstruye un "user" para mostrar desde el snapshot del payroll_item (para
+ *  empleados eliminados/desvinculados). Devuelve null si no hay snapshot. */
+function userFromSnapshot(
+  it: PayrollItem,
+): { id: string; full_name: string; email: string; role: UserRole } | null {
+  const s = it.user_snapshot_json as { full_name?: string; role?: string } | null
+  if (!s?.full_name) return null
+  return { id: it.user_id ?? '', full_name: s.full_name, email: '', role: (s.role as UserRole) ?? 'terapista' }
 }
 
 export interface MyPayrollItem extends PayrollItem {

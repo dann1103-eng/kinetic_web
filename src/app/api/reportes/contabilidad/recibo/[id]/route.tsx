@@ -35,9 +35,15 @@ export async function GET(
     .eq('id', (itemRaw as PayrollItem).user_id)
     .maybeSingle()
 
+  // Empleado eliminado/desvinculado → snapshot congelado al sellar.
+  const snap = (itemRaw as PayrollItem).user_snapshot_json as { full_name?: string; role?: string } | null
+  const fromSnapshot =
+    snap?.full_name
+      ? { id: (itemRaw as PayrollItem).user_id ?? '', full_name: snap.full_name, email: '', role: snap.role ?? '' }
+      : null
   const item = {
     ...(itemRaw as PayrollItem),
-    user: (userRaw as { id: string; full_name: string; email: string; role: string } | null) ?? null,
+    user: (userRaw as { id: string; full_name: string; email: string; role: string } | null) ?? fromSnapshot,
   }
 
   // Auth: admin/directora/contable pueden ver cualquier recibo; empleado solo el suyo.

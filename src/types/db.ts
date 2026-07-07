@@ -4248,7 +4248,9 @@ export interface ChildAttachment {
 export interface PayrollItem {
   id: string
   payroll_run_id: string
-  user_id: string
+  /** Mig 0170: nullable — si se elimina el empleado, se conserva el item con su
+   *  user_snapshot_json (registro contable descriptivo) y user_id queda null. */
+  user_id: string | null
   user_snapshot_json: PayrollItemUserSnapshot | null
 
   base_salary_usd: number

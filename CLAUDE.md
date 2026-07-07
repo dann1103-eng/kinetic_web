@@ -328,16 +328,16 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0166** | **Auto-archivar niños dados de baja hace >3 meses** (reversible): `children.archived_at` + RPC `archive_stale_discharged_children()` (idempotente, la llama `daily-cycle-runner` STEP 0). Listados ocultan archivados (`/ninos` con toggle "Ver archivados"); acción `unarchiveChild` + banner "Restaurar" en la ficha. |
 | **0167** | **Hardening seguridad**: endurece el SELECT de `reports-files` (auditoría de seguridad). |
 | **0168** | **Asignación múltiple de eventos**: `appointments.assignee_ids uuid[]` + índice GIN. Eventos multi-persona (entrevistas, reuniones, entrega de avances, otro) se asignan a varias personas; `therapist_id`=principal, `assignee_ids`=todos. `/mi-dia` y el filtro de agenda incluyen donde el user es asignado. |
-| **0169** | **Permitir eliminar usuarios**: arregla los FKs a `public.users` que truenan el borrado ("Database error deleting user"). DO block dinámico: (1) quita NOT NULL de columnas con FK `ON DELETE SET NULL` (bug: `therapy_sessions.therapist_id` era NOT NULL + SET NULL → contradicción); (2) columnas de auditoría NULLABLE que bloquean (NO ACTION/RESTRICT) → `ON DELETE SET NULL`. Las NOT NULL que quedan (ej. `payroll_items.user_id`) siguen protegiendo historial de planilla. |
+| **0169** | **Permitir eliminar usuarios**: arregla los FKs a `public.users` que truenan el borrado ("Database error deleting user"). DO block dinámico: (1) quita NOT NULL de columnas con FK `ON DELETE SET NULL` (bug: `therapy_sessions.therapist_id` era NOT NULL + SET NULL → contradicción); (2) columnas de auditoría NULLABLE que bloquean (NO ACTION/RESTRICT) → `ON DELETE SET NULL`. Dejaba `payroll_items.user_id` (NOT NULL) bloqueando. **Superseded por 0170.** |
+| **0170** | **Eliminar SIEMPRE (conservando el registro contable)**: superset de 0169. Hace que NINGUNA FK a `public.users` bloquee el borrado — TODA columna bloqueante (incl. `payroll_items.user_id`) se vuelve NULLABLE + `ON DELETE SET NULL`. La planilla sobrevive porque `payroll_items.user_snapshot_json` guarda nombre/DUI/rol al sellar; el detalle/PDF de planilla ahora hacen fallback al snapshot cuando el usuario ya no existe. `PayrollItem.user_id` pasa a `string \| null`. |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
-> migración automática. **El repo va hasta 0169; próximo libre = 0170.**
+> migración automática. **El repo va hasta 0170; próximo libre = 0171.**
 > ✅ Aplicadas: hasta **0164** (verificadas en prod), **0165/0166** (usuario) y
 > **0167** (auditoría de seguridad, SQL corrido).
-> ⚠️ **PENDIENTES DE APLICAR: 0168 (appointments.assignee_ids) y 0169 (FKs de
-> borrado de usuario).** Sin 0168, agendar eventos multi-persona truena; sin
-> 0169, sigue el "Database error deleting user". Correr
-> `supabase/scripts/verify_pending_migrations.sql` para confirmar.
+> ⚠️ **PENDIENTES DE APLICAR: 0168 (assignee_ids) y 0170 (FKs de borrado de
+> usuario — superset de 0169, aplicar 0170 basta).** Sin 0168 agendar
+> multi-persona truena; sin 0170 sigue el "Database error deleting user".
 >
 > **GOTCHA recurrente**: `create or replace function` con DISTINTO # de args
 > NO reemplaza — crea una **sobrecarga** y deja la llamada ambigua. Al cambiar
