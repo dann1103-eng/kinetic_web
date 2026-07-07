@@ -157,6 +157,25 @@ export async function resolveAbsenceWithReplacement(
     }
   }
 
+  // Guard anti-fecha-lejana/pasada. Bug real: una reposición se creó con año 2027
+  // y quedó invisible en la agenda. La reposición debe caer entre la fecha de la
+  // falta y ~60 días después (más margen que la ventana de 30 para casos borde).
+  const DAY_MS = 86_400_000
+  const startMs = new Date(input.startsAt).getTime()
+  const reportedMs = new Date(absenceRow.reported_at).getTime()
+  if (Number.isNaN(startMs)) {
+    return { ok: false, error: 'Fecha de la reposición inválida.' }
+  }
+  if (startMs > reportedMs + 60 * DAY_MS) {
+    return {
+      ok: false,
+      error: 'La fecha de la reposición está a más de 60 días del reporte. Revisá el año/mes.',
+    }
+  }
+  if (startMs < reportedMs - 2 * DAY_MS) {
+    return { ok: false, error: 'La reposición no puede quedar antes de la falta.' }
+  }
+
   const { data, error } = await supabase.rpc('resolve_absence_with_replacement', {
     p_absence_id: input.absenceId,
     p_starts_at: input.startsAt,

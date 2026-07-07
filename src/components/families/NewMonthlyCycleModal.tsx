@@ -26,7 +26,7 @@ import {
   therapyLineAmount,
 } from '@/lib/domain/billing/monthly-flat'
 import { DiscountFields } from './DiscountFields'
-import { DraggableCycleCalendar } from './DraggableCycleCalendar'
+import { DraggableCycleCalendar, candidateSignature } from './DraggableCycleCalendar'
 import {
   MorningProgramCycleSection,
   type MorningGroupSelection,
@@ -221,6 +221,30 @@ export function NewMonthlyCycleModal({
     return map
   }, [dryRun])
 
+  // Conflictos del dry-run casados por firma (servicio+inicio) para pintarlos en
+  // rojo en el calendario. `liveConflicts` recalcula en vivo: al mover/quitar una
+  // cita su firma cambia y deja de contar como conflicto → así se puede confirmar
+  // una vez resueltos, sin tener que ir a /agenda.
+  const conflictSigs = useMemo(() => {
+    const s = new Set<string>()
+    for (const c of dryRun?.conflicts ?? []) s.add(candidateSignature(c.candidate))
+    return s
+  }, [dryRun])
+  const conflictLabelBySig = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const c of dryRun?.conflicts ?? []) {
+      m.set(
+        candidateSignature(c.candidate),
+        `⚠ Choca con otra cita del mismo terapista el ${formatDateTime(c.conflict_starts_at)}. Movela a otro día/hora o quitala.`,
+      )
+    }
+    return m
+  }, [dryRun])
+  const liveConflicts = useMemo(
+    () => editedCandidates.filter((c) => conflictSigs.has(candidateSignature(c))),
+    [editedCandidates, conflictSigs],
+  )
+
   const periodAlreadyUsed = existingPeriods.some((p) => p.startsWith(periodMonth))
 
   // Cargar preview de rollover (mes anterior) al cambiar período.
@@ -394,8 +418,8 @@ export function NewMonthlyCycleModal({
       setConfirmError('Esperá la previsualización antes de confirmar.')
       return
     }
-    if (dryRun.summary.conflict_count > 0) {
-      setConfirmError('Resolvé los conflictos antes de confirmar.')
+    if (liveConflicts.length > 0) {
+      setConfirmError('Todavía hay citas en conflicto (en rojo). Movelas o quitalas antes de generar.')
       return
     }
     if (enrolledProgram && !morning.groupId) {
@@ -442,7 +466,7 @@ export function NewMonthlyCycleModal({
   const canConfirm =
     !!dryRun &&
     !periodAlreadyUsed &&
-    dryRun.summary.conflict_count === 0 &&
+    liveConflicts.length === 0 &&
     !isConfirming
 
   return (
@@ -721,8 +745,8 @@ export function NewMonthlyCycleModal({
                   />
                   <Stat
                     label="Conflictos"
-                    value={dryRun.summary.conflict_count}
-                    tone={dryRun.summary.conflict_count > 0 ? 'error' : 'ok'}
+                    value={liveConflicts.length}
+                    tone={liveConflicts.length > 0 ? 'error' : 'ok'}
                   />
                   <Stat
                     label="Saltadas (asueto)"
@@ -741,42 +765,52 @@ export function NewMonthlyCycleModal({
                   />
                 </div>
 
-                {dryRun.summary.conflict_count > 0 && (
-                  <ConflictList conflicts={dryRun.conflicts} />
+                {liveConflicts.length > 0 && (
+                  <div className="rounded-lg border border-red-300 bg-red-50/70 px-3 py-2 text-xs text-red-900">
+                    <p className="font-semibold">
+                      {liveConflicts.length} cita(s) en conflicto — en rojo en el calendario.
+                    </p>
+                    <p className="mt-0.5">
+                      Cada una choca con otra cita del mismo terapista (pasá el mouse por encima
+                      para ver con cuál). Movela a otro día arrastrándola, cambiale la hora con el
+                      reloj, o quitala con ✕. Cuando no queden citas rojas vas a poder generar el ciclo.
+                    </p>
+                  </div>
                 )}
 
-                {(editedCandidates.length > 0 || hasEdits) &&
-                  dryRun.summary.conflict_count === 0 && (
-                    <div className="rounded-lg border border-fm-outline-variant/20 p-3 bg-fm-surface-container-low/30">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-xs font-semibold text-fm-on-surface">
-                          Calendario de las {editedCandidates.length} citas a crear
-                        </p>
-                        {hasEdits && (
-                          <button
-                            type="button"
-                            onClick={handleResetEdits}
-                            className="text-[11px] text-fm-primary hover:underline"
-                          >
-                            Restaurar a defaults
-                          </button>
-                        )}
-                      </div>
-                      <DraggableCycleCalendar
-                        periodMonth={`${periodMonth}-01`}
-                        candidates={editedCandidates}
-                        onMove={handleMoveCandidate}
-                        onRetime={handleRetimeCandidate}
-                        onDelete={handleDeleteCandidate}
-                      />
+                {(editedCandidates.length > 0 || hasEdits) && (
+                  <div className="rounded-lg border border-fm-outline-variant/20 p-3 bg-fm-surface-container-low/30">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-fm-on-surface">
+                        Calendario de las {editedCandidates.length} citas a crear
+                      </p>
                       {hasEdits && (
-                        <p className="mt-2 text-[11px] text-amber-700">
-                          Tenés cambios. Al confirmar se crearán las citas en
-                          las fechas que marcaste, no las del patrón original.
-                        </p>
+                        <button
+                          type="button"
+                          onClick={handleResetEdits}
+                          className="text-[11px] text-fm-primary hover:underline"
+                        >
+                          Restaurar a defaults
+                        </button>
                       )}
                     </div>
-                  )}
+                    <DraggableCycleCalendar
+                      periodMonth={`${periodMonth}-01`}
+                      candidates={editedCandidates}
+                      onMove={handleMoveCandidate}
+                      onRetime={handleRetimeCandidate}
+                      onDelete={handleDeleteCandidate}
+                      conflictSigs={conflictSigs}
+                      conflictLabelBySig={conflictLabelBySig}
+                    />
+                    {hasEdits && (
+                      <p className="mt-2 text-[11px] text-amber-700">
+                        Tenés cambios. Al confirmar se crearán las citas en
+                        las fechas que marcaste, no las del patrón original.
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {dryRun.skipped_holidays.length > 0 && (
                   <details className="text-xs">
@@ -865,31 +899,4 @@ function Stat({
   )
 }
 
-function ConflictList({
-  conflicts,
-}: {
-  conflicts: MonthlyCandidatesResult['conflicts']
-}) {
-  return (
-    <div className="rounded-lg border border-red-200 bg-red-50/60 p-3">
-      <p className="text-sm font-semibold text-red-900 mb-2">
-        Conflictos de horario ({conflicts.length})
-      </p>
-      <ul className="space-y-1 text-xs text-red-900">
-        {conflicts.slice(0, 20).map((c, i) => (
-          <li key={i}>
-            • {formatDateTime(c.candidate.starts_at)} —{' '}
-            {SERVICE_TYPE_LABELS[c.candidate.service as ServiceType] ?? c.candidate.service}{' '}
-            <span className="text-red-700">
-              (choca con cita existente del terapista)
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 text-[11px] text-red-800">
-        Movés/cancelás esos appointments en /agenda y volvés a calcular para confirmar.
-      </p>
-    </div>
-  )
-}
 

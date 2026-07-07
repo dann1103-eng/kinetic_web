@@ -18,6 +18,11 @@ import type { MonthlyCandidateAppointment, ServiceType } from '@/types/db'
 const TZ = 'America/El_Salvador'
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
 
+/** Firma estable de una cita candidata (servicio + inicio) para casar conflictos. */
+export function candidateSignature(c: { service: string; starts_at: string }): string {
+  return `${c.service}|${c.starts_at}`
+}
+
 interface Props {
   /** 'YYYY-MM-01' del mes que se está visualizando. */
   periodMonth: string
@@ -31,6 +36,10 @@ interface Props {
   onDelete?: (index: number) => void
   /** Render-only mode (sin drag, solo preview). */
   readOnly?: boolean
+  /** Firmas (candidateSignature) de las citas EN CONFLICTO — se pintan en rojo. */
+  conflictSigs?: Set<string>
+  /** Tooltip por firma: con qué choca cada cita en conflicto. */
+  conflictLabelBySig?: Map<string, string>
 }
 
 function dateKeyInSV(iso: string): string {
@@ -78,7 +87,7 @@ function serviceLabel(s: string): string {
   return SERVICE_TYPE_LABELS[s as ServiceType] ?? s
 }
 
-export function DraggableCycleCalendar({ periodMonth, candidates, onMove, onRetime, onDelete, readOnly }: Props) {
+export function DraggableCycleCalendar({ periodMonth, candidates, onMove, onRetime, onDelete, readOnly, conflictSigs, conflictLabelBySig }: Props) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
 
   const { firstDayOffset, days } = useMemo(() => {
@@ -163,6 +172,8 @@ export function DraggableCycleCalendar({ periodMonth, candidates, onMove, onReti
               onRetime={onRetime}
               onDelete={onDelete}
               readOnly={readOnly}
+              conflictSigs={conflictSigs}
+              conflictLabelBySig={conflictLabelBySig}
             />
           ))}
         </div>
@@ -178,6 +189,8 @@ function DayCell({
   onRetime,
   onDelete,
   readOnly,
+  conflictSigs,
+  conflictLabelBySig,
 }: {
   dateKey: string
   dayNum: number
@@ -185,6 +198,8 @@ function DayCell({
   onRetime?: (index: number, newStartsAt: string, newEndsAt: string) => void
   onDelete?: (index: number) => void
   readOnly?: boolean
+  conflictSigs?: Set<string>
+  conflictLabelBySig?: Map<string, string>
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: dateKey, disabled: readOnly })
   return (
@@ -197,16 +212,21 @@ function DayCell({
       }`}
     >
       <span className="text-fm-on-surface-variant font-semibold opacity-70">{dayNum}</span>
-      {entries.map(({ idx, cand }) => (
-        <DraggableCandidate
-          key={`${idx}-${cand.starts_at}`}
-          idx={idx}
-          cand={cand}
-          onRetime={onRetime}
-          onDelete={onDelete}
-          readOnly={readOnly}
-        />
-      ))}
+      {entries.map(({ idx, cand }) => {
+        const sig = candidateSignature(cand)
+        return (
+          <DraggableCandidate
+            key={`${idx}-${cand.starts_at}`}
+            idx={idx}
+            cand={cand}
+            onRetime={onRetime}
+            onDelete={onDelete}
+            readOnly={readOnly}
+            conflicting={conflictSigs?.has(sig) ?? false}
+            conflictLabel={conflictLabelBySig?.get(sig)}
+          />
+        )
+      })}
     </div>
   )
 }
@@ -217,12 +237,16 @@ function DraggableCandidate({
   onRetime,
   onDelete,
   readOnly,
+  conflicting,
+  conflictLabel,
 }: {
   idx: number
   cand: MonthlyCandidateAppointment
   onRetime?: (index: number, newStartsAt: string, newEndsAt: string) => void
   onDelete?: (index: number) => void
   readOnly?: boolean
+  conflicting: boolean
+  conflictLabel?: string
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: String(idx),
@@ -241,9 +265,15 @@ function DraggableCandidate({
         className={`text-left rounded-sm px-1 py-0.5 text-[9px] leading-tight font-medium border transition-shadow ${
           isDragging
             ? 'shadow-lg bg-fm-primary text-white border-fm-primary opacity-90 cursor-grabbing'
-            : 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200 cursor-grab'
+            : conflicting
+              ? 'bg-red-100 text-red-900 border-red-400 ring-1 ring-red-300 hover:bg-red-200 cursor-grab'
+              : 'bg-emerald-100 text-emerald-900 border-emerald-300 hover:bg-emerald-200 cursor-grab'
         } ${readOnly ? 'cursor-default' : ''}`}
-        title={`${serviceLabel(cand.service)} · ${timeLabel(cand.starts_at)} · ${cand.duration_minutes}m`}
+        title={
+          conflicting
+            ? conflictLabel ?? '⚠ Choca con otra cita del terapista. Movela o quitala.'
+            : `${serviceLabel(cand.service)} · ${timeLabel(cand.starts_at)} · ${cand.duration_minutes}m`
+        }
       >
         {!readOnly && onRetime ? (
           <input
@@ -256,13 +286,18 @@ function DraggableCandidate({
               const r = retimeOnDay(cand.starts_at, e.target.value, cand.duration_minutes ?? 30)
               if (r) onRetime(idx, r.startsAt, r.endsAt)
             }}
-            className="w-full rounded-sm border border-emerald-300 bg-white/90 px-0.5 font-mono text-[9px] tabular-nums text-emerald-900"
+            className={`w-full rounded-sm border bg-white/90 px-0.5 font-mono text-[9px] tabular-nums ${
+              conflicting ? 'border-red-400 text-red-900' : 'border-emerald-300 text-emerald-900'
+            }`}
             aria-label="Editar hora de la cita"
           />
         ) : (
           <div className="font-mono tabular-nums">{timeLabel(cand.starts_at)}</div>
         )}
-        <div className="truncate">{serviceLabel(cand.service)}</div>
+        <div className="truncate">
+          {conflicting && <span aria-hidden="true">⚠ </span>}
+          {serviceLabel(cand.service)}
+        </div>
       </div>
       {!readOnly && onDelete && (
         <button

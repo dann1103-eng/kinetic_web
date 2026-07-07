@@ -58,6 +58,15 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
   const nearExpiry = !expired && isAbsenceNearExpiry(row.absence.reported_at)
   const daysOld = daysSinceReported(row.absence.reported_at)
 
+  // Ventana válida para el datetime-local: desde hoy hasta 60 días después del
+  // reporte. Evita elegir por error un año/mes lejano (bug real: una reposición
+  // quedó creada en 2027 y se volvió invisible). El server también lo valida.
+  const RESCHEDULE_MAX_DAYS = 60
+  const minLocal = `${isoToLocalInput(new Date().toISOString()).slice(0, 10)}T00:00`
+  const maxLocal = isoToLocalInput(
+    new Date(new Date(row.absence.reported_at).getTime() + RESCHEDULE_MAX_DAYS * 86400000).toISOString(),
+  )
+
   const [mode, setMode] = useState<'idle' | 'reschedule' | 'waive'>(
     expired ? 'waive' : 'idle',
   )
@@ -120,6 +129,12 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
       return
     }
     const startsISO = localInputToISO(startsLocal)
+    // Guard anti-fecha-lejana (el bug de la reposición en 2027).
+    const reportedMs = new Date(row.absence.reported_at).getTime()
+    if (new Date(startsISO).getTime() > reportedMs + RESCHEDULE_MAX_DAYS * 86400000) {
+      setError(`La fecha está a más de ${RESCHEDULE_MAX_DAYS} días del reporte. Revisá el año/mes.`)
+      return
+    }
     const endsISO = new Date(
       new Date(startsISO).getTime() + durationMin * 60 * 1000,
     ).toISOString()
@@ -317,6 +332,8 @@ export function AbsenceRescheduleCard({ row, therapists, onResolved }: Props) {
               <input
                 type="datetime-local"
                 value={startsLocal}
+                min={minLocal}
+                max={maxLocal}
                 onChange={(e) => setStartsLocal(e.target.value)}
                 className="w-full rounded-md border border-fm-outline-variant/30 bg-fm-background text-fm-on-surface px-2 py-1.5 text-sm"
               />

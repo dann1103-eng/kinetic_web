@@ -24,7 +24,7 @@ import {
   therapyLineAmount,
 } from '@/lib/domain/billing/monthly-flat'
 import { DiscountFields } from './DiscountFields'
-import { DraggableCycleCalendar } from './DraggableCycleCalendar'
+import { DraggableCycleCalendar, candidateSignature } from './DraggableCycleCalendar'
 import {
   MorningProgramCycleSection,
   type MorningGroupSelection,
@@ -167,6 +167,28 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
     return map
   }, [dryRun])
 
+  // Conflictos del dry-run casados por firma para pintarlos en rojo. `liveConflicts`
+  // recalcula en vivo al mover/quitar → se puede regenerar una vez resueltos.
+  const conflictSigs = useMemo(() => {
+    const s = new Set<string>()
+    for (const c of dryRun?.conflicts ?? []) s.add(candidateSignature(c.candidate))
+    return s
+  }, [dryRun])
+  const conflictLabelBySig = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const c of dryRun?.conflicts ?? []) {
+      m.set(
+        candidateSignature(c.candidate),
+        `⚠ Choca con otra cita del mismo terapista el ${formatDateTime(c.conflict_starts_at)}. Movela a otro día/hora o quitala.`,
+      )
+    }
+    return m
+  }, [dryRun])
+  const liveConflicts = useMemo(
+    () => editedCandidates.filter((c) => conflictSigs.has(candidateSignature(c))),
+    [editedCandidates, conflictSigs],
+  )
+
   // Solo CARGA cuando se enciende la casilla; el "apagado" limpia en el onChange
   // (evita setState síncrono dentro del effect — regla react-hooks/set-state-in-effect).
   useEffect(() => {
@@ -283,7 +305,7 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
   const [error, setError] = useState<string | null>(null)
   const [isSaving, startSave] = useTransition()
 
-  const regenConflicts = regenerate && !!dryRun && dryRun.summary.conflict_count > 0
+  const regenConflicts = regenerate && !!dryRun && liveConflicts.length > 0
 
   function handleSave() {
     setError(null)
@@ -300,7 +322,7 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
       return
     }
     if (regenConflicts) {
-      setError('Resolvé los conflictos de horario antes de regenerar las citas.')
+      setError('Todavía hay citas en conflicto (en rojo). Movelas o quitalas antes de regenerar.')
       return
     }
     if (enrolledProgram && !morning.groupId) {
@@ -594,8 +616,8 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
                       <Stat label="A generar" value={editedCandidates.length} tone="ok" />
                       <Stat
                         label="Conflictos"
-                        value={dryRun.summary.conflict_count}
-                        tone={dryRun.summary.conflict_count > 0 ? 'error' : 'ok'}
+                        value={liveConflicts.length}
+                        tone={liveConflicts.length > 0 ? 'error' : 'ok'}
                       />
                       <Stat
                         label="Saltadas (asueto)"
@@ -604,37 +626,45 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
                       />
                     </div>
 
-                    {dryRun.summary.conflict_count > 0 ? (
-                      <div className="rounded-lg border border-red-200 bg-red-50/60 p-3 text-xs text-red-900">
-                        Hay {dryRun.summary.conflict_count} conflicto(s) de horario con otras
-                        citas del terapista. Resolvé en /agenda y reintentá.
+                    {liveConflicts.length > 0 && (
+                      <div className="rounded-lg border border-red-300 bg-red-50/70 px-3 py-2 text-xs text-red-900">
+                        <p className="font-semibold">
+                          {liveConflicts.length} cita(s) en conflicto — en rojo en el calendario.
+                        </p>
+                        <p className="mt-0.5">
+                          Cada una choca con otra cita del mismo terapista (pasá el mouse por
+                          encima para ver con cuál). Movela a otro día, cambiale la hora con el
+                          reloj, o quitala con ✕. Cuando no queden rojas vas a poder regenerar.
+                        </p>
                       </div>
-                    ) : (
-                      editedCandidates.length > 0 && (
-                        <div className="rounded-lg border border-fm-outline-variant/20 p-3 bg-fm-surface-container-low/30">
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs font-semibold text-fm-on-surface">
-                              Calendario de las {editedCandidates.length} citas a crear
-                            </p>
-                            {hasEdits && (
-                              <button
-                                type="button"
-                                onClick={handleResetEdits}
-                                className="text-[11px] text-fm-primary hover:underline"
-                              >
-                                Restaurar a defaults
-                              </button>
-                            )}
-                          </div>
-                          <DraggableCycleCalendar
-                            periodMonth={cycle.period_month.slice(0, 10)}
-                            candidates={editedCandidates}
-                            onMove={handleMoveCandidate}
-                            onRetime={handleRetimeCandidate}
-                            onDelete={handleDeleteCandidate}
-                          />
+                    )}
+
+                    {editedCandidates.length > 0 && (
+                      <div className="rounded-lg border border-fm-outline-variant/20 p-3 bg-fm-surface-container-low/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-semibold text-fm-on-surface">
+                            Calendario de las {editedCandidates.length} citas a crear
+                          </p>
+                          {hasEdits && (
+                            <button
+                              type="button"
+                              onClick={handleResetEdits}
+                              className="text-[11px] text-fm-primary hover:underline"
+                            >
+                              Restaurar a defaults
+                            </button>
+                          )}
                         </div>
-                      )
+                        <DraggableCycleCalendar
+                          periodMonth={cycle.period_month.slice(0, 10)}
+                          candidates={editedCandidates}
+                          onMove={handleMoveCandidate}
+                          onRetime={handleRetimeCandidate}
+                          onDelete={handleDeleteCandidate}
+                          conflictSigs={conflictSigs}
+                          conflictLabelBySig={conflictLabelBySig}
+                        />
+                      </div>
                     )}
 
                     {dryRun.skipped_holidays.length > 0 && (

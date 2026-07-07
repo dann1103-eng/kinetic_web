@@ -32,9 +32,13 @@ interface Props {
  * Modal de alta o retiro. Flujo:
  *   1. Al abrir, busca el draft activo del niño para ese tipo, o crea uno nuevo.
  *   2. Mientras está `draft`: editable (objetivos, recomendaciones, plan, motivo).
- *   3. Botón "Firmar como terapista" → solo la terapista principal o admin.
- *   4. Botón "Firmar como directora" → solo directora/admin. Al firmar status='signed'.
- *   5. Botón "Enviar a familia" → status='sent_to_family' + avanzar fase del niño al código terminal.
+ *   3. "Firmar y finalizar" → coordinadora_terapias / admin / directora cierran la
+ *      baja con SU sola firma (status='signed'). Es el flujo por defecto: la única
+ *      firma requerida para dar de alta es la de la coordinadora de terapias.
+ *   4. "Firmar como terapista" → SOLO visible para la terapista asignada (rol
+ *      `terapista`). Vía opcional de doble firma terapista→directora.
+ *   5. "Firmar como directora" → solo directora/admin, tras la firma de terapista.
+ *   6. "Enviar a familia" → status='sent_to_family' + avanzar fase del niño al código terminal.
  */
 export function DischargeFormModal({
   childId,
@@ -56,9 +60,15 @@ export function DischargeFormModal({
 
   const isAlta = dischargeType === 'alta'
   const canDirectora = ['admin', 'directora'].includes(user.role)
-  // Coordinadora de terapias puede finalizar la baja SIN la firma bloqueante de
-  // directora (a la directora se le notifica al enviar a familia / cambiar fase).
-  const canFinalizeSolo = user.role === 'coordinadora_terapias'
+  // Solo la terapista asignada (rol `terapista`) ve el botón "Firmar como
+  // terapista". Antes se mostraba a todos los que editan el draft, y la
+  // coordinadora de terapias lo presionaba y recibía "Solo una terapista
+  // asignada puede firmar" — de ahí el reporte "no me habilita mi firma".
+  const isTherapistRole = user.role === 'terapista'
+  // La coordinadora de terapias (y admin/directora) puede firmar y finalizar la
+  // baja con su SOLA firma, sin la firma bloqueante de terapista ni de directora.
+  // Es la única firma requerida para dar de alta.
+  const canFinalizeSolo = ['admin', 'directora', 'coordinadora_terapias'].includes(user.role)
   const isEditable = !record || record.status === 'draft'
 
   // Cargar o crear draft al abrir
@@ -312,12 +322,12 @@ export function DischargeFormModal({
               Guardar borrador
             </button>
           )}
-          {isEditable && !therapistSigned && (
+          {isEditable && !therapistSigned && isTherapistRole && (
             <button
               type="button"
               disabled={isPending}
               onClick={handleSignTherapist}
-              className="px-3 py-1.5 text-sm rounded-lg bg-fm-primary text-white font-semibold hover:bg-fm-primary/90 disabled:opacity-50"
+              className="px-3 py-1.5 text-sm rounded-lg border border-fm-primary text-fm-primary font-semibold hover:bg-fm-primary/5 disabled:opacity-50"
             >
               Firmar como terapista
             </button>
@@ -332,15 +342,15 @@ export function DischargeFormModal({
               Firmar como directora
             </button>
           )}
-          {isEditable && canFinalizeSolo && (
+          {isEditable && canFinalizeSolo && !(therapistSigned && canDirectora) && (
             <button
               type="button"
               disabled={isPending}
               onClick={handleFinalizeSolo}
-              title="Cierra la baja sin la firma de directora. Se le notificará al enviar a la familia."
+              title="Firma y cierra la baja con tu sola firma. A la directora se le notifica al enviar a la familia / cambiar de fase."
               className="px-3 py-1.5 text-sm rounded-lg bg-fm-primary text-white font-semibold hover:bg-fm-primary/90 disabled:opacity-50"
             >
-              Finalizar baja
+              Firmar y finalizar
             </button>
           )}
           {record.status === 'signed' && (

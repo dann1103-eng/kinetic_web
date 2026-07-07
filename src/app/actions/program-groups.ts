@@ -321,16 +321,26 @@ export async function generateGroupSessionsForMonth(
 
 // ── Asistencia (lista del día) ─────────────────────────────────────────────────
 
-const DOW_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
-
 export interface RosterEntry {
   child_id: string
   child_full_name: string
   status: ProgramAttendanceStatus | null // null = aún no marcado
   note: string | null
+  /** Días/semana que le corresponden al niño (largo de attendance_days). null = sin cupo definido. */
+  weekly_quota: number | null
+  /** Veces marcado "presente" esta semana (lun–dom) en este grupo, incluida la sesión actual si ya se marcó. */
+  weekly_used: number
 }
 
-/** Roster de una sesión: miembros activos cuyos días incluyen el día de la sesión. */
+/**
+ * Roster de una sesión. Muestra a TODOS los niños activos del grupo (ya no solo
+ * aquellos cuyos días asignados incluyen el día de la sesión). Así un niño de
+ * "2 días por semana" aparece todos los días y la miss puede marcarle asistencia
+ * el día que realmente llegue (p. ej. cuando repone una falta otro día). Cada
+ * entrada trae un contador semanal `weekly_used / weekly_quota` (presentes esta
+ * semana vs. días/semana del niño) para llevar la cuenta de cuántas de sus
+ * visitas de la semana ya usó, sin importar el día.
+ */
 export async function getSessionRoster(
   sessionId: string,
 ): Promise<
@@ -346,7 +356,17 @@ export async function getSessionRoster(
   if (!session) return { ok: false, error: 'Sesión no encontrada.' }
   const s = session as ProgramGroupSession
 
-  const dow = DOW_NAMES[new Date(`${s.session_date}T12:00:00`).getDay()]
+  // Lunes–domingo de la semana de la sesión (para el contador semanal).
+  const base = new Date(`${s.session_date}T12:00:00`)
+  const daysFromMonday = (base.getDay() + 6) % 7
+  const monday = new Date(base)
+  monday.setDate(base.getDate() - daysFromMonday)
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  const fmtDate = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const weekStart = fmtDate(monday)
+  const weekEnd = fmtDate(sunday)
 
   const [{ data: group }, { data: membersRaw }, { data: attendanceRaw }] = await Promise.all([
     supabase.from('program_groups').select('name').eq('id', s.group_id).maybeSingle(),
@@ -361,8 +381,8 @@ export async function getSessionRoster(
       .eq('session_id', sessionId),
   ])
 
-  const members = ((membersRaw ?? []) as { child_id: string; attendance_days: string[] }[])
-    .filter((m) => (m.attendance_days ?? []).includes(dow))
+  // TODOS los miembros activos del grupo (sin filtrar por día asignado).
+  const members = (membersRaw ?? []) as { child_id: string; attendance_days: string[] | null }[]
   if (members.length === 0) {
     return {
       ok: true,
@@ -370,6 +390,27 @@ export async function getSessionRoster(
       groupName: (group as { name: string } | null)?.name ?? '—',
       roster: [],
     }
+  }
+
+  // Contador semanal: cuántas veces cada niño estuvo "presente" en las sesiones
+  // de esta semana de este grupo (incluye la sesión de hoy si ya se marcó).
+  const { data: weekSessionsRaw } = await supabase
+    .from('program_group_sessions')
+    .select('id')
+    .eq('group_id', s.group_id)
+    .gte('session_date', weekStart)
+    .lte('session_date', weekEnd)
+  const weekSessionIds = ((weekSessionsRaw ?? []) as { id: string }[]).map((r) => r.id)
+  const { data: weekAttRaw } = weekSessionIds.length
+    ? await supabase
+        .from('program_session_attendance')
+        .select('child_id')
+        .in('session_id', weekSessionIds)
+        .eq('status', 'present')
+    : { data: [] as { child_id: string }[] }
+  const usedByChild = new Map<string, number>()
+  for (const a of (weekAttRaw ?? []) as { child_id: string }[]) {
+    usedByChild.set(a.child_id, (usedByChild.get(a.child_id) ?? 0) + 1)
   }
 
   const childIds = members.map((m) => m.child_id)
@@ -387,12 +428,17 @@ export async function getSessionRoster(
   )
 
   const roster: RosterEntry[] = members
-    .map((m) => ({
-      child_id: m.child_id,
-      child_full_name: nameById.get(m.child_id) ?? '—',
-      status: attById.get(m.child_id)?.status ?? null,
-      note: attById.get(m.child_id)?.note ?? null,
-    }))
+    .map((m) => {
+      const quota = (m.attendance_days ?? []).length
+      return {
+        child_id: m.child_id,
+        child_full_name: nameById.get(m.child_id) ?? '—',
+        status: attById.get(m.child_id)?.status ?? null,
+        note: attById.get(m.child_id)?.note ?? null,
+        weekly_quota: quota > 0 ? quota : null,
+        weekly_used: usedByChild.get(m.child_id) ?? 0,
+      }
+    })
     .sort((a, b) => a.child_full_name.localeCompare(b.child_full_name, 'es'))
 
   return {

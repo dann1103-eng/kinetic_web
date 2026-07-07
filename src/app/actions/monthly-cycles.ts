@@ -965,8 +965,11 @@ export async function deleteMonthlyCycle(
     invoice_id: string | null
   }
 
-  // 1) Borrar las citas auto-generadas del mes que siguen 'scheduled'
-  //    (las ya iniciadas/completadas se respetan).
+  // 1) Borrar las citas auto-generadas del mes que siguen 'scheduled' O quedaron
+  //    'rescheduled' (superadas por una regeneración o por anular el ciclo). Las
+  //    ya iniciadas/completadas/inasistidas se respetan (tienen valor clínico y
+  //    no bloquean la agenda). Si no se limpian las 'rescheduled', quedan como
+  //    "citas fantasma" ocultas que se acumulan al regenerar/anular ciclos.
   const [y, m] = cycle.period_month.slice(0, 7).split('-').map(Number)
   const startISO = fromZonedTime(new Date(y, m - 1, 1, 0, 0, 0), 'America/El_Salvador').toISOString()
   const endISO = fromZonedTime(new Date(y, m, 1, 0, 0, 0), 'America/El_Salvador').toISOString()
@@ -975,7 +978,7 @@ export async function deleteMonthlyCycle(
     .from('appointments')
     .select('id, notes')
     .eq('child_id', cycle.child_id)
-    .eq('status', 'scheduled')
+    .in('status', ['scheduled', 'rescheduled'])
     .gte('starts_at', startISO)
     .lt('starts_at', endISO)
   const autoIds = ((apptsRaw ?? []) as { id: string; notes: string | null }[])
