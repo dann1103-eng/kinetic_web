@@ -169,7 +169,20 @@ export async function deleteUser(targetUserId: string) {
     }
 
     const { error: authError } = await admin.auth.admin.deleteUser(targetUserId)
-    if (authError) return { error: authError.message }
+    if (authError) {
+      // "Database error deleting user" = alguna FK bloquea el borrado en cascada
+      // (típicamente historial de planilla, que no debe borrarse). Mensaje claro.
+      const msg = authError.message ?? ''
+      if (/database error deleting user/i.test(msg)) {
+        return {
+          error:
+            'No se pudo eliminar: el usuario tiene historial que no se puede borrar ' +
+            '(por ejemplo, aparece en planillas). En estos casos conviene dejarlo sin ' +
+            'acceso en vez de eliminarlo. Si es un perfil sin historial, avisá para revisarlo.',
+        }
+      }
+      return { error: msg }
+    }
 
     await admin.from('users').delete().eq('id', targetUserId)
 
