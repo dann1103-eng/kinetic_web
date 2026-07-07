@@ -329,15 +329,17 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0167** | **Hardening seguridad**: endurece el SELECT de `reports-files` (auditoría de seguridad). |
 | **0168** | **Asignación múltiple de eventos**: `appointments.assignee_ids uuid[]` + índice GIN. Eventos multi-persona (entrevistas, reuniones, entrega de avances, otro) se asignan a varias personas; `therapist_id`=principal, `assignee_ids`=todos. `/mi-dia` y el filtro de agenda incluyen donde el user es asignado. |
 | **0169** | **Permitir eliminar usuarios**: arregla los FKs a `public.users` que truenan el borrado ("Database error deleting user"). DO block dinámico: (1) quita NOT NULL de columnas con FK `ON DELETE SET NULL` (bug: `therapy_sessions.therapist_id` era NOT NULL + SET NULL → contradicción); (2) columnas de auditoría NULLABLE que bloquean (NO ACTION/RESTRICT) → `ON DELETE SET NULL`. Dejaba `payroll_items.user_id` (NOT NULL) bloqueando. **Superseded por 0170.** |
-| **0170** | **Eliminar SIEMPRE (conservando el registro contable)**: superset de 0169. Hace que NINGUNA FK a `public.users` bloquee el borrado — TODA columna bloqueante (incl. `payroll_items.user_id`) se vuelve NULLABLE + `ON DELETE SET NULL`. La planilla sobrevive porque `payroll_items.user_snapshot_json` guarda nombre/DUI/rol al sellar; el detalle/PDF de planilla ahora hacen fallback al snapshot cuando el usuario ya no existe. `PayrollItem.user_id` pasa a `string \| null`. |
+| **0170** | **Eliminar SIEMPRE (conservando el registro contable)**: superset de 0169. Hace que NINGUNA FK a `public.users` bloquee el borrado — TODA columna bloqueante (incl. `payroll_items.user_id`) se vuelve NULLABLE + `ON DELETE SET NULL`. La planilla sobrevive porque `payroll_items.user_snapshot_json` guarda nombre/DUI/rol al sellar; el detalle/PDF de planilla ahora hacen fallback al snapshot cuando el usuario ya no existe. `PayrollItem.user_id` pasa a `string \| null`. **Insuficiente sola — ver 0171.** |
+| **0171** | **Arregla `storage.objects.owner` bloqueando el borrado**: 0169/0170 solo revisaron el esquema `public`. Supabase Storage tiene su propia tabla `storage.objects` (un archivo subido = una fila) con `owner references auth.users(id)` SIN `on delete set null` (default de Supabase, no nuestro). Si el usuario subió algo desde el navegador con su sesión (p.ej. su foto de perfil, bucket `user-avatars` mig 0143), esa fila lo bloquea. Generaliza el DO block a TODOS los esquemas (excepto `auth`/sistema) buscando FKs bloqueantes hacia `auth.users(id)` o `public.users(id)`; cada fila se altera con manejo de excepción individual (si una no se puede tocar, se omite con aviso, no aborta la migración). |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
-> migración automática. **El repo va hasta 0170; próximo libre = 0171.**
+> migración automática. **El repo va hasta 0171; próximo libre = 0172.**
 > ✅ Aplicadas: hasta **0164** (verificadas en prod), **0165/0166** (usuario) y
 > **0167** (auditoría de seguridad, SQL corrido).
-> ⚠️ **PENDIENTES DE APLICAR: 0168 (assignee_ids) y 0170 (FKs de borrado de
-> usuario — superset de 0169, aplicar 0170 basta).** Sin 0168 agendar
-> multi-persona truena; sin 0170 sigue el "Database error deleting user".
+> ⚠️ **PENDIENTES DE APLICAR: 0168 (assignee_ids) y 0171 (FKs de borrado de
+> usuario — superset de 0169/0170, aplicar solo 0171 basta).** Sin 0168 agendar
+> multi-persona truena; sin 0171 sigue el "Database error deleting user" (por
+> `storage.objects.owner`, fuera del alcance de 0169/0170).
 >
 > **GOTCHA recurrente**: `create or replace function` con DISTINTO # de args
 > NO reemplaza — crea una **sobrecarga** y deja la llamada ambigua. Al cambiar
