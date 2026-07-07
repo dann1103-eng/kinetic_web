@@ -350,6 +350,38 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 
 # Estado del proyecto — junio–julio 2026
 
+## Sesión jul 2026 (2-3 jul) — reunión Admón + follow-ups + eliminar usuario
+Todo en `master` (último commit `0326b40`). **⚠️ PENDIENTES DE APLICAR: 0168 y 0172.**
+- **Lote reunión Admón (10 puntos)**: agenda sin tope de fecha (mes anterior→∞,
+  sin `.lte`), editar plan se refleja en horario (sync `therapist_id` de citas
+  futuras + revalidar rutas anidadas), reposiciones al mes siguiente (ventana de
+  sugerencias 14→30 días), sustituir terapeuta (`reassignAllFromTherapist`), baja
+  sin firma bloqueante de directora (`finalizeDischarge`), auto-archivar niño a 3
+  meses (mig 0166), comentarios de lista de espera (mig 0165), campo redes
+  sociales (`children.photo_consent`), borrar niño manual (`DeleteChildButton`),
+  canales de chat para coordinadoras/recepción.
+- **Eventos de persona libre** (`usesFreePerson`): entrevistas/reuniones/entrega
+  de avances/otro/evaluación → nombre libre + asignar a cualquier staff.
+- **Asignación múltiple (mig 0168)**: `appointments.assignee_ids uuid[]`;
+  eventos multi-persona los ve cada asignado en agenda y /mi-dia.
+- **Colores por terapeuta 12→17** (paleta más variada).
+- **Fix lista de espera "desaparecían niños"**: el pipeline hacía `overflow-x`
+  (columnas a la derecha off-screen) → `flex-wrap`; + crear columna para fases
+  con entradas aunque estén ocultas.
+- **Fix subir archivos**: validar/subir por EXTENSIÓN (no el MIME del navegador,
+  que da octet-stream) en `report-files.ts` y `child-attachments.ts`.
+- **coordinadora_familias gestiona usuarios** (paridad con recepción, /users +
+  /usuarios-portal, guards anti-escalada intactos).
+- **Saga "Database error deleting user"** (migs 0169–0172): causa real = el CHECK
+  `appointments_terapia_requires_service_and_therapist` (mig 0092) exigía
+  `therapist_id` no nulo en toda `terapia`; el SET NULL al borrar terapeuta lo
+  violaba. **0172 lo relaja** (solo exige `service_type`). `deleteUser` ahora
+  borra `public.users` primero (para ver el error real de Postgres, no el
+  genérico de GoTrue). La planilla del borrado sobrevive vía
+  `payroll_items.user_snapshot_json` (0170). **Ojo**: reasignar con "Sustituir
+  terapeuta" ANTES de borrar, o las citas quedan huérfanas. Detalle en
+  [[kinetic_followups_user_delete_2026_07]].
+
 ## Sesión julio 2026 — ciclo WYSIWYG + navegación de mes en dashboard
 Todo en `master` (auto-deploy Vercel, verificado live). Ver [[kinetic_cycle_generates_agenda_2026_06]].
 - **Generar ciclo = MES COMPLETO (WYSIWYG).** El modal `NewMonthlyCycleModal`
@@ -467,11 +499,14 @@ Todo en `master`. **Requiere aplicar migraciones 0134–0141 en orden.**
     - Tarjeta "Por terapista" activada en `/reportes`. Usa `appointment_absences` con status='replaced' para contar reposiciones cumplidas.
 
 ## Pendiente (próximas sesiones)
-- (Ninguna migración pendiente — todas hasta 0164 aplicadas y verificadas jul 2026.)
-- (Backlog) Botón "Eliminar niño/a" (admin, con confirmación) en perfil del niño
-  — hoy no existe; se borran por SQL.
+- **⚠️ APLICAR migraciones 0168 (assignee_ids) y 0172 (CHECK appointments) en
+  Supabase.** (0165/0166/0169/0170/0171 ya aplicadas por el usuario.)
+- (Hecho jul 2026) ~~Botón "Eliminar niño/a"~~ → `DeleteChildButton`.
 - (Backlog) Permitir a recepción cobrar/perdonar recogidas tardías (hoy
   `/aprobaciones` está gated solo a admin/directora).
+- (Backlog, recomendado) Botón "Desactivar usuario" (soft-delete) — al eliminar
+  un terapeuta sus citas quedan huérfanas (therapist_id null tras 0172); lo sano
+  es desactivar (conserva historial) o reasignar con "Sustituir terapeuta" antes.
 - (Backlog) Detección automática de slot liberado tras cancelar cita → alerta a lista de espera
 - (Backlog) Notificaciones a familias en waitlist por email/WhatsApp
 - (Backlog) Vista mensual/anual de capacidad (actual es solo semanal)
