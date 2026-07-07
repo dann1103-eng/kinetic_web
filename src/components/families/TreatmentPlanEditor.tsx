@@ -605,7 +605,10 @@ export function TreatmentPlanEditor({
               {slots.map((s, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-[100px_90px_70px_1fr_100px_30px] gap-2 items-center bg-fm-surface-container-low/40 rounded-lg p-2"
+                  className="bg-fm-surface-container-low/40 rounded-lg p-2 space-y-1.5"
+                >
+                <div
+                  className="grid grid-cols-[100px_90px_70px_1fr_100px_30px] gap-2 items-center"
                 >
                   <select
                     value={s.day_of_week}
@@ -671,11 +674,30 @@ export function TreatmentPlanEditor({
                     ✕
                   </button>
                 </div>
+                {(s.frequency ?? 'weekly') === 'biweekly' && (
+                  <div className="flex items-center gap-2 pl-1">
+                    <span className="text-[11px] text-fm-on-surface-variant">Semana:</span>
+                    <select
+                      value={s.biweekly_offset ?? 0}
+                      onChange={(e) =>
+                        patchSlot(idx, { biweekly_offset: (Number(e.target.value) === 1 ? 1 : 0) })
+                      }
+                      title="A cuál de las dos semanas quincenales le toca este niño. Evita que dos niños quincenales del mismo día/hora/terapista choquen entre sí — cada uno en su propia semana, mes tras mes."
+                      className="rounded-md border border-fm-outline-variant/30 bg-white px-2 py-1 text-xs"
+                    >
+                      <option value={0}>1er y 3er {DAY_OF_WEEK_LABELS[s.day_of_week]?.toLowerCase() ?? 'día'}</option>
+                      <option value={1}>2do y 4to {DAY_OF_WEEK_LABELS[s.day_of_week]?.toLowerCase() ?? 'día'}</option>
+                    </select>
+                  </div>
+                )}
+                </div>
               ))}
               {slots.length > 0 && (
                 <p className="text-[11px] text-fm-on-surface-variant pl-2">
                   Frecuencia: <b>Semanal</b> = todos los días que coincidan ·{' '}
-                  <b>Quincenal</b> = cada 14 días desde el primero del mes ·{' '}
+                  <b>Quincenal</b> = cada 14 días desde el primero del mes (elegí
+                  &ldquo;1er y 3er&rdquo; o &ldquo;2do y 4to&rdquo; para que dos niños
+                  quincenales del mismo día/hora/terapista no choquen) ·{' '}
                   <b>Mensual</b> = solo el primero del mes.
                 </p>
               )}

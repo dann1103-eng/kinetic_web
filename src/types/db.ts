@@ -3723,6 +3723,13 @@ export interface TreatmentPlanScheduleSlot {
   service: ServiceType
   /** Default 'weekly' si no está. */
   frequency?: SlotFrequency
+  /**
+   * Solo aplica si frequency='biweekly'. 0 (default) = 1er y 3er match del mes
+   * (ej. 1er y 3er sábado). 1 = 2do y 4to match. Permite que dos niños
+   * quincenales del mismo día/hora/terapista no choquen entre sí — cada uno
+   * cae en su propia semana par/impar en vez de que ambos calculen 1°/3°.
+   */
+  biweekly_offset?: 0 | 1
 }
 
 export type DiscountKind = 'none' | 'percent' | 'fixed'
