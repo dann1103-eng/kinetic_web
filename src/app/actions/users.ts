@@ -168,23 +168,29 @@ export async function deleteUser(targetUserId: string) {
       }
     }
 
-    const { error: authError } = await admin.auth.admin.deleteUser(targetUserId)
-    if (authError) {
-      // "Database error deleting user" = alguna FK bloquea el borrado en cascada
-      // (típicamente historial de planilla, que no debe borrarse). Mensaje claro.
-      const msg = authError.message ?? ''
-      if (/database error deleting user/i.test(msg)) {
-        return {
-          error:
-            'No se pudo eliminar: el usuario tiene historial que no se puede borrar ' +
-            '(por ejemplo, aparece en planillas). En estos casos conviene dejarlo sin ' +
-            'acceso en vez de eliminarlo. Si es un perfil sin historial, avisá para revisarlo.',
-        }
-      }
-      return { error: msg }
+    // Borrar PRIMERO la fila de public.users (vía admin/PostgREST). Esto dispara
+    // el cascade a tablas hijas y el SET NULL de auditoría bajo nuestro control.
+    // Si algo falla acá, PostgREST devuelve el error ESPECÍFICO de Postgres
+    // (constraint/trigger con nombre), mucho más útil que el genérico "Database
+    // error deleting user" que devuelve GoTrue cuando el mismo fallo ocurre
+    // dentro de su cascade. Como la FK es public.users.id -> auth.users.id, borrar
+    // public.users NO toca auth.users: si esto falla, no queda nada a medias.
+    const { error: pubErr } = await admin.from('users').delete().eq('id', targetUserId)
+    if (pubErr) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const e = pubErr as any
+      const detail = [e.message, e.details, e.hint].filter(Boolean).join(' — ')
+      console.error('deleteUser: fallo al borrar public.users:', detail)
+      return { error: `No se pudo eliminar el perfil: ${detail}` }
     }
 
-    await admin.from('users').delete().eq('id', targetUserId)
+    // El perfil ya no existe en la app. Ahora quitamos el login (auth). Si esto
+    // falla, el perfil igual ya está eliminado (no aparece en /users ni puede
+    // operar); solo queda un remanente de acceso que se limpia aparte.
+    const { error: authError } = await admin.auth.admin.deleteUser(targetUserId)
+    if (authError) {
+      console.error('deleteUser: public.users borrado pero auth.deleteUser falló:', authError.message)
+    }
 
     revalidatePath('/users')
     return { success: true }
