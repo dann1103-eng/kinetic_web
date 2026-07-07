@@ -193,7 +193,11 @@ export function AgendaPageClient({
         if (!a.service_type || !filterServiceTypes.has(a.service_type)) return false
       }
       if (filterVirtualOnly && a.modality !== 'virtual') return false
-      if (a.status === 'rescheduled') return false
+      // 'rescheduled' = superada por una regeneración de ciclo; 'cancelled' =
+      // anulada (ciclo cancelado o duplicado detectado a mano). Ambas quedan en
+      // la BD por auditoría pero no deben ocupar un slot visual en la agenda —
+      // si no, se ven como "dos citas al mismo tiempo" con la real.
+      if (a.status === 'rescheduled' || a.status === 'cancelled') return false
       return true
     })
 

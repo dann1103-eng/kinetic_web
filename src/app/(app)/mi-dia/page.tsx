@@ -88,7 +88,7 @@ export default async function MiDiaPage() {
     .or(`therapist_id.eq.${userId},assignee_ids.cs.{${userId}}`)
     .gte('starts_at', todayStart.toISOString())
     .lt('starts_at', tomorrowStart.toISOString())
-    .not('status', 'eq', 'rescheduled')
+    .not('status', 'in', '(rescheduled,cancelled)')
     .neq('event_type', 'programa_matutino')
     .order('starts_at')
 
@@ -101,7 +101,7 @@ export default async function MiDiaPage() {
     .or(`therapist_id.eq.${userId},assignee_ids.cs.{${userId}}`)
     .gte('starts_at', tomorrowStart.toISOString())
     .lt('starts_at', upcomingEnd.toISOString())
-    .not('status', 'eq', 'rescheduled')
+    .not('status', 'in', '(rescheduled,cancelled)')
     .neq('event_type', 'programa_matutino')
     .order('starts_at')
 
