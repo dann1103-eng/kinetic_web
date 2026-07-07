@@ -12,7 +12,7 @@ import type { ProgressReport, ProgressReportData } from '@/types/db'
  * paridad con las coordinadoras aquí (igual que en el resto de Administración)
  * — el caso típico es subir el archivo que la terapista le entregó.
  */
-const REPORT_SUPER_EDITORS = ['admin', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion']
+const REPORT_SUPER_EDITORS = ['admin', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion', 'terapista', 'maestra']
 
 /** Respeta impersonación. */
 async function getActor() {

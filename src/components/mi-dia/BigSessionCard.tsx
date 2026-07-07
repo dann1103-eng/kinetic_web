@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { startTherapySession, finishTherapySession } from '@/app/actions/therapy-sessions'
+import { startTherapySession, finishTherapySession, completeFreePerson } from '@/app/actions/therapy-sessions'
 import { markAbsence } from '@/app/actions/absences'
 import { dispatchChild, handToReception } from '@/app/actions/dispatch'
 import { ReportButton } from '@/components/agenda/SessionCard'
@@ -68,6 +68,8 @@ export function BigSessionCard({
   const endLabel = appointment.ends_at ? formatTime(appointment.ends_at) : null
   const durationMin = plannedDurationMin(appointment.starts_at, appointment.ends_at)
 
+  const isFreePerson = !appointment.child_id
+
   const handleStart = () => {
     startTransition(async () => {
       const result = await startTherapySession(appointment.id)
@@ -77,6 +79,17 @@ export function BigSessionCard({
         // la página estaba abierta: refrescamos para que el día muestre el estado real.
         router.refresh()
       }
+    })
+  }
+
+  const handleCompleteFreePerson = () => {
+    if (!confirm('¿Marcar esta cita como completada?')) return
+    startTransition(async () => {
+      const result = await completeFreePerson(appointment.id)
+      if (!result.ok) {
+        alert(result.error)
+      }
+      router.refresh()
     })
   }
 
@@ -185,20 +198,32 @@ export function BigSessionCard({
       <div className="mt-6 flex flex-wrap items-center gap-2">
         {appointment.status === 'scheduled' && (
           <>
-            <button
-              onClick={handleStart}
-              disabled={isPending || absencePending}
-              className="flex-1 min-w-[140px] py-2.5 rounded-2xl bg-fm-primary text-white text-sm font-semibold disabled:opacity-50 hover:bg-fm-primary/90 transition-colors"
-            >
-              {isPending ? 'Iniciando…' : 'Iniciar sesión'}
-            </button>
-            <button
-              onClick={() => setShowAbsenceModal(true)}
-              disabled={isPending || absencePending}
-              className="px-4 py-2.5 rounded-2xl bg-amber-500/20 dark:bg-amber-500/25 text-amber-900 dark:text-amber-100 text-xs font-semibold disabled:opacity-50 hover:bg-amber-500/30 dark:hover:bg-amber-500/35 transition-colors"
-            >
-              Inasistencia
-            </button>
+            {isFreePerson ? (
+              <button
+                onClick={handleCompleteFreePerson}
+                disabled={isPending}
+                className="flex-1 min-w-[140px] py-2.5 rounded-2xl bg-fm-primary text-white text-sm font-semibold disabled:opacity-50 hover:bg-fm-primary/90 transition-colors"
+              >
+                {isPending ? 'Completando…' : 'Marcar completada'}
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={handleStart}
+                  disabled={isPending || absencePending}
+                  className="flex-1 min-w-[140px] py-2.5 rounded-2xl bg-fm-primary text-white text-sm font-semibold disabled:opacity-50 hover:bg-fm-primary/90 transition-colors"
+                >
+                  {isPending ? 'Iniciando…' : 'Iniciar sesión'}
+                </button>
+                <button
+                  onClick={() => setShowAbsenceModal(true)}
+                  disabled={isPending || absencePending}
+                  className="px-4 py-2.5 rounded-2xl bg-amber-500/20 dark:bg-amber-500/25 text-amber-900 dark:text-amber-100 text-xs font-semibold disabled:opacity-50 hover:bg-amber-500/30 dark:hover:bg-amber-500/35 transition-colors"
+                >
+                  Inasistencia
+                </button>
+              </>
+            )}
           </>
         )}
 

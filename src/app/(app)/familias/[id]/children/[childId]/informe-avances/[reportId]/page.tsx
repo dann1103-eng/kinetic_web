@@ -16,7 +16,7 @@ const APPROVER_ROLES = ['admin', 'directora']
 // 'recepcion' tiene paridad con las coordinadoras para subir/editar el archivo
 // de informes cuatrimestrales de CUALQUIER niño (no solo los propios) — el caso
 // típico es la terapista entregándole el archivo a recepción para que lo suba.
-const SUPER_EDITOR_ROLES = ['admin', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion']
+const SUPER_EDITOR_ROLES = ['admin', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion', 'terapista', 'maestra']
 
 export default async function ProgressReportEditPage({ params }: PageProps) {
   const { id: familyId, childId, reportId } = await params

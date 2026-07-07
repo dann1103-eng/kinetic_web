@@ -5,6 +5,7 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { ChildDashboardCalendar } from '@/components/dashboard/ChildDashboardCalendar'
 import { ChildSessionReportsHistory } from '@/components/agenda/ChildSessionReportsHistory'
+import { NewProgressReportButton } from '@/components/agenda/NewProgressReportButton'
 import { JournalTab } from '@/app/(app)/familias/[id]/JournalTab'
 import { getChildDashboardData } from '@/lib/domain/child-dashboard'
 import { userCanViewChild } from '@/lib/domain/my-children'
@@ -217,11 +218,14 @@ export default async function MisNinosChildPage({ params }: PageProps) {
             <h2 className="text-sm font-bold uppercase tracking-wider text-fm-on-surface-variant">
               Informes de avances
             </h2>
-            {isBlueKids && (
-              <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900">
-                BlueKids · informes no obligatorios
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {isBlueKids && (
+                <span className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900">
+                  BlueKids · informes no obligatorios
+                </span>
+              )}
+              <NewProgressReportButton familyId={c.family_id} childId={c.id} />
+            </div>
           </div>
           {!progressReports || progressReports.length === 0 ? (
             <p className="text-sm text-fm-on-surface-variant italic">

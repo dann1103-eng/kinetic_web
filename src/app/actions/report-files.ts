@@ -124,6 +124,8 @@ const PROGRESS_FILE_SUPER_ROLES = [
   'coordinadora_familias',
   'coordinadora_terapias',
   'recepcion',
+  'terapista',
+  'maestra',
 ]
 
 export async function uploadProgressReportFile(

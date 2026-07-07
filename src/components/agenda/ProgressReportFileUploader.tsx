@@ -432,7 +432,7 @@ export function ProgressReportFileUploader({
           </button>
         )}
         <div className="ml-auto flex flex-wrap gap-2">
-          {isAuthor && report.status === 'draft' && filePath && (
+          {(isAuthor || canSuperEdit) && report.status === 'draft' && filePath && (
             <button
               type="button"
               onClick={handleSubmit}
@@ -442,7 +442,7 @@ export function ProgressReportFileUploader({
               {isPending ? 'Enviando…' : 'Enviar a aprobación'}
             </button>
           )}
-          {isAuthor && report.status === 'rejected' && filePath && (
+          {(isAuthor || canSuperEdit) && report.status === 'rejected' && filePath && (
             <button
               type="button"
               onClick={handleSubmit}

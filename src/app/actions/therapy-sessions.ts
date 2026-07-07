@@ -90,3 +90,46 @@ export async function finishTherapySession(sessionId: string): Promise<
   revalidatePath('/mi-dia')
   return { ok: true, session, alreadyFinished }
 }
+
+/**
+ * Completa directamente una cita sin niño/a registrado/a (evaluaciones,
+ * entrevistas, reuniones, etc.). Estas citas tienen child_id=null y no pueden
+ * pasar por el flujo start_therapy_session → finish_therapy_session porque
+ * therapy_sessions.child_id es NOT NULL.
+ */
+export async function completeFreePerson(appointmentId: string): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
+  const { supabase, actorId } = await getActor()
+
+  const { data: appt } = await supabase
+    .from('appointments')
+    .select('id, child_id, therapist_id, assignee_ids, status')
+    .eq('id', appointmentId)
+    .maybeSingle()
+
+  if (!appt) return { ok: false, error: 'Cita no encontrada.' }
+  if (appt.child_id) {
+    return { ok: false, error: 'Esta cita tiene niño/a registrado/a.' }
+  }
+  if (!['scheduled', 'in_progress'].includes(appt.status)) {
+    return { ok: false, error: 'La cita no está en estado válido para completar.' }
+  }
+
+  const assigneeIds = (appt.assignee_ids ?? []) as string[]
+  const isAssigned = appt.therapist_id === actorId || assigneeIds.includes(actorId)
+  if (!isAssigned) {
+    return { ok: false, error: 'Sin permisos para completar esta cita.' }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('appointments')
+    .update({ status: 'completed', completed_at: new Date().toISOString() })
+    .eq('id', appointmentId)
+
+  if (error) return { ok: false, error: 'Error al completar la cita.' }
+
+  revalidatePath('/mi-dia')
+  return { ok: true }
+}
