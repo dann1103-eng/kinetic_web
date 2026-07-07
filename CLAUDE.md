@@ -330,16 +330,16 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0168** | **Asignación múltiple de eventos**: `appointments.assignee_ids uuid[]` + índice GIN. Eventos multi-persona (entrevistas, reuniones, entrega de avances, otro) se asignan a varias personas; `therapist_id`=principal, `assignee_ids`=todos. `/mi-dia` y el filtro de agenda incluyen donde el user es asignado. |
 | **0169** | **Permitir eliminar usuarios**: arregla los FKs a `public.users` que truenan el borrado ("Database error deleting user"). DO block dinámico: (1) quita NOT NULL de columnas con FK `ON DELETE SET NULL` (bug: `therapy_sessions.therapist_id` era NOT NULL + SET NULL → contradicción); (2) columnas de auditoría NULLABLE que bloquean (NO ACTION/RESTRICT) → `ON DELETE SET NULL`. Dejaba `payroll_items.user_id` (NOT NULL) bloqueando. **Superseded por 0170.** |
 | **0170** | **Eliminar SIEMPRE (conservando el registro contable)**: superset de 0169. Hace que NINGUNA FK a `public.users` bloquee el borrado — TODA columna bloqueante (incl. `payroll_items.user_id`) se vuelve NULLABLE + `ON DELETE SET NULL`. La planilla sobrevive porque `payroll_items.user_snapshot_json` guarda nombre/DUI/rol al sellar; el detalle/PDF de planilla ahora hacen fallback al snapshot cuando el usuario ya no existe. `PayrollItem.user_id` pasa a `string \| null`. **Insuficiente sola — ver 0171.** |
-| **0171** | **Arregla `storage.objects.owner` bloqueando el borrado**: 0169/0170 solo revisaron el esquema `public`. Supabase Storage tiene su propia tabla `storage.objects` (un archivo subido = una fila) con `owner references auth.users(id)` SIN `on delete set null` (default de Supabase, no nuestro). Si el usuario subió algo desde el navegador con su sesión (p.ej. su foto de perfil, bucket `user-avatars` mig 0143), esa fila lo bloquea. Generaliza el DO block a TODOS los esquemas (excepto `auth`/sistema) buscando FKs bloqueantes hacia `auth.users(id)` o `public.users(id)`; cada fila se altera con manejo de excepción individual (si una no se puede tocar, se omite con aviso, no aborta la migración). |
+| **0171** | **Intento fallido (storage.objects.owner)**: se creyó que el bloqueo del borrado venía de `storage.objects`, pero el diagnóstico (`scripts/diag_user_delete_blockers.sql`) mostró que TODAS las FK a users ya eran SET NULL/CASCADE y NO existe FK bloqueante en storage. 0171 es inocua (no encuentra nada que arreglar). La causa real era un CHECK — ver 0172. |
+| **0172** | **CAUSA REAL del "Database error deleting user"**: el CHECK `appointments_terapia_requires_service_and_therapist` (mig 0092) exigía `therapist_id` no nulo en toda cita `terapia`; al eliminar un terapeuta, el `SET NULL` en cascada (0170) violaba el CHECK y abortaba el borrado. Se relaja: para `terapia` se exige solo `service_type`. Las citas del terapeuta eliminado quedan sin asignar (therapist_id NULL). **Además** `deleteUser` ahora borra `public.users` primero (via admin/PostgREST) para exponer el error real de Postgres en vez del genérico de GoTrue. **Recomendación**: reasignar con "Sustituir terapeuta" antes de eliminar. |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
-> migración automática. **El repo va hasta 0171; próximo libre = 0172.**
-> ✅ Aplicadas: hasta **0164** (verificadas en prod), **0165/0166** (usuario) y
-> **0167** (auditoría de seguridad, SQL corrido).
-> ⚠️ **PENDIENTES DE APLICAR: 0168 (assignee_ids) y 0171 (FKs de borrado de
-> usuario — superset de 0169/0170, aplicar solo 0171 basta).** Sin 0168 agendar
-> multi-persona truena; sin 0171 sigue el "Database error deleting user" (por
-> `storage.objects.owner`, fuera del alcance de 0169/0170).
+> migración automática. **El repo va hasta 0172; próximo libre = 0173.**
+> ✅ Aplicadas: hasta **0164** (verificadas en prod), **0165/0166** (usuario),
+> **0167** (auditoría de seguridad), **0169/0170/0171** (usuario, FKs de borrado).
+> ⚠️ **PENDIENTES DE APLICAR: 0168 (assignee_ids) y 0172 (CHECK de appointments —
+> la causa real del "Database error deleting user").** Sin 0172, eliminar un
+> terapeuta con citas de terapia sigue tronando.
 >
 > **GOTCHA recurrente**: `create or replace function` con DISTINTO # de args
 > NO reemplaza — crea una **sobrecarga** y deja la llamada ambigua. Al cambiar
