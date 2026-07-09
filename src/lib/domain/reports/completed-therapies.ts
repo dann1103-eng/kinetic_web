@@ -159,19 +159,6 @@ export async function getCompletedTherapiesDetail(
 ): Promise<CompletedTherapiesReport> {
   const { startISO, endISO, label } = resolveWindow(granularity, anchorDate)
 
-  // Terapistas (con flags de planilla).
-  const { data: usersRaw } = await supabase
-    .from('users')
-    .select('id, full_name, in_normal_payroll, in_professional_services_payroll')
-    .in('role', ['terapista', 'maestra'])
-  const users = (usersRaw ?? []) as {
-    id: string
-    full_name: string
-    in_normal_payroll: boolean
-    in_professional_services_payroll: boolean
-  }[]
-  const userById = new Map(users.map((u) => [u.id, u]))
-
   // Tarifa por terapia desde el catálogo (cost_usd = pago a la terapista).
   const { data: catalogRaw } = await supabase
     .from('service_catalog')
@@ -204,6 +191,32 @@ export async function getCompletedTherapiesDetail(
     .lt('starts_at', endISO)
     .order('starts_at')
   const appts = (apptsRaw ?? []) as unknown as ApptJoinRow[]
+
+  // Nombres + flags de planilla de TODA persona que aparece como therapist_id en
+  // las terapias completadas — no solo role terapista/maestra. Así una coordinadora
+  // que cubrió una sesión, o alguien con rol distinto, sale con su nombre y no como
+  // "Terapista" genérico.
+  const therapistIds = Array.from(
+    new Set(appts.map((a) => a.therapist_id).filter((x): x is string => !!x)),
+  )
+  const { data: usersRaw } = therapistIds.length
+    ? await supabase
+        .from('users')
+        .select('id, full_name, in_normal_payroll, in_professional_services_payroll')
+        .in('id', therapistIds)
+    : { data: [] as {
+        id: string
+        full_name: string
+        in_normal_payroll: boolean
+        in_professional_services_payroll: boolean
+      }[] }
+  const users = (usersRaw ?? []) as {
+    id: string
+    full_name: string
+    in_normal_payroll: boolean
+    in_professional_services_payroll: boolean
+  }[]
+  const userById = new Map(users.map((u) => [u.id, u]))
 
   // Costo por cita: evaluaciones por su código; terapias por service_type.
   const costOfAppt = (a: ApptJoinRow): number =>
