@@ -226,7 +226,7 @@ otras dos tablas de menciones), para que la campanita refresque en vivo sin
 hacer polling.
 
 **`src/components/layout/NotificationsDropdown.tsx`** — la lógica de
-menciones está repartida en 4 puntos del archivo; los 4 necesitan una rama
+menciones está repartida en 5 puntos del archivo; los 5 necesitan una rama
 para `mention_source === 'waitlist'` (verificado leyendo el archivo
 completo, no solo el flujo de click):
 
