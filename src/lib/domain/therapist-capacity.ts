@@ -15,8 +15,27 @@ export interface TherapistLite {
 
 export interface AppointmentLite {
   therapist_id: string | null
+  /** Eventos multi-persona (reuniones, entrevistas, entrega de avances…): todos
+   *  los asignados además del principal. La ocupación se cuenta para cada uno. */
+  assignee_ids: string[] | null
+  /** Para excluir las citas `programa_matutino` por-niño (se cuentan por bloque
+   *  de grupo vía GroupSessionLite, no una vez por cada niño). */
+  event_type: string
   starts_at: string
   ends_at: string
+  status: string
+}
+
+/**
+ * Bloque de sesión de un grupo matutino. Cuenta como ocupación UNA sola vez por
+ * cada terapista/maestra que es staff del grupo (a diferencia de las citas
+ * `programa_matutino` por-niño, que se ignoran para no multiplicar la franja).
+ */
+export interface GroupSessionLite {
+  staffUserIds: string[]
+  starts_at: string
+  ends_at: string
+  /** 'scheduled' | 'held' | 'cancelled'. Las canceladas no cuentan. */
   status: string
 }
 
@@ -74,7 +93,15 @@ const EXCLUDED_STATUSES = new Set(['rescheduled', 'no_show', 'late_cancel', 'can
 /**
  * Calcula la ocupación de cada terapista en la semana [weekStart, weekStart+7d].
  *
- * - `byDay[i].workedMinutes`: suma de duraciones de citas activas en el día i (0=lun)
+ * La ocupación de una persona = suma de:
+ *  1. Toda cita donde participa (`therapist_id` **o** en `assignee_ids`), de
+ *     CUALQUIER tipo de evento (terapia, evaluación, reunión, entrevista, etc.),
+ *     contada UNA vez por su duración. Se excluyen las citas `programa_matutino`
+ *     por-niño (se cuentan por bloque de grupo, no una por cada niño).
+ *  2. Cada sesión de grupo matutino (`groupSessions`) donde es staff, contada
+ *     UNA vez por su duración.
+ *
+ * - `byDay[i].workedMinutes`: minutos ocupados en el día i (0=lun)
  * - `byDay[i].scheduledMinutes`: minutos del bloque laboral configurado para ese día
  * - `occupancyPct`: totalWorked / totalScheduled (si scheduled > 0)
  * - `overContract`: true si totalWorked > maxHoursPerWeek * 60
@@ -83,65 +110,71 @@ export function calculateWeeklyOccupancy(
   therapists: TherapistLite[],
   schedules: TherapistWorkScheduleBlock[],
   appointments: AppointmentLite[],
+  groupSessions: GroupSessionLite[],
   weekStart: Date,
 ): WeeklyOccupancy[] {
   const weekEnd = new Date(weekStart)
   weekEnd.setDate(weekEnd.getDate() + 7)
 
-  // Agrupar bloques laborales por terapista
-  const schedulesByTherapist = new Map<string, TherapistWorkScheduleBlock[]>()
-  for (const s of schedules) {
-    if (!s.active) continue
-    const arr = schedulesByTherapist.get(s.therapist_id) ?? []
-    arr.push(s)
-    schedulesByTherapist.set(s.therapist_id, arr)
+  const therapistIdSet = new Set(therapists.map((t) => t.id))
+
+  // Acumulador byDay por terapista (0=lunes).
+  const byDayByTherapist = new Map<string, DayOccupancy[]>()
+  for (const t of therapists) {
+    byDayByTherapist.set(
+      t.id,
+      Array.from({ length: 7 }, (_, i) => ({ dayIndex: i, workedMinutes: 0, scheduledMinutes: 0 })),
+    )
   }
 
-  // Agrupar citas por terapista (filtradas a la ventana + estados válidos)
-  const apptsByTherapist = new Map<string, AppointmentLite[]>()
+  // Bloques laborales → scheduledMinutes.
+  for (const s of schedules) {
+    if (!s.active) continue
+    const byDay = byDayByTherapist.get(s.therapist_id)
+    if (!byDay) continue
+    const idx = dowToIndex(s.day_of_week)
+    byDay[idx].scheduledMinutes += timeStringToMinutes(s.end_time) - timeStringToMinutes(s.start_time)
+  }
+
+  // Citas → workedMinutes, distribuidas a cada participante (una vez).
   for (const a of appointments) {
-    if (!a.therapist_id) continue
     if (EXCLUDED_STATUSES.has(a.status)) continue
+    // Las citas por-niño de programa matutino se cuentan por bloque de grupo.
+    if (a.event_type === 'programa_matutino') continue
     const start = new Date(a.starts_at)
     if (start < weekStart || start >= weekEnd) continue
-    const arr = apptsByTherapist.get(a.therapist_id) ?? []
-    arr.push(a)
-    apptsByTherapist.set(a.therapist_id, arr)
+    const mins = Math.max(0, (new Date(a.ends_at).getTime() - start.getTime()) / 60_000)
+    const idx = dowToIndex(start.getDay())
+
+    // Participantes = union(therapist_id, assignee_ids) ∩ terapistas del equipo.
+    const participants = new Set<string>()
+    if (a.therapist_id && therapistIdSet.has(a.therapist_id)) participants.add(a.therapist_id)
+    for (const uid of a.assignee_ids ?? []) {
+      if (therapistIdSet.has(uid)) participants.add(uid)
+    }
+    for (const uid of participants) {
+      byDayByTherapist.get(uid)![idx].workedMinutes += mins
+    }
+  }
+
+  // Sesiones de grupo matutino → workedMinutes, una vez por cada staff.
+  for (const gs of groupSessions) {
+    if (gs.status === 'cancelled') continue
+    const start = new Date(gs.starts_at)
+    if (start < weekStart || start >= weekEnd) continue
+    const mins = Math.max(0, (new Date(gs.ends_at).getTime() - start.getTime()) / 60_000)
+    const idx = dowToIndex(start.getDay())
+    const staff = new Set(gs.staffUserIds.filter((uid) => therapistIdSet.has(uid)))
+    for (const uid of staff) {
+      byDayByTherapist.get(uid)![idx].workedMinutes += mins
+    }
   }
 
   return therapists.map((t) => {
-    const byDay: DayOccupancy[] = Array.from({ length: 7 }, (_, i) => ({
-      dayIndex: i,
-      workedMinutes: 0,
-      scheduledMinutes: 0,
-    }))
-
-    // Bloques laborales
-    const blocks = schedulesByTherapist.get(t.id) ?? []
-    for (const b of blocks) {
-      const idx = dowToIndex(b.day_of_week)
-      const mins = timeStringToMinutes(b.end_time) - timeStringToMinutes(b.start_time)
-      byDay[idx].scheduledMinutes += mins
-    }
-
-    // Citas
-    const appts = apptsByTherapist.get(t.id) ?? []
-    for (const a of appts) {
-      const start = new Date(a.starts_at)
-      const end = new Date(a.ends_at)
-      // Índice 0=lunes
-      const day = start.getDay()
-      const idx = dowToIndex(day)
-      const mins = Math.max(0, (end.getTime() - start.getTime()) / 60_000)
-      byDay[idx].workedMinutes += mins
-    }
-
+    const byDay = byDayByTherapist.get(t.id)!
     const totalWorked = byDay.reduce((s, d) => s + d.workedMinutes, 0)
     const totalScheduled = byDay.reduce((s, d) => s + d.scheduledMinutes, 0)
-    const pct =
-      totalScheduled > 0
-        ? Math.round((totalWorked / totalScheduled) * 100)
-        : 0
+    const pct = totalScheduled > 0 ? Math.round((totalWorked / totalScheduled) * 100) : 0
     const overContract =
       t.max_hours_per_week != null && totalWorked > t.max_hours_per_week * 60
 

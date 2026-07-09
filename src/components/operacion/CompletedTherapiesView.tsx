@@ -81,6 +81,11 @@ function serviceLabel(s: string | null): string {
   return SERVICE_TYPE_LABELS[s as ServiceType] ?? s
 }
 
+/** Normaliza para búsqueda: minúsculas sin acentos. */
+function normalize(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+}
+
 interface Props {
   report: CompletedTherapiesReport
   granularity: CompletedGranularity
@@ -97,6 +102,27 @@ export function CompletedTherapiesView({ report, granularity, anchorDate, canEdi
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editStart, setEditStart] = useState('')
   const [editEnd, setEditEnd] = useState('')
+  const [search, setSearch] = useState('')
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+
+  const searchActive = search.trim() !== ''
+  const visibleGroups = searchActive
+    ? report.groups.filter((g) => normalize(g.fullName).includes(normalize(search)))
+    : report.groups
+
+  function toggleExpanded(therapistId: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(therapistId)) next.delete(therapistId)
+      else next.add(therapistId)
+      return next
+    })
+  }
+
+  // Con búsqueda activa las coincidencias se muestran expandidas (sin click extra);
+  // sin búsqueda, cada tarjeta respeta su estado manual (colapsada por defecto).
+  const isExpanded = (therapistId: string) =>
+    searchActive || expandedIds.has(therapistId)
 
   function navigate(g: CompletedGranularity, d: string) {
     router.push(`${pathname}?g=${g}&d=${d}`)
@@ -221,13 +247,57 @@ export function CompletedTherapiesView({ report, granularity, anchorDate, canEdi
         </div>
       )}
 
-      {report.groups.map((g) => (
+      {/* Búsqueda por terapista */}
+      {report.groups.length > 0 && (
+        <div className="relative">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-fm-on-surface-variant pointer-events-none">
+            search
+          </span>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar terapista o maestra…"
+            className="w-full text-sm pl-10 pr-9 py-2.5 bg-fm-surface-container-low/40 border border-fm-outline-variant/30 rounded-xl focus:outline-none focus:border-fm-primary"
+          />
+          {searchActive && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Limpiar búsqueda"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-fm-on-surface-variant hover:text-fm-on-surface"
+            >
+              <span className="material-symbols-outlined text-[20px]">close</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {report.groups.length > 0 && visibleGroups.length === 0 && (
+        <div className="rounded-2xl border border-fm-outline-variant/30 px-4 py-8 text-center text-sm text-fm-on-surface-variant">
+          Ninguna terapista coincide con «{search}».
+        </div>
+      )}
+
+      {visibleGroups.map((g) => (
         <div
           key={g.therapistId}
           className="rounded-2xl border border-fm-outline-variant/30 overflow-hidden"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-fm-surface-container-low/50 border-b border-fm-outline-variant/20">
+          <button
+            type="button"
+            onClick={() => toggleExpanded(g.therapistId)}
+            aria-expanded={isExpanded(g.therapistId)}
+            className="w-full flex flex-wrap items-center justify-between gap-2 px-4 py-3 bg-fm-surface-container-low/50 border-b border-fm-outline-variant/20 text-left hover:bg-fm-surface-container-low transition-colors"
+          >
             <div className="flex items-center gap-2">
+              <span
+                className={`material-symbols-outlined text-[20px] text-fm-on-surface-variant transition-transform ${
+                  isExpanded(g.therapistId) ? 'rotate-90' : ''
+                }`}
+              >
+                chevron_right
+              </span>
               <h3 className="text-sm font-bold text-fm-on-surface">{g.fullName}</h3>
               {g.inProfessionalServices ? (
                 g.extraOnly ? (
@@ -254,8 +324,9 @@ export function CompletedTherapiesView({ report, granularity, anchorDate, canEdi
                 </span>
               )}
             </div>
-          </div>
+          </button>
 
+          {isExpanded(g.therapistId) && (
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] uppercase tracking-wide text-fm-on-surface-variant border-b border-fm-outline-variant/20">
@@ -384,6 +455,7 @@ export function CompletedTherapiesView({ report, granularity, anchorDate, canEdi
               ))}
             </tbody>
           </table>
+          )}
         </div>
       ))}
     </div>

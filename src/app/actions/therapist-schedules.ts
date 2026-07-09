@@ -9,6 +9,7 @@ import {
   calculateWeeklyOccupancy,
   startOfWeekMonday,
   type WeeklyOccupancy,
+  type GroupSessionLite,
 } from '@/lib/domain/therapist-capacity'
 
 // Roles que gestionan horarios/capacidad desde /users (Administración).
@@ -132,14 +133,39 @@ export async function getTherapistWeekOccupancy(
     .eq('active', true)
   if (blocksErr) return { ok: false, error: blocksErr.message }
 
-  // Citas de la semana del terapista
+  // Citas de la semana donde participa (principal o asignado), todos los tipos
+  // de evento menos programa_matutino por-niño (se cuenta por bloque de grupo).
   const { data: apptsRaw, error: apptsErr } = await supabase
     .from('appointments')
-    .select('therapist_id, starts_at, ends_at, status')
-    .eq('therapist_id', therapistId)
+    .select('therapist_id, assignee_ids, event_type, starts_at, ends_at, status')
+    .or(`therapist_id.eq.${therapistId},assignee_ids.cs.{${therapistId}}`)
     .gte('starts_at', weekStart.toISOString())
     .lt('starts_at', weekEnd.toISOString())
+    .neq('event_type', 'programa_matutino')
   if (apptsErr) return { ok: false, error: apptsErr.message }
+
+  // Sesiones de grupo matutino de los grupos que da este terapista.
+  const { data: myStaffGroups } = await supabase
+    .from('program_group_staff')
+    .select('group_id')
+    .eq('user_id', therapistId)
+  const myGroupIds = ((myStaffGroups ?? []) as { group_id: string }[]).map((g) => g.group_id)
+  const { data: sessionsRaw } = myGroupIds.length
+    ? await supabase
+        .from('program_group_sessions')
+        .select('starts_at, ends_at, status')
+        .in('group_id', myGroupIds)
+        .gte('starts_at', weekStart.toISOString())
+        .lt('starts_at', weekEnd.toISOString())
+    : { data: [] as { starts_at: string; ends_at: string; status: string }[] }
+  const groupSessions: GroupSessionLite[] = (
+    (sessionsRaw ?? []) as { starts_at: string; ends_at: string; status: string }[]
+  ).map((s) => ({
+    staffUserIds: [therapistId],
+    starts_at: s.starts_at,
+    ends_at: s.ends_at,
+    status: s.status,
+  }))
 
   const [occ] = calculateWeeklyOccupancy(
     [{
@@ -149,6 +175,7 @@ export async function getTherapistWeekOccupancy(
     }],
     (blocksRaw ?? []) as TherapistWorkScheduleBlock[],
     apptsRaw ?? [],
+    groupSessions,
     weekStart,
   )
 

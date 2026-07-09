@@ -8,6 +8,7 @@ import {
   endOfWeekSunday,
   type TherapistLite,
   type AppointmentLite,
+  type GroupSessionLite,
 } from '@/lib/domain/therapist-capacity'
 import type { TherapistWorkScheduleBlock } from '@/types/db'
 import { TherapistCapacityTable } from '@/components/operacion/TherapistCapacityTable'
@@ -67,20 +68,51 @@ export default async function CapacidadTerapistasPage({ searchParams }: PageProp
         .eq('active', true)
     : { data: [] as TherapistWorkScheduleBlock[] }
 
-  // Citas de la semana
+  // Citas de la semana (TODOS los tipos de evento menos programa_matutino por-niño;
+  // ese se cuenta por bloque de grupo abajo). No filtramos por therapist_id porque
+  // los eventos multi-persona cuentan también para quien está en assignee_ids.
   const { data: apptsRaw } = therapistIds.length
     ? await supabase
         .from('appointments')
-        .select('therapist_id, starts_at, ends_at, status')
-        .in('therapist_id', therapistIds)
+        .select('therapist_id, assignee_ids, event_type, starts_at, ends_at, status')
         .gte('starts_at', weekStart.toISOString())
         .lt('starts_at', new Date(weekEnd.getTime() + 1).toISOString())
+        .neq('event_type', 'programa_matutino')
     : { data: [] as AppointmentLite[] }
+
+  // Staff de grupos matutinos → qué user da qué grupo.
+  const { data: staffRaw } = therapistIds.length
+    ? await supabase.from('program_group_staff').select('group_id, user_id')
+    : { data: [] as { group_id: string; user_id: string }[] }
+  const staffByGroup = new Map<string, string[]>()
+  for (const s of (staffRaw ?? []) as { group_id: string; user_id: string }[]) {
+    const arr = staffByGroup.get(s.group_id) ?? []
+    arr.push(s.user_id)
+    staffByGroup.set(s.group_id, arr)
+  }
+
+  // Sesiones de grupo de la semana → un bloque de ocupación por sesión.
+  const { data: sessionsRaw } = therapistIds.length
+    ? await supabase
+        .from('program_group_sessions')
+        .select('group_id, starts_at, ends_at, status')
+        .gte('starts_at', weekStart.toISOString())
+        .lt('starts_at', new Date(weekEnd.getTime() + 1).toISOString())
+    : { data: [] as { group_id: string; starts_at: string; ends_at: string; status: string }[] }
+  const groupSessions: GroupSessionLite[] = (
+    (sessionsRaw ?? []) as { group_id: string; starts_at: string; ends_at: string; status: string }[]
+  ).map((s) => ({
+    staffUserIds: staffByGroup.get(s.group_id) ?? [],
+    starts_at: s.starts_at,
+    ends_at: s.ends_at,
+    status: s.status,
+  }))
 
   const rows = calculateWeeklyOccupancy(
     therapists,
     (schedulesRaw ?? []) as TherapistWorkScheduleBlock[],
     (apptsRaw ?? []) as AppointmentLite[],
+    groupSessions,
     weekStart,
   )
 
