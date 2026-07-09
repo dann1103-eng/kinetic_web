@@ -80,7 +80,10 @@ create policy "waitlist_mentions update own" on public.waitlist_comment_mentions
   for update using (mentioned_user_id = auth.uid());
 
 -- Sin policy de INSERT: se escribe exclusivamente con admin client desde
--- addWaitlistComment (igual que requirement_mentions / review_comment_mentions).
+-- addWaitlistComment (bypassa RLS, igual que requirement_mentions). Nota:
+-- review_comment_mentions sí tiene una policy de INSERT adicional
+-- (`review_mentions_insert`, gateada por is_agency_user()) — acá se omite
+-- deliberadamente porque el único camino de escritura es el admin client.
 
 grant all on public.waitlist_comment_mentions to anon, authenticated, service_role;
 
@@ -93,11 +96,11 @@ plano (mismo comportamiento que `requirement_messages.body`).
 
 ### 2. Backend — `src/app/actions/waitlist.ts`
 
-```typescript
-const MENTIONABLE_ROLES = [
-  'admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion',
-] as const
+`waitlist.ts` ya define `COORD_ROLES` (usado por `isCoord()` en las demás
+funciones del archivo) con exactamente los 5 roles permitidos — se reutiliza
+tal cual, sin crear una lista paralela que pueda desincronizarse:
 
+```typescript
 export async function addWaitlistComment(
   entryId: string,
   body: string,
@@ -126,7 +129,7 @@ export async function addWaitlistComment(
       .from('users')
       .select('id')
       .in('id', candidateIds)
-      .in('role', MENTIONABLE_ROLES)
+      .in('role', COORD_ROLES)
     const validIds = (validUsers ?? []).map((u) => u.id)
     if (validIds.length > 0) {
       const rows = validIds.map((uid) => ({
@@ -188,6 +191,7 @@ Cambios sobre el componente actual:
   ```
 - Agregar `const [mentionIds, setMentionIds] = useState<string[]>([])`.
 - Insertar `<MentionAutocomplete>` (importado de `src/components/requirements/MentionAutocomplete.tsx`, sin modificar) justo antes del `<textarea>`, con `ref={inputRef}` agregado al textarea.
+- **El contenedor del textarea debe tener `position: relative`.** `MentionAutocomplete` posiciona su dropdown con `absolute left-0 right-0 mx-5`, que ancla contra el ancestro `relative` más cercano (`RequirementChat.tsx` envuelve su input en un `<div className="relative">` por esto mismo). El contenedor actual de `WaitlistComments.tsx` es `<div className="space-y-2">` sin `relative` — hay que agregarlo o el dropdown va a renderizar en el lugar equivocado.
 - En `submit()`, pasar `mentionIds` a `addWaitlistComment(entryId, trimmed, mentionIds)` y resetear `mentionIds` tras éxito.
 
 No se necesitan cambios en `MentionAutocomplete.tsx` — su API (`textareaRef`, `value`, `onChange`, `users`, `onMentionsChange`, `currentMentionIds`) ya es genérica y no tiene ninguna dependencia de `requirement_id`.
@@ -198,8 +202,8 @@ No se necesitan cambios en `MentionAutocomplete.tsx` — su API (`textareaRef`, 
 ```typescript
 mention_source?: 'requirement' | 'review' | 'waitlist'
 waitlist_entry_id?: string
+waitlist_entry_label?: string   // ej. "Santiago Andrés Saravia Portillo" — para el título de la notificación
 ```
-(reutiliza `mentioned_by`, `message_preview`, `read` ya existentes en el tipo; `message_preview` para waitlist se arma como el nombre del niño/persona de la entrada, ej. "Santiago Andrés Saravia Portillo").
 
 **`src/app/api/notifications/route.ts`** — agregar un tercer query en paralelo junto a `mentionsRes`/`reviewMentionsRes`:
 ```typescript
@@ -207,35 +211,67 @@ supabase.from('waitlist_comment_mentions')
   .select(`
     id, read_at, created_at, entry_id,
     mentioned_by:users!waitlist_comment_mentions_mentioned_by_user_id_fkey(id, full_name, avatar_url),
-    entry:waitlist_entries(child_full_name),
-    comment:waitlist_entry_comments(body)
+    entry:waitlist_entries(child_full_name)
   `)
   .eq('mentioned_user_id', user.id)
   .or(`read_at.is.null,created_at.gte.${mentionsSince}`)
   .order('created_at', { ascending: false })
   .limit(50)
 ```
-Se mapea a `{ kind: 'mention', mention_source: 'waitlist', waitlist_entry_id: entry_id, message_preview: entry.child_full_name, ... }` y se concatena al arreglo `items` junto con los otros dos.
+Se mapea a `{ kind: 'mention', mention_source: 'waitlist', waitlist_entry_id: entry_id, waitlist_entry_label: entry.child_full_name, ... }` y se concatena al arreglo `items` junto con los otros dos.
 
 **`src/hooks/useNotifications.ts`** — agregar suscripción realtime a
 `postgres_changes` sobre `waitlist_comment_mentions` (mismo patrón que las
 otras dos tablas de menciones), para que la campanita refresque en vivo sin
 hacer polling.
 
-**`src/components/layout/NotificationsDropdown.tsx`** — agregar rama para
-`mention_source === 'waitlist'`:
-- Click → `markWaitlistMentionRead(item.id)` + navegar a
-  `` `/operacion/lista-de-espera?entry=${item.waitlist_entry_id}` ``.
+**`src/components/layout/NotificationsDropdown.tsx`** — la lógica de
+menciones está repartida en 4 puntos del archivo; los 4 necesitan una rama
+para `mention_source === 'waitlist'` (verificado leyendo el archivo
+completo, no solo el flujo de click):
+
+1. **`buildRequirementMentionHref`** (línea ~29): agregar como primera
+   condición
+   ```typescript
+   if (item.mention_source === 'waitlist' && item.waitlist_entry_id) {
+     return `/operacion/lista-de-espera?entry=${item.waitlist_entry_id}`
+   }
+   ```
+2. **`handleItemClick`**, rama `item.kind === 'mention'` (línea ~65-75):
+   el `if/else` que decide entre `markReviewMentionRead`/`markMentionRead`
+   necesita un tercer caso — `mention_source === 'waitlist'` →
+   `markWaitlistMentionRead(item.id)`.
+3. **`handleDismiss`**, rama `item.kind === 'mention'` (línea ~97-106): es
+   un bloque **separado** del de `handleItemClick` (el botón "✕" de
+   descartar) con el mismo `if/else` de dos vías — necesita la misma
+   tercera rama para `markWaitlistMentionRead`. Fácil de olvidar porque no
+   está cerca del código de click.
+4. **`handleMarkAll`** (línea ~116-124): hoy hace
+   `Promise.all([markAllMentionsRead(), markAllConversationsRead()])`.
+   Agregar `markAllWaitlistMentionsRead()` como tercer elemento del array —
+   si no, "Marcar todo leído" nunca limpia las menciones de waitlist.
+5. **`NotificationRow`**, render del mention (línea ~460-474): hoy el texto
+   es siempre `te mencionó en {item.requirement_title ?? 'un requerimiento'}`
+   (con el caso especial de `isReviewMention`). Agregar un tercer caso:
+   ```typescript
+   item.mention_source === 'waitlist'
+     ? item.waitlist_entry_label ?? 'una entrada de lista de espera'
+     : isReviewMention && item.review_asset_name
+       ? `${item.requirement_title ?? 'un requerimiento'} · ${item.review_asset_name}`
+       : item.requirement_title ?? 'un requerimiento'
+   ```
+   Sin esto, una mención de waitlist se renderiza con el texto genérico
+   "te mencionó en un requerimiento", que es simplemente falso.
 
 **Deep-link — `WaitlistPipelineBoard.tsx` y `WaitlistTable.tsx`** (ambas
 vistas, ya que `WaitlistViewSwitcher` alterna entre las dos y cualquiera
-puede estar activa cuando se llega desde la notificación):
-- Leer `?entry=` con `useSearchParams()` en un `useEffect` al montar.
-- Si el id existe en `entries`, hacer `setSelected(match)` (mismo estado que
-  ya usa el click manual de una tarjeta) para abrir el modal automáticamente.
-- No es necesario limpiar el query param después — el modal ya tiene su
-  propio botón de cerrar (`X`), y recargar la página con el mismo link debe
-  volver a abrir la misma tarjeta (comportamiento esperado de un deep-link).
+puede estar activa cuando se llega desde la notificación). **Los dos
+componentes NO comparten el mismo estado de modal** — cada uno necesita su
+propio wiring:
+
+- **`WaitlistPipelineBoard.tsx`**: ya tiene `const [selected, setSelected] = useState<WaitlistEntry | null>(null)`, que abre el `DetailModal` (el modal completo del screenshot, con la sección "Comentarios del equipo" incluida). Leer `?entry=` con `useSearchParams()` en un `useEffect` al montar; si el id existe en `entries`, `setSelected(match)`.
+- **`WaitlistTable.tsx`**: NO tiene un `selected` genérico — tiene modales independientes por fila: `commentsTarget`/`setCommentsTarget` es el que abre específicamente el modal de comentarios (`<WaitlistComments entryId={commentsTarget.id} />`, línea ~326-356), separado de `phaseTarget`/`transformTarget`/`dropTarget`. Como el deep-link viene de una mención (es decir, del hilo de comentarios), usar `setCommentsTarget(match)` — abre directo el modal de comentarios, no un modal genérico de "detalle".
+- En ambos casos: no es necesario limpiar el query param después — el modal ya tiene su propio botón de cerrar (`X`), y recargar la página con el mismo link debe volver a abrir el mismo modal (comportamiento esperado de un deep-link).
 
 ## Flujo de datos end-to-end
 
@@ -277,8 +313,18 @@ puede estar activa cuando se llega desde la notificación):
 - Verificar en el navegador (preview): escribir `@` en el textarea, confirmar
   que el dropdown solo lista los 5 roles permitidos (no terapistas/maestras).
 - Enviar un comentario con mención, cambiar de usuario (impersonar al
-  mencionado) y confirmar: badge en campanita → click → aterriza en la
-  entrada correcta con el modal abierto.
+  mencionado) y confirmar: badge en campanita → texto de la fila dice "te
+  mencionó en {nombre del niño}" (no "un requerimiento") → click → aterriza
+  en la entrada correcta con el modal abierto.
+- Repetir el flujo de click-through en **ambas vistas** (Pipeline y Tabla) —
+  cada una abre un modal distinto (`DetailModal` vs. modal de comentarios) y
+  cada una tiene su propio wiring de `?entry=`.
+- Probar también el botón "✕" (descartar) sobre una notificación de mención
+  de waitlist — confirmar que marca leída igual que el click normal
+  (`handleDismiss` tiene su propio branch, independiente de `handleItemClick`).
+- Probar "Marcar todo leído" con una mención de waitlist sin leer pendiente —
+  confirmar que desaparece de la campanita (valida que se agregó a el
+  `Promise.all` de `handleMarkAll`).
 - Confirmar que recargar la URL con `?entry=<id>` directamente (sin pasar por
   la campanita) también abre el modal — valida que el deep-link no depende de
   estado de navegación previo.
