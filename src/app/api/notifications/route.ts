@@ -47,6 +47,18 @@ type ReviewMentionRow = {
   mentioned_by: { id: string; full_name: string; avatar_url: string | null } | null
 }
 
+type WaitlistMentionRow = {
+  id: string
+  comment_id: string
+  entry_id: string
+  mentioned_by_user_id: string | null
+  read_at: string | null
+  created_at: string
+  comment: { body: string } | null
+  entry: { child_full_name: string } | null
+  mentioned_by: { id: string; full_name: string; avatar_url: string | null } | null
+}
+
 type ConvRow = {
   id: string
   type: 'dm' | 'channel'
@@ -103,7 +115,7 @@ export async function GET() {
 
   /* ── Menciones de chat de requerimiento ───────────────────── */
   const mentionsSince = new Date(Date.now() - 36 * 60 * 60 * 1000).toISOString()
-  const [mentionsRes, reviewMentionsRes] = await Promise.all([
+  const [mentionsRes, reviewMentionsRes, waitlistMentionsRes] = await Promise.all([
     supabase
       .from('requirement_mentions')
       .select(`
@@ -147,10 +159,23 @@ export async function GET() {
       .or(`read_at.is.null,created_at.gte.${mentionsSince}`)
       .order('created_at', { ascending: false })
       .limit(50),
+    supabase
+      .from('waitlist_comment_mentions')
+      .select(`
+        id, comment_id, entry_id, mentioned_by_user_id, read_at, created_at,
+        comment:waitlist_entry_comments!waitlist_comment_mentions_comment_id_fkey(body),
+        entry:waitlist_entries!waitlist_comment_mentions_entry_id_fkey(child_full_name),
+        mentioned_by:users!waitlist_comment_mentions_mentioned_by_user_id_fkey(id, full_name, avatar_url)
+      `)
+      .eq('mentioned_user_id', user.id)
+      .or(`read_at.is.null,created_at.gte.${mentionsSince}`)
+      .order('created_at', { ascending: false })
+      .limit(50),
   ])
 
   const mentions = (mentionsRes.data ?? []) as unknown as MentionRow[]
   const reviewMentions = (reviewMentionsRes.data ?? []) as unknown as ReviewMentionRow[]
+  const waitlistMentions = (waitlistMentionsRes.data ?? []) as unknown as WaitlistMentionRow[]
 
   const mentionItems: NotificationItem[] = mentions.map((m) => ({
     kind: 'mention',
@@ -184,6 +209,24 @@ export async function GET() {
     review_version_id: m.comment?.pin?.version?.id,
     review_asset_name: m.comment?.pin?.version?.asset?.name,
     client_id: m.requirement?.billing_cycle?.client?.id,
+    mentioned_by: m.mentioned_by
+      ? {
+          id: m.mentioned_by.id,
+          full_name: m.mentioned_by.full_name,
+          avatar_url: m.mentioned_by.avatar_url,
+        }
+      : undefined,
+  }))
+
+  const waitlistMentionItems: NotificationItem[] = waitlistMentions.map((m) => ({
+    kind: 'mention',
+    id: m.id,
+    created_at: m.created_at,
+    read: m.read_at !== null,
+    message_preview: (m.comment?.body ?? '').slice(0, 140),
+    mention_source: 'waitlist',
+    waitlist_entry_id: m.entry_id,
+    waitlist_entry_label: m.entry?.child_full_name ?? 'una entrada de lista de espera',
     mentioned_by: m.mentioned_by
       ? {
           id: m.mentioned_by.id,
@@ -601,7 +644,7 @@ export async function GET() {
   }
 
   /* ── Merge y sort: vencidos al frente, luego por fecha ─────── */
-  const items = [...overdueItems, ...cambioPendingItems, ...mentionItems, ...reviewMentionItems, ...invoiceAutoItems, ...calendarItems, ...convItems, ...appointmentItems, ...appointmentChangeItems].sort((a, b) => {
+  const items = [...overdueItems, ...cambioPendingItems, ...mentionItems, ...reviewMentionItems, ...waitlistMentionItems, ...invoiceAutoItems, ...calendarItems, ...convItems, ...appointmentItems, ...appointmentChangeItems].sort((a, b) => {
     if (a.kind === 'overdue' && b.kind !== 'overdue') return -1
     if (a.kind !== 'overdue' && b.kind === 'overdue') return 1
     return a.created_at < b.created_at ? 1 : -1

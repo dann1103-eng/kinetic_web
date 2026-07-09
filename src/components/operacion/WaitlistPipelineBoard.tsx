@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useTransition, useMemo } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   DndContext,
@@ -64,12 +64,23 @@ export function WaitlistPipelineBoard({
   phaseCatalog,
 }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<WaitlistEntry | null>(null)
   const [dropTarget, setDropTarget] = useState<WaitlistEntry | null>(null)
   const [dropReason, setDropReason] = useState('')
   const [activeEntry, setActiveEntry] = useState<WaitlistEntry | null>(null)
+
+  // Deep-link desde una notificación de mención (?entry=<id>): abre el modal
+  // de detalle de esa entrada automáticamente al montar.
+  useEffect(() => {
+    const entryId = searchParams.get('entry')
+    if (!entryId) return
+    const match = entries.find((e) => e.id === entryId)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (match) setSelected(match)
+  }, [searchParams, entries])
 
   const byPhase = useMemo(() => {
     const map: Record<string, WaitlistEntry[]> = {}

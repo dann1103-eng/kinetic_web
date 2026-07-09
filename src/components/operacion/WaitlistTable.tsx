@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useTransition, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useTransition, useMemo } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import {
   PHASE_GROUP_COLORS,
@@ -56,6 +56,7 @@ export function WaitlistTable({
   phaseCatalog,
 }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<WaitlistEntry | null>(null)
@@ -63,6 +64,16 @@ export function WaitlistTable({
   const [transformTarget, setTransformTarget] = useState<WaitlistEntry | null>(null)
   const [phaseTarget, setPhaseTarget] = useState<WaitlistEntry | null>(null)
   const [commentsTarget, setCommentsTarget] = useState<WaitlistEntry | null>(null)
+
+  // Deep-link desde una notificación de mención (?entry=<id>): abre directo
+  // el modal de comentarios de esa entrada al montar.
+  useEffect(() => {
+    const entryId = searchParams.get('entry')
+    if (!entryId) return
+    const match = entries.find((e) => e.id === entryId)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (match) setCommentsTarget(match)
+  }, [searchParams, entries])
 
   const catalogByCode: Record<string, IntakePhaseCatalogEntry> = {}
   for (const p of phaseCatalog) catalogByCode[p.code] = p

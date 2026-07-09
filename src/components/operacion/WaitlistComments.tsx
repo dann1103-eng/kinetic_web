@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { es } from 'date-fns/locale'
 import {
@@ -8,18 +8,39 @@ import {
   addWaitlistComment,
   type WaitlistCommentView,
 } from '@/app/actions/waitlist'
+import { createClient } from '@/lib/supabase/client'
+import { useUser } from '@/contexts/UserContext'
+import { MentionAutocomplete } from '@/components/requirements/MentionAutocomplete'
+import type { AppUser } from '@/types/db'
+
+type MentionableUser = Pick<AppUser, 'id' | 'full_name' | 'avatar_url' | 'role'>
+
+/** Únicos roles con acceso a /operacion/lista-de-espera — solo ellos pueden
+ *  ser mencionados, así el mencionado siempre puede entrar a ver el hilo. */
+const MENTIONABLE_ROLES = [
+  'admin',
+  'directora',
+  'coordinadora_familias',
+  'coordinadora_terapias',
+  'recepcion',
+] as const
 
 /**
  * Hilo de comentarios / bitácora de una entrada de lista de espera. Permite al
  * equipo (coordinadoras, recepción, dirección) dejar indicaciones breves sobre
  * el proceso de ingreso: enviar propuesta, proponer días/horas, seguimiento…
- * Carga los comentarios al montar y permite agregar nuevos.
+ * Carga los comentarios al montar y permite agregar nuevos. Soporta @menciones
+ * al resto del equipo con acceso a esta página.
  */
 export function WaitlistComments({ entryId }: { entryId: string }) {
+  const currentUser = useUser()
   const [comments, setComments] = useState<WaitlistCommentView[] | null>(null)
   const [body, setBody] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const [users, setUsers] = useState<MentionableUser[]>([])
+  const [mentionIds, setMentionIds] = useState<string[]>([])
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -35,18 +56,29 @@ export function WaitlistComments({ entryId }: { entryId: string }) {
     }
   }, [entryId])
 
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('users')
+      .select('id, full_name, avatar_url, role')
+      .neq('id', currentUser.id)
+      .in('role', MENTIONABLE_ROLES)
+      .then(({ data }) => setUsers((data ?? []) as MentionableUser[]))
+  }, [currentUser.id])
+
   function submit() {
     const trimmed = body.trim()
     if (!trimmed) return
     setError(null)
     startTransition(async () => {
-      const res = await addWaitlistComment(entryId, trimmed)
+      const res = await addWaitlistComment(entryId, trimmed, mentionIds)
       if (!res.ok) {
         setError(res.error)
         return
       }
       setComments((prev) => [...(prev ?? []), res.comment])
       setBody('')
+      setMentionIds([])
     })
   }
 
@@ -80,12 +112,21 @@ export function WaitlistComments({ entryId }: { entryId: string }) {
         </ul>
       )}
 
-      <div className="space-y-2">
+      <div className="relative space-y-2">
+        <MentionAutocomplete
+          textareaRef={textareaRef}
+          value={body}
+          onChange={setBody}
+          users={users}
+          currentMentionIds={mentionIds}
+          onMentionsChange={setMentionIds}
+        />
         <textarea
+          ref={textareaRef}
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={2}
-          placeholder="Escribe una indicación o actualización…"
+          placeholder="Escribe una indicación o actualización… (@ para mencionar)"
           className="w-full text-sm px-3 py-2 bg-fm-background border border-fm-surface-container-high rounded-xl focus:outline-none focus:border-fm-primary resize-none"
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit()

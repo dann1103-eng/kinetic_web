@@ -104,6 +104,7 @@ export function useNotifications() {
       .channel(`notifications-feed-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'requirement_mentions' }, fetchItems)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'review_comment_mentions' }, fetchItems)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'waitlist_comment_mentions' }, fetchItems)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, fetchItems)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'conversation_members' }, fetchItems)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'requirements' }, scheduleFetch)

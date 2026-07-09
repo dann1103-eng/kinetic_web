@@ -2306,6 +2306,30 @@ export interface Database {
         Update: Partial<Omit<WaitlistEntryComment, 'id' | 'created_at'>>
         Relationships: []
       }
+      waitlist_comment_mentions: {
+        Row: {
+          id: string
+          comment_id: string
+          entry_id: string
+          mentioned_user_id: string
+          mentioned_by_user_id: string | null
+          read_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          comment_id: string
+          entry_id: string
+          mentioned_user_id: string
+          mentioned_by_user_id?: string | null
+          read_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          read_at?: string | null
+        }
+        Relationships: []
+      }
       intake_phase_catalog: {
         Row: AsRow<IntakePhaseCatalogEntry>
         Insert: Omit<IntakePhaseCatalogEntry, 'created_at'> & { created_at?: string }
@@ -2618,13 +2642,17 @@ export interface NotificationItem {
   requirement_title?: string
   message_preview?: string
   mentioned_by?: Pick<AppUser, 'id' | 'full_name' | 'avatar_url'>
-  /** Distingue mención de review (pin/asset) vs mención de chat de requirement */
-  mention_source?: 'requirement' | 'review'
+  /** Distingue mención de review (pin/asset), chat de requirement, o lista de espera */
+  mention_source?: 'requirement' | 'review' | 'waitlist'
   /** Solo para mention_source='review' */
   review_pin_id?: string
   review_asset_name?: string
   review_version_id?: string
   client_id?: string
+  /** Solo para mention_source='waitlist' */
+  waitlist_entry_id?: string
+  /** Nombre del niño/persona de la entrada — usado como título de la notificación */
+  waitlist_entry_label?: string
   /* Para 'dm' | 'channel' */
   conversation_id?: string
   conversation_name?: string | null

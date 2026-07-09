@@ -191,6 +191,7 @@ export async function listWaitlistComments(entryId: string): Promise<WaitlistCom
 export async function addWaitlistComment(
   entryId: string,
   body: string,
+  mentionedUserIds?: string[],
 ): Promise<{ ok: true; comment: WaitlistCommentView } | { ok: false; error: string }> {
   const { supabase, user } = await getActor()
   if (!isCoord(user.role)) return { ok: false, error: 'No autorizado.' }
@@ -217,6 +218,37 @@ export async function addWaitlistComment(
   const row = data as unknown as Row
   const author = Array.isArray(row.author) ? row.author[0] : row.author
 
+  // Menciones: validar en servidor contra COORD_ROLES (no confiar en el
+  // cliente), excluir auto-mención, deduplicar. Se escribe con admin client
+  // porque waitlist_comment_mentions no tiene policy de INSERT.
+  const candidateIds = Array.from(new Set(mentionedUserIds ?? [])).filter(
+    (uid) => uid && uid !== user.id,
+  )
+  if (candidateIds.length > 0 && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const { createAdminClient } = await import('@/lib/supabase/admin')
+    const admin = createAdminClient()
+    const { data: validUsers } = await admin
+      .from('users')
+      .select('id')
+      .in('id', candidateIds)
+      .in('role', COORD_ROLES)
+    const validIds = (validUsers ?? []).map((u) => (u as { id: string }).id)
+    if (validIds.length > 0) {
+      const rows = validIds.map((uid) => ({
+        comment_id: row.id,
+        entry_id: entryId,
+        mentioned_user_id: uid,
+        mentioned_by_user_id: user.id,
+      }))
+      const { error: menErr } = await admin
+        .from('waitlist_comment_mentions')
+        .upsert(rows, { onConflict: 'comment_id,mentioned_user_id' })
+      if (menErr) {
+        console.error('addWaitlistComment mentions insert failed:', menErr)
+      }
+    }
+  }
+
   revalidatePath('/operacion/lista-de-espera')
   return {
     ok: true,
@@ -228,6 +260,32 @@ export async function addWaitlistComment(
       author_name: author?.full_name ?? null,
     },
   }
+}
+
+export async function markWaitlistMentionRead(
+  mentionId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { supabase, user } = await getActor()
+  const { error } = await supabase
+    .from('waitlist_comment_mentions')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', mentionId)
+    .eq('mentioned_user_id', user.id)
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
+}
+
+export async function markAllWaitlistMentionsRead(): Promise<
+  { ok: true } | { ok: false; error: string }
+> {
+  const { supabase, user } = await getActor()
+  const { error } = await supabase
+    .from('waitlist_comment_mentions')
+    .update({ read_at: new Date().toISOString() })
+    .eq('mentioned_user_id', user.id)
+    .is('read_at', null)
+  if (error) return { ok: false, error: error.message }
+  return { ok: true }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

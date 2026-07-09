@@ -14,6 +14,7 @@ import {
   markReviewMentionRead,
 } from '@/app/actions/requirement-messages'
 import { markAllConversationsRead, markConversationRead } from '@/app/actions/inbox'
+import { markAllWaitlistMentionsRead, markWaitlistMentionRead } from '@/app/actions/waitlist'
 import type { NotificationItem } from '@/types/db'
 
 export function NotificationsDropdown() {
@@ -27,6 +28,9 @@ export function NotificationsDropdown() {
   }
 
   function buildRequirementMentionHref(item: NotificationItem): string {
+    if (item.mention_source === 'waitlist' && item.waitlist_entry_id) {
+      return `/operacion/lista-de-espera?entry=${item.waitlist_entry_id}`
+    }
     if (item.mention_source === 'review' && item.client_id && item.requirement_id) {
       const params = new URLSearchParams()
       params.set('req', item.requirement_id)
@@ -66,6 +70,8 @@ export function NotificationsDropdown() {
       startTransition(async () => {
         if (item.mention_source === 'review') {
           await markReviewMentionRead(item.id)
+        } else if (item.mention_source === 'waitlist') {
+          await markWaitlistMentionRead(item.id)
         } else {
           await markMentionRead(item.id)
         }
@@ -98,6 +104,8 @@ export function NotificationsDropdown() {
       startTransition(async () => {
         if (item.mention_source === 'review') {
           await markReviewMentionRead(item.id)
+        } else if (item.mention_source === 'waitlist') {
+          await markWaitlistMentionRead(item.id)
         } else {
           await markMentionRead(item.id)
         }
@@ -117,7 +125,7 @@ export function NotificationsDropdown() {
     localDismissAll()
     dismissAllOverdue()
     startTransition(async () => {
-      await Promise.all([markAllMentionsRead(), markAllConversationsRead()])
+      await Promise.all([markAllMentionsRead(), markAllConversationsRead(), markAllWaitlistMentionsRead()])
       await refresh()
       setOpen(false)
     })
@@ -220,6 +228,7 @@ function NotificationRow({
   const isInvoiceAuto = item.kind === 'invoice_auto'
   const isMention = item.kind === 'mention'
   const isReviewMention = isMention && item.mention_source === 'review'
+  const isWaitlistMention = isMention && item.mention_source === 'waitlist'
 
   function handleDismissClick(e: React.MouseEvent) {
     e.preventDefault()
@@ -464,12 +473,17 @@ function NotificationRow({
                   </span>{' '}
                   te mencionó en{' '}
                   <span className="font-semibold text-fm-on-surface">
-                    {isReviewMention && item.review_asset_name
-                      ? `${item.requirement_title ?? 'un requerimiento'} · ${item.review_asset_name}`
-                      : item.requirement_title ?? 'un requerimiento'}
+                    {isWaitlistMention
+                      ? item.waitlist_entry_label ?? 'una entrada de lista de espera'
+                      : isReviewMention && item.review_asset_name
+                        ? `${item.requirement_title ?? 'un requerimiento'} · ${item.review_asset_name}`
+                        : item.requirement_title ?? 'un requerimiento'}
                   </span>
                   {isReviewMention && (
                     <span className="ml-1 text-[10px] font-semibold text-fm-primary/70 uppercase">· revisión</span>
+                  )}
+                  {isWaitlistMention && (
+                    <span className="ml-1 text-[10px] font-semibold text-fm-primary/70 uppercase">· lista de espera</span>
                   )}
                 </>
               ) : item.conversation_type === 'channel' ? (
