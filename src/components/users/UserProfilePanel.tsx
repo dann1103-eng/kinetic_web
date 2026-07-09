@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AppUser, UserRole, TherapistWorkScheduleBlock } from '@/types/db'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { ReassignTherapistSection } from '@/components/users/ReassignTherapistSection'
-import { updateUserProfile, adminChangeUserPassword, deleteUser } from '@/app/actions/users'
+import { updateUserProfile, adminChangeUserPassword, deleteUser, uploadUserAvatarFor } from '@/app/actions/users'
 import { updateUserRole } from '@/app/actions/updateUserRole'
 import { startImpersonation } from '@/app/actions/impersonation'
 import { updateUserSalary } from '@/app/actions/payroll'
@@ -116,6 +116,32 @@ function PerfilTab({
   const [editError, setEditError] = useState<string | null>(null)
   const [isSaving, startSaveTransition] = useTransition()
 
+  // Foto: subida de archivo (managers pueden cambiar la foto de cualquier personal)
+  const avatarFileRef = useRef<HTMLInputElement>(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarError, setAvatarError] = useState<string | null>(null)
+
+  async function handleAvatarFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) {
+      setAvatarUploading(true)
+      setAvatarError(null)
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await uploadUserAvatarFor(user.id, formData)
+      setAvatarUploading(false)
+      if (res.error) {
+        setAvatarError(res.error)
+      } else if (res.url) {
+        setAvatarUrl(res.url)
+        onUpdated({ avatar_url: res.url })
+        router.refresh()
+      }
+    }
+    // Permitir re-subir el mismo archivo (reset del input).
+    if (avatarFileRef.current) avatarFileRef.current.value = ''
+  }
+
   // Role
   const [isChangingRole, startRoleTransition] = useTransition()
   const [roleError, setRoleError] = useState<string | null>(null)
@@ -191,13 +217,34 @@ function PerfilTab({
     <div className="space-y-5">
       {/* Avatar + info */}
       <div className="flex items-center gap-4 pb-4 border-b border-fm-outline-variant/15">
-        <UserAvatar name={user.full_name || user.email} avatarUrl={user.avatar_url} size="lg" />
+        <div className="relative shrink-0">
+          <UserAvatar name={user.full_name || user.email} avatarUrl={avatarUrl || null} size="lg" />
+          <button
+            type="button"
+            onClick={() => avatarFileRef.current?.click()}
+            disabled={avatarUploading}
+            className="absolute -bottom-1 -right-1 w-6 h-6 bg-fm-primary text-white rounded-full flex items-center justify-center hover:bg-fm-primary-dim transition-colors disabled:opacity-60"
+            title="Cambiar foto"
+          >
+            <span className="material-symbols-outlined text-sm leading-none">
+              {avatarUploading ? 'hourglass_top' : 'photo_camera'}
+            </span>
+          </button>
+          <input
+            ref={avatarFileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={handleAvatarFile}
+          />
+        </div>
         <div className="min-w-0">
           <p className="font-bold text-fm-on-surface text-base truncate">{user.full_name ?? user.email}</p>
           <p className="text-xs text-fm-on-surface-variant truncate">{user.email}</p>
           <span className={`inline-flex mt-1 items-center px-2 py-0.5 rounded-full text-xs font-semibold ${chip}`}>
             {roleMeta(user.role).label}
           </span>
+          {avatarError && <p className="text-xs text-fm-error mt-1">{avatarError}</p>}
         </div>
       </div>
 

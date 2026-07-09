@@ -121,6 +121,67 @@ export async function updateUserProfile(payload: {
   }
 }
 
+const AVATAR_ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/webp']
+const AVATAR_MAX_BYTES = 2 * 1024 * 1024 // 2 MB
+
+/**
+ * Sube la foto de perfil de OTRO usuario (personal interno). Gateada por
+ * requireUserManager(); escribe con admin client, que evade el RLS del bucket
+ * user-avatars (restringido a la carpeta propia auth.uid()). Devuelve la URL
+ * pública y la guarda en users.avatar_url.
+ */
+export async function uploadUserAvatarFor(userId: string, formData: FormData) {
+  try {
+    await requireUserManager()
+
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return { error: 'Falta SUPABASE_SERVICE_ROLE_KEY en variables de entorno.' }
+    }
+
+    const file = formData.get('file')
+    if (!(file instanceof File) || file.size === 0) {
+      return { error: 'No se recibió ningún archivo.' }
+    }
+    if (!AVATAR_ALLOWED_TYPES.includes(file.type)) {
+      return { error: 'Formato no permitido. Usá PNG, JPG o WebP.' }
+    }
+    if (file.size > AVATAR_MAX_BYTES) {
+      return { error: 'El archivo supera el límite de 2 MB.' }
+    }
+
+    const admin = createAdminClient()
+
+    // Verificar que el objetivo es personal interno (no una cuenta family/client).
+    const { data: target } = await admin.from('users').select('role').eq('id', userId).single()
+    if (!target) return { error: 'Usuario no encontrado.' }
+    if (target.role === 'family' || target.role === 'client') {
+      return { error: 'Esta acción es solo para personal interno.' }
+    }
+
+    const ext = (file.name.split('.').pop() ?? 'jpg').toLowerCase()
+    const path = `${userId}/avatar.${ext}`
+    const buffer = Buffer.from(await file.arrayBuffer())
+
+    const { error: uploadError } = await admin.storage
+      .from('user-avatars')
+      .upload(path, buffer, { upsert: true, contentType: file.type })
+    if (uploadError) return { error: `Error al subir la foto: ${uploadError.message}` }
+
+    // Cache-busting: la ruta es fija (avatar.ext), así el navegador no sirve la vieja.
+    const { data: pub } = admin.storage.from('user-avatars').getPublicUrl(path)
+    const url = `${pub.publicUrl}?v=${new Date().getTime()}`
+
+    const { error: updateError } = await admin.from('users').update({ avatar_url: url }).eq('id', userId)
+    if (updateError) return { error: updateError.message }
+
+    revalidatePath('/users')
+    return { success: true, url }
+  } catch (e) {
+    console.error('uploadUserAvatarFor failed:', e)
+    return { error: e instanceof Error ? e.message : 'Error desconocido al subir la foto' }
+  }
+}
+
 export async function adminChangeUserPassword(payload: {
   userId: string
   newPassword: string
