@@ -9,6 +9,7 @@ import { fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Child, TreatmentPlan, MonthlySessionCycle, Database } from '@/types/db'
 import { compareByLastName } from '@/lib/domain/name-sort'
+import { fetchMorningAttendanceByChild } from '@/lib/domain/morning-attendance'
 
 const TZ = 'America/El_Salvador'
 
@@ -109,7 +110,7 @@ export async function getNinosDashboardData(
     if (!existing || p.active) plansByChild.set(p.child_id, p)
   }
 
-  // Asistencia del mes por niño
+  // Asistencia del mes por niño (citas individuales)
   const attendanceByChild = new Map<string, { completed: number; total: number }>()
   for (const a of (apptsRaw ?? []) as { child_id: string; status: string }[]) {
     if (a.status === 'rescheduled') continue // no cuenta para asistencia
@@ -117,6 +118,17 @@ export async function getNinosDashboardData(
     curr.total++
     if (a.status === 'completed') curr.completed++
     attendanceByChild.set(a.child_id, curr)
+  }
+
+  // Sumar la asistencia de programas matutinos (grupos). No vive en `appointments`;
+  // se lee de program_session_attendance + program_group_sessions.
+  const morningByChild = await fetchMorningAttendanceByChild(supabase, childIds, startISO, endISO)
+  for (const [childId, m] of morningByChild) {
+    if (m.total === 0) continue
+    const curr = attendanceByChild.get(childId) ?? { completed: 0, total: 0 }
+    curr.completed += m.present
+    curr.total += m.total
+    attendanceByChild.set(childId, curr)
   }
 
   // Último ciclo por niño (ya vienen ordenados desc por period_month)

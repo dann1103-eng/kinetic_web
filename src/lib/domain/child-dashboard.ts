@@ -10,6 +10,7 @@
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Appointment, AppointmentAbsence, Database, ServiceType } from '@/types/db'
+import { fetchMorningAttendanceByChild } from '@/lib/domain/morning-attendance'
 
 const TZ = 'America/El_Salvador'
 
@@ -203,6 +204,14 @@ export async function getChildDashboardData(
     } else if (a.status === 'late_cancel') kpis.late_cancel++
 
     if (a.parent_appointment_id) kpis.replacement++
+  }
+
+  // Sumar la asistencia de programas matutinos (grupos): no vive en `appointments`.
+  // present → asistidas (completed); total → sesiones del mes (para el X/Y).
+  const morning = (await fetchMorningAttendanceByChild(supabase, [childId], startISO, endISO)).get(childId)
+  if (morning && morning.total > 0) {
+    kpis.completed += morning.present
+    kpis.total += morning.total
   }
 
   // Grilla calendario
