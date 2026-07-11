@@ -30,6 +30,7 @@ export default async function NinosPage({
     phase?: string
     program?: string
     therapist?: string
+    school?: string
     archived?: string
   }>
 }) {
@@ -38,7 +39,7 @@ export default async function NinosPage({
   if (REDIRECT_TO_MY_KIDS.includes(ctx.appUser.role)) redirect('/mis-ninos')
   if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
 
-  const { month, q, phase, program, therapist, archived } = await searchParams
+  const { month, q, phase, program, therapist, school, archived } = await searchParams
   const showArchived = archived === '1'
   const availableMonths = getAvailableMonths()
   const periodMonth =
@@ -74,6 +75,7 @@ export default async function NinosPage({
         initialPhase={phase ?? 'all'}
         initialProgram={program ?? 'all'}
         initialTherapist={therapist ?? 'all'}
+        initialSchool={school ?? 'all'}
       />
     </div>
   )

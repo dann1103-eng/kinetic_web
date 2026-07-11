@@ -153,8 +153,10 @@ function SessionRoster({ session }: { session: TodayGroupSession }) {
                   const quotaMet = r.weekly_quota != null && r.weekly_used >= r.weekly_quota
                   return (
                     <li key={r.child_id} className="flex items-center justify-between gap-3 py-2">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm text-fm-on-surface truncate">{r.child_full_name}</span>
+                      {/* Sin truncate: el nombre completo (nombre + apellidos) debe verse
+                          siempre; si no cabe en una línea, hace wrap. */}
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 min-w-0 flex-1">
+                        <span className="text-sm text-fm-on-surface leading-snug break-words">{r.child_full_name}</span>
                         {r.weekly_quota != null && (
                           <span
                             title={`${r.weekly_used} de ${r.weekly_quota} visitas de la semana usadas`}

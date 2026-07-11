@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { NinoCard } from './NinoCard'
 import type { NinoCardData } from '@/lib/domain/ninos-dashboard'
@@ -19,6 +19,7 @@ interface Props {
   initialPhase: string
   initialProgram: string
   initialTherapist: string
+  initialSchool: string
 }
 
 // Grupos por programa para la vista seccionada (sin filtros activos).
@@ -87,12 +88,24 @@ export function NinosPageClient({
   initialPhase,
   initialProgram,
   initialTherapist,
+  initialSchool,
 }: Props) {
   const router = useRouter()
   const [search, setSearch] = useState(initialSearch)
   const [phaseFilter, setPhaseFilter] = useState<string>(initialPhase)
   const [programFilter, setProgramFilter] = useState<string>(initialProgram)
   const [therapistFilter, setTherapistFilter] = useState<string>(initialTherapist)
+  const [schoolFilter, setSchoolFilter] = useState<string>(initialSchool)
+
+  // Colegios distintos presentes en los datos (para el dropdown del filtro).
+  const schools = useMemo(() => {
+    const set = new Set<string>()
+    for (const d of niños) {
+      const s = d.child.school_name?.trim()
+      if (s) set.add(s)
+    }
+    return [...set].sort((a, b) => a.localeCompare(b, 'es'))
+  }, [niños])
 
   // Query string que refleja el estado actual (mes + filtros). Lo usamos para:
   //  1) sincronizar la URL (sin refetch del server) vía history.replaceState
@@ -102,6 +115,7 @@ export function NinosPageClient({
     phase: string
     program: string
     therapist: string
+    school: string
   }): string {
     const params = new URLSearchParams()
     params.set('month', periodMonth)
@@ -109,6 +123,7 @@ export function NinosPageClient({
     if (next.phase !== 'all') params.set('phase', next.phase)
     if (next.program !== 'all') params.set('program', next.program)
     if (next.therapist !== 'all') params.set('therapist', next.therapist)
+    if (next.school !== 'all') params.set('school', next.school)
     return params.toString()
   }
 
@@ -119,11 +134,18 @@ export function NinosPageClient({
     phase: string
     program: string
     therapist: string
+    school: string
   }) {
     window.history.replaceState(null, '', `/ninos?${buildQuery(next)}`)
   }
 
-  const currentState = { search, phase: phaseFilter, program: programFilter, therapist: therapistFilter }
+  const currentState = {
+    search,
+    phase: phaseFilter,
+    program: programFilter,
+    therapist: therapistFilter,
+    school: schoolFilter,
+  }
   const returnTo = `/ninos?${buildQuery(currentState)}`
 
   const filtered = niños.filter((d) => {
@@ -136,13 +158,18 @@ export function NinosPageClient({
       }
     }
     if (therapistFilter !== 'all' && !d.therapistIds.includes(therapistFilter)) return false
+    if (schoolFilter !== 'all' && (d.child.school_name?.trim() ?? '') !== schoolFilter) return false
     return true
   })
 
   // Sin filtros → vista seccionada por programa (cada grupo conserva el orden
   // alfabético por apellido que ya trae `niños`).
   const noFilters =
-    search === '' && phaseFilter === 'all' && programFilter === 'all' && therapistFilter === 'all'
+    search === '' &&
+    phaseFilter === 'all' &&
+    programFilter === 'all' &&
+    therapistFilter === 'all' &&
+    schoolFilter === 'all'
 
   return (
     <div className="flex-1 p-4 sm:p-6 space-y-5">
@@ -234,6 +261,26 @@ export function NinosPageClient({
             {therapists.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.full_name}
+              </option>
+            ))}
+          </select>
+        )}
+
+        {/* Colegio (opciones = colegios distintos registrados en children.school_name) */}
+        {schools.length > 0 && (
+          <select
+            value={schoolFilter}
+            onChange={(e) => {
+              const v = e.target.value
+              setSchoolFilter(v)
+              syncUrl({ ...currentState, school: v })
+            }}
+            className={SELECT_CLASS}
+          >
+            <option value="all">Todos los colegios</option>
+            {schools.map((s) => (
+              <option key={s} value={s}>
+                {s}
               </option>
             ))}
           </select>

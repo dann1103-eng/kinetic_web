@@ -125,6 +125,20 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
     ? Math.floor((new Date().getTime() - new Date(c.birth_date).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
     : null
 
+  // Contactos de la familia — visibles directo en la ficha del niño (papá/mamá
+  // y teléfonos), sin tener que ir a la página de la familia.
+  const { data: familyContactsRaw } = await supabase
+    .from('families')
+    .select('primary_contact_name, primary_contact_phone, secondary_contact_name, secondary_contact_phone')
+    .eq('id', familyId)
+    .maybeSingle()
+  const familyContacts = familyContactsRaw as {
+    primary_contact_name: string | null
+    primary_contact_phone: string | null
+    secondary_contact_name: string | null
+    secondary_contact_phone: string | null
+  } | null
+
   // Catálogo de sub-fases para el widget de pipeline
   const phaseCatalog = await listPhaseCatalog()
 
@@ -199,13 +213,27 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
           {c.diagnoses_display_text && (
             <p className="text-sm text-fm-primary italic max-w-prose">{c.diagnoses_display_text}</p>
           )}
-          {c.enrolled_program && (
-            <div className="flex flex-wrap items-center gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {c.enrolled_program && (
               <span className="text-xs px-3 py-1 rounded-full bg-fm-secondary/15 text-fm-secondary font-medium">
                 Programa: {MORNING_PROGRAM_LABELS[c.enrolled_program]}
               </span>
-            </div>
-          )}
+            )}
+            {/* Permiso de redes sociales — siempre visible en la ficha (antes
+                solo se veía dentro del modal de edición). */}
+            <span
+              className={`text-xs px-3 py-1 rounded-full font-medium inline-flex items-center gap-1 ${
+                c.photo_consent
+                  ? 'bg-emerald-100 text-emerald-800'
+                  : 'bg-rose-100 text-rose-800'
+              }`}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>
+                {c.photo_consent ? 'photo_camera' : 'no_photography'}
+              </span>
+              {c.photo_consent ? 'Redes sociales: autorizado' : 'Redes sociales: sin autorización'}
+            </span>
+          </div>
         </header>
 
         {canDeleteChild && c.archived_at && (
@@ -271,6 +299,20 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                     <FieldLong label="Medicamentos" value={c.medications_text} />
                   </div>
                 </div>
+              </Section>
+
+              {/* Contactos de la familia (papá/mamá + teléfonos) */}
+              <Section title="Familia y contactos" minimal>
+                <Field label="Padre/madre (principal)" value={familyContacts?.primary_contact_name ?? null} />
+                <Field label="Teléfono" value={familyContacts?.primary_contact_phone ?? null} />
+                <Field label="Padre/madre (secundario)" value={familyContacts?.secondary_contact_name ?? null} />
+                <Field label="Teléfono secundario" value={familyContacts?.secondary_contact_phone ?? null} />
+                <Link
+                  href={`/familias/${familyId}`}
+                  className="inline-block text-xs font-semibold text-fm-primary hover:underline mt-1"
+                >
+                  Ver ficha de la familia →
+                </Link>
               </Section>
 
               {/* Escolaridad y Origen agrupados en un mismo bloque minimal */}
