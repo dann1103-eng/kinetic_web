@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation'
 import {
   createDischargeDraft,
   updateDischargeDraft,
-  signDischargeAsTherapist,
-  signDischargeAsDirectora,
   finalizeDischarge,
   sendDischargeToFamily,
   listDischargeRecordsForChild,
@@ -33,12 +31,11 @@ interface Props {
  *   1. Al abrir, busca el draft activo del niño para ese tipo, o crea uno nuevo.
  *   2. Mientras está `draft`: editable (objetivos, recomendaciones, plan, motivo).
  *   3. "Firmar y finalizar" → coordinadora_terapias / admin / directora cierran la
- *      baja con SU sola firma (status='signed'). Es el flujo por defecto: la única
- *      firma requerida para dar de alta es la de la coordinadora de terapias.
- *   4. "Firmar como terapista" → SOLO visible para la terapista asignada (rol
- *      `terapista`). Vía opcional de doble firma terapista→directora.
- *   5. "Firmar como directora" → solo directora/admin, tras la firma de terapista.
- *   6. "Enviar a familia" → status='sent_to_family' + avanzar fase del niño al código terminal.
+ *      baja con SU sola firma (status='signed'). La ÚNICA firma requerida para
+ *      dar de alta es la de la coordinadora de terapias; queda estampada en
+ *      signed_by_coordinadora_* (mig 0174). Las firmas de terapista/directora se
+ *      muestran solo en registros históricos que las tengan.
+ *   4. "Enviar a familia" → status='sent_to_family' + avanzar fase del niño al código terminal.
  */
 export function DischargeFormModal({
   childId,
@@ -59,15 +56,9 @@ export function DischargeFormModal({
   const [reason, setReason] = useState('')
 
   const isAlta = dischargeType === 'alta'
-  const canDirectora = ['admin', 'directora'].includes(user.role)
-  // Solo la terapista asignada (rol `terapista`) ve el botón "Firmar como
-  // terapista". Antes se mostraba a todos los que editan el draft, y la
-  // coordinadora de terapias lo presionaba y recibía "Solo una terapista
-  // asignada puede firmar" — de ahí el reporte "no me habilita mi firma".
-  const isTherapistRole = user.role === 'terapista'
-  // La coordinadora de terapias (y admin/directora) puede firmar y finalizar la
-  // baja con su SOLA firma, sin la firma bloqueante de terapista ni de directora.
-  // Es la única firma requerida para dar de alta.
+  // La coordinadora de terapias (y admin/directora) firma y finaliza la baja con
+  // su SOLA firma — es la única requerida para dar de alta (queda estampada en
+  // signed_by_coordinadora_* / signed_by_directora_* según el rol).
   const canFinalizeSolo = ['admin', 'directora', 'coordinadora_terapias'].includes(user.role)
   const isEditable = !record || record.status === 'draft'
 
@@ -118,54 +109,6 @@ export function DischargeFormModal({
     })
   }
 
-  function handleSignTherapist() {
-    if (!record) return
-    setError(null)
-    startTransition(async () => {
-      // Persist current edits first
-      const upd = await updateDischargeDraft(record.id, {
-        objectives_achieved: objectives.trim() || null,
-        recommendations: recommendations.trim() || null,
-        follow_up_plan: followUp.trim() || null,
-        discharge_reason: reason.trim() || null,
-      })
-      if (!upd.ok) {
-        setError(upd.error)
-        return
-      }
-      const res = await signDischargeAsTherapist(record.id)
-      if (!res.ok) {
-        setError(res.error)
-        return
-      }
-      setRecord({
-        ...record,
-        signed_by_therapist_id: user.id,
-        signed_by_therapist_name: user.full_name,
-        signed_by_therapist_at: new Date().toISOString(),
-      })
-    })
-  }
-
-  function handleSignDirectora() {
-    if (!record) return
-    setError(null)
-    startTransition(async () => {
-      const res = await signDischargeAsDirectora(record.id)
-      if (!res.ok) {
-        setError(res.error)
-        return
-      }
-      setRecord({
-        ...record,
-        signed_by_directora_id: user.id,
-        signed_by_directora_name: user.full_name,
-        signed_by_directora_at: new Date().toISOString(),
-        status: 'signed',
-      })
-    })
-  }
-
   function handleFinalizeSolo() {
     if (!record) return
     setError(null)
@@ -186,7 +129,21 @@ export function DischargeFormModal({
         setError(res.error)
         return
       }
-      setRecord({ ...record, status: 'signed' })
+      // Reflejar la firma estampada por el server según el rol de quien finaliza.
+      const now = new Date().toISOString()
+      const signaturePatch =
+        user.role === 'coordinadora_terapias'
+          ? {
+              signed_by_coordinadora_id: user.id,
+              signed_by_coordinadora_name: user.full_name,
+              signed_by_coordinadora_at: now,
+            }
+          : {
+              signed_by_directora_id: user.id,
+              signed_by_directora_name: user.full_name,
+              signed_by_directora_at: now,
+            }
+      setRecord({ ...record, status: 'signed', ...signaturePatch })
     })
   }
 
@@ -228,6 +185,7 @@ export function DischargeFormModal({
     )
   }
 
+  // Firmas legacy (vía antigua de doble firma) — solo se muestran si existen.
   const therapistSigned = !!record.signed_by_therapist_id
   const directoraSigned = !!record.signed_by_directora_id
 
@@ -283,18 +241,29 @@ export function DischargeFormModal({
           />
         )}
 
-        {/* Firmas */}
+        {/* Firmas — la única requerida es la de la coordinadora de terapias.
+            Las de terapista/directora solo aparecen si existen (registros
+            históricos de la vía antigua de doble firma, o cierre por directora). */}
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-fm-outline-variant/20">
           <SignatureBlock
-            label="Terapista"
-            signedName={record.signed_by_therapist_name}
-            signedAt={record.signed_by_therapist_at}
+            label="Coordinadora de terapias"
+            signedName={record.signed_by_coordinadora_name}
+            signedAt={record.signed_by_coordinadora_at}
           />
-          <SignatureBlock
-            label="Directora"
-            signedName={record.signed_by_directora_name}
-            signedAt={record.signed_by_directora_at}
-          />
+          {therapistSigned && (
+            <SignatureBlock
+              label="Terapista"
+              signedName={record.signed_by_therapist_name}
+              signedAt={record.signed_by_therapist_at}
+            />
+          )}
+          {directoraSigned && (
+            <SignatureBlock
+              label="Directora"
+              signedName={record.signed_by_directora_name}
+              signedAt={record.signed_by_directora_at}
+            />
+          )}
         </div>
 
         {error && (
@@ -322,32 +291,12 @@ export function DischargeFormModal({
               Guardar borrador
             </button>
           )}
-          {isEditable && !therapistSigned && isTherapistRole && (
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={handleSignTherapist}
-              className="px-3 py-1.5 text-sm rounded-lg border border-fm-primary text-fm-primary font-semibold hover:bg-fm-primary/5 disabled:opacity-50"
-            >
-              Firmar como terapista
-            </button>
-          )}
-          {therapistSigned && !directoraSigned && canDirectora && (
-            <button
-              type="button"
-              disabled={isPending}
-              onClick={handleSignDirectora}
-              className="px-3 py-1.5 text-sm rounded-lg bg-fm-primary text-white font-semibold hover:bg-fm-primary/90 disabled:opacity-50"
-            >
-              Firmar como directora
-            </button>
-          )}
-          {isEditable && canFinalizeSolo && !(therapistSigned && canDirectora) && (
+          {isEditable && canFinalizeSolo && (
             <button
               type="button"
               disabled={isPending}
               onClick={handleFinalizeSolo}
-              title="Firma y cierra la baja con tu sola firma. A la directora se le notifica al enviar a la familia / cambiar de fase."
+              title="Firma y cierra la baja con tu sola firma (la única requerida). A la directora se le notifica al enviar a la familia / cambiar de fase."
               className="px-3 py-1.5 text-sm rounded-lg bg-fm-primary text-white font-semibold hover:bg-fm-primary/90 disabled:opacity-50"
             >
               Firmar y finalizar

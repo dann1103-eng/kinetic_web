@@ -2373,6 +2373,9 @@ export interface Database {
           signed_by_directora_id?: string | null
           signed_by_directora_name?: string | null
           signed_by_directora_at?: string | null
+          signed_by_coordinadora_id?: string | null
+          signed_by_coordinadora_name?: string | null
+          signed_by_coordinadora_at?: string | null
           status?: DischargeStatus
           pdf_generated_at?: string | null
           created_by_user_id?: string | null
@@ -3481,6 +3484,10 @@ export interface ChildDischargeRecord {
   signed_by_directora_id: string | null
   signed_by_directora_name: string | null
   signed_by_directora_at: string | null
+  /** Firma de la coordinadora de terapias — la única requerida para cerrar la baja (mig 0174). */
+  signed_by_coordinadora_id: string | null
+  signed_by_coordinadora_name: string | null
+  signed_by_coordinadora_at: string | null
   status: DischargeStatus
   pdf_generated_at: string | null
   created_by_user_id: string | null

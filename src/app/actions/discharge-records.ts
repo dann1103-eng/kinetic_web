@@ -282,10 +282,16 @@ export async function finalizeDischarge(recordId: string): Promise<Result<null>>
     return { ok: false, error: 'Solo se puede finalizar un borrador.' }
   }
 
-  // Si quien finaliza es directora/admin, además queda estampada su firma. Si es
-  // coordinadora_terapias, se cierra sin firma de directora (no bloqueante).
+  // La firma de quien finaliza queda estampada: coordinadora_terapias en sus
+  // columnas propias (mig 0174 — es la única firma requerida para dar de alta),
+  // directora/admin en las de directora. Antes la coordinadora cerraba la baja
+  // sin dejar constancia y el registro/PDF quedaban con "Sin firma".
   const update: Partial<Omit<ChildDischargeRecord, 'id' | 'created_at'>> = { status: 'signed' }
-  if (['admin', 'directora'].includes(user.role)) {
+  if (user.role === 'coordinadora_terapias') {
+    update.signed_by_coordinadora_id = user.id
+    update.signed_by_coordinadora_name = user.full_name
+    update.signed_by_coordinadora_at = new Date().toISOString()
+  } else if (['admin', 'directora'].includes(user.role)) {
     update.signed_by_directora_id = user.id
     update.signed_by_directora_name = user.full_name
     update.signed_by_directora_at = new Date().toISOString()
@@ -316,7 +322,7 @@ export async function sendDischargeToFamily(
     .maybeSingle()
   if (!existing) return { ok: false, error: 'Registro no encontrado.' }
   if (existing.status !== 'signed') {
-    return { ok: false, error: 'El alta debe estar firmada por terapista y directora.' }
+    return { ok: false, error: 'El alta debe estar firmada por la coordinadora de terapias primero.' }
   }
 
   const { error } = await admin

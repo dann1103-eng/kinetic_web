@@ -127,18 +127,32 @@ export function ChildDischargePDF({ record, logoUrl }: Props) {
           <Block title="Motivo del retiro" body={record.discharge_reason} />
         )}
 
-        {/* Bloque 5 — Firmas */}
+        {/* Bloque 5 — Firmas. La única requerida es la de la coordinadora de
+            terapias (mig 0174); terapista/directora solo si firmaron (registros
+            históricos de la vía de doble firma, o cierre por directora). */}
         <View style={{ flexDirection: 'row', gap: 16, marginTop: 24 }}>
-          <Signature
-            label="Terapista responsable"
-            name={record.signed_by_therapist_name}
-            signedAt={record.signed_by_therapist_at}
-          />
-          <Signature
-            label="Directora"
-            name={record.signed_by_directora_name}
-            signedAt={record.signed_by_directora_at}
-          />
+          {(record.signed_by_coordinadora_id ||
+            (!record.signed_by_therapist_id && !record.signed_by_directora_id)) && (
+            <Signature
+              label="Coordinadora de terapias"
+              name={record.signed_by_coordinadora_name}
+              signedAt={record.signed_by_coordinadora_at}
+            />
+          )}
+          {record.signed_by_therapist_id && (
+            <Signature
+              label="Terapista responsable"
+              name={record.signed_by_therapist_name}
+              signedAt={record.signed_by_therapist_at}
+            />
+          )}
+          {record.signed_by_directora_id && (
+            <Signature
+              label="Directora"
+              name={record.signed_by_directora_name}
+              signedAt={record.signed_by_directora_at}
+            />
+          )}
         </View>
 
         <ShellFooter generatedAtSV={nowSvLabel()} />
