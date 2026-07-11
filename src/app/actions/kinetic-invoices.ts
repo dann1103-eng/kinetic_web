@@ -170,6 +170,61 @@ export async function createInvoiceForCycle(
     discountAmount = Math.min(subtotalRaw, discountAmount + rolloverDiscount)
   }
 
+  // Recargo por mora de mensualidades ANTERIORES (mig 0175): la multa generada
+  // al pagar tarde un mes ya no se cobra en ese mes — se arrastra como línea de
+  // CARGO en la factura siguiente (espejo del rollover-descuento). Se agrega
+  // DESPUÉS de calcular el descuento porcentual para que este no lo reduzca.
+  // Familias exentas (late_fee_exempt) no arrastran nada nuevo.
+  let carriedSurchargeTotal = 0
+  const carriedFromCycleIds: string[] = []
+  if (Number(cycle.surcharge_carried_in_usd ?? 0) > 0) {
+    // Factura re-generada: el arrastre ya quedó registrado en este ciclo.
+    carriedSurchargeTotal = Number(cycle.surcharge_carried_in_usd)
+    items.push({
+      description: 'Recargo por mora de mensualidad anterior',
+      quantity: 1,
+      unit_price: carriedSurchargeTotal,
+    })
+  } else if (!(family as { late_fee_exempt?: boolean }).late_fee_exempt) {
+    const { data: pendingRaw } = await admin
+      .from('monthly_session_cycles')
+      .select('id, period_month, surcharge_amount_usd')
+      .eq('child_id', cycle.child_id)
+      .neq('status', 'cancelled')
+      .eq('payment_status', 'paid')
+      .gt('surcharge_amount_usd', 0)
+      .is('surcharge_carried_at', null)
+      .lt('period_month', cycle.period_month)
+      .order('period_month')
+    for (const prev of (pendingRaw ?? []) as {
+      id: string
+      period_month: string
+      surcharge_amount_usd: number
+    }[]) {
+      const amount = Number(prev.surcharge_amount_usd)
+      carriedSurchargeTotal += amount
+      carriedFromCycleIds.push(prev.id)
+      items.push({
+        description: `Recargo por mora — mensualidad de ${periodLabel(prev.period_month)} pagada tarde`,
+        quantity: 1,
+        unit_price: amount,
+      })
+    }
+  }
+
+  /** Persiste el arrastre tras crear/parchar la factura (evita doble cobro). */
+  async function persistCarriedSurcharge() {
+    if (carriedFromCycleIds.length === 0) return
+    await admin
+      .from('monthly_session_cycles')
+      .update({ surcharge_carried_in_usd: carriedSurchargeTotal })
+      .eq('id', cycleId)
+    await admin
+      .from('monthly_session_cycles')
+      .update({ surcharge_carried_at: new Date().toISOString() })
+      .in('id', carriedFromCycleIds)
+  }
+
   const totals = calculateTotals({
     items,
     tax_rate: 0,            // Kinetic no aplica IVA por defecto
@@ -220,6 +275,8 @@ export async function createInvoiceForCycle(
       .select('*')
       .eq('id', existingId)
       .single()
+
+    await persistCarriedSurcharge()
 
     revalidatePath('/familias', 'layout')
     revalidatePath('/billing/invoices')
@@ -293,6 +350,8 @@ export async function createInvoiceForCycle(
     .select('*')
     .eq('id', invoiceId)
     .single()
+
+  await persistCarriedSurcharge()
 
   revalidatePath('/familias', 'layout')
   revalidatePath('/billing/invoices')

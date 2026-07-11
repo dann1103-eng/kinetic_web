@@ -24,6 +24,7 @@ export async function createFamily(input: {
   fiscal_dui?: string | null
   fiscal_address?: string | null
   notes?: string | null
+  late_fee_exempt?: boolean
 }): Promise<{ ok: true; familyId: string } | { ok: false; error: string }> {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }
@@ -54,6 +55,7 @@ export async function createFamily(input: {
       fiscal_dui: input.fiscal_dui?.trim() || null,
       fiscal_address: input.fiscal_address?.trim() || null,
       notes: input.notes?.trim() || null,
+      late_fee_exempt: input.late_fee_exempt ?? false,
       created_by_user_id: ctx.appUser.id,
     })
     .select('id')

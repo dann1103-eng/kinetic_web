@@ -47,6 +47,8 @@ export function FamilyForm({ initialFamily, triggerLabel = '+ Nueva familia' }: 
     fiscal_address: initialFamily?.fiscal_address ?? '',
     notes: initialFamily?.notes ?? '',
   })
+  // Trato especial: exenta de recargos por mora (mig 0175).
+  const [lateFeeExempt, setLateFeeExempt] = useState(initialFamily?.late_fee_exempt ?? false)
 
   function setField<K extends keyof typeof form>(key: K, value: string) {
     setForm((f) => ({ ...f, [key]: value }))
@@ -82,6 +84,7 @@ export function FamilyForm({ initialFamily, triggerLabel = '+ Nueva familia' }: 
       fiscal_dui: form.fiscal_dui || null,
       fiscal_address: form.fiscal_address || null,
       notes: form.notes || null,
+      late_fee_exempt: lateFeeExempt,
     }
 
     try {
@@ -185,6 +188,20 @@ export function FamilyForm({ initialFamily, triggerLabel = '+ Nueva familia' }: 
                     <Field label="DUI" value={form.fiscal_dui} onChange={(v) => setField('fiscal_dui', v)} />
                   </div>
                   <Field label="Dirección fiscal" value={form.fiscal_address} onChange={(v) => setField('fiscal_address', v)} />
+                  <label className="flex items-start gap-2 cursor-pointer select-none pt-1">
+                    <input
+                      type="checkbox"
+                      checked={lateFeeExempt}
+                      onChange={(e) => setLateFeeExempt(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-fm-outline-variant text-fm-primary focus:ring-fm-primary"
+                    />
+                    <span className="text-sm text-fm-on-surface">
+                      Exonerar recargos por mora
+                      <span className="block text-xs text-fm-on-surface-variant">
+                        Trato especial: al pagar tarde una mensualidad no se le genera multa.
+                      </span>
+                    </span>
+                  </label>
                 </fieldset>
 
                 <fieldset>

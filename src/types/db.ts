@@ -2021,6 +2021,7 @@ export interface Database {
           fiscal_address?: string | null
           status?: FamilyStatus
           notes?: string | null
+          late_fee_exempt?: boolean
           created_by_user_id?: string | null
         }
         Update: Partial<Omit<Family, 'id' | 'created_at'>>
@@ -2940,6 +2941,8 @@ export interface Family {
   fiscal_address: string | null
   status: FamilyStatus
   notes: string | null
+  /** Trato especial: exonerada de recargos por mora en las mensualidades (mig 0175). */
+  late_fee_exempt: boolean
   created_at: string
   created_by_user_id: string | null
   updated_at: string
@@ -3877,8 +3880,14 @@ export interface MonthlySessionCycle {
   /** Prórroga manual del vencimiento (recargo se mide contra esta fecha). */
   grace_extended_to: string | null
   grace_extension_reason: string | null
-  /** Recargo por mora aplicado al pagar (USD). */
+  /** Recargo por mora GENERADO al pagar tarde este ciclo (USD). Desde mig 0175
+   *  NO se suma a la factura de este mes: se arrastra y cobra en la factura de
+   *  la mensualidad siguiente. */
   surcharge_amount_usd: number
+  /** Recargo(s) por mora de meses anteriores cobrados en la factura de ESTE ciclo (mig 0175). */
+  surcharge_carried_in_usd: number
+  /** Cuándo el recargo generado por este ciclo fue incluido en una factura posterior. */
+  surcharge_carried_at: string | null
   /** Rollover de sesiones no dadas del mes anterior. */
   rollover_mode: 'none' | 'accumulate' | 'discount'
   rollover_sessions_json: Record<string, number> | null

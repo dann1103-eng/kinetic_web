@@ -218,7 +218,15 @@ export function MonthlyCyclesSection({
       <div>{formatMoney(c.payment_amount_usd)}</div>
       {c.surcharge_amount_usd > 0 && (
         <div className="text-[10px] font-medium text-fm-error mt-0.5">
-          incl. recargo {formatMoney(c.surcharge_amount_usd)}
+          {/* Desde mig 0175 el recargo NO se suma a este mes: se cobra en la
+              factura de la mensualidad siguiente. */}
+          recargo {formatMoney(c.surcharge_amount_usd)}
+          {c.surcharge_carried_at ? ' (cobrado el mes sig.)' : ' → se cobra el próximo mes'}
+        </div>
+      )}
+      {(c.surcharge_carried_in_usd ?? 0) > 0 && (
+        <div className="text-[10px] font-medium text-amber-700 mt-0.5">
+          incl. recargo del mes anterior {formatMoney(c.surcharge_carried_in_usd)}
         </div>
       )}
       {c.discount_kind && c.discount_kind !== 'none' && c.discount_value > 0 && (
