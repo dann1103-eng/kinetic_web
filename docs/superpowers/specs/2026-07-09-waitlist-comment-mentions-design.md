@@ -50,7 +50,7 @@ adaptado al dominio de lista de espera, sin inventar mecanismos nuevos.
 
 ## Arquitectura
 
-### 1. Datos — migración `0173_waitlist_comment_mentions.sql`
+### 1. Datos — migración `0176_waitlist_comment_mentions.sql`
 
 Calco de `review_comment_mentions` (0047), adaptado a `waitlist_entry_comments`:
 
@@ -331,6 +331,6 @@ propio wiring:
 
 ## Migraciones pendientes
 
-Esta feature agrega la migración **0173** (`waitlist_comment_mentions`) a la
+Esta feature agrega la migración **0176** (`waitlist_comment_mentions`) a la
 lista de pendientes de aplicar manualmente en Supabase Dashboard, junto con
 las ya pendientes **0168** y **0172** documentadas en `CLAUDE.md`.
