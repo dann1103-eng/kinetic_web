@@ -11,6 +11,7 @@ import {
   type CalendarAppt,
 } from '@/components/portal/PortalCalendarWidget'
 import type { Child } from '@/types/db'
+import { fetchMorningSessionCellsForChildren } from '@/lib/domain/morning-attendance'
 
 export const dynamic = 'force-dynamic'
 
@@ -188,6 +189,31 @@ export default async function PortalHomePage() {
         service_type: appt.service_type,
       }
     }
+
+    // La próxima "cita" puede ser una sesión de grupo matutino (BlueKids/
+    // LearningKids/Aula) si es lo más cercano — no vive en appointments.
+    const in30Days = new Date(new Date(nowIso).getTime() + 30 * 24 * 60 * 60 * 1000)
+    const morningByChild = await fetchMorningSessionCellsForChildren(
+      supabase,
+      childIds,
+      nowIso,
+      in30Days.toISOString(),
+    )
+    for (const [cid, cells] of morningByChild) {
+      const first = cells[0]
+      if (!first) continue
+      if (!nextAppointment || first.starts_at < nextAppointment.starts_at) {
+        nextAppointment = {
+          id: first.id,
+          starts_at: first.starts_at,
+          ends_at: first.ends_at,
+          child_name: childNamesById[cid] ?? '',
+          therapist_name: null,
+          therapist_avatar_url: null,
+          service_type: first.service_type as NextAppt['service_type'],
+        }
+      }
+    }
   }
 
   // ── Informes de avance ────────────────────────────────────────────────────
@@ -352,6 +378,39 @@ export default async function PortalHomePage() {
       event_type: a.event_type,
       therapist_name: a.therapist_id ? (calTherapistNames[a.therapist_id] ?? null) : null,
     }))
+
+    // Sesiones de grupo matutino del mes (no viven en appointments) — con su
+    // asistencia si ya pasaron.
+    const morningEnd = new Date(monthStart)
+    morningEnd.setMonth(morningEnd.getMonth() + 3)
+    const morningByChild = await fetchMorningSessionCellsForChildren(
+      supabase,
+      childIds,
+      monthStart.toISOString(),
+      morningEnd.toISOString(),
+    )
+    for (const [cid, cells] of morningByChild) {
+      for (const c of cells) {
+        calendarAppts.push({
+          id: c.id,
+          starts_at: c.starts_at,
+          ends_at: c.ends_at,
+          child_id: cid,
+          service_type: c.service_type,
+          event_type: 'programa_matutino',
+          therapist_name: null,
+          attendance_note:
+            c.attendance === 'present'
+              ? 'Asistió'
+              : c.attendance === 'absent'
+                ? 'No asistió'
+                : c.attendance === 'excused'
+                  ? 'Justificado'
+                  : null,
+        })
+      }
+    }
+    calendarAppts.sort((a, b) => a.starts_at.localeCompare(b.starts_at))
   }
 
   // ─── render ───────────────────────────────────────────────────────────────

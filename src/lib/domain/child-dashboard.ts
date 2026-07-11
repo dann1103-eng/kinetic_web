@@ -10,7 +10,11 @@
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Appointment, AppointmentAbsence, Database, ServiceType } from '@/types/db'
-import { fetchMorningAttendanceByChild } from '@/lib/domain/morning-attendance'
+import {
+  fetchMorningAttendanceByChild,
+  fetchMorningSessionCellsForChildren,
+  type MorningSessionCell,
+} from '@/lib/domain/morning-attendance'
 
 const TZ = 'America/El_Salvador'
 
@@ -233,6 +237,40 @@ export async function getChildDashboardData(
     })
   }
 
+  // Sesiones de grupo matutino del mes → bloques en la grilla (no viven en
+  // `appointments`). Presente = verde 'completed'; ausente/justificado = ámbar
+  // 'no_show_waived' (la falta de programa matutino se auto-perdona, no hay
+  // reposición pendiente); futura o sin marcar = color neutro del programa.
+  // NO tocan los KPIs (ya se suman arriba vía fetchMorningAttendanceByChild).
+  const morningCells =
+    (await fetchMorningSessionCellsForChildren(supabase, [childId], startISO, endISO)).get(childId) ?? []
+  const cellStatusOfMorning = (c: MorningSessionCell): AttendanceCellStatus => {
+    if (c.attendance === 'present') return 'completed'
+    if (c.attendance === 'absent' || c.attendance === 'excused') return 'no_show_waived'
+    return dateKeyInSV(c.starts_at) === todayKey ? 'scheduled_today' : 'scheduled_future'
+  }
+  for (const c of morningCells) {
+    const dateKey = dateKeyInSV(c.starts_at)
+    if (!cellsByDate.has(dateKey)) cellsByDate.set(dateKey, [])
+    cellsByDate.get(dateKey)!.push({
+      id: c.id,
+      starts_at: c.starts_at,
+      ends_at: c.ends_at,
+      service_type: c.service_type,
+      status: c.attendance === 'present' ? 'completed' : c.attendance ? 'no_show' : 'scheduled',
+      cellStatus: cellStatusOfMorning(c),
+      is_replacement: false,
+      has_pending_absence: false,
+      has_waived_absence: c.attendance === 'absent' || c.attendance === 'excused',
+    })
+  }
+  // Mantener cada día ordenado por hora (los bloques de grupo entran al final).
+  if (morningCells.length > 0) {
+    for (const arr of cellsByDate.values()) {
+      arr.sort((a, b) => a.starts_at.localeCompare(b.starts_at))
+    }
+  }
+
   const totalDays = daysInMonth(periodMonth)
   const attendance: AttendanceCell[] = []
   for (let d = 1; d <= totalDays; d++) {
@@ -255,7 +293,7 @@ export async function getChildDashboardData(
     .order('starts_at')
     .limit(20)
 
-  const upcoming = ((upcomingRaw ?? []) as Appointment[]).map((a) => ({
+  const upcoming: UpcomingAppointment[] = ((upcomingRaw ?? []) as Appointment[]).map((a) => ({
     id: a.id,
     starts_at: a.starts_at,
     ends_at: a.ends_at,
@@ -263,6 +301,28 @@ export async function getChildDashboardData(
     status: a.status,
     is_replacement: !!a.parent_appointment_id,
   }))
+
+  // Próximas sesiones de grupo matutino en la misma ventana de 14 días.
+  const upcomingMorning =
+    (
+      await fetchMorningSessionCellsForChildren(
+        supabase,
+        [childId],
+        now.toISOString(),
+        fourteenDaysLater.toISOString(),
+      )
+    ).get(childId) ?? []
+  for (const c of upcomingMorning) {
+    upcoming.push({
+      id: c.id,
+      starts_at: c.starts_at,
+      ends_at: c.ends_at,
+      service_type: c.service_type,
+      status: 'scheduled',
+      is_replacement: false,
+    })
+  }
+  upcoming.sort((a, b) => a.starts_at.localeCompare(b.starts_at))
 
   // Última sesión completada (cualquier mes)
   const { data: lastRaw } = await supabase

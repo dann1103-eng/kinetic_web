@@ -14,6 +14,8 @@ export interface CalendarAppt {
   service_type: string | null
   event_type: string | null
   therapist_name?: string | null
+  /** Sesiones de grupo matutino ya pasadas: 'Asistió' | 'No asistió' | 'Justificado'. */
+  attendance_note?: string | null
 }
 
 interface Props {
@@ -265,6 +267,23 @@ export function PortalCalendarWidget({ appointments, childNamesById }: Props) {
                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-fm-surface-container text-fm-on-surface-variant px-2.5 py-0.5 rounded-full">
                       <span className="material-symbols-outlined text-[12px]">person</span>
                       con {appt.therapist_name}
+                    </span>
+                  </div>
+                )}
+                {appt.attendance_note && (
+                  <div className="pl-4">
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full',
+                        appt.attendance_note === 'Asistió'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800',
+                      )}
+                    >
+                      <span className="material-symbols-outlined text-[12px]">
+                        {appt.attendance_note === 'Asistió' ? 'check_circle' : 'event_busy'}
+                      </span>
+                      {appt.attendance_note}
                     </span>
                   </div>
                 )}

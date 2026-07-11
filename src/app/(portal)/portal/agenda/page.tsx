@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { PortalAgendaList } from './PortalAgendaList'
 import { PortalCalendarWidget, type CalendarAppt } from '@/components/portal/PortalCalendarWidget'
+import { fetchMorningSessionCellsForChildren } from '@/lib/domain/morning-attendance'
 import type { Appointment, Child } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -87,6 +88,44 @@ export default async function PortalAgendaPage() {
     }
   }
 
+  // Sesiones de grupo matutino de los niños de la familia (BlueKids/LearningKids/
+  // Aula). NO viven en `appointments` (desde mig 0149 los programas matutinos no
+  // generan cita por-niño), así que se sintetizan aquí: en el calendario aparecen
+  // también las pasadas con su asistencia; en la lista, solo las próximas.
+  const morningWindowEnd = new Date(monthStart)
+  morningWindowEnd.setMonth(morningWindowEnd.getMonth() + 3)
+  const morningByChild = await fetchMorningSessionCellsForChildren(
+    supabase,
+    childIds,
+    monthStart.toISOString(),
+    morningWindowEnd.toISOString(),
+  )
+
+  const morningListAppts: Appointment[] = []
+  for (const [cid, cells] of morningByChild) {
+    for (const c of cells) {
+      if (new Date(c.starts_at) < todayMidnight) continue
+      morningListAppts.push({
+        id: c.id,
+        child_id: cid,
+        therapist_id: null,
+        event_type: 'programa_matutino',
+        service_type: c.service_type,
+        modality: 'presencial',
+        status: 'scheduled',
+        starts_at: c.starts_at,
+        ends_at: c.ends_at,
+        meet_link: null,
+        custom_event_label: null,
+        parent_appointment_id: null,
+        assignee_ids: null,
+      } as unknown as Appointment)
+    }
+  }
+  const upcomingWithMorning = [...upcomingAppts, ...morningListAppts].sort((a, b) =>
+    a.starts_at.localeCompare(b.starts_at),
+  )
+
   // Subset para el widget de calendario — incluye todos los campos para el panel de detalle
   const calendarAppts: CalendarAppt[] = allMonthAppts.map((a) => ({
     id: a.id,
@@ -97,6 +136,28 @@ export default async function PortalAgendaPage() {
     event_type: a.event_type ?? null,
     therapist_name: a.therapist_id ? (therapistNamesById[a.therapist_id] ?? null) : null,
   }))
+  for (const [cid, cells] of morningByChild) {
+    for (const c of cells) {
+      calendarAppts.push({
+        id: c.id,
+        starts_at: c.starts_at,
+        ends_at: c.ends_at,
+        child_id: cid,
+        service_type: c.service_type,
+        event_type: 'programa_matutino',
+        therapist_name: null,
+        attendance_note:
+          c.attendance === 'present'
+            ? 'Asistió'
+            : c.attendance === 'absent'
+              ? 'No asistió'
+              : c.attendance === 'excused'
+                ? 'Justificado'
+                : null,
+      })
+    }
+  }
+  calendarAppts.sort((a, b) => a.starts_at.localeCompare(b.starts_at))
 
   return (
     <div className="flex flex-col gap-4">
@@ -143,7 +204,7 @@ export default async function PortalAgendaPage() {
         {/* Lista de próximas citas */}
         <div className="md:flex-1 md:min-w-0">
           <PortalAgendaList
-            appointments={upcomingAppts}
+            appointments={upcomingWithMorning}
             childrenList={children}
             therapists={
               (therapists ?? []) as { id: string; full_name: string; avatar_url: string | null }[]
