@@ -2,7 +2,13 @@
 
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { startTherapySession, finishTherapySession, completeFreePerson } from '@/app/actions/therapy-sessions'
+import {
+  startTherapySession,
+  finishTherapySession,
+  completeFreePerson,
+  resumeTherapySession,
+  emergencyIncomplete,
+} from '@/app/actions/therapy-sessions'
 import { markAbsence } from '@/app/actions/absences'
 import { dispatchChild, handToReception } from '@/app/actions/dispatch'
 import { ReportButton } from '@/components/agenda/SessionCard'
@@ -51,6 +57,10 @@ export function BigSessionCard({
   const [absenceReason, setAbsenceReason] = useState('')
   const [absenceError, setAbsenceError] = useState<string | null>(null)
   const [absencePending, startAbsenceTransition] = useTransition()
+  const [showEmergencyModal, setShowEmergencyModal] = useState(false)
+  const [emergencyReason, setEmergencyReason] = useState('')
+  const [emergencyError, setEmergencyError] = useState<string | null>(null)
+  const [emergencyPending, startEmergencyTransition] = useTransition()
 
   useEffect(() => {
     if (appointment.status !== 'in_progress' || !session) return
@@ -98,6 +108,30 @@ export function BigSessionCard({
     startTransition(async () => {
       const result = await finishTherapySession(session.id)
       if (!result.ok) alert(result.error)
+    })
+  }
+
+  const handleResume = () => {
+    if (!session) return
+    if (!confirm('¿Reanudar la sesión? Volverá a estado "en curso" con el cronómetro activo.')) return
+    startTransition(async () => {
+      const result = await resumeTherapySession(session.id)
+      if (!result.ok) alert(result.error)
+      router.refresh()
+    })
+  }
+
+  const handleConfirmEmergency = () => {
+    setEmergencyError(null)
+    startEmergencyTransition(async () => {
+      const res = await emergencyIncomplete(appointment.id, emergencyReason.trim() || undefined)
+      if (!res.ok) {
+        setEmergencyError(res.error)
+        return
+      }
+      setShowEmergencyModal(false)
+      setEmergencyReason('')
+      router.refresh()
     })
   }
 
@@ -336,6 +370,32 @@ export function BigSessionCard({
                   Dejar nota
                 </button>
               )}
+
+              {/* Correcciones post-finalización — solo mientras el niño NO haya
+                  sido entregado/despachado. */}
+              {!appointment.dispatched_at &&
+                !(appointment as { handed_to_reception_at?: string | null }).handed_to_reception_at && (
+                  <>
+                    <button
+                      type="button"
+                      disabled={isPending || emergencyPending}
+                      onClick={handleResume}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-fm-surface-container text-fm-on-surface-variant hover:bg-fm-surface-container-high disabled:opacity-60"
+                      title="¿Finalizaste por error? Reanudá la sesión — vuelve a en curso."
+                    >
+                      ↺ Reanudar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isPending || emergencyPending}
+                      onClick={() => setShowEmergencyModal(true)}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800 hover:bg-rose-200 disabled:opacity-60"
+                      title="La sesión se inició pero no se pudo completar (el niño salió / no cooperó) — se marca incompleta y se solicita reposición."
+                    >
+                      Reposición de emergencia
+                    </button>
+                  </>
+                )}
             </div>
           </>
         )}
@@ -378,6 +438,52 @@ export function BigSessionCard({
                 className="px-3 py-1.5 text-sm rounded-lg bg-amber-600 text-white font-medium hover:bg-amber-700 disabled:opacity-60"
               >
                 {absencePending ? 'Guardando…' : 'Confirmar inasistencia'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEmergencyModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="bg-fm-surface-container-lowest text-fm-on-surface rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+            <div>
+              <h3 className="text-base font-semibold">Reposición de emergencia</h3>
+              <p className="text-xs text-fm-on-surface-variant mt-1">
+                La sesión se inició pero no se pudo completar (el niño/a salió, no cooperó
+                o hubo una emergencia). Se marcará como <strong>incompleta</strong> — no
+                cuenta como asistida — y la coordinadora recibirá la solicitud para
+                reagendarla.
+              </p>
+            </div>
+            <textarea
+              value={emergencyReason}
+              onChange={(e) => setEmergencyReason(e.target.value)}
+              rows={3}
+              placeholder="Motivo (opcional): ej. no cooperó, emergencia familiar…"
+              className="w-full rounded-lg border border-fm-outline-variant/30 bg-white dark:bg-fm-surface-container px-3 py-2 text-sm"
+            />
+            {emergencyError && <p className="text-xs text-red-700">{emergencyError}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEmergencyModal(false)
+                  setEmergencyReason('')
+                  setEmergencyError(null)
+                }}
+                disabled={emergencyPending}
+                className="px-3 py-1.5 text-sm rounded-lg hover:bg-fm-surface-container"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmEmergency}
+                disabled={emergencyPending}
+                className="px-3 py-1.5 text-sm rounded-lg bg-rose-600 text-white font-medium hover:bg-rose-700 disabled:opacity-60"
+              >
+                {emergencyPending ? 'Guardando…' : 'Confirmar reposición'}
               </button>
             </div>
           </div>
