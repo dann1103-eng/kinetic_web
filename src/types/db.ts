@@ -3050,6 +3050,9 @@ export type ServiceType =
   | 'concentracion_atencion'
   | 'comunicacion_regulacion'
   | 'estimulacion_juego'
+  | 'psicometrica'
+  | 'neurodesarrollo'
+  | 'diagnostica_tea'
   | 'otra'
 
 export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
@@ -3073,6 +3076,9 @@ export const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
   concentracion_atencion: 'Concentración y Atención',
   comunicacion_regulacion: 'Comunicación y Regulación Emocional',
   estimulacion_juego: 'Estimulación de Juego y Lenguaje',
+  psicometrica: 'Psicométrica',
+  neurodesarrollo: 'Neurodesarrollo',
+  diagnostica_tea: 'Diagnóstica TEA',
   otra: 'Otra',
 }
 
@@ -3098,6 +3104,9 @@ export const SERVICE_TYPE_SHORT_LABELS: Record<ServiceType, string> = {
   concentracion_atencion: 'Aten',
   comunicacion_regulacion: 'CRE',
   estimulacion_juego: 'EJL',
+  psicometrica: 'Psim',
+  neurodesarrollo: 'Neur',
+  diagnostica_tea: 'DxT',
   otra: 'Otra',
 }
 
@@ -3127,6 +3136,9 @@ export const SERVICE_TYPE_CHIP_CLASSES: Record<ServiceType, string> = {
   concentracion_atencion: 'bg-blue-100 text-blue-800 border-blue-200',
   comunicacion_regulacion: 'bg-rose-100 text-rose-800 border-rose-200',
   estimulacion_juego: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  psicometrica: 'bg-slate-100 text-slate-800 border-slate-200',
+  neurodesarrollo: 'bg-green-100 text-green-800 border-green-200',
+  diagnostica_tea: 'bg-stone-100 text-stone-800 border-stone-200',
   otra: 'bg-zinc-100 text-zinc-700 border-zinc-200',
 }
 
