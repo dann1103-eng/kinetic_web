@@ -335,7 +335,11 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard (o vía
 > Management API `POST /v1/projects/<ref>/database/query` con el token del CLI).
-> No hay migración automática. **El repo va hasta 0176; próximo libre = 0177.**
+> No hay migración automática. **El repo va hasta 0178; próximo libre = 0179.**
+> Desacople agenda/facturación (F1-F4) aplicado: **0177** (generate_cycle_agenda
+> sin factura + regenerate_cycle_appointments con p_only_future + guard relajado
+> a ciclos pagados + columnas paid_expected_usd/billing_adjustment_*) y **0178**
+> (billing_adjustment_carried_in_usd). Ambas aplicadas y verificadas en prod.
 > ✅ Aplicadas y verificadas en prod (12-jul-2026): **TODAS hasta 0176** —
 > incluye 0173_biweekly_offset, 0174 (firma de coordinadora en altas), 0175
 > (recargo por mora diferido + exención por familia) y 0176 (menciones de
