@@ -333,13 +333,15 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0171** | **Intento fallido (storage.objects.owner)**: se creyó que el bloqueo del borrado venía de `storage.objects`, pero el diagnóstico (`scripts/diag_user_delete_blockers.sql`) mostró que TODAS las FK a users ya eran SET NULL/CASCADE y NO existe FK bloqueante en storage. 0171 es inocua (no encuentra nada que arreglar). La causa real era un CHECK — ver 0172. |
 | **0172** | **CAUSA REAL del "Database error deleting user"**: el CHECK `appointments_terapia_requires_service_and_therapist` (mig 0092) exigía `therapist_id` no nulo en toda cita `terapia`; al eliminar un terapeuta, el `SET NULL` en cascada (0170) violaba el CHECK y abortaba el borrado. Se relaja: para `terapia` se exige solo `service_type`. Las citas del terapeuta eliminado quedan sin asignar (therapist_id NULL). **Además** `deleteUser` ahora borra `public.users` primero (via admin/PostgREST) para exponer el error real de Postgres en vez del genérico de GoTrue. **Recomendación**: reasignar con "Sustituir terapeuta" antes de eliminar. |
 
-> **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard. No hay
-> migración automática. **El repo va hasta 0172; próximo libre = 0173.**
-> ✅ Aplicadas: hasta **0164** (verificadas en prod), **0165/0166** (usuario),
-> **0167** (auditoría de seguridad), **0169/0170/0171** (usuario, FKs de borrado).
-> ⚠️ **PENDIENTES DE APLICAR: 0168 (assignee_ids) y 0172 (CHECK de appointments —
-> la causa real del "Database error deleting user").** Sin 0172, eliminar un
-> terapeuta con citas de terapia sigue tronando.
+> **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard (o vía
+> Management API `POST /v1/projects/<ref>/database/query` con el token del CLI).
+> No hay migración automática. **El repo va hasta 0176; próximo libre = 0177.**
+> ✅ Aplicadas y verificadas en prod (12-jul-2026): **TODAS hasta 0176** —
+> incluye 0173_biweekly_offset, 0174 (firma de coordinadora en altas), 0175
+> (recargo por mora diferido + exención por familia) y 0176 (menciones de
+> lista de espera; nació como "0173_waitlist_comment_mentions", mismo SQL).
+> ⚠️ Hay DOS archivos con historia sobre el prefijo 0173 (biweekly_offset y
+> el de menciones renombrado a 0176) — ambos aplicados; no re-correr.
 >
 > **GOTCHA recurrente**: `create or replace function` con DISTINTO # de args
 > NO reemplaza — crea una **sobrecarga** y deja la llamada ambigua. Al cambiar
