@@ -11,6 +11,8 @@ import {
   extendMonthlyCycleGrace,
   deleteMonthlyCycle,
   generateInvoiceForCycle,
+  voidCycleInvoice,
+  cancelCycleAgenda,
 } from '@/app/actions/monthly-cycles'
 import {
   MONTHLY_CYCLE_STATUS_LABELS,
@@ -71,6 +73,7 @@ export function MonthlyCyclesSection({
   const [editingCycle, setEditingCycle] = useState<MonthlySessionCycle | null>(null)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [cancelReason, setCancelReason] = useState('')
+  const [cancelMode, setCancelMode] = useState<'all' | 'invoice' | 'agenda'>('all')
   const [cancelError, setCancelError] = useState<string | null>(null)
   const [isCancelling, startCancel] = useTransition()
 
@@ -178,15 +181,25 @@ export function MonthlyCyclesSection({
   function handleCancel() {
     if (!cancellingId) return
     setCancelError(null)
+    const id = cancellingId
     startCancel(async () => {
-      const res = await cancelMonthlyCycle(cancellingId, cancelReason)
-      if (!res.ok) {
-        setCancelError(res.error)
-        return
+      // Desacople F4: anulación separada. 'all' = anular todo (factura+agenda),
+      // 'invoice' = solo la factura, 'agenda' = solo las citas del mes.
+      if (cancelMode === 'invoice') {
+        const res = await voidCycleInvoice(id, cancelReason)
+        if (!res.ok) { setCancelError(res.error); return }
+        setCycles((prev) => prev.map((c) => (c.id === id ? { ...c, invoice_id: null } : c)))
+      } else if (cancelMode === 'agenda') {
+        const res = await cancelCycleAgenda(id)
+        if (!res.ok) { setCancelError(res.error); return }
+      } else {
+        const res = await cancelMonthlyCycle(id, cancelReason)
+        if (!res.ok) { setCancelError(res.error); return }
+        setCycles((prev) => prev.map((c) => (c.id === id ? res.cycle : c)))
       }
-      setCycles((prev) => prev.map((c) => (c.id === cancellingId ? res.cycle : c)))
       setCancellingId(null)
       setCancelReason('')
+      setCancelMode('all')
       router.refresh()
     })
   }
@@ -608,17 +621,42 @@ export function MonthlyCyclesSection({
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
           <div className="bg-fm-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
             <h3 className="text-base font-semibold text-fm-on-surface">Anular ciclo</h3>
-            <p className="text-xs text-fm-on-surface-variant">
-              Esto va a: anular la factura, cancelar las citas <b>scheduled</b> del mes
-              (las ya iniciadas o completadas se respetan).
-            </p>
-            <textarea
-              value={cancelReason}
-              onChange={(e) => setCancelReason(e.target.value)}
-              rows={3}
-              placeholder="Motivo (mín. 5 caracteres)"
-              className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
-            />
+            {/* Desacople F4: anulación separada de factura y agenda. */}
+            <div className="space-y-2 text-sm">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="radio" name="cancelMode" checked={cancelMode === 'all'}
+                  onChange={() => setCancelMode('all')} className="mt-0.5 text-fm-primary focus:ring-fm-primary" />
+                <span>
+                  <span className="font-medium text-fm-on-surface">Anular todo</span>
+                  <span className="block text-[11px] text-fm-on-surface-variant">Anula la factura y cancela las citas scheduled del mes (las dadas se respetan).</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="radio" name="cancelMode" checked={cancelMode === 'invoice'}
+                  onChange={() => setCancelMode('invoice')} className="mt-0.5 text-fm-primary focus:ring-fm-primary" />
+                <span>
+                  <span className="font-medium text-fm-on-surface">Solo la factura</span>
+                  <span className="block text-[11px] text-fm-on-surface-variant">Anula la factura (queda para auditoría) sin tocar la agenda. Se puede volver a generar.</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="radio" name="cancelMode" checked={cancelMode === 'agenda'}
+                  onChange={() => setCancelMode('agenda')} className="mt-0.5 text-fm-primary focus:ring-fm-primary" />
+                <span>
+                  <span className="font-medium text-fm-on-surface">Solo la agenda del mes</span>
+                  <span className="block text-[11px] text-fm-on-surface-variant">Cancela las citas scheduled del mes sin tocar la factura. Las dadas se respetan.</span>
+                </span>
+              </label>
+            </div>
+            {cancelMode !== 'agenda' && (
+              <textarea
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                rows={3}
+                placeholder="Motivo (mín. 5 caracteres)"
+                className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
+              />
+            )}
             {cancelError && <p className="text-xs text-red-700">{cancelError}</p>}
             <div className="flex justify-end gap-2">
               <button
@@ -627,6 +665,7 @@ export function MonthlyCyclesSection({
                   setCancellingId(null)
                   setCancelReason('')
                   setCancelError(null)
+                  setCancelMode('all')
                 }}
                 disabled={isCancelling}
                 className="px-3 py-1.5 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"

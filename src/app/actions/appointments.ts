@@ -417,6 +417,123 @@ export async function moveAppointment(
   return { ok: true }
 }
 
+/** Primer instante (UTC) del mes SIGUIENTE al de un ISO, en zona SV (UTC-6, sin DST). */
+function nextMonthStartSV(iso: string): Date {
+  const sv = new Date(new Date(iso).getTime() - 6 * 3600 * 1000)
+  return new Date(Date.UTC(sv.getUTCFullYear(), sv.getUTCMonth() + 1, 1) + 6 * 3600 * 1000)
+}
+
+/**
+ * Mueve la cita ancla Y las siguientes de la misma serie ("esta y las
+ * siguientes" del prompt tipo Google Calendar): aplica el mismo delta de horario
+ * a las citas futuras `scheduled`/`replacement` auto-generadas del mismo niño +
+ * servicio dentro del MISMO mes que la ancla. Las que chocan (solape del
+ * terapista o cierre institucional) se dejan sin mover y se reportan. Las citas
+ * ya dadas/marcadas nunca se tocan.
+ */
+export async function moveAppointmentSeries(
+  appointmentId: string,
+  newStartsAt: string,
+  newEndsAt: string,
+): Promise<{ ok: true; movedCount: number; skippedDates: string[] } | { ok: false; error: string }> {
+  const ctx = await getEffectiveUser()
+  if (!ctx) return { ok: false, error: 'No autenticado' }
+  if (!DRAG_ROLES.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos para mover citas' }
+  }
+
+  const supabase = await createClient()
+  const { data: anchor } = await supabase
+    .from('appointments')
+    .select('id, therapist_id, status, event_type, service_type, child_id, starts_at, ends_at, notes')
+    .eq('id', appointmentId)
+    .maybeSingle()
+  if (!anchor) return { ok: false, error: 'Cita no encontrada' }
+
+  // Delta a aplicar (respecto al horario ORIGINAL de la ancla).
+  const deltaMs = new Date(newStartsAt).getTime() - new Date(anchor.starts_at).getTime()
+
+  // 1) Mover la ancla con la validación completa de moveAppointment.
+  const anchorRes = await moveAppointment(appointmentId, newStartsAt, newEndsAt)
+  if (!anchorRes.ok) return anchorRes
+
+  // Sin niño/servicio no hay serie que seguir (evaluaciones/persona libre).
+  if (!anchor.child_id || !anchor.service_type) {
+    return { ok: true, movedCount: 1, skippedDates: [] }
+  }
+  const anchorChildId = anchor.child_id
+  const anchorService = anchor.service_type
+
+  // 2) Hermanas: mismo niño+servicio, terapia auto-generada, futuras dentro del
+  //    mismo mes, aún no dadas. Excluye la ancla.
+  const monthEnd = nextMonthStartSV(anchor.starts_at).toISOString()
+  const { data: siblingsRaw } = await supabase
+    .from('appointments')
+    .select('id, therapist_id, starts_at, ends_at')
+    .eq('child_id', anchorChildId)
+    .eq('service_type', anchorService)
+    .eq('event_type', 'terapia')
+    .in('status', ['scheduled', 'replacement'])
+    .gt('starts_at', anchor.starts_at)
+    .lt('starts_at', monthEnd)
+    .neq('id', appointmentId)
+    .like('notes', '%Auto-generado del ciclo%')
+  const siblings = (siblingsRaw ?? []) as {
+    id: string; therapist_id: string | null; starts_at: string; ends_at: string
+  }[]
+
+  let movedCount = 0
+  const skippedDates: string[] = []
+  for (const s of siblings) {
+    const ns = new Date(new Date(s.starts_at).getTime() + deltaMs).toISOString()
+    const ne = new Date(new Date(s.ends_at).getTime() + deltaMs).toISOString()
+
+    // Cierre institucional.
+    const { data: closures } = await supabase
+      .from('institutional_calendar')
+      .select('*')
+      .gte('date', ns.slice(0, 10))
+      .lte('date', ne.slice(0, 10))
+    if (findClosureAffecting(ns, closures ?? [])) {
+      skippedDates.push(ns.slice(0, 10))
+      continue
+    }
+
+    // Solape del terapista (excluyendo esta misma cita).
+    if (s.therapist_id) {
+      const dayStart = new Date(ns); dayStart.setHours(0, 0, 0, 0)
+      const dayEnd = new Date(ns); dayEnd.setHours(23, 59, 59, 999)
+      const { data: sameDay } = await supabase
+        .from('appointments')
+        .select('id, starts_at, ends_at')
+        .eq('therapist_id', s.therapist_id)
+        .in('status', ['scheduled', 'in_progress', 'replacement'])
+        .gte('starts_at', dayStart.toISOString())
+        .lte('starts_at', dayEnd.toISOString())
+        .neq('id', s.id)
+      const overlap = (sameDay ?? []).find((a) =>
+        appointmentsOverlap(a as { starts_at: string; ends_at: string }, { starts_at: ns, ends_at: ne }),
+      )
+      if (overlap) {
+        skippedDates.push(ns.slice(0, 10))
+        continue
+      }
+    }
+
+    const { error: upErr } = await supabase
+      .from('appointments')
+      .update({ starts_at: ns, ends_at: ne })
+      .eq('id', s.id)
+    if (upErr) { skippedDates.push(ns.slice(0, 10)); continue }
+    movedCount += 1
+  }
+
+  revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
+  // +1 por la ancla ya movida.
+  return { ok: true, movedCount: movedCount + 1, skippedDates }
+}
+
 /**
  * Reasigna UNA terapia a otra terapista (cobertura), opcionalmente moviéndola de
  * horario en el mismo paso. Edita la misma fila (la cita le aparece a la nueva

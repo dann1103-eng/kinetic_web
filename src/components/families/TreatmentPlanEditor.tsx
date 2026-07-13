@@ -211,6 +211,9 @@ export function TreatmentPlanEditor({
   })
   const [error, setError] = useState<string | null>(null)
   const [regenWarning, setRegenWarning] = useState<string | null>(null)
+  // Desacople F2: alcance de la propagación de cambios de horario a la agenda ya
+  // generada de este mes (prompt estilo Google Calendar). Solo aplica al editar.
+  const [scheduleScope, setScheduleScope] = useState<'only_future' | 'skip_agenda'>('only_future')
   const [failedOffline, setFailedOffline] = useState(false)
   const [isPending, startTransition] = useTransition()
 
@@ -325,6 +328,7 @@ export function TreatmentPlanEditor({
           discountKind: 'none',
           discountValue: 0,
           discountReason: null,
+          scheduleScope,
         })
         if (!res.ok) {
           setError(res.error)
@@ -339,6 +343,15 @@ export function TreatmentPlanEditor({
             `El plan se guardó, pero las citas de ${res.regen.conflictMonths.join(', ')} ` +
               'no se pudieron regenerar por un conflicto de horario del terapista. ' +
               'Resolvé el choque en la agenda o desde “Editar ciclo” de ese mes.',
+          )
+          return
+        }
+        // Aviso si algún ciclo YA pagado cambió de monto → se arrastra al mes siguiente.
+        if (res.regen?.adjustedPaidMonths && res.regen.adjustedPaidMonths.length > 0) {
+          setRegenWarning(
+            `El plan se guardó. Como ${res.regen.adjustedPaidMonths.join(', ')} ya estaba(n) ` +
+              'pagado(s), la diferencia de monto por el cambio se cobrará (o acreditará) ' +
+              'en la factura del mes siguiente. No se modifica la factura ya pagada.',
           )
           return
         }
@@ -750,7 +763,35 @@ export function TreatmentPlanEditor({
         </div>
 
         {/* Footer fijo */}
-        <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-fm-outline-variant/20 bg-fm-surface">
+        <div className="flex flex-col gap-2 px-6 py-4 border-t border-fm-outline-variant/20 bg-fm-surface">
+          {/* Desacople F2: al editar, elegir si los cambios de horario mueven la
+              agenda YA generada de este mes. Las citas ya dadas nunca se tocan. */}
+          {existing && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fm-on-surface-variant">
+              <span className="font-medium">Cambios de horario en la agenda ya generada de este mes:</span>
+              <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="scheduleScope"
+                  checked={scheduleScope === 'only_future'}
+                  onChange={() => setScheduleScope('only_future')}
+                  className="text-fm-primary focus:ring-fm-primary"
+                />
+                Aplicar de ahora en adelante
+              </label>
+              <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="scheduleScope"
+                  checked={scheduleScope === 'skip_agenda'}
+                  onChange={() => setScheduleScope('skip_agenda')}
+                  className="text-fm-primary focus:ring-fm-primary"
+                />
+                No tocar (aplica el próximo mes)
+              </label>
+            </div>
+          )}
+        <div className="flex items-center justify-end gap-2">
           <SaveStatusIndicator savedAt={savedAt} online={online} className="mr-auto" />
           <button
             type="button"
@@ -768,6 +809,7 @@ export function TreatmentPlanEditor({
           >
             {isPending ? 'Guardando…' : existing ? 'Guardar cambios' : 'Crear plan'}
           </button>
+        </div>
         </div>
       </div>
     </div>

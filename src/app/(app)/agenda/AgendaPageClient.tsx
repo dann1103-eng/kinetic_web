@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, type CSSProperties } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { moveAppointment } from '@/app/actions/appointments'
+import { moveAppointment, moveAppointmentSeries } from '@/app/actions/appointments'
 import {
   EVENT_TYPE_LABELS,
   SERVICE_TYPE_LABELS,
@@ -348,39 +348,58 @@ export function AgendaPageClient({
   )
 
   // Aplica el movimiento ya confirmado (optimista + server). Revierte si falla.
-  const applyPendingMove = useCallback(() => {
-    if (!pendingMove || pendingMove.event.kind !== 'appointment') return
-    const appt = pendingMove.event.appointment
-    const startIso = pendingMove.start.toISOString()
-    const endIso = pendingMove.end.toISOString()
-    setPendingMove(null)
+  // `series=true` mueve también las siguientes citas del mismo niño+servicio del
+  // mes (desacople F3 — prompt "esta y las siguientes").
+  const applyPendingMove = useCallback(
+    (series: boolean) => {
+      if (!pendingMove || pendingMove.event.kind !== 'appointment') return
+      const appt = pendingMove.event.appointment
+      const startIso = pendingMove.start.toISOString()
+      const endIso = pendingMove.end.toISOString()
+      setPendingMove(null)
 
-    // Optimista: pintar de una vez en el nuevo horario.
-    setMoveOverrides((prev) => ({ ...prev, [appt.id]: { starts_at: startIso, ends_at: endIso } }))
+      // Optimista: pintar la ancla de una vez en el nuevo horario. (Las siguientes
+      // se reflejan tras el router.refresh — son varias y sin optimista se ven bien.)
+      setMoveOverrides((prev) => ({ ...prev, [appt.id]: { starts_at: startIso, ends_at: endIso } }))
 
-    moveAppointment(appt.id, startIso, endIso)
-      .then((res) => {
-        if (!res.ok) {
-          // Revertir: quitar el override para que vuelva a su lugar.
-          setMoveOverrides((prev) => {
-            const next = { ...prev }
-            delete next[appt.id]
-            return next
-          })
-          window.alert(res.error)
-        } else {
-          router.refresh()
-        }
-      })
-      .catch(() => {
+      const revert = () => {
         setMoveOverrides((prev) => {
           const next = { ...prev }
           delete next[appt.id]
           return next
         })
-        window.alert('No se pudo mover la cita. Revisá tu conexión e intentá de nuevo.')
-      })
-  }, [pendingMove, router])
+      }
+      const onErr = (msg: string) => {
+        revert()
+        window.alert(msg)
+      }
+      const onNetErr = () =>
+        onErr('No se pudo mover la cita. Revisá tu conexión e intentá de nuevo.')
+
+      if (series) {
+        moveAppointmentSeries(appt.id, startIso, endIso)
+          .then((res) => {
+            if (!res.ok) return onErr(res.error)
+            if (res.skippedDates.length > 0) {
+              window.alert(
+                `Se movieron ${res.movedCount} citas. No se pudieron mover las de ` +
+                  `${res.skippedDates.join(', ')} por conflicto de horario o cierre — movelas a mano.`,
+              )
+            }
+            router.refresh()
+          })
+          .catch(onNetErr)
+      } else {
+        moveAppointment(appt.id, startIso, endIso)
+          .then((res) => {
+            if (!res.ok) return onErr(res.error)
+            router.refresh()
+          })
+          .catch(onNetErr)
+      }
+    },
+    [pendingMove, router],
+  )
 
   const draggableAccessor = useCallback(
     (block: CalendarBlock) =>
@@ -727,7 +746,7 @@ export function AgendaPageClient({
                 </p>
               )}
             </div>
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="flex flex-wrap justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setPendingMove(null)}
@@ -735,12 +754,23 @@ export function AgendaPageClient({
               >
                 Cancelar
               </button>
+              {/* Desacople F3: para terapias, ofrecer mover también las siguientes
+                  del mismo horario/servicio del mes. */}
+              {pendingMove.event.appointment.event_type === 'terapia' && (
+                <button
+                  type="button"
+                  onClick={() => applyPendingMove(true)}
+                  className="min-h-[44px] px-4 py-2 text-sm rounded-xl border border-fm-primary text-fm-primary hover:bg-fm-primary/5"
+                >
+                  Esta y las siguientes
+                </button>
+              )}
               <button
                 type="button"
-                onClick={applyPendingMove}
+                onClick={() => applyPendingMove(false)}
                 className="min-h-[44px] px-4 py-2 text-sm rounded-xl bg-fm-primary text-fm-on-primary hover:bg-fm-primary-dim"
               >
-                Sí, mover
+                {pendingMove.event.appointment.event_type === 'terapia' ? 'Solo esta' : 'Sí, mover'}
               </button>
             </div>
           </div>

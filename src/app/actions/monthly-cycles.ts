@@ -326,18 +326,33 @@ export async function getCycleRolloverPreview(
 
   // Servicios con mensualidad fija (programas matutinos): suscripción —
   // las faltas no se reponen ni se arrastran al mes siguiente.
-  const { data: activePlan } = await supabase
-    .from('treatment_plans')
-    .select('therapies_json')
+  // [Desacople F4 — fuga de snapshot] El billing_mode se lee del snapshot del
+  // ciclo ANTERIOR (lo que se facturó ese mes), no del plan vivo. Fallback al
+  // plan vivo solo si el snapshot es pre-0147 (sin billing_mode).
+  const { data: prevCycle } = await supabase
+    .from('monthly_session_cycles')
+    .select('treatment_plan_snapshot')
     .eq('child_id', childId)
-    .eq('active', true)
+    .eq('period_month', prevPeriod)
+    .neq('status', 'cancelled')
     .maybeSingle()
-  const billingModeBy = new Map<string, TherapyBillingMode | undefined>(
-    (((activePlan?.therapies_json ?? []) as TreatmentPlanTherapyEntry[]).map((t) => [
-      t.service,
-      t.billing_mode,
-    ])),
-  )
+  const prevSnap = (prevCycle?.treatment_plan_snapshot ?? {}) as {
+    therapies_json?: { service: string; unit_cost_usd?: number; billing_mode?: TherapyBillingMode }[]
+  }
+  const billingModeBy = new Map<string, TherapyBillingMode | undefined>()
+  for (const t of prevSnap.therapies_json ?? []) billingModeBy.set(t.service, t.billing_mode)
+  if (billingModeBy.size === 0) {
+    // Snapshot pre-0147 sin therapies: caer al plan vivo.
+    const { data: activePlan } = await supabase
+      .from('treatment_plans')
+      .select('therapies_json')
+      .eq('child_id', childId)
+      .eq('active', true)
+      .maybeSingle()
+    for (const t of (activePlan?.therapies_json ?? []) as TreatmentPlanTherapyEntry[]) {
+      billingModeBy.set(t.service, t.billing_mode)
+    }
+  }
 
   // No dadas sin reposición, por servicio.
   const missedBy = new Map<string, number>()
@@ -351,19 +366,10 @@ export async function getCycleRolloverPreview(
   }
   if (missedBy.size === 0) return { ok: true, preview: { fromPeriod: prevPeriod, items: [], totalDiscount: 0 } }
 
-  // Precio por servicio: del snapshot del ciclo anterior (lo que pagaron).
-  const { data: prevCycle } = await supabase
-    .from('monthly_session_cycles')
-    .select('treatment_plan_snapshot')
-    .eq('child_id', childId)
-    .eq('period_month', prevPeriod)
-    .neq('status', 'cancelled')
-    .maybeSingle()
+  // Precio por servicio: del snapshot del ciclo anterior (lo que pagaron) —
+  // ya lo trajimos arriba en prevSnap.
   const priceBy = new Map<string, number>()
-  const snap = (prevCycle?.treatment_plan_snapshot ?? {}) as {
-    therapies_json?: { service: string; unit_cost_usd?: number }[]
-  }
-  for (const t of snap.therapies_json ?? []) {
+  for (const t of prevSnap.therapies_json ?? []) {
     priceBy.set(t.service, Number(t.unit_cost_usd ?? 0))
   }
 
@@ -1040,7 +1046,24 @@ export async function editMonthlyCycle(
       ...(p.billing_mode ? { billing_mode: p.billing_mode } : {}),
     } as TreatmentPlanTherapyEntry
   })
-  const newSnapshot = { ...snapshot, therapies_json: newTherapies }
+  // [Desacople F4 — fuga de snapshot] Refrescar también schedule_pattern_json del
+  // plan vivo, para que el detalle de pago (PDF) no caiga al plan vivo por falta
+  // de horario en el snapshot.
+  let newSchedulePattern = (snapshot as { schedule_pattern_json?: unknown }).schedule_pattern_json
+  {
+    const { data: livePlan } = await supabase
+      .from('treatment_plans')
+      .select('schedule_pattern_json')
+      .eq('child_id', cycle.child_id)
+      .eq('active', true)
+      .maybeSingle()
+    if (livePlan?.schedule_pattern_json) newSchedulePattern = livePlan.schedule_pattern_json
+  }
+  const newSnapshot = {
+    ...snapshot,
+    therapies_json: newTherapies,
+    ...(newSchedulePattern ? { schedule_pattern_json: newSchedulePattern } : {}),
+  }
 
   const expected = expectedCycleAmount(input.pricedTherapies, {
     kind: discountKind,
@@ -1170,6 +1193,103 @@ export async function cancelMonthlyCycle(
   revalidatePath('/familias')
   revalidatePath('/agenda')
   return { ok: true, cycle: data as MonthlySessionCycle }
+}
+
+// ── Desacople F4: anulación separada (factura ↔ agenda) ─────────────────────
+
+/**
+ * Anula SOLO la factura del ciclo (void), sin tocar la agenda. El ciclo queda
+ * sin factura activa → recepción puede volver a generarla. La factura anulada
+ * se conserva para auditoría. Roles de gestión de ciclos.
+ */
+export async function voidCycleInvoice(
+  cycleId: string,
+  reason: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { user } = await getActor()
+  if (!isMgmt(user.role)) {
+    return { ok: false, error: 'Solo admin/directora/coord/recepción/contable.' }
+  }
+  if (!reason || reason.trim().length < 5) {
+    return { ok: false, error: 'El motivo debe tener al menos 5 caracteres.' }
+  }
+  const admin = createAdminClient()
+  const { data: cycle } = await admin
+    .from('monthly_session_cycles')
+    .select('id, invoice_id, payment_status')
+    .eq('id', cycleId)
+    .maybeSingle()
+  if (!cycle) return { ok: false, error: 'Ciclo no encontrado.' }
+  if (!cycle.invoice_id) return { ok: false, error: 'El ciclo no tiene factura.' }
+  if (cycle.payment_status === 'paid') {
+    return { ok: false, error: 'No se puede anular la factura de un ciclo ya pagado. Usá "Anular todo".' }
+  }
+
+  const { error: voidErr } = await admin
+    .from('invoices')
+    .update({
+      status: 'void',
+      void_reason: reason.trim(),
+      void_by: user.id,
+      void_at: new Date().toISOString(),
+    })
+    .eq('id', cycle.invoice_id)
+  if (voidErr) return { ok: false, error: voidErr.message }
+
+  // Desligar la factura del ciclo → habilita "Generar factura" de nuevo.
+  await admin
+    .from('monthly_session_cycles')
+    .update({ invoice_id: null })
+    .eq('id', cycleId)
+
+  revalidatePath('/familias')
+  revalidatePath('/billing/invoices')
+  return { ok: true }
+}
+
+/**
+ * Cancela SOLO la agenda del mes (las citas futuras 'scheduled' auto-generadas
+ * del ciclo → 'rescheduled'), sin tocar la factura ni el estado del ciclo. Las
+ * completadas/en curso/reposiciones se conservan. Roles de gestión.
+ */
+export async function cancelCycleAgenda(
+  cycleId: string,
+): Promise<{ ok: true; cancelled: number } | { ok: false; error: string }> {
+  const { user } = await getActor()
+  if (!isMgmt(user.role)) {
+    return { ok: false, error: 'Solo admin/directora/coord/recepción/contable.' }
+  }
+  const admin = createAdminClient()
+  const { data: cycle } = await admin
+    .from('monthly_session_cycles')
+    .select('id, child_id, period_month')
+    .eq('id', cycleId)
+    .maybeSingle()
+  if (!cycle) return { ok: false, error: 'Ciclo no encontrado.' }
+
+  const firstDay = `${String(cycle.period_month).slice(0, 7)}-01`
+  const nextMonth = new Date(Date.UTC(
+    Number(firstDay.slice(0, 4)),
+    Number(firstDay.slice(5, 7)), // 0-based next month
+    1,
+  )).toISOString().slice(0, 10)
+
+  const { data: cancelledRows, error } = await admin
+    .from('appointments')
+    .update({ status: 'rescheduled', notes: 'Agenda del ciclo cancelada' })
+    .eq('child_id', cycle.child_id)
+    .eq('event_type', 'terapia')
+    .eq('status', 'scheduled')
+    .gte('starts_at', firstDay)
+    .lt('starts_at', nextMonth)
+    .like('notes', '%Auto-generado del ciclo%')
+    .select('id')
+  if (error) return { ok: false, error: error.message }
+
+  revalidatePath('/familias')
+  revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
+  return { ok: true, cancelled: (cancelledRows ?? []).length }
 }
 
 // ── Eliminar un ciclo por completo (admin) ──────────────────────────────────

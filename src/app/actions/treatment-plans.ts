@@ -16,6 +16,7 @@ import type {
 import { SERVICE_TYPE_LABELS, DAY_OF_WEEK_LABELS } from '@/types/db'
 import { applyDiscount, validateDiscount } from '@/lib/domain/discounts'
 import { therapyLineAmount, isMorningProgramService, planTherapistIds } from '@/lib/domain/billing/monthly-flat'
+import { createInvoiceForCycle } from './kinetic-invoices'
 import { toZonedTime } from 'date-fns-tz'
 
 const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'] as const
@@ -176,14 +177,24 @@ export interface UpsertTreatmentPlanInput {
   discountKind?: DiscountKind
   discountValue?: number
   discountReason?: string | null
+  /**
+   * Alcance de la propagación a la agenda ya generada al editar el horario
+   * (prompt estilo Google Calendar). Desacople F2:
+   *  - 'only_future' (default): mueve solo las citas futuras del mes en curso.
+   *  - 'skip_agenda': no toca la agenda ya generada (aplica desde el próximo mes).
+   */
+  scheduleScope?: 'only_future' | 'skip_agenda'
 }
 
-/** Resultado de regenerar las citas de los ciclos pendientes tras editar el plan. */
+/** Resultado de regenerar las citas de los ciclos tras editar el plan. */
 export interface PlanRegenSummary {
-  /** Cuántos ciclos pendientes se regeneraron OK. */
+  /** Cuántos ciclos se regeneraron OK. */
   regenerated: number
   /** Meses ('YYYY-MM') cuyo ciclo no se pudo regenerar (conflicto de horario u otro). */
   conflictMonths: string[]
+  /** Meses ('YYYY-MM') de ciclos PAGADOS cuyo monto cambió → se registró un ajuste
+   *  que se cobrará el mes siguiente (desacople F2). */
+  adjustedPaidMonths?: string[]
 }
 
 /** Campos del plan que afectan QUÉ citas se generan (para detectar cambios reales). */
@@ -311,42 +322,114 @@ export async function upsertTreatmentPlan(
   //    plan no movía las citas ya generadas — bug reportado.)
   //    Solo planes SIN programa matutino: los matutinos se generan por grupo y se
   //    ajustan desde el ciclo, no desde el horario del plan.
+  //    [Desacople F2] Ahora incluye ciclos PAGADOS (antes solo pendientes): las
+  //    completadas/en curso se conservan; el guard relajado de mig 0177 lo
+  //    permite. Si el niño manda scheduleScope='skip_agenda', no se toca la
+  //    agenda ya generada. Para ciclos pagados cuyo monto cambia, se registra
+  //    billing_adjustment_usd que se cobrará el mes siguiente (F4).
   let regen: PlanRegenSummary | undefined
   const afterSignature = computeRelevantSignature(therapiesValidated, scheduleValidated)
   const hasMorning = therapiesValidated.some(
     (t) => t.active && isMorningProgramService(t.service),
   )
-  if (kind === 'update' && afterSignature !== beforeSignature && !hasMorning) {
+  const scheduleScope = input.scheduleScope ?? 'only_future'
+  if (
+    kind === 'update' &&
+    afterSignature !== beforeSignature &&
+    !hasMorning &&
+    scheduleScope !== 'skip_agenda'
+  ) {
     const sv = toZonedTime(new Date(), 'America/El_Salvador')
     const currentMonthStart = `${sv.getFullYear()}-${String(sv.getMonth() + 1).padStart(2, '0')}-01`
+    const admin = createAdminClient()
 
     const { data: cyclesRaw } = await supabase
       .from('monthly_session_cycles')
-      .select('id, period_month')
+      .select('id, period_month, payment_status, paid_expected_usd, invoice_id, discount_kind, discount_value, rollover_mode, rollover_discount_usd, treatment_plan_snapshot')
       .eq('child_id', input.childId)
       .eq('status', 'generated')
-      .eq('payment_status', 'pending')
       .gte('period_month', currentMonthStart)
+
+    // Subtotal esperado del PLAN NUEVO (para el ajuste de ciclos pagados).
+    const newSubtotal = recalcSubtotal(therapiesValidated)
 
     let regenerated = 0
     const conflictMonths: string[] = []
-    for (const c of (cyclesRaw ?? []) as { id: string; period_month: string }[]) {
+    const adjustedPaidMonths: string[] = []
+    type CycleRow = {
+      id: string
+      period_month: string
+      payment_status: string
+      paid_expected_usd: number | null
+      invoice_id: string | null
+      discount_kind: DiscountKind
+      discount_value: number
+      rollover_mode: string
+      rollover_discount_usd: number | null
+      treatment_plan_snapshot: Record<string, unknown> | null
+    }
+    for (const c of (cyclesRaw ?? []) as CycleRow[]) {
       const { error: rErr } = await supabase.rpc('regenerate_cycle_appointments', {
         p_cycle_id: c.id,
         p_appointments_override: null,
+        p_only_future: true, // 'only_future': nunca toca las citas pasadas/marcadas
       })
       if (rErr) {
-        // Cualquier error de regeneración (conflicto u otro) se reporta como mes
-        // en conflicto para no bloquear el guardado. Logueamos el detalle real
-        // para diagnóstico (ej. plan_has_no_primary_therapist, cycle_not_editable).
         console.error(`[upsertTreatmentPlan] regen ${c.period_month} falló:`, rErr.message)
         conflictMonths.push(c.period_month.slice(0, 7))
-      } else {
-        regenerated += 1
+        continue
+      }
+      regenerated += 1
+
+      // Refrescar el snapshot con el plan nuevo (therapies + horario) para que la
+      // facturación y el detalle de pago lean lo actual (cierre de fuga de snapshot).
+      const mergedSnapshot = {
+        ...(c.treatment_plan_snapshot ?? {}),
+        therapies_json: therapiesValidated,
+        schedule_pattern_json: scheduleValidated,
+      }
+      await admin
+        .from('monthly_session_cycles')
+        .update({ treatment_plan_snapshot: mergedSnapshot })
+        .eq('id', c.id)
+
+      // Monto esperado del ciclo con el plan nuevo (subtotal − descuento del ciclo
+      // − descuento por rollover).
+      let newExpected = newSubtotal
+      if (c.discount_kind === 'percent' && c.discount_value > 0) {
+        newExpected = newSubtotal * (1 - c.discount_value / 100)
+      } else if (c.discount_kind === 'fixed' && c.discount_value > 0) {
+        newExpected = Math.max(0, newSubtotal - c.discount_value)
+      }
+      if (c.rollover_mode === 'discount') {
+        newExpected = Math.max(0, newExpected - Number(c.rollover_discount_usd ?? 0))
+      }
+      newExpected = Math.round(newExpected * 100) / 100
+
+      if (c.payment_status === 'paid') {
+        // Ciclo PAGADO: no se toca la factura. La diferencia se arrastra al mes
+        // siguiente. Solo si tenemos la base congelada al pagar (paid_expected_usd).
+        if (c.paid_expected_usd != null) {
+          const adjustment = Math.round((newExpected - c.paid_expected_usd) * 100) / 100
+          await admin
+            .from('monthly_session_cycles')
+            .update({ billing_adjustment_usd: adjustment })
+            .eq('id', c.id)
+          if (adjustment !== 0) adjustedPaidMonths.push(c.period_month.slice(0, 7))
+        }
+      } else if (c.invoice_id) {
+        // Ciclo PENDIENTE con factura: regenerarla desde el snapshot al día.
+        await createInvoiceForCycle(c.id).catch((e) => {
+          console.error(`[upsertTreatmentPlan] re-factura ${c.period_month} falló:`, e)
+        })
       }
     }
     if (regenerated > 0 || conflictMonths.length > 0) {
-      regen = { regenerated, conflictMonths }
+      regen = {
+        regenerated,
+        conflictMonths,
+        adjustedPaidMonths: adjustedPaidMonths.length > 0 ? adjustedPaidMonths : undefined,
+      }
     }
   }
 

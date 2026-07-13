@@ -3894,6 +3894,8 @@ export interface MonthlySessionCycle {
   billing_adjustment_usd: number
   /** Cuándo el ajuste fue incluido en una factura posterior. */
   billing_adjustment_carried_at: string | null
+  /** Ajuste(s) de mensualidades anteriores cobrados/acreditados en la factura de ESTE ciclo (mig 0178). */
+  billing_adjustment_carried_in_usd: number
   /** Rollover de sesiones no dadas del mes anterior. */
   rollover_mode: 'none' | 'accumulate' | 'discount'
   rollover_sessions_json: Record<string, number> | null

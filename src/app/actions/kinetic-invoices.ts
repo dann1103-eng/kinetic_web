@@ -225,6 +225,65 @@ export async function createInvoiceForCycle(
       .in('id', carriedFromCycleIds)
   }
 
+  // Ajuste por cambio de plan tras el pago (desacople F4): un ciclo YA pagado que
+  // cambió de monto arrastra la diferencia (positiva=cargo, negativa=crédito) a la
+  // factura del mes siguiente — espejo del recargo por mora arrastrado.
+  let carriedAdjustmentTotal = 0
+  const carriedAdjFromCycleIds: string[] = []
+  if (Number(cycle.billing_adjustment_carried_in_usd ?? 0) !== 0) {
+    // Factura re-generada: el arrastre ya quedó registrado en este ciclo.
+    carriedAdjustmentTotal = Number(cycle.billing_adjustment_carried_in_usd)
+    items.push({
+      description:
+        carriedAdjustmentTotal >= 0
+          ? 'Ajuste de mensualidad anterior (cambio de plan)'
+          : 'Crédito de mensualidad anterior (cambio de plan)',
+      quantity: 1,
+      unit_price: carriedAdjustmentTotal,
+    })
+  } else {
+    const { data: adjRaw } = await admin
+      .from('monthly_session_cycles')
+      .select('id, period_month, billing_adjustment_usd')
+      .eq('child_id', cycle.child_id)
+      .neq('status', 'cancelled')
+      .eq('payment_status', 'paid')
+      .neq('billing_adjustment_usd', 0)
+      .is('billing_adjustment_carried_at', null)
+      .lt('period_month', cycle.period_month)
+      .order('period_month')
+    for (const prev of (adjRaw ?? []) as {
+      id: string
+      period_month: string
+      billing_adjustment_usd: number
+    }[]) {
+      const amount = Number(prev.billing_adjustment_usd)
+      carriedAdjustmentTotal += amount
+      carriedAdjFromCycleIds.push(prev.id)
+      items.push({
+        description:
+          amount >= 0
+            ? `Ajuste — mensualidad de ${periodLabel(prev.period_month)} (cambio de plan tras el pago)`
+            : `Crédito — mensualidad de ${periodLabel(prev.period_month)} (cambio de plan tras el pago)`,
+        quantity: 1,
+        unit_price: amount,
+      })
+    }
+  }
+
+  /** Persiste el arrastre del ajuste tras crear/parchar la factura. */
+  async function persistCarriedAdjustment() {
+    if (carriedAdjFromCycleIds.length === 0) return
+    await admin
+      .from('monthly_session_cycles')
+      .update({ billing_adjustment_carried_in_usd: carriedAdjustmentTotal })
+      .eq('id', cycleId)
+    await admin
+      .from('monthly_session_cycles')
+      .update({ billing_adjustment_carried_at: new Date().toISOString() })
+      .in('id', carriedAdjFromCycleIds)
+  }
+
   const totals = calculateTotals({
     items,
     tax_rate: 0,            // Kinetic no aplica IVA por defecto
@@ -277,6 +336,7 @@ export async function createInvoiceForCycle(
       .single()
 
     await persistCarriedSurcharge()
+    await persistCarriedAdjustment()
 
     revalidatePath('/familias', 'layout')
     revalidatePath('/billing/invoices')
@@ -354,6 +414,7 @@ export async function createInvoiceForCycle(
     .single()
 
   await persistCarriedSurcharge()
+  await persistCarriedAdjustment()
 
   revalidatePath('/familias', 'layout')
   revalidatePath('/billing/invoices')
