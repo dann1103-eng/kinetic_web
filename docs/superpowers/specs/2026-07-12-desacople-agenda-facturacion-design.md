@@ -25,7 +25,7 @@ Hoy `confirm_monthly_payment_and_generate` (versión vigente: `0163_cycle_genera
 
 **Migración nueva (0177)** con dos cambios de RPC:
 
-- **`generate_cycle_agenda(...)`** (nueva, misma lógica de citas que `confirm_monthly_payment_and_generate` 0163 pero **sin el bloque de factura** `0163:184-219`): crea la fila de ciclo (`status='generated'`, `payment_status='pending'`, `invoice_id=NULL`, snapshot del plan vivo) + citas (respetando `p_appointments_override` WYSIWYG, monthly_flat salta citas, upsert de membresía de grupo) . Args: los 14 actuales **menos** `p_payment_amount/p_payment_method/p_payment_reference/p_paid_at` (el monto esperado se calcula del snapshot al facturar). Autorización: `kn_can_manage_cycles()` (ya incluye a ambas coordinadoras).
+- **`generate_cycle_agenda(...)`** (nueva, misma lógica de citas que `confirm_monthly_payment_and_generate` 0163 pero **sin el bloque de factura** `0163:184-219`): crea la fila de ciclo (`status='generated'`, `payment_status='pending'`, `invoice_id=NULL`, snapshot del plan vivo) + citas (respetando `p_appointments_override` WYSIWYG, monthly_flat salta citas, upsert de membresía de grupo). Args: los 14 actuales **menos** `p_payment_amount/p_payment_method/p_payment_reference/p_paid_at`. **DECISIÓN**: la RPC nueva **sí computa el subtotal esperado del snapshot** hacia `payment_amount_usd` (sin insertar factura) — así `mark_monthly_cycle_paid` sigue funcionando sobre un ciclo "solo agenda" (su fallback sin factura usa `v_cycle.payment_amount_usd`, 0175:62) y no registra $0. Autorización: `kn_can_manage_cycles()` (ya incluye a ambas coordinadoras).
 - **`confirm_monthly_payment_and_generate` se conserva** tal cual (mismo nombre/firma, delegando internamente a la nueva + factura) como **atajo combinado** para recepción — nadie pierde su rutina. Cero cambios de firma ⇒ sin sobrecargas ambiguas (gotcha del repo).
 
 **TS (`monthly-cycles.ts`)**:
@@ -42,19 +42,19 @@ Hoy `confirm_monthly_payment_and_generate` (versión vigente: `0163_cycle_genera
 ## Sección 3 — Prompts de alcance (Google Calendar)
 
 **Al guardar el plan** con cambios de horario (`computeRelevantSignature` ya detecta hora/día/duración/servicio/frecuencia): el editor (`TreatmentPlanEditor`) muestra un paso de confirmación con 2 opciones:
-- **"Solo de ahora en adelante"** (default): regenera las citas futuras `scheduled` de los ciclos vigentes (pasa `p_only_future=true` nuevo arg de `regenerate_cycle_appointments`, que limita el re-marcado a `starts_at >= now()`; las `scheduled` pasadas sin marcar quedan intactas).
+- **"Solo de ahora en adelante"** (default): regenera las citas futuras `scheduled` de los ciclos vigentes (pasa `p_only_future=true` nuevo arg de `regenerate_cycle_appointments`, que limita **tanto el re-marcado como la inserción de candidatos nuevos** a `starts_at >= now()` — sin filtrar los candidatos, `compute_monthly_appointment_candidates` genera el mes completo y duplicaría/chocaría contra las `scheduled` pasadas que quedan intactas).
 - **"No tocar la agenda"**: guarda el plan sin regenerar nada (los meses siguientes ya nacerán con el plan nuevo).
 
 Nota gotcha: `regenerate_cycle_appointments` cambia de firma (arg nuevo con default) ⇒ la migración incluye `DROP FUNCTION` de la firma vieja.
 
 **Al editar/mover una cita individual** (`moveAppointment` drag-drop y el modal de edición): si la cita es auto-generada de ciclo (`notes LIKE 'Auto-generado del ciclo%'`) y hay más citas futuras `scheduled` del mismo niño+servicio, el confirm existente de drag-drop gana la opción:
 - **"Solo esta cita"** (comportamiento actual).
-- **"Esta y las siguientes"**: nueva action `moveAppointmentSeries(appointmentId, deltaMin)` — aplica el mismo delta de horario a las futuras `scheduled` auto-generadas del mismo `child_id+service_type` del mes, validando solapes por cita (las que chocan se reportan y NO se mueven).
+- **"Esta y las siguientes"**: nueva action `moveAppointmentSeries(appointmentId, deltaMin)` — aplica el mismo delta de horario a las futuras `scheduled` auto-generadas del mismo `child_id+service_type` del mes, heredando TODAS las validaciones de `moveAppointment` (solapes por cita Y cierres institucionales — `findClosureAffecting`); las que chocan se reportan y NO se mueven.
 
 ## Sección 4 — Factura ajustable sin fricción
 
-- **Factura pendiente + plan/ciclo cambió**: `generateInvoiceForCycle` regenera ítems desde el snapshot actualizado (ya existe la rama "parchar" en `createInvoiceForCycle:185-228`). Botón "Actualizar factura" visible cuando `invoice.status='issued'` y el snapshot cambió después de emitida (comparar `cycle.updated_at > invoice.issue_date` como heurística simple, o mostrar siempre el botón — decisión de implementación: mostrar siempre; la operación es idempotente).
-- **Factura pagada + el ciclo cambió a mitad de mes**: NO se toca la factura pagada. La diferencia (`nuevo total esperado del snapshot − payment_amount_usd cobrado`) se registra en el ciclo (`billing_adjustment_usd numeric`, columna nueva en 0177, positiva=cargo/negativa=crédito) y `createInvoiceForCycle` del **mes siguiente** la inyecta como línea "Ajuste del mes anterior (plan modificado tras el pago)" — espejo exacto del patrón `surcharge_carried_in_usd`/`surcharge_carried_at` de 0175 (con su `billing_adjustment_carried_at` para no doble-cobrar).
+- **Factura pendiente + plan/ciclo cambió**: `generateInvoiceForCycle` regenera ítems desde el snapshot actualizado (ya existe la rama "parchar" en `createInvoiceForCycle`, ~línea 240 `if (cycle.invoice_id)`). Botón "Actualizar factura" siempre visible con factura `issued`; la operación es idempotente.
+- **Factura pagada + el ciclo cambió a mitad de mes**: NO se toca la factura pagada. **Fórmula del ajuste** (cuidado: NO comparar contra `payment_amount_usd`, que tras 0175 incluye recargos arrastrados y descuentos de rollover de otros meses): al pagar, se congela `paid_expected_usd` = total esperado del snapshot vigente **neto de líneas arrastradas** (columna nueva 0177). El ajuste = `nuevo total esperado del snapshot − paid_expected_usd`, guardado en `billing_adjustment_usd` (positivo=cargo/negativo=crédito). `createInvoiceForCycle` del **mes siguiente** lo inyecta como línea "Ajuste del mes anterior (plan modificado tras el pago)" — espejo del patrón `surcharge_carried_in_usd`/`surcharge_carried_at` de 0175 (con `billing_adjustment_carried_at` para no doble-cobrar). El cómputo del ajuste vive en TS (en `upsertTreatmentPlan`/`editMonthlyCycle`, donde ya se parcha el snapshot), no en RPC.
 
 ## Sección 5 — Anulación separada
 
@@ -65,7 +65,7 @@ Nota gotcha: `regenerate_cycle_appointments` cambia de firma (arg nuevo con defa
 
 ## Fugas de snapshot a cerrar (para que "recepción lee del ciclo" sea verdad)
 
-1. `api/ciclos/[cycleId]/detalle/route.ts:58-68` — fallback al plan vivo si el snapshot no trae horario → al regenerar/editar el ciclo, SIEMPRE refrescar `schedule_pattern_json` en el snapshot (ya se parcha en editMonthlyCycle; añadirlo a la regeneración por plan).
+1. `api/ciclos/[cycleId]/detalle/route.ts:58-68` — fallback al plan vivo si el snapshot no trae horario → refrescar `schedule_pattern_json` en el snapshot en **ambos** caminos: `editMonthlyCycle` (hoy solo reconstruye `therapies_json`, `monthly-cycles.ts:786-807` — `schedule_pattern_json` NO se toca) y la regeneración disparada por el plan.
 2. `getCycleRolloverPreview` (`monthly-cycles.ts:329-340`) — lee `billing_mode` del plan vivo → tomarlo del snapshot del ciclo anterior, con fallback al vivo solo si el snapshot es pre-0147.
 
 ## Qué NO cambia (invariantes)
@@ -77,10 +77,10 @@ Nota gotcha: `regenerate_cycle_appointments` cambia de firma (arg nuevo con defa
 
 ## Plan de fases (orden de implementación)
 
-1. **F1**: mig 0177 (RPC nueva + relajar guard + arg `p_only_future` + columnas `billing_adjustment_*`) + actions `generateCycleAgenda`/`generateInvoiceForCycle` + UI botón "Generar factura"/modo "Solo agenda". → Ya desacopla el día a día.
-2. **F2**: propagación de plan a ciclos pagados + prompt de alcance en el editor de plan.
+1. **F1**: mig 0177 (RPC nueva + relajar guard + arg `p_only_future` + columnas `paid_expected_usd`/`billing_adjustment_*`) + actions `generateCycleAgenda`/`generateInvoiceForCycle` + UI botón "Generar factura"/modo "Solo agenda". → Ya desacopla el día a día.
+2. **F2**: propagación de plan a ciclos pagados + prompt de alcance en el editor de plan. **Incluye el CÓMPUTO de `billing_adjustment_usd`** al editar un ciclo pagado (aunque la inyección en la factura siguiente llegue en F4, la diferencia queda registrada desde F2 — sin pérdida silenciosa de dinero en el gap).
 3. **F3**: serie en citas individuales ("esta y las siguientes").
-4. **F4**: ajuste arrastrado al mes siguiente (factura pagada) + anulación separada + cierre de fugas de snapshot.
+4. **F4**: inyección del ajuste arrastrado en la factura del mes siguiente + anulación separada + cierre de fugas de snapshot.
 
 Cada fase es deployable sola; F1 es el MVP del desacople.
 
