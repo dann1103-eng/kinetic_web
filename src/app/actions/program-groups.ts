@@ -11,6 +11,12 @@ import type {
   MorningProgram,
   ProgramAttendanceStatus,
 } from '@/types/db'
+import {
+  computeMorningAttendance,
+  type GroupMembershipLite,
+  type GroupSessionLite,
+  type AttendanceRowLite,
+} from '@/lib/domain/morning-attendance'
 
 // Roles que pueden gestionar grupos (espejo de kn_can_manage_groups en SQL).
 const MGMT_ROLES = [
@@ -35,7 +41,7 @@ function isMgmt(role: string): boolean {
 // ── Lecturas ─────────────────────────────────────────────────────────────────
 
 export interface ProgramGroupWithStaff extends ProgramGroup {
-  staff: { user_id: string; full_name: string; is_lead: boolean }[]
+  staff: { user_id: string; full_name: string; is_lead: boolean; avatar_url: string | null }[]
   member_count: number
 }
 
@@ -58,10 +64,10 @@ export async function listGroups(
   const staffRows = (staffRaw ?? []) as { group_id: string; user_id: string; is_lead: boolean }[]
   const userIds = Array.from(new Set(staffRows.map((s) => s.user_id)))
   const { data: usersRaw } = userIds.length
-    ? await supabase.from('users').select('id, full_name').in('id', userIds)
+    ? await supabase.from('users').select('id, full_name, avatar_url').in('id', userIds)
     : { data: [] }
-  const nameById = new Map(
-    ((usersRaw ?? []) as { id: string; full_name: string }[]).map((u) => [u.id, u.full_name]),
+  const userById = new Map(
+    ((usersRaw ?? []) as { id: string; full_name: string; avatar_url: string | null }[]).map((u) => [u.id, u]),
   )
   const memberCount = new Map<string, number>()
   for (const m of (membersRaw ?? []) as { group_id: string }[]) {
@@ -72,7 +78,12 @@ export async function listGroups(
     ...g,
     staff: staffRows
       .filter((s) => s.group_id === g.id)
-      .map((s) => ({ user_id: s.user_id, full_name: nameById.get(s.user_id) ?? '—', is_lead: s.is_lead })),
+      .map((s) => ({
+        user_id: s.user_id,
+        full_name: userById.get(s.user_id)?.full_name ?? '—',
+        avatar_url: userById.get(s.user_id)?.avatar_url ?? null,
+        is_lead: s.is_lead,
+      })),
     member_count: memberCount.get(g.id) ?? 0,
   }))
 }
@@ -97,6 +108,217 @@ export async function listGroupMembers(groupId: string): Promise<
     ((childrenRaw ?? []) as { id: string; full_name: string }[]).map((c) => [c.id, c.full_name]),
   )
   return members.map((m) => ({ ...m, child_full_name: nameById.get(m.child_id) ?? '—' }))
+}
+
+/** 'YYYY-MM' del mes en curso en zona SV. */
+function currentMonthYm(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/El_Salvador',
+    year: 'numeric',
+    month: '2-digit',
+  }).format(new Date())
+}
+
+export interface GroupMemberWithAttendance extends ProgramGroupMember {
+  child_full_name: string
+  /** Asistencia del mes en curso. */
+  monthPresent: number
+  monthTotal: number
+  /** Asistencia histórica (desde que entró al grupo). */
+  allPresent: number
+  allTotal: number
+}
+
+/**
+ * Miembros activos del grupo + su asistencia del mes en curso y acumulada.
+ * Reusa la matemática pura computeMorningAttendance (respeta attendance_days).
+ */
+export async function listGroupMembersWithAttendance(
+  groupId: string,
+): Promise<GroupMemberWithAttendance[]> {
+  const { supabase } = await getActor()
+  const { data: membersRaw } = await supabase
+    .from('program_group_members')
+    .select('*')
+    .eq('group_id', groupId)
+    .eq('active', true)
+  const members = (membersRaw ?? []) as ProgramGroupMember[]
+  if (members.length === 0) return []
+  const childIds = members.map((m) => m.child_id)
+
+  const [{ data: childrenRaw }, { data: sessionsRaw }] = await Promise.all([
+    supabase.from('children').select('id, full_name').in('id', childIds),
+    supabase
+      .from('program_group_sessions')
+      .select('id, group_id, session_date, status')
+      .eq('group_id', groupId)
+      .neq('status', 'cancelled')
+      .order('session_date'),
+  ])
+  const nameById = new Map(
+    ((childrenRaw ?? []) as { id: string; full_name: string }[]).map((c) => [c.id, c.full_name]),
+  )
+  const allSessions = (sessionsRaw ?? []) as GroupSessionLite[]
+  const ym = currentMonthYm()
+  const monthSessions = allSessions.filter((s) => s.session_date.startsWith(`${ym}-`))
+
+  const sessionIds = allSessions.map((s) => s.id)
+  const { data: attendanceRaw } = sessionIds.length
+    ? await supabase
+        .from('program_session_attendance')
+        .select('child_id, session_id, status')
+        .in('session_id', sessionIds)
+        .in('child_id', childIds)
+    : { data: [] as AttendanceRowLite[] }
+  const attendance = (attendanceRaw ?? []) as AttendanceRowLite[]
+
+  const memberships: GroupMembershipLite[] = members.map((m) => ({
+    child_id: m.child_id,
+    group_id: groupId,
+    attendance_days: m.attendance_days,
+  }))
+  const allMap = computeMorningAttendance(memberships, allSessions, attendance)
+  const monthMap = computeMorningAttendance(memberships, monthSessions, attendance)
+
+  return members.map((m) => {
+    const month = monthMap.get(m.child_id) ?? { present: 0, total: 0 }
+    const all = allMap.get(m.child_id) ?? { present: 0, total: 0 }
+    return {
+      ...m,
+      child_full_name: nameById.get(m.child_id) ?? '—',
+      monthPresent: month.present,
+      monthTotal: month.total,
+      allPresent: all.present,
+      allTotal: all.total,
+    }
+  })
+}
+
+// ── Histórico de asistencias del grupo ───────────────────────────────────────
+
+export interface GroupHistorySessionMark {
+  childId: string
+  childName: string
+  status: ProgramAttendanceStatus | 'unmarked'
+}
+export interface GroupHistorySession {
+  sessionId: string
+  date: string // 'YYYY-MM-DD'
+  status: string // scheduled|held|cancelled
+  present: number
+  absent: number
+  excused: number
+  marks: GroupHistorySessionMark[]
+}
+export interface GroupHistoryChildMonth {
+  month: string // 'YYYY-MM'
+  present: number
+  total: number
+}
+export interface GroupHistoryChild {
+  childId: string
+  childName: string
+  months: GroupHistoryChildMonth[]
+}
+export interface GroupAttendanceHistory {
+  bySession: GroupHistorySession[]
+  byChild: GroupHistoryChild[]
+}
+
+/**
+ * Histórico de asistencias de un grupo en los últimos `monthsBack` meses:
+ *  - bySession: cada sesión con su detalle niño-por-niño.
+ *  - byChild: cada niño con su asistencia por mes.
+ */
+export async function getGroupAttendanceHistory(
+  groupId: string,
+  monthsBack = 3,
+): Promise<GroupAttendanceHistory> {
+  const { supabase } = await getActor()
+
+  // Ventana: primer día de (mes actual − monthsBack).
+  const now = new Date()
+  const sv = new Date(now.getTime() - 6 * 3600 * 1000)
+  const fromY = sv.getUTCFullYear()
+  const fromM = sv.getUTCMonth() - monthsBack
+  const fromDate = new Date(Date.UTC(fromY, fromM, 1))
+  const fromStr = `${fromDate.getUTCFullYear()}-${String(fromDate.getUTCMonth() + 1).padStart(2, '0')}-01`
+
+  const [{ data: membersRaw }, { data: sessionsRaw }] = await Promise.all([
+    supabase.from('program_group_members').select('child_id, attendance_days').eq('group_id', groupId).eq('active', true),
+    supabase
+      .from('program_group_sessions')
+      .select('id, group_id, session_date, status')
+      .eq('group_id', groupId)
+      .neq('status', 'cancelled')
+      .gte('session_date', fromStr)
+      .order('session_date', { ascending: false }),
+  ])
+  const members = (membersRaw ?? []) as { child_id: string; attendance_days: string[] }[]
+  const sessions = (sessionsRaw ?? []) as GroupSessionLite[]
+  const childIds = members.map((m) => m.child_id)
+
+  const { data: childrenRaw } = childIds.length
+    ? await supabase.from('children').select('id, full_name').in('id', childIds)
+    : { data: [] as { id: string; full_name: string }[] }
+  const nameById = new Map(
+    ((childrenRaw ?? []) as { id: string; full_name: string }[]).map((c) => [c.id, c.full_name]),
+  )
+
+  const sessionIds = sessions.map((s) => s.id)
+  const { data: attendanceRaw } = sessionIds.length
+    ? await supabase
+        .from('program_session_attendance')
+        .select('child_id, session_id, status')
+        .in('session_id', sessionIds)
+    : { data: [] as { child_id: string; session_id: string; status: ProgramAttendanceStatus }[] }
+  const attendance = (attendanceRaw ?? []) as { child_id: string; session_id: string; status: ProgramAttendanceStatus }[]
+  // Índice status por (session, child).
+  const markByKey = new Map<string, ProgramAttendanceStatus>()
+  for (const a of attendance) markByKey.set(`${a.session_id}:${a.child_id}`, a.status)
+
+  const WEEKDAY = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']
+  const weekdayOf = (d: string) => {
+    const [y, m, dd] = d.split('-').map(Number)
+    return WEEKDAY[new Date(y, m - 1, dd, 12).getDay()]
+  }
+
+  // bySession: cada sesión con marcas de los niños que le tocaban ese día.
+  const bySession: GroupHistorySession[] = sessions.map((s) => {
+    const wd = weekdayOf(s.session_date)
+    const applicable = members.filter(
+      (m) => m.attendance_days.length === 0 || m.attendance_days.includes(wd),
+    )
+    let present = 0, absent = 0, excused = 0
+    const marks: GroupHistorySessionMark[] = applicable.map((m) => {
+      const st = markByKey.get(`${s.id}:${m.child_id}`) ?? 'unmarked'
+      if (st === 'present') present++
+      else if (st === 'absent') absent++
+      else if (st === 'excused') excused++
+      return { childId: m.child_id, childName: nameById.get(m.child_id) ?? '—', status: st }
+    })
+    return { sessionId: s.id, date: s.session_date, status: s.status, present, absent, excused, marks }
+  })
+
+  // byChild: asistencia por mes de cada niño.
+  const byChild: GroupHistoryChild[] = members.map((m) => {
+    const monthAgg = new Map<string, { present: number; total: number }>()
+    for (const s of sessions) {
+      const wd = weekdayOf(s.session_date)
+      if (m.attendance_days.length > 0 && !m.attendance_days.includes(wd)) continue
+      const mo = s.session_date.slice(0, 7)
+      const agg = monthAgg.get(mo) ?? { present: 0, total: 0 }
+      agg.total++
+      if (markByKey.get(`${s.id}:${m.child_id}`) === 'present') agg.present++
+      monthAgg.set(mo, agg)
+    }
+    const months = Array.from(monthAgg.entries())
+      .map(([month, v]) => ({ month, present: v.present, total: v.total }))
+      .sort((a, b) => b.month.localeCompare(a.month))
+    return { childId: m.child_id, childName: nameById.get(m.child_id) ?? '—', months }
+  })
+
+  return { bySession, byChild }
 }
 
 /** Sesiones del grupo en un mes + maestra(s) asignada(s). Para el preview del ciclo. */
@@ -294,6 +516,38 @@ export async function removeGroupMember(
   if (error) return { ok: false, error: error.message }
   revalidatePath('/operacion/grupos')
   return { ok: true }
+}
+
+/**
+ * Asegura (idempotente) las sesiones del mes en curso y el siguiente para TODOS
+ * los grupos activos. Se llama al abrir /operacion/grupos — así las misses nunca
+ * tienen que generarlas a mano (reemplaza el botón "Generar sesiones del mes").
+ * Best-effort: los errores no rompen la carga de la página.
+ */
+export async function ensureCurrentGroupSessions(): Promise<void> {
+  const { supabase, user } = await getActor()
+  if (!isMgmt(user.role)) return
+  const { data: groups } = await supabase
+    .from('program_groups')
+    .select('id')
+    .eq('active', true)
+  const ids = ((groups ?? []) as { id: string }[]).map((g) => g.id)
+  if (ids.length === 0) return
+
+  const ym = currentMonthYm()
+  const [y, m] = ym.split('-').map(Number)
+  const nextYm = `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}`
+  const months = [`${ym}-01`, `${nextYm}-01`]
+
+  for (const gid of ids) {
+    for (const month of months) {
+      await supabase
+        .rpc('generate_group_sessions_for_month', { p_group_id: gid, p_month: month })
+        .then(({ error }) => {
+          if (error) console.error('[ensureCurrentGroupSessions]', gid, month, error.message)
+        })
+    }
+  }
 }
 
 export async function generateGroupSessionsForMonth(

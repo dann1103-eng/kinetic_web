@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { createClient } from '@/lib/supabase/server'
 import { TopNav } from '@/components/layout/TopNav'
-import { listGroups } from '@/app/actions/program-groups'
+import { listGroups, ensureCurrentGroupSessions } from '@/app/actions/program-groups'
 import { GruposClient } from './GruposClient'
 
 export const dynamic = 'force-dynamic'
@@ -19,6 +19,10 @@ export default async function GruposPage() {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
   if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
+
+  // Asegura las sesiones del mes actual y el siguiente (idempotente) — reemplaza
+  // el botón manual "Generar sesiones del mes".
+  await ensureCurrentGroupSessions()
 
   const supabase = await createClient()
   const [groups, { data: staffUsers }] = await Promise.all([
