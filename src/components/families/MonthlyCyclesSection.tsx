@@ -10,6 +10,7 @@ import {
   markMonthlyCyclePaid,
   extendMonthlyCycleGrace,
   deleteMonthlyCycle,
+  generateInvoiceForCycle,
 } from '@/app/actions/monthly-cycles'
 import {
   MONTHLY_CYCLE_STATUS_LABELS,
@@ -89,6 +90,21 @@ export function MonthlyCyclesSection({
       }
       setCycles((prev) => prev.filter((c) => c.id !== deletingId))
       setDeletingId(null)
+      router.refresh()
+    })
+  }
+
+  // Generar factura de un ciclo "solo agenda" (desacople F1)
+  const [invoicingId, setInvoicingId] = useState<string | null>(null)
+  const [isInvoicing, startInvoicing] = useTransition()
+
+  function handleGenerateInvoice(id: string) {
+    if (isInvoicing) return
+    setInvoicingId(id)
+    startInvoicing(async () => {
+      const res = await generateInvoiceForCycle(id)
+      if (!res.ok) alert(res.error)
+      setInvoicingId(null)
       router.refresh()
     })
   }
@@ -265,6 +281,18 @@ export function MonthlyCyclesSection({
         >
           Factura
         </Link>
+      )}
+      {/* Desacople F1: ciclo generado "solo agenda" — recepción factura acá. */}
+      {!c.invoice_id && c.status === 'generated' && canManage && (
+        <button
+          type="button"
+          disabled={invoicingId === c.id}
+          onClick={() => handleGenerateInvoice(c.id)}
+          className="text-xs font-semibold text-fm-primary hover:underline underline-offset-2 disabled:opacity-50"
+          title="Crea la factura del ciclo leyendo el detalle al día (terapias, precios, descuento)"
+        >
+          {invoicingId === c.id ? 'Generando…' : 'Generar factura'}
+        </button>
       )}
       {c.status === 'generated' && c.payment_status === 'pending' && canManage && (
         <>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from 'react'
 import {
   confirmMonthlyPaymentAndGenerate,
+  generateCycleAgenda,
   dryRunMonthlyGeneration,
   getCycleRolloverPreview,
   type RolloverPreview,
@@ -183,6 +184,8 @@ export function NewMonthlyCycleModal({
     setGraceDate(`${periodMonth}-05`)
   }, [periodMonth])
   const [notes, setNotes] = useState('')
+  // Desacople F1: true = flujo combinado (ciclo + factura); false = solo agenda.
+  const [withInvoice, setWithInvoice] = useState(true)
 
   // Rollover del mes anterior.
   const [rollover, setRollover] = useState<RolloverPreview | null>(null)
@@ -427,10 +430,11 @@ export function NewMonthlyCycleModal({
       return
     }
     startConfirm(async () => {
-      const res = await confirmMonthlyPaymentAndGenerate({
+      // Desacople F1: "solo agenda" genera ciclo + citas sin factura (la
+      // coordinadora agenda; recepción factura después desde el historial).
+      const common = {
         childId,
         periodMonth,
-        paymentAmountUsd: computedTotal,
         notes: notes.trim() || null,
         // WYSIWYG: se crean EXACTAMENTE las citas que muestra el calendario (todo el
         // patrón del mes, menos las que la persona haya quitado). Sin tope de cuota
@@ -454,7 +458,10 @@ export function NewMonthlyCycleModal({
         programGroupId: enrolledProgram ? morning.groupId : null,
         attendanceDays: enrolledProgram ? morning.attendanceDays : null,
         morningAppointments: enrolledProgram && morningCandidates.length > 0 ? morningCandidates : null,
-      })
+      }
+      const res = withInvoice
+        ? await confirmMonthlyPaymentAndGenerate({ ...common, paymentAmountUsd: computedTotal })
+        : await generateCycleAgenda(common)
       if (!res.ok) {
         setConfirmError(res.error)
         return
@@ -842,7 +849,19 @@ export function NewMonthlyCycleModal({
           )}
         </div>
 
-        <div className="flex justify-end gap-2 px-6 py-4 border-t border-fm-outline-variant/20 bg-fm-surface">
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-fm-outline-variant/20 bg-fm-surface flex-wrap">
+          {/* Desacople F1: la coordinadora puede generar SOLO la agenda; recepción
+              factura después con "Generar factura" en el historial de ciclos. */}
+          <label className="mr-auto inline-flex items-center gap-2 text-xs text-fm-on-surface-variant cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={withInvoice}
+              onChange={(e) => setWithInvoice(e.target.checked)}
+              disabled={isConfirming}
+              className="h-4 w-4 rounded border-fm-outline-variant text-fm-primary focus:ring-fm-primary"
+            />
+            Generar también la factura
+          </label>
           <button
             type="button"
             onClick={onClose}
@@ -857,7 +876,7 @@ export function NewMonthlyCycleModal({
             disabled={!canConfirm}
             className="px-4 py-2 text-sm rounded-lg bg-fm-primary text-white font-medium hover:opacity-90 disabled:opacity-60"
           >
-            {isConfirming ? 'Generando…' : 'Generar ciclo'}
+            {isConfirming ? 'Generando…' : withInvoice ? 'Generar ciclo' : 'Generar solo agenda'}
           </button>
         </div>
       </div>

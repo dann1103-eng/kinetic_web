@@ -297,7 +297,9 @@ export async function createInvoiceForCycle(
       client_id: null,
       child_id: cycle.child_id,
       issue_date: cycle.paid_at ? cycle.paid_at.slice(0, 10) : todayString(),
-      due_date: null,
+      // Ciclos desacoplados (agenda primero, factura después): heredar la fecha
+      // límite de pago del ciclo para que el recargo por mora corra igual.
+      due_date: cycle.due_date ?? null,
       currency: 'USD',
       subtotal: totals.subtotal,
       discount_amount: totals.discount_amount,

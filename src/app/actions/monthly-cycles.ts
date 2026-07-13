@@ -620,6 +620,196 @@ export async function confirmMonthlyPaymentAndGenerate(
   return { ok: true, cycle }
 }
 
+// ── Desacople F1 (spec 2026-07-12): generar agenda SIN factura ───────────────
+
+/** Igual que ConfirmMonthlyPaymentInput pero sin nada de cobro. */
+export type GenerateCycleAgendaInput = Omit<
+  ConfirmMonthlyPaymentInput,
+  'paymentAmountUsd' | 'paymentMethod' | 'paymentReference' | 'paidAt'
+>
+
+/**
+ * Genera el ciclo del mes + las citas SIN crear factura (invoice_id NULL).
+ * Flujo de la coordinadora de terapias: agendar sin ver nada de cobro.
+ * Recepción factura después con generateInvoiceForCycle.
+ */
+export async function generateCycleAgenda(
+  input: GenerateCycleAgendaInput,
+): Promise<{ ok: true; cycle: MonthlySessionCycle } | { ok: false; error: string }> {
+  const { supabase, user } = await getActor()
+  if (!isMgmt(user.role)) {
+    return { ok: false, error: 'Solo admin/directora/coord/recepción/contable.' }
+  }
+
+  let periodMonth: string
+  try {
+    periodMonth = normalizePeriodMonth(input.periodMonth)
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Período inválido.' }
+  }
+
+  const discountKind: DiscountKind = input.discountKind ?? 'none'
+  const discountValue = Number(input.discountValue ?? 0)
+  const discountError = validateDiscount({ kind: discountKind, value: discountValue })
+  if (discountError) return { ok: false, error: discountError }
+
+  const { data, error } = await supabase.rpc('generate_cycle_agenda', {
+    p_child_id: input.childId,
+    p_period_month: periodMonth,
+    p_notes: input.notes ?? null,
+    p_appointments_override: input.appointmentsOverride ?? null,
+    p_due_date: input.dueDate ?? null,
+    p_rollover_sessions:
+      input.rolloverSessions && Object.keys(input.rolloverSessions).length > 0
+        ? input.rolloverSessions
+        : null,
+    p_rollover_mode: input.rolloverMode ?? 'none',
+    p_rollover_discount: input.rolloverDiscountUsd ?? 0,
+    p_program_group_id: input.programGroupId ?? null,
+    p_attendance_days: input.attendanceDays ?? null,
+  })
+
+  if (error) {
+    const msg = error.message ?? ''
+    if (msg.includes('not_authorized')) return { ok: false, error: 'No autorizado.' }
+    if (msg.includes('no_active_treatment_plan')) {
+      return { ok: false, error: 'El niño no tiene plan de tratamiento activo.' }
+    }
+    if (msg.includes('plan_has_no_primary_therapist')) {
+      return { ok: false, error: 'El plan no tiene terapista principal asignada.' }
+    }
+    if (
+      msg.includes('cycle_already_exists_for_period') ||
+      msg.includes('monthly_session_cycles_child_id_period_month_key') ||
+      msg.includes('monthly_session_cycles_active_unique')
+    ) {
+      return {
+        ok: false,
+        error: 'Ya existe un ciclo activo para este niño y mes. Si el anterior fue anulado, recargá la página e intentá de nuevo.',
+      }
+    }
+    if (msg.includes('override_date_out_of_period')) {
+      return {
+        ok: false,
+        error: 'Una cita fue movida fuera del mes seleccionado. Restaurala o moverla dentro del mes.',
+      }
+    }
+    if (msg.includes('has_conflicts')) {
+      return {
+        ok: false,
+        error:
+          'Hay conflictos de horario con otros appointments del terapista. Verificá la previsualización y resolvé antes de confirmar.',
+      }
+    }
+    if (msg.includes('function public.generate_cycle_agenda') || msg.includes('schema cache')) {
+      return { ok: false, error: 'Falta aplicar la migración 0177 en Supabase.' }
+    }
+    return { ok: false, error: error.message ?? 'Error al generar la agenda del ciclo.' }
+  }
+
+  let cycle = data as MonthlySessionCycle
+
+  // Mismo parche de snapshot que el flujo combinado: precios/sesiones editados
+  // y descuento quedan en el ciclo, listos para cuando recepción facture.
+  if (cycle?.id) {
+    const updatePayload: Record<string, unknown> = {}
+
+    if (discountKind !== 'none' && discountValue > 0) {
+      updatePayload.discount_kind = discountKind
+      updatePayload.discount_value = discountValue
+      updatePayload.discount_reason = input.discountReason ?? null
+    }
+
+    if (input.pricedTherapies && input.pricedTherapies.length > 0) {
+      const editedBy = new Map(input.pricedTherapies.map((p) => [p.service, p]))
+      const snapshot = (cycle.treatment_plan_snapshot ?? {}) as {
+        therapies_json?: { service: string; sessions_per_month?: number; unit_cost_usd?: number }[]
+      }
+      const therapies = (snapshot.therapies_json ?? []).map((t) => {
+        const edited = editedBy.get(t.service)
+        return edited
+          ? { ...t, sessions_per_month: edited.sessions_per_month, unit_cost_usd: edited.unit_cost_usd }
+          : t
+      })
+      updatePayload.treatment_plan_snapshot = { ...snapshot, therapies_json: therapies }
+
+      const subtotal = input.pricedTherapies.reduce(
+        (sum, p) =>
+          sum +
+          therapyLineAmount({
+            service: p.service as TreatmentPlanTherapyEntry['service'],
+            billing_mode: p.billing_mode,
+            sessions_per_month: p.sessions_per_month,
+            unit_cost_usd: p.unit_cost_usd,
+          }),
+        0,
+      )
+      let expected = subtotal
+      if (discountKind === 'percent' && discountValue > 0) {
+        expected = subtotal * (1 - discountValue / 100)
+      } else if (discountKind === 'fixed' && discountValue > 0) {
+        expected = Math.max(0, subtotal - discountValue)
+      }
+      updatePayload.payment_amount_usd = Math.round(expected * 100) / 100
+    }
+
+    if (Object.keys(updatePayload).length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: updated } = await (supabase as any)
+        .from('monthly_session_cycles')
+        .update(updatePayload)
+        .eq('id', cycle.id)
+        .select('*')
+        .single()
+      if (updated) cycle = updated as MonthlySessionCycle
+    }
+  }
+
+  // Programa matutino: citas por niño + sesiones de grupo (igual que el combinado).
+  if (input.programGroupId) {
+    const admin = createAdminClient()
+    await regenerateMorningAppointments(admin, {
+      childId: input.childId,
+      periodMonth,
+      programGroupId: input.programGroupId,
+      attendanceDays: input.attendanceDays ?? [],
+      actorId: user.id,
+      override: input.morningAppointments ?? null,
+    }).catch((err) => {
+      console.error('[monthly-cycles] morning appts failed:', err)
+    })
+
+    const { error: genErr } = await supabase.rpc('generate_group_sessions_for_month', {
+      p_group_id: input.programGroupId,
+      p_month: periodMonth,
+    })
+    if (genErr) console.error('[monthly-cycles] generate group sessions failed:', genErr.message)
+  }
+
+  revalidatePath('/familias')
+  revalidatePath('/agenda')
+  revalidatePath('/mi-dia')
+  return { ok: true, cycle }
+}
+
+/**
+ * Genera (o regenera, si está pendiente) la factura de un ciclo desde el
+ * snapshot al día. El botón de recepción en el historial de ciclos.
+ */
+export async function generateInvoiceForCycle(
+  cycleId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { user } = await getActor()
+  if (!isMgmt(user.role)) {
+    return { ok: false, error: 'Solo admin/directora/coord/recepción/contable.' }
+  }
+  const res = await createInvoiceForCycle(cycleId)
+  if (!res.ok) return { ok: false, error: res.error }
+  revalidatePath('/familias')
+  revalidatePath('/billing/invoices')
+  return { ok: true }
+}
+
 // ── Marcar ciclo como pagado (mgmt) — aplica recargo por mora ───────────────
 
 export interface MarkCyclePaidInput {
@@ -653,9 +843,55 @@ export async function markMonthlyCyclePaid(
     return { ok: false, error: error.message ?? 'Error al marcar el pago.' }
   }
 
+  const cycle = data as MonthlySessionCycle
+
+  // [Desacople F1] Congelar paid_expected_usd: total esperado del snapshot al
+  // momento de pagar, NETO de líneas arrastradas (mora/ajustes de otros meses).
+  // Base para calcular billing_adjustment_usd si el plan cambia después (F2).
+  // Best-effort: si falla, el pago quedó registrado igual.
+  try {
+    const snapshot = (cycle.treatment_plan_snapshot ?? {}) as {
+      therapies_json?: {
+        service: string
+        active?: boolean
+        billing_mode?: TherapyBillingMode
+        sessions_per_month?: number
+        unit_cost_usd?: number
+      }[]
+    }
+    const subtotal = (snapshot.therapies_json ?? [])
+      .filter((t) => t.active !== false)
+      .reduce(
+        (sum, t) =>
+          sum +
+          therapyLineAmount({
+            service: t.service as TreatmentPlanTherapyEntry['service'],
+            billing_mode: t.billing_mode,
+            sessions_per_month: t.sessions_per_month ?? 0,
+            unit_cost_usd: t.unit_cost_usd ?? 0,
+          }),
+        0,
+      )
+    let expected = subtotal
+    if (cycle.discount_kind === 'percent' && cycle.discount_value > 0) {
+      expected = subtotal * (1 - cycle.discount_value / 100)
+    } else if (cycle.discount_kind === 'fixed' && cycle.discount_value > 0) {
+      expected = Math.max(0, subtotal - cycle.discount_value)
+    }
+    if (cycle.rollover_mode === 'discount') {
+      expected = Math.max(0, expected - Number(cycle.rollover_discount_usd ?? 0))
+    }
+    await createAdminClient()
+      .from('monthly_session_cycles')
+      .update({ paid_expected_usd: Math.round(expected * 100) / 100 })
+      .eq('id', cycle.id)
+  } catch (e) {
+    console.error('[monthly-cycles] paid_expected_usd freeze failed:', e)
+  }
+
   revalidatePath('/familias')
   revalidatePath('/ninos')
-  return { ok: true, cycle: data as MonthlySessionCycle }
+  return { ok: true, cycle }
 }
 
 // ── Prorrogar el periodo de gracia de un ciclo (mgmt) ───────────────────────

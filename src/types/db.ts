@@ -3888,6 +3888,12 @@ export interface MonthlySessionCycle {
   surcharge_carried_in_usd: number
   /** Cuándo el recargo generado por este ciclo fue incluido en una factura posterior. */
   surcharge_carried_at: string | null
+  /** Total esperado del snapshot al pagar, neto de líneas arrastradas (mig 0177 — desacople F1). */
+  paid_expected_usd: number | null
+  /** Diferencia por ediciones post-pago (positivo=cargo, negativo=crédito). Se cobra el mes siguiente (F4). */
+  billing_adjustment_usd: number
+  /** Cuándo el ajuste fue incluido en una factura posterior. */
+  billing_adjustment_carried_at: string | null
   /** Rollover de sesiones no dadas del mes anterior. */
   rollover_mode: 'none' | 'accumulate' | 'discount'
   rollover_sessions_json: Record<string, number> | null
