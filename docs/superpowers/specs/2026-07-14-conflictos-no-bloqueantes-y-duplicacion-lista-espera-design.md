@@ -17,7 +17,7 @@ IF (v_summary->>'conflict_count')::int > 0 THEN RAISE EXCEPTION 'has_conflicts: 
 
 (guards en líneas 364-366/340-348, 597-599/573-581, y 773-790/764-781 respectivamente). El chequeo de conflicto en sí (`compute_monthly_appointment_candidates`, líneas 44-237, subquery de solape en 199-217) filtra únicamente por `therapist_id` y solape de horario — **sin excluir al propio niño** — contra cualquier `appointments` existente del terapeuta. Consecuencias:
 
-- Un niño con dos terapias propias asignadas al mismo terapeuta en el mismo bloque (caso real: Ana Luna Tenorio) se marca a sí mismo como "en conflicto" y el guard aborta la generación completa de su ciclo.
+- Un niño con dos terapias propias asignadas al mismo terapeuta en el mismo bloque (caso real reportado por el usuario) se marca a sí mismo como "en conflicto" y el guard aborta la generación completa de su ciclo.
 - Como `regenerate_cycle_appointments` comparte el mismo guard, una edición de plan que produce un nuevo patrón de horario puede fallar en silencio al intentar sincronizarse con la agenda si el nuevo patrón se solapa con algo — el plan se guarda pero la agenda no se actualiza.
 - Client-side, `NewMonthlyCycleModal.tsx` (conflictos/`liveConflicts` líneas 231-249, `canConfirm` 473-477, botón `disabled` línea 876) y `EditMonthlyCycleModal.tsx` (líneas 172-189, 325) además deshabilitan el botón de submit mientras haya cualquier conflicto — bloqueo duplicado (SQL + UI).
 - El objeto de conflicto ya incluye `conflict_child_id` (`MonthlyConflict`, `src/types/db.ts:4007-4012`) pero **no se usa en ningún lado** — se podría distinguir "choca consigo misma" de "choca con otro paciente" sin trabajo adicional de cómputo.
@@ -56,10 +56,10 @@ Esto se dispara en la práctica cuando alguien (admin/directora, según `validat
 En las tres, se elimina el bloque `RAISE EXCEPTION 'has_conflicts...'` (tanto el de conteo global como el per-candidate). El resto de cada función queda igual — se sigue calculando y devolviendo `conflicts[]` / `summary.conflict_count`, solo que ya no aborta la transacción. `compute_monthly_appointment_candidates` no cambia (es de solo lectura/preview, nunca tuvo el guard).
 
 **UI** (`NewMonthlyCycleModal.tsx`, `EditMonthlyCycleModal.tsx`):
-- Quitar `liveConflicts.length === 0` de `canConfirm` — el botón de submit deja de deshabilitarse por conflictos.
+- `NewMonthlyCycleModal.tsx`: quitar `liveConflicts.length === 0` de `canConfirm` (líneas 473-477) — el botón de submit (`disabled={!canConfirm}`, línea 876) deja de deshabilitarse por conflictos.
+- `EditMonthlyCycleModal.tsx`: el gate equivalente es `regenConflicts` (línea 308: `regenerate && !!dryRun && liveConflicts.length > 0`), consumido en **dos** lugares — quitar `regenConflicts` de la condición del botón de submit (`disabled={isSaving || (regenerate && (isLoadingDry || regenConflicts))}`, línea 719) y quitar el `if (regenConflicts) { setError(...); return }` del `handleSave` (líneas 324-327). En ambos modales, el chequeo bloqueante se elimina; el resaltado en rojo de las celdas del calendario se mantiene igual (señal visual, ya no bloqueante).
 - Cambiar el mensaje de error bloqueante actual por un banner de advertencia no bloqueante (ámbar), que permite continuar.
-- Usar `conflict_child_id` (ya presente en cada conflicto, hoy sin consumir) para redactar el mensaje: si `conflict_child_id === childId` del ciclo → "Esta terapia choca con otra terapia de [nombre de la niña]"; si no → "Choca con la cita de [otro paciente] con este terapeuta".
-- El resaltado en rojo de las celdas del calendario de previsualización se mantiene igual (señal visual, ya no bloqueante).
+- Usar `conflict_child_id` (ya presente en cada conflicto, hoy sin consumir) solo para distinguir el **origen** del conflicto, sin nombrar al otro paciente (ni la RPC ni el tipo `MonthlyConflict` devuelven un nombre, y los modales no tienen a mano un roster de otros niños — traer el nombre real requeriría extender la RPC/tipo, fuera de alcance de este lote): si `conflict_child_id === childId` del ciclo → "Esta terapia choca con otra terapia de la misma niña/niño"; si no → "Choca con la cita de otro paciente con este terapeuta" (genérico, sin nombre).
 - `dryRunCycleRegeneration` (`monthly-cycles.ts:210-262`, usado por `EditMonthlyCycleModal`) sigue filtrando los conflictos contra las propias citas auto-generadas del ciclo que se está regenerando (comportamiento actual, correcto) — solo cambia qué pasa cuando, tras ese filtro, siguen quedando conflictos reales.
 
 ## Sección 2 — Duplicación niño/familia en avance de fase
@@ -100,7 +100,7 @@ Cada fase es deployable sola.
 
 ## Verificación
 
-- Sección 1: generar/previsualizar el ciclo real de Ana Luna Tenorio (debe completarse sin bloqueo); caso sintético de dos niños distintos con el mismo terapeuta solapado (el aviso debe seguir mostrándose, correctamente etiquetado, y el submit debe permitirse).
-- Sección 2: reproducir la secuencia revertir-fase-y-reavanzar sobre una entrada de prueba en lista de espera; confirmar que no aparece una segunda fila de `children`/`families`.
-- Ambas son cambios de comportamiento backend sin cambios visuales/de layout — cobertura vía `npm run lint` + `npm run build` + recorrido manual guiado en el navegador (no existe suite de tests automatizados para estos flujos).
+- Sección 1: generar/previsualizar el ciclo del caso real reportado por el usuario (niño con dos terapias propias solapadas en el mismo terapeuta — debe completarse sin bloqueo); caso sintético de dos niños distintos con el mismo terapeuta solapado (el aviso debe seguir mostrándose, correctamente etiquetado, y el submit debe permitirse). Al tener cambio visual (banner ámbar + wording nuevo en los dos modales), requiere recorrido manual en el navegador para confirmar que el banner se ve bien y el botón ya no se deshabilita.
+- Sección 2: reproducir la secuencia revertir-fase-y-reavanzar sobre una entrada de prueba en lista de espera; confirmar que no aparece una segunda fila de `children`/`families`. Cambio puro de backend, sin UI nueva.
+- Cobertura general: `npm run lint` + `npm run build` + recorrido manual guiado en el navegador (no existe suite de tests automatizados para estos flujos).
 - Sección 3: correr el script contra producción, reportar conteo/lista al usuario.
