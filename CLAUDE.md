@@ -332,29 +332,110 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0170** | **Eliminar SIEMPRE (conservando el registro contable)**: superset de 0169. Hace que NINGUNA FK a `public.users` bloquee el borrado — TODA columna bloqueante (incl. `payroll_items.user_id`) se vuelve NULLABLE + `ON DELETE SET NULL`. La planilla sobrevive porque `payroll_items.user_snapshot_json` guarda nombre/DUI/rol al sellar; el detalle/PDF de planilla ahora hacen fallback al snapshot cuando el usuario ya no existe. `PayrollItem.user_id` pasa a `string \| null`. **Insuficiente sola — ver 0171.** |
 | **0171** | **Intento fallido (storage.objects.owner)**: se creyó que el bloqueo del borrado venía de `storage.objects`, pero el diagnóstico (`scripts/diag_user_delete_blockers.sql`) mostró que TODAS las FK a users ya eran SET NULL/CASCADE y NO existe FK bloqueante en storage. 0171 es inocua (no encuentra nada que arreglar). La causa real era un CHECK — ver 0172. |
 | **0172** | **CAUSA REAL del "Database error deleting user"**: el CHECK `appointments_terapia_requires_service_and_therapist` (mig 0092) exigía `therapist_id` no nulo en toda cita `terapia`; al eliminar un terapeuta, el `SET NULL` en cascada (0170) violaba el CHECK y abortaba el borrado. Se relaja: para `terapia` se exige solo `service_type`. Las citas del terapeuta eliminado quedan sin asignar (therapist_id NULL). **Además** `deleteUser` ahora borra `public.users` primero (via admin/PostgREST) para exponer el error real de Postgres en vez del genérico de GoTrue. **Recomendación**: reasignar con "Sustituir terapeuta" antes de eliminar. |
+| **0173** | Offset quincenal (`biweekly_offset` en slots del horario): dos niños quincenales mismo día/hora/terapista ya no chocan mes tras mes (`_kn_slot_dates_in_month` 6º arg). **Ojo**: existió un SEGUNDO archivo con prefijo "0173" para menciones de lista de espera, renombrado a 0176 antes de aplicarse — no confundir. |
+| **0174** | **Firma única de coordinadora en altas/retiros**: `child_discharge_records` gana `signed_by_coordinadora_id/_name/_at`. `finalizeDischarge` estampa esa firma (antes cerraba la baja sin dejar constancia). Modal y PDF muestran solo esa firma; las de terapista/directora quedan solo para registros históricos de la vía vieja de doble firma. |
+| **0175** | **Recargo por mora se cobra en la mensualidad SIGUIENTE, no en la actual**: `mark_monthly_cycle_paid` ya no infla la factura del mes que se paga — guarda el recargo calculado y `createInvoiceForCycle` lo inyecta como línea de cargo en la factura del mes siguiente (`surcharge_carried_in_usd`/`surcharge_carried_at`). + `families.late_fee_exempt` (checkbox "Exonerar recargos por mora" en el form de familia). |
+| **0176** | **Menciones @ en comentarios de lista de espera**: tabla `waitlist_comment_mentions` (mismo patrón de `requirement_mentions`/`review_comment_mentions`) + campanita completa (query, realtime, click-through) + deep-link `?entry=<id>`. Nació como archivo "0173_waitlist_comment_mentions.sql", renombrada a 0176 por colisión con la 0173 de offset quincenal — **mismo SQL, no re-aplicar si ya corriste la versión "0173"**. |
+| **0177** | **Desacople agenda/facturación — F1**: RPC nueva `generate_cycle_agenda` (crea ciclo + citas SIN factura, computa `payment_amount_usd` del snapshot para que `mark_monthly_cycle_paid` funcione igual) — `confirm_monthly_payment_and_generate` queda intacta como atajo combinado. `regenerate_cycle_appointments` gana arg `p_only_future` + pierde el guard `payment_status='pending'` (ciclos **pagados** también editables). Columnas nuevas: `paid_expected_usd`, `billing_adjustment_usd`, `billing_adjustment_carried_at`. |
+| **0178** | Desacople F4: columna espejo `billing_adjustment_carried_in_usd` (ajuste RECIBIDO de un mes anterior, para que al regenerar la factura la línea de ajuste no se pierda) — mismo patrón que `surcharge_carried_in_usd` de 0175. |
+| **0179** | **3 tipos de terapia nuevos**: Psicométrica, Neurodesarrollo, Diagnóstica TEA (`ServiceType` + labels/colores). De paso corrige un gap real: el CHECK de `waitlist_entries.requested_service_type` (0116) nunca se había actualizado desde que se agregaron 7 tipos posteriores (learning_kids, aula_educativa, ils_escucha, refuerzo_academico, concentracion_atencion, comunicacion_regulacion, estimulacion_juego) — seleccionarlos en el formulario de lista de espera violaba el CHECK. Ambos CHECK (`appointments` y `waitlist_entries`) quedan sincronizados. |
+| **0180** | **Fix: plan 100% programa matutino no podía generar/previsualizar el ciclo** ("El plan no tiene terapista principal asignada" para un niño solo-BlueKids con miss y grupo ya asignados). Causa: desde 0157 `primary_therapist_id` se DERIVA solo de terapias individuales no-matutinas; un plan 100% matutino siempre lo tiene NULL legítimamente, pero 4 RPCs (`compute_monthly_appointment_candidates`, `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments`) seguían con el guard incondicional del modelo viejo. Se vuelve condicional: solo bloquea si hay una terapia activa NO matutina sin terapista (reusa `_kn_is_monthly_flat`, misma regla que `planHasTherapistCoverage()` en TS). Verificado contra datos reales tras aplicar. |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard (o vía
-> Management API `POST /v1/projects/<ref>/database/query` con el token del CLI).
-> No hay migración automática. **El repo va hasta 0178; próximo libre = 0179.**
-> Desacople agenda/facturación (F1-F4) aplicado: **0177** (generate_cycle_agenda
-> sin factura + regenerate_cycle_appointments con p_only_future + guard relajado
-> a ciclos pagados + columnas paid_expected_usd/billing_adjustment_*) y **0178**
-> (billing_adjustment_carried_in_usd). Ambas aplicadas y verificadas en prod.
-> ✅ Aplicadas y verificadas en prod (12-jul-2026): **TODAS hasta 0176** —
-> incluye 0173_biweekly_offset, 0174 (firma de coordinadora en altas), 0175
-> (recargo por mora diferido + exención por familia) y 0176 (menciones de
-> lista de espera; nació como "0173_waitlist_comment_mentions", mismo SQL).
+> Management API `POST /v1/projects/<ref>/database/query` con el token del CLI —
+> el token del CLI vive en Windows Credential Manager, target `Supabase CLI:supabase`,
+> se lee con `CredRead` de `advapi32.dll`; ver sesión jul 2026 para el snippet
+> de PowerShell). No hay migración automática. **El repo va hasta 0180;
+> próximo libre = 0181.** ✅ TODAS aplicadas y verificadas en prod (12-jul-2026).
 > ⚠️ Hay DOS archivos con historia sobre el prefijo 0173 (biweekly_offset y
-> el de menciones renombrado a 0176) — ambos aplicados; no re-correr.
+> el de menciones renombrado a 0176) — ambos aplicados; no re-correr ninguno
+> de los dos por el nombre viejo.
 >
 > **GOTCHA recurrente**: `create or replace function` con DISTINTO # de args
 > NO reemplaza — crea una **sobrecarga** y deja la llamada ambigua. Al cambiar
 > la firma de una RPC (compute/confirm del ciclo), agregar un `DROP FUNCTION`
 > de la firma vieja en la misma migración.
+>
+> **GOTCHA nuevo (0180)**: al agregar una validación/guard a una RPC de ciclos,
+> verificar que siga aplicando a TODOS los casos válidos del modelo de datos
+> actual — un plan 100% programa matutino (blue_kids/learning_kids/aula_educativa)
+> NUNCA tiene `primary_therapist_id` (se deriva solo de terapias individuales,
+> desde 0157) y es un caso legítimo, no un error.
 
 ---
 
 # Estado del proyecto — junio–julio 2026
+
+## Sesión 11-14 jul 2026 — lote grande: menciones, capacidad, desacople agenda/facturación
+Todo en `master` hasta commit `ba46778`. Migraciones **0173–0180 aplicadas y
+verificadas en prod** (yo mismo las apliqué vía Management API, token del CLI
+leído del Windows Credential Manager — target `Supabase CLI:supabase`, con
+`CredRead`/`CredFree` de `advapi32.dll` en PowerShell, ya que el archivo
+`supabase/.temp/pooler-url` no trae password). **Próximo libre = 0181.**
+
+- **Menciones @ en lista de espera** (mig 0176, ver tabla arriba): campanita
+  completa + deep-link. Spec en `docs/superpowers/specs/2026-07-09-*.md`,
+  revisado 2 veces contra código real antes de implementar.
+- **Fix capacidad de terapistas**: grupos matutinos se contaban N veces (una
+  por niño) en vez de una por bloque de grupo. `calculateWeeklyOccupancy`
+  reescrita: excluye `programa_matutino` por-niño, suma `program_group_sessions`
+  una vez por staff, cuenta TODOS los tipos de evento y a los asignados
+  (`assignee_ids`, no solo `therapist_id`). 8 tests nuevos.
+- **Fix "Terapista" genérico** en horas completadas: el nombre se resolvía
+  con un query filtrado por rol terapista/maestra; ahora se resuelve por los
+  `therapist_id` reales que aparecen en las citas completadas (cubre
+  coberturas de otros roles).
+- **Asistencia de grupos matutinos visible en calendarios**: nuevo
+  `src/lib/domain/morning-attendance.ts` (`fetchMorningSessionCellsForChildren`)
+  — sintetiza sesiones de grupo como celdas de calendario (el programa YA es
+  un `ServiceType` de primera clase, así que no hizo falta UI nueva). Cableado
+  en dashboard del niño (grilla + próximas 14 días) Y portal de padres
+  (próxima cita, mini-calendario, agenda). Limitación conocida: el PDF de
+  exportar agenda no incluye estas sesiones (re-consulta `appointments` por
+  id, las sesiones de grupo no viven ahí).
+- **Lote 8 fixes de reunión**: **firma única de coordinadora en altas**
+  (mig 0174, URGENTE — antes pedía terapista+directora); **ficha del niño**
+  con chip de redes sociales siempre visible + sección "Familia y contactos"
+  (papá/mamá/teléfonos); **filtro por colegio** en `/ninos` (`?school=`);
+  **botón Reanudar** sesión finalizada por error (`resumeTherapySession`,
+  bloqueado si ya despachado); **botón Reposición de emergencia**
+  (`emergencyIncomplete` — sesión iniciada pero no completada: cierra la
+  therapy_session huérfana, marca `no_show` con `completed_at=null`, crea/
+  reabre `appointment_absence` pending); **multa por mora diferida** (mig
+  0175 — ya no infla la factura del mes que se paga, se arrastra como línea
+  de cargo al mes siguiente) + `families.late_fee_exempt`; **nombre completo
+  al pasar lista** de grupos (era el campo correcto, un `truncate` lo cortaba
+  visualmente).
+- **Managers suben foto de otro usuario** (`uploadUserAvatarFor`, admin
+  client evade RLS del bucket, sin migración).
+- **3 tipos de terapia nuevos**: Psicométrica, Neurodesarrollo, Diagnóstica
+  TEA (mig 0179) + fix de un CHECK desactualizado en `waitlist_entries` de
+  paso.
+- **PROYECTO desacople agenda/facturación — F1 a F4 completo** (spec en
+  `docs/superpowers/specs/2026-07-12-*.md`, revisado contra código real, 3
+  issues corregidos antes de implementar). "La agenda manda, la facturación
+  lee": `generate_cycle_agenda` (RPC nueva, sin factura) + botón "Generar
+  factura" separado (mig 0177); ciclos **pagados** también editables (guard
+  relajado); prompt de alcance estilo Google Calendar al editar plan
+  (`scheduleScope: only_future|skip_agenda`) y al mover citas
+  (`moveAppointmentSeries` — "esta y las siguientes"); ajuste de monto por
+  cambios post-pago se arrastra al mes siguiente (`billing_adjustment_usd`/
+  `paid_expected_usd`, mig 0177/0178, mismo patrón que la mora diferida);
+  anulación separada (factura / agenda / todo); cierre de 2 fugas de snapshot
+  (`schedule_pattern_json` no se refrescaba en `editMonthlyCycle`;
+  `billing_mode` del rollover se leía del plan vivo en vez del snapshot).
+- **Fix (post-deploy) "plan no tiene terapista principal"** (mig 0180): un
+  niño 100% programa matutino (ej. solo BlueKids) NUNCA tiene
+  `primary_therapist_id` (se deriva solo de terapias individuales desde
+  0157) — 4 RPCs de ciclo seguían con el guard incondicional del modelo
+  viejo y bloqueaban la previsualización/generación. Guard vuelto
+  condicional (reusa `_kn_is_monthly_flat`). Verificado contra datos reales
+  del niño reportado antes y después del fix.
+- **Pendiente próxima sesión**: rediseño UX de `/operacion/grupos` (quitar/
+  automatizar "Generar sesiones del mes", cards con un solo botón de
+  desplegar + avatares de misses, lista de miembros con contador de
+  asistencias, histórico de asistencias) — quedó diseñado en el brainstorm
+  pero sin spec ni implementar.
 
 ## Sesión jul 2026 (2-3 jul) — reunión Admón + follow-ups + eliminar usuario
 Todo en `master` (último commit `0326b40`). **⚠️ PENDIENTES DE APLICAR: 0168 y 0172.**
@@ -505,9 +586,17 @@ Todo en `master`. **Requiere aplicar migraciones 0134–0141 en orden.**
     - Tarjeta "Por terapista" activada en `/reportes`. Usa `appointment_absences` con status='replaced' para contar reposiciones cumplidas.
 
 ## Pendiente (próximas sesiones)
-- **⚠️ APLICAR migraciones 0168 (assignee_ids) y 0172 (CHECK appointments) en
-  Supabase.** (0165/0166/0169/0170/0171 ya aplicadas por el usuario.)
+- **Rediseño UX de `/operacion/grupos`** (grupos matutinos) — brainstorm hecho,
+  sin spec ni implementar. Puntos: quitar/automatizar el botón "Generar
+  sesiones del mes" (hoy manual y sin motivo aparente para serlo); cards de
+  grupo con un solo botón de desplegar (hoy varias acciones sueltas) +
+  avatares de las misses a cargo (patrón overlap ya usado en
+  `PipelineCard.tsx`, líneas ~153-167); lista de miembros más prolija con
+  contador de asistencias por niño; vista de histórico de asistencias
+  (nueva, no existe hoy). Ver mapeo completo de la página actual
+  (`GruposClient.tsx`, `program-groups.ts`) en la sesión 11-14 jul.
 - (Hecho jul 2026) ~~Botón "Eliminar niño/a"~~ → `DeleteChildButton`.
+- (Hecho jul 2026) ~~Migraciones pendientes~~ → todas aplicadas hasta 0180.
 - (Backlog) Permitir a recepción cobrar/perdonar recogidas tardías (hoy
   `/aprobaciones` está gated solo a admin/directora).
 - (Backlog, recomendado) Botón "Desactivar usuario" (soft-delete) — al eliminar
@@ -517,6 +606,10 @@ Todo en `master`. **Requiere aplicar migraciones 0134–0141 en orden.**
 - (Backlog) Notificaciones a familias en waitlist por email/WhatsApp
 - (Backlog) Vista mensual/anual de capacidad (actual es solo semanal)
 - (Backlog) Formulario público de solicitud de cita (waitlist autoservicio)
+- (Backlog, del desacople F1-F4) Precios/costos en `/catalogos` para los 3
+  tipos de terapia nuevos (Psicométrica, Neurodesarrollo, Diagnóstica TEA) —
+  quedaron sin monto, alguien con acceso a Catálogos debe cargarlos cuando
+  se necesiten para facturar.
 
 ---
 
