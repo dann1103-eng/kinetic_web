@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { FamilyForm } from '@/components/families/FamilyForm'
+import { DeleteFamilyButton } from '@/components/families/DeleteFamilyButton'
 import { ChildForm } from '@/components/families/ChildForm'
 import { JournalTab } from './JournalTab'
 import { FamilyInvoicesSection } from '@/components/families/FamilyInvoicesSection'
@@ -56,6 +57,7 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
 
   const CAN_EDIT_CHILD_ROLES = ['admin', 'directora', 'coordinadora_familias', 'contable', 'recepcion']
   const canEditChild = CAN_EDIT_CHILD_ROLES.includes(ctx.appUser.role)
+  const canDeleteFamily = ctx.appUser.role === 'admin'
 
   return (
     <div className="flex flex-col min-h-full">
@@ -88,7 +90,16 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
               </p>
             )}
           </div>
-          <FamilyForm initialFamily={familyTyped} />
+          <div className="flex items-center gap-1">
+            <FamilyForm initialFamily={familyTyped} />
+            {canDeleteFamily && (
+              <DeleteFamilyButton
+                familyId={id}
+                familyName={familyTyped.primary_contact_name}
+                childrenCount={childrenList.length}
+              />
+            )}
+          </div>
         </header>
 
         {/* Layout principal: rail de identidad (5/12) + contenido (7/12) */}
