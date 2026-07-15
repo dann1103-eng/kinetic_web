@@ -28,6 +28,12 @@ const STAFF_THAT_CAN_DRAFT: UserRole[] = [
   'recepcion',
 ]
 
+// Roles que pueden finalizar la baja SIN la firma bloqueante de directora, y
+// por lo tanto también editar un registro ya firmado y enviarlo a la familia
+// (paridad: quien puede cerrar el registro solo, puede corregirlo y enviarlo
+// solo). Ver comentario extendido junto a `finalizeDischarge`.
+const CAN_FINALIZE_DISCHARGE: UserRole[] = ['admin', 'directora', 'coordinadora_terapias']
+
 async function getActor() {
   const supabase = await createClient()
   const ctx = await getEffectiveUser()
@@ -152,8 +158,8 @@ export async function updateDischargeDraft(
     .maybeSingle()
   if (!existing) return { ok: false, error: 'Registro no encontrado.' }
 
-  if (existing.status !== 'draft' && !['admin', 'directora'].includes(user.role)) {
-    return { ok: false, error: 'Solo admin puede editar un alta ya firmada.' }
+  if (existing.status !== 'draft' && !CAN_FINALIZE_DISCHARGE.includes(user.role)) {
+    return { ok: false, error: 'Solo admin/directora/coordinadora de terapias puede editar un alta ya firmada.' }
   }
 
   const update: Partial<Omit<ChildDischargeRecord, 'id' | 'created_at'>> = {}
@@ -263,8 +269,6 @@ export async function signDischargeAsDirectora(
 // notifica cuando se saca al niño del horario (createDischargeNotifications en
 // advanceChildPhase, al "Enviar a familia"). Pedido de dirección: "una vez Diana
 // lo cambie de fase se efectúe sin mi aprobación; a mí solo se me notifica".
-const CAN_FINALIZE_DISCHARGE: UserRole[] = ['admin', 'directora', 'coordinadora_terapias']
-
 export async function finalizeDischarge(recordId: string): Promise<Result<null>> {
   const { user } = await getActor()
   if (!CAN_FINALIZE_DISCHARGE.includes(user.role)) {
@@ -310,7 +314,9 @@ export async function sendDischargeToFamily(
   recordId: string,
 ): Promise<Result<null>> {
   const { user } = await getActor()
-  if (!['admin', 'directora', 'recepcion'].includes(user.role)) {
+  // coordinadora_terapias puede finalizar la baja sola (CAN_FINALIZE_DISCHARGE)
+  // — debe poder enviarla también, sin depender de recepción/directora.
+  if (!['admin', 'directora', 'recepcion', 'coordinadora_terapias'].includes(user.role)) {
     return { ok: false, error: 'Sin permisos para enviar a la familia.' }
   }
 

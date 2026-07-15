@@ -60,7 +60,12 @@ export function DischargeFormModal({
   // su SOLA firma — es la única requerida para dar de alta (queda estampada en
   // signed_by_coordinadora_* / signed_by_directora_* según el rol).
   const canFinalizeSolo = ['admin', 'directora', 'coordinadora_terapias'].includes(user.role)
-  const isEditable = !record || record.status === 'draft'
+  // Un registro ya firmado ('signed') sigue editable para quien puede finalizarlo
+  // solo — permite corregir/completar antes de "Enviar a familia" (paridad con
+  // el permiso de servidor en updateDischargeDraft). Una vez 'sent_to_family' el
+  // modal no lo vuelve a cargar como activo (ver listDischargeRecordsForChild
+  // arriba), así que ese estado nunca llega hasta acá.
+  const isEditable = !record || record.status === 'draft' || canFinalizeSolo
 
   // Cargar o crear draft al abrir
   useEffect(() => {
@@ -291,7 +296,7 @@ export function DischargeFormModal({
               Guardar borrador
             </button>
           )}
-          {isEditable && canFinalizeSolo && (
+          {record.status === 'draft' && canFinalizeSolo && (
             <button
               type="button"
               disabled={isPending}
