@@ -340,13 +340,14 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0178** | Desacople F4: columna espejo `billing_adjustment_carried_in_usd` (ajuste RECIBIDO de un mes anterior, para que al regenerar la factura la línea de ajuste no se pierda) — mismo patrón que `surcharge_carried_in_usd` de 0175. |
 | **0179** | **3 tipos de terapia nuevos**: Psicométrica, Neurodesarrollo, Diagnóstica TEA (`ServiceType` + labels/colores). De paso corrige un gap real: el CHECK de `waitlist_entries.requested_service_type` (0116) nunca se había actualizado desde que se agregaron 7 tipos posteriores (learning_kids, aula_educativa, ils_escucha, refuerzo_academico, concentracion_atencion, comunicacion_regulacion, estimulacion_juego) — seleccionarlos en el formulario de lista de espera violaba el CHECK. Ambos CHECK (`appointments` y `waitlist_entries`) quedan sincronizados. |
 | **0180** | **Fix: plan 100% programa matutino no podía generar/previsualizar el ciclo** ("El plan no tiene terapista principal asignada" para un niño solo-BlueKids con miss y grupo ya asignados). Causa: desde 0157 `primary_therapist_id` se DERIVA solo de terapias individuales no-matutinas; un plan 100% matutino siempre lo tiene NULL legítimamente, pero 4 RPCs (`compute_monthly_appointment_candidates`, `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments`) seguían con el guard incondicional del modelo viejo. Se vuelve condicional: solo bloquea si hay una terapia activa NO matutina sin terapista (reusa `_kn_is_monthly_flat`, misma regla que `planHasTherapistCoverage()` en TS). Verificado contra datos reales tras aplicar. |
+| **0181** | **Los conflictos de horario dejan de bloquear ciclo/agenda**: `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments` (`CREATE OR REPLACE`, mismas firmas) pierden el `RAISE EXCEPTION 'has_conflicts...'` — el check de solape (`compute_monthly_appointment_candidates`) no excluía al propio niño, así que un plan con dos terapias propias con el mismo terapeuta se marcaba "en conflicto consigo mismo" y bloqueaba su ciclo; el mismo guard en `regenerate_cycle_appointments` también podía abortar en silencio la sincronización agenda↔plan al editar. `conflicts[]`/`summary.conflict_count` se siguen calculando igual — la UI (`NewMonthlyCycleModal`/`EditMonthlyCycleModal`) ahora muestra un aviso ámbar no bloqueante en vez de deshabilitar el submit, distinguiendo "choca con otra terapia de la misma niña/niño" vs. "choca con la cita de otro paciente" (`describeMonthlyConflict` en `appointment.ts`, usa `conflict_child_id` que ya venía en el RPC sin consumirse). |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard (o vía
 > Management API `POST /v1/projects/<ref>/database/query` con el token del CLI —
 > el token del CLI vive en Windows Credential Manager, target `Supabase CLI:supabase`,
 > se lee con `CredRead` de `advapi32.dll`; ver sesión jul 2026 para el snippet
-> de PowerShell). No hay migración automática. **El repo va hasta 0180;
-> próximo libre = 0181.** ✅ TODAS aplicadas y verificadas en prod (12-jul-2026).
+> de PowerShell). No hay migración automática. **El repo va hasta 0181;
+> próximo libre = 0182.** ✅ TODAS aplicadas y verificadas en prod (14-jul-2026).
 > ⚠️ Hay DOS archivos con historia sobre el prefijo 0173 (biweekly_offset y
 > el de menciones renombrado a 0176) — ambos aplicados; no re-correr ninguno
 > de los dos por el nombre viejo.
@@ -365,6 +366,43 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 ---
 
 # Estado del proyecto — junio–julio 2026
+
+## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
+Todo en `master`, migración **0181 aplicada y verificada en prod**. Spec →
+plan → implementación con subagentes (superpowers), 8 tareas, cada una con
+doble revisión (spec compliance + calidad). Spec en
+`docs/superpowers/specs/2026-07-14-*.md`, plan en
+`docs/superpowers/plans/2026-07-14-*.md`.
+
+- **Conflictos de horario ya no bloquean** generar/editar un ciclo (mig 0181,
+  ver tabla arriba) — antes un plan con dos terapias propias en el mismo
+  terapeuta se bloqueaba a sí mismo como "en conflicto" (sin excluir al propio
+  niño del check de solape), y el mismo guard podía frenar en silencio la
+  sincronización agenda↔plan al editar. Ahora es aviso ámbar no bloqueante,
+  distinguiendo conflicto con la propia niña/niño vs. con otro paciente.
+- **Fix duplicación niño/familia** al re-avanzar una entrada de lista de espera
+  ya convertida (revertir fase para corregir un error → re-avanzar creaba una
+  SEGUNDA `families`+`children`, dejando la primera familia huérfana):
+  `advanceWaitlistPhase` (`intake-pipeline.ts`) gana el mismo guard de
+  idempotencia que ya tenía su hermana `transformWaitlistEntryToFamily`
+  (`waitlist.ts:338-340`), portado ahí por primera vez. **Ojo de revisión**: la
+  primera versión del fix forzaba la fase clínica del niño reusado de vuelta a
+  "activo en terapias" incondicionalmente — si el niño ya había avanzado más
+  (alta, retiro) esto lo regresionaba sin pasar por `validateTransition`; se
+  corrigió para que reusar un niño existente NUNCA toque su fase clínica (solo
+  un niño recién creado se auto-avanza a 3_3).
+  Diagnóstico de familias huérfanas ya existentes (`find_orphaned_families.sql`,
+  solo lectura): **12 encontradas en prod al 14-jul-2026** — reportadas al
+  usuario, no se borró nada automáticamente (pendiente revisión manual caso
+  por caso vía `deleteFamily`).
+- **Recargo por mora** (pregunta del usuario, sin cambio de código): confirmado
+  5% simple cada 5 días de atraso, hardcoded en `late-fee.ts` + duplicado en
+  la función SQL `mark_monthly_cycle_paid` (mig 0175) — sin tabla de config,
+  solo la exención booleana por familia es configurable.
+- **Pendiente**: sincronizar `supabase/scripts/full-setup/02_kinetic_schema.sql`
+  (script de bootstrap de proyecto nuevo) con la mig 0181 — todavía tiene el
+  guard viejo en 4 lugares, un ambiente nuevo partiría con el bug ya arreglado
+  en prod. Flaggeado como tarea aparte, no bloqueaba este lote.
 
 ## Sesión 11-14 jul 2026 — lote grande: menciones, capacidad, desacople agenda/facturación
 Todo en `master` hasta commit `ba46778`. Migraciones **0173–0180 aplicadas y
