@@ -18,6 +18,7 @@ import type {
   TreatmentPlanTherapyEntry,
 } from '@/types/db'
 import { applyDiscount } from '@/lib/domain/discounts'
+import { describeMonthlyConflict } from '@/lib/domain/appointment'
 import {
   daysPerWeekLabel,
   isMonthlyFlatEntry,
@@ -167,8 +168,8 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
     return map
   }, [dryRun])
 
-  // Conflictos del dry-run casados por firma para pintarlos en rojo. `liveConflicts`
-  // recalcula en vivo al mover/quitar → se puede regenerar una vez resueltos.
+  // Conflictos del dry-run casados por firma, solo para resaltar celdas y armar
+  // el texto de advertencia — ya no bloquean guardar/regenerar.
   const conflictSigs = useMemo(() => {
     const s = new Set<string>()
     for (const c of dryRun?.conflicts ?? []) s.add(candidateSignature(c.candidate))
@@ -179,11 +180,11 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
     for (const c of dryRun?.conflicts ?? []) {
       m.set(
         candidateSignature(c.candidate),
-        `⚠ Choca con otra cita del mismo terapista el ${formatDateTime(c.conflict_starts_at)}. Movela a otro día/hora o quitala.`,
+        describeMonthlyConflict(c, childId, formatDateTime(c.conflict_starts_at)),
       )
     }
     return m
-  }, [dryRun])
+  }, [dryRun, childId])
   const liveConflicts = useMemo(
     () => editedCandidates.filter((c) => conflictSigs.has(candidateSignature(c))),
     [editedCandidates, conflictSigs],
@@ -305,8 +306,6 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
   const [error, setError] = useState<string | null>(null)
   const [isSaving, startSave] = useTransition()
 
-  const regenConflicts = regenerate && !!dryRun && liveConflicts.length > 0
-
   function handleSave() {
     setError(null)
     if (reason.trim().length < 3) {
@@ -319,10 +318,6 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
     }
     if (regenerate && !dryRun) {
       setError('Esperá la previsualización de las citas antes de guardar.')
-      return
-    }
-    if (regenConflicts) {
-      setError('Todavía hay citas en conflicto (en rojo). Movelas o quitalas antes de regenerar.')
       return
     }
     if (enrolledProgram && !morning.groupId) {
@@ -627,14 +622,14 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
                     </div>
 
                     {liveConflicts.length > 0 && (
-                      <div className="rounded-lg border border-red-300 bg-red-50/70 px-3 py-2 text-xs text-red-900">
+                      <div className="rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
                         <p className="font-semibold">
-                          {liveConflicts.length} cita(s) en conflicto — en rojo en el calendario.
+                          {liveConflicts.length} cita(s) con conflicto de horario — en rojo en el calendario.
                         </p>
                         <p className="mt-0.5">
-                          Cada una choca con otra cita del mismo terapista (pasá el mouse por
-                          encima para ver con cuál). Movela a otro día, cambiale la hora con el
-                          reloj, o quitala con ✕. Cuando no queden rojas vas a poder regenerar.
+                          Pasá el mouse por encima de una celda roja para ver el detalle. Se puede
+                          regenerar igual — revisalas cuando puedas, o movelas/quitalas ahora si
+                          preferís resolverlas antes.
                         </p>
                       </div>
                     )}
@@ -716,7 +711,7 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
           <button
             type="button"
             onClick={handleSave}
-            disabled={isSaving || (regenerate && (isLoadingDry || regenConflicts))}
+            disabled={isSaving || (regenerate && isLoadingDry)}
             className="px-4 py-2 text-sm rounded-lg bg-fm-primary text-white font-medium hover:opacity-90 disabled:opacity-60"
           >
             {isSaving ? 'Guardando…' : 'Guardar cambios'}
