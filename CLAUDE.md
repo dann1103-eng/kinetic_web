@@ -341,13 +341,19 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0179** | **3 tipos de terapia nuevos**: Psicométrica, Neurodesarrollo, Diagnóstica TEA (`ServiceType` + labels/colores). De paso corrige un gap real: el CHECK de `waitlist_entries.requested_service_type` (0116) nunca se había actualizado desde que se agregaron 7 tipos posteriores (learning_kids, aula_educativa, ils_escucha, refuerzo_academico, concentracion_atencion, comunicacion_regulacion, estimulacion_juego) — seleccionarlos en el formulario de lista de espera violaba el CHECK. Ambos CHECK (`appointments` y `waitlist_entries`) quedan sincronizados. |
 | **0180** | **Fix: plan 100% programa matutino no podía generar/previsualizar el ciclo** ("El plan no tiene terapista principal asignada" para un niño solo-BlueKids con miss y grupo ya asignados). Causa: desde 0157 `primary_therapist_id` se DERIVA solo de terapias individuales no-matutinas; un plan 100% matutino siempre lo tiene NULL legítimamente, pero 4 RPCs (`compute_monthly_appointment_candidates`, `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments`) seguían con el guard incondicional del modelo viejo. Se vuelve condicional: solo bloquea si hay una terapia activa NO matutina sin terapista (reusa `_kn_is_monthly_flat`, misma regla que `planHasTherapistCoverage()` en TS). Verificado contra datos reales tras aplicar. |
 | **0181** | **Los conflictos de horario dejan de bloquear ciclo/agenda**: `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments` (`CREATE OR REPLACE`, mismas firmas) pierden el `RAISE EXCEPTION 'has_conflicts...'` — el check de solape (`compute_monthly_appointment_candidates`) no excluía al propio niño, así que un plan con dos terapias propias con el mismo terapeuta se marcaba "en conflicto consigo mismo" y bloqueaba su ciclo; el mismo guard en `regenerate_cycle_appointments` también podía abortar en silencio la sincronización agenda↔plan al editar. `conflicts[]`/`summary.conflict_count` se siguen calculando igual — la UI (`NewMonthlyCycleModal`/`EditMonthlyCycleModal`) ahora muestra un aviso ámbar no bloqueante en vez de deshabilitar el submit, distinguiendo "choca con otra terapia de la misma niña/niño" vs. "choca con la cita de otro paciente" (`describeMonthlyConflict` en `appointment.ts`, usa `conflict_child_id` que ya venía en el RPC sin consumirse). |
+| **0182** | **Fix: no se podía eliminar un niño con facturas** — drift de esquema real: `invoices.child_id` tenía `ON DELETE RESTRICT` en la BD, contradiciendo lo que `0110_kinetic_invoices.sql` ya pretendía (`SET NULL`) — nunca quedó sincronizado; era la ÚNICA FK hacia `children` en todo el esquema que bloqueaba el borrado (el resto ya cascadea). Se corrige el FK a `SET NULL` + se ajusta `invoices_client_or_child_check` para permitir el estado huérfano (ambas columnas NULL tras borrar al dueño, sin dejar de prohibir que ambas estén asignadas a la vez) + se elimina `invoices_requires_owner` (redundante y en conflicto directo con el ajuste anterior). La factura sobrevive intacta (nombre de familia/niño ya embebidos en `notes`/`client_snapshot_json`/`invoice_items.description`) — mismo patrón "eliminar SIEMPRE conservando el registro contable" de 0169/0170. |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard (o vía
 > Management API `POST /v1/projects/<ref>/database/query` con el token del CLI —
 > el token del CLI vive en Windows Credential Manager, target `Supabase CLI:supabase`,
 > se lee con `CredRead` de `advapi32.dll`; ver sesión jul 2026 para el snippet
-> de PowerShell). No hay migración automática. **El repo va hasta 0181;
-> próximo libre = 0182.** ✅ TODAS aplicadas y verificadas en prod (14-jul-2026).
+> de PowerShell). **GOTCHA nuevo (14-jul-2026): esa API solo ejecuta el PRIMER
+> statement de un query con varios `;` — un archivo de migración con múltiples
+> `ALTER TABLE` aplicó en silencio solo el primero (sin error) y los demás
+> quedaron sin aplicar. Correcto: mandar cada statement DDL por separado y
+> verificar cada uno contra `pg_constraint`/`information_schema` antes de
+> seguir al siguiente.** No hay migración automática. **El repo va hasta 0182;
+> próximo libre = 0183.** ✅ TODAS aplicadas y verificadas en prod (14-jul-2026).
 > ⚠️ Hay DOS archivos con historia sobre el prefijo 0173 (biweekly_offset y
 > el de menciones renombrado a 0176) — ambos aplicados; no re-correr ninguno
 > de los dos por el nombre viejo.
@@ -368,7 +374,7 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 # Estado del proyecto — junio–julio 2026
 
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
-Todo en `master`, migración **0181 aplicada y verificada en prod**. Spec →
+Todo en `master`, migraciones **0181 y 0182 aplicadas y verificadas en prod**. Spec →
 plan → implementación con subagentes (superpowers), 8 tareas, cada una con
 doble revisión (spec compliance + calidad). Spec en
 `docs/superpowers/specs/2026-07-14-*.md`, plan en
@@ -399,10 +405,33 @@ doble revisión (spec compliance + calidad). Spec en
   5% simple cada 5 días de atraso, hardcoded en `late-fee.ts` + duplicado en
   la función SQL `mark_monthly_cycle_paid` (mig 0175) — sin tabla de config,
   solo la exención booleana por familia es configurable.
+- **Botón "Eliminar familia"**: `deleteFamily()` ya existía en `families.ts`
+  (admin-only, borra en cascada) pero nunca se había conectado a ningún botón
+  — `DeleteFamilyButton` (calca `DeleteChildButton`) ahora vive en la ficha de
+  familia, con conteo de niños afectados en el aviso de confirmación. A pedido
+  del usuario, se amplió a `CAN_DELETE_FAMILY_ROLES = [admin, coordinadora_familias,
+  coordinadora_terapias]` — pero la RLS de `families` solo permitía DELETE a
+  `admin`, así que `deleteFamily()` pasó a usar el admin client (mismo patrón
+  ya usado en `deleteChild`) para no bloquear a las coordinadoras en silencio.
+- **Fix permisos de alta/baja** (`discharge-records.ts`/`DischargeFormModal`):
+  `coordinadora_terapias` puede finalizar una baja/alta con su sola firma
+  (`CAN_FINALIZE_DISCHARGE`, mig 0174) pero `updateDischargeDraft` solo dejaba
+  editar un registro ya firmado a admin/directora, y `sendDischargeToFamily`
+  ni siquiera la incluía — quedaba sin forma de corregir campos ni de enviar
+  lo que ella misma firmó. Ambos ahora incluyen `coordinadora_terapias`; la UI
+  (`isEditable`) refleja el mismo permiso, y el botón "Firmar y finalizar" se
+  restringe a `status='draft'` para no reaparecer en un registro ya firmado.
+- **Mig 0182 — no se podía eliminar un niño con facturas**: drift de esquema
+  real (ver tabla arriba) — `invoices.child_id` tenía `ON DELETE RESTRICT` en
+  la BD viva pese a que `0110_kinetic_invoices.sql` ya decía `SET NULL`. Único
+  FK hacia `children` en todo el esquema que bloqueaba el borrado; verificado
+  con una consulta directa a `pg_constraint` (recomendado antes de asumir que
+  el archivo de migración refleja el estado real de prod).
 - **Pendiente**: sincronizar `supabase/scripts/full-setup/02_kinetic_schema.sql`
-  (script de bootstrap de proyecto nuevo) con la mig 0181 — todavía tiene el
-  guard viejo en 4 lugares, un ambiente nuevo partiría con el bug ya arreglado
-  en prod. Flaggeado como tarea aparte, no bloqueaba este lote.
+  (script de bootstrap de proyecto nuevo) con las migs 0181/0182 — todavía
+  tiene el guard de conflictos viejo en 4 lugares y el FK de invoices sin
+  corregir; un ambiente nuevo partiría con ambos bugs ya arreglados en prod.
+  Flaggeado como tarea aparte, no bloqueaba este lote.
 
 ## Sesión 11-14 jul 2026 — lote grande: menciones, capacidad, desacople agenda/facturación
 Todo en `master` hasta commit `ba46778`. Migraciones **0173–0180 aplicadas y
