@@ -128,3 +128,20 @@ export function isJoinable(startsAt: string, endsAt: string): boolean {
   const minsToEnd = minutesUntil(endsAt)
   return minsToStart <= 10 && minsToEnd >= -5
 }
+
+/**
+ * Describe un conflicto de horario devuelto por `compute_monthly_appointment_candidates`,
+ * distinguiendo si choca con OTRA terapia del mismo niño (`conflict_child_id === childId`)
+ * o con la cita de otro paciente. No incluye nombres — el RPC no los devuelve.
+ */
+export function describeMonthlyConflict(
+  conflict: { conflict_child_id: string },
+  childId: string,
+  formattedConflictDate: string,
+): string {
+  const origin =
+    conflict.conflict_child_id === childId
+      ? 'Choca con otra terapia de la misma niña/niño'
+      : 'Choca con la cita de otro paciente con este terapeuta'
+  return `⚠ ${origin} el ${formattedConflictDate}. Podés moverla a otro día/hora o quitarla si querés evitarlo.`
+}
