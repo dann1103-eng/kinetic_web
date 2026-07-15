@@ -57,7 +57,9 @@ export default async function FamiliaDetallePage({ params }: PageProps) {
 
   const CAN_EDIT_CHILD_ROLES = ['admin', 'directora', 'coordinadora_familias', 'contable', 'recepcion']
   const canEditChild = CAN_EDIT_CHILD_ROLES.includes(ctx.appUser.role)
-  const canDeleteFamily = ctx.appUser.role === 'admin'
+  // Paridad con CAN_DELETE_FAMILY_ROLES en actions/families.ts.
+  const CAN_DELETE_FAMILY_ROLES = ['admin', 'coordinadora_familias', 'coordinadora_terapias']
+  const canDeleteFamily = CAN_DELETE_FAMILY_ROLES.includes(ctx.appUser.role)
 
   return (
     <div className="flex flex-col min-h-full">

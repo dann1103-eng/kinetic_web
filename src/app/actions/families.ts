@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import type { Family, FamilyStatus } from '@/types/db'
 
@@ -97,14 +98,24 @@ export async function setFamilyStatus(
   return updateFamily(familyId, { status })
 }
 
+// Roles que pueden ELIMINAR permanentemente una familia (borra en cascada
+// todos sus niños y el historial de cada uno). Paridad con CAN_DELETE_CHILD_ROLES
+// (children.ts): admin + ambas coordinadoras.
+const CAN_DELETE_FAMILY_ROLES = ['admin', 'coordinadora_familias', 'coordinadora_terapias']
+
 export async function deleteFamily(
   familyId: string,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }
-  if (ctx.appUser.role !== 'admin') return { ok: false, error: 'Solo admin puede eliminar' }
+  if (!CAN_DELETE_FAMILY_ROLES.includes(ctx.appUser.role)) {
+    return { ok: false, error: 'Sin permisos para eliminar familias' }
+  }
 
-  const supabase = await createClient()
+  // Escritura privilegiada: la RLS de families solo permite DELETE a admin. Para
+  // habilitar a las coordinadoras usamos el admin client, gateado por rol en
+  // código (patrón Kinetic para escrituras privilegiadas — mismo que children.ts).
+  const supabase = createAdminClient()
   const { error } = await supabase.from('families').delete().eq('id', familyId)
   if (error) return { ok: false, error: error.message }
 
