@@ -511,13 +511,6 @@ export async function confirmMonthlyPaymentAndGenerate(
         error: 'Una cita fue movida fuera del mes seleccionado. Restaurala o moverla dentro del mes.',
       }
     }
-    if (msg.includes('has_conflicts')) {
-      return {
-        ok: false,
-        error:
-          'Hay conflictos de horario con otros appointments del terapista. Verificá la previsualización y resolvé antes de confirmar.',
-      }
-    }
     return { ok: false, error: error.message ?? 'Error al confirmar el ciclo.' }
   }
 
@@ -698,13 +691,6 @@ export async function generateCycleAgenda(
       return {
         ok: false,
         error: 'Una cita fue movida fuera del mes seleccionado. Restaurala o moverla dentro del mes.',
-      }
-    }
-    if (msg.includes('has_conflicts')) {
-      return {
-        ok: false,
-        error:
-          'Hay conflictos de horario con otros appointments del terapista. Verificá la previsualización y resolvé antes de confirmar.',
       }
     }
     if (msg.includes('function public.generate_cycle_agenda') || msg.includes('schema cache')) {
@@ -1013,13 +999,6 @@ export async function editMonthlyCycle(
       }
       if (msg.includes('override_date_out_of_period')) {
         return { ok: false, error: 'Una cita quedó fuera del mes. Movela dentro del mes.' }
-      }
-      if (msg.includes('has_conflicts')) {
-        return {
-          ok: false,
-          error:
-            'Hay conflictos de horario con otras citas del terapista. Resolvé en /agenda y reintentá.',
-        }
       }
       return { ok: false, error: msg || 'Error al regenerar las citas.' }
     }
