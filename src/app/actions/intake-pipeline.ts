@@ -90,25 +90,47 @@ export async function advanceWaitlistPhase(
     | undefined
 
   if (targetPhase.creates_child) {
-    const t = await internalTransformWaitlistEntryToFamily(entry, user.id, admin)
-    if (!t.ok) return { ok: false, error: t.error }
-    transformed = t.data
-
-    // Avanzar el child recién creado a 3_3_activo_en_terapias
-    const nextPhase = catalog.find((c) => c.code === '3_3_activo_en_terapias')
-    if (nextPhase) {
-      await admin
+    if (entry.scheduled_child_id) {
+      // Idempotencia: la entrada ya fue convertida antes (ej. se revirtió la
+      // fase para corregir un error y se está re-avanzando). Reusar el niño
+      // existente en vez de crear una familia/niño duplicados — mismo guard
+      // que ya existe en transformWaitlistEntryToFamily (waitlist.ts:338-340),
+      // portado acá.
+      const { data: existingChild } = await admin
         .from('children')
-        .update({ current_phase_code: nextPhase.code })
-        .eq('id', transformed.childId)
+        .select('id, family_id, code')
+        .eq('id', entry.scheduled_child_id)
+        .maybeSingle()
+      if (existingChild) {
+        transformed = {
+          childId: existingChild.id,
+          familyId: existingChild.family_id,
+          childCode: existingChild.code,
+        }
+      }
+    } else {
+      const t = await internalTransformWaitlistEntryToFamily(entry, user.id, admin)
+      if (!t.ok) return { ok: false, error: t.error }
+      transformed = t.data
+    }
 
-      await admin.from('child_phase_history').insert({
-        child_id: transformed.childId,
-        from_phase_code: null,
-        to_phase_code: nextPhase.code,
-        notes: 'Niño activado automáticamente tras inscripción.',
-        changed_by_user_id: user.id,
-      })
+    // Avanzar el child (nuevo o existente) a 3_3_activo_en_terapias
+    if (transformed) {
+      const nextPhase = catalog.find((c) => c.code === '3_3_activo_en_terapias')
+      if (nextPhase) {
+        await admin
+          .from('children')
+          .update({ current_phase_code: nextPhase.code })
+          .eq('id', transformed.childId)
+
+        await admin.from('child_phase_history').insert({
+          child_id: transformed.childId,
+          from_phase_code: null,
+          to_phase_code: nextPhase.code,
+          notes: 'Niño activado automáticamente tras inscripción.',
+          changed_by_user_id: user.id,
+        })
+      }
     }
   }
 
