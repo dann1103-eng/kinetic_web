@@ -21,6 +21,7 @@ import type {
   TreatmentPlan,
 } from '@/types/db'
 import { applyDiscount } from '@/lib/domain/discounts'
+import { describeMonthlyConflict } from '@/lib/domain/appointment'
 import {
   daysPerWeekLabel,
   isMonthlyFlatEntry,
@@ -238,11 +239,11 @@ export function NewMonthlyCycleModal({
     for (const c of dryRun?.conflicts ?? []) {
       m.set(
         candidateSignature(c.candidate),
-        `⚠ Choca con otra cita del mismo terapista el ${formatDateTime(c.conflict_starts_at)}. Movela a otro día/hora o quitala.`,
+        describeMonthlyConflict(c, childId, formatDateTime(c.conflict_starts_at)),
       )
     }
     return m
-  }, [dryRun])
+  }, [dryRun, childId])
   const liveConflicts = useMemo(
     () => editedCandidates.filter((c) => conflictSigs.has(candidateSignature(c))),
     [editedCandidates, conflictSigs],
@@ -421,10 +422,6 @@ export function NewMonthlyCycleModal({
       setConfirmError('Esperá la previsualización antes de confirmar.')
       return
     }
-    if (liveConflicts.length > 0) {
-      setConfirmError('Todavía hay citas en conflicto (en rojo). Movelas o quitalas antes de generar.')
-      return
-    }
     if (enrolledProgram && !morning.groupId) {
       setConfirmError('Seleccioná el grupo del programa matutino.')
       return
@@ -473,7 +470,6 @@ export function NewMonthlyCycleModal({
   const canConfirm =
     !!dryRun &&
     !periodAlreadyUsed &&
-    liveConflicts.length === 0 &&
     !isConfirming
 
   return (
@@ -773,14 +769,14 @@ export function NewMonthlyCycleModal({
                 </div>
 
                 {liveConflicts.length > 0 && (
-                  <div className="rounded-lg border border-red-300 bg-red-50/70 px-3 py-2 text-xs text-red-900">
+                  <div className="rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
                     <p className="font-semibold">
-                      {liveConflicts.length} cita(s) en conflicto — en rojo en el calendario.
+                      {liveConflicts.length} cita(s) con conflicto de horario — en rojo en el calendario.
                     </p>
                     <p className="mt-0.5">
-                      Cada una choca con otra cita del mismo terapista (pasá el mouse por encima
-                      para ver con cuál). Movela a otro día arrastrándola, cambiale la hora con el
-                      reloj, o quitala con ✕. Cuando no queden citas rojas vas a poder generar el ciclo.
+                      Pasá el mouse por encima de una celda roja para ver el detalle. Se pueden
+                      generar igual — revisalas cuando puedas, o movelas/quitalas ahora si preferís
+                      resolverlas antes.
                     </p>
                   </div>
                 )}
