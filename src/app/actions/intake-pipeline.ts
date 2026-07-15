@@ -95,7 +95,10 @@ export async function advanceWaitlistPhase(
       // fase para corregir un error y se está re-avanzando). Reusar el niño
       // existente en vez de crear una familia/niño duplicados — mismo guard
       // que ya existe en transformWaitlistEntryToFamily (waitlist.ts:338-340),
-      // portado acá.
+      // portado acá. NO se fuerza su fase clínica: la gestiona por separado
+      // advanceChildPhase, y puede estar más avanzada (alta, retiro, etc.)
+      // que cuando se creó — forzarla a 3_3 la regresionaría sin pasar por
+      // validateTransition.
       const { data: existingChild } = await admin
         .from('children')
         .select('id, family_id, code')
@@ -112,10 +115,8 @@ export async function advanceWaitlistPhase(
       const t = await internalTransformWaitlistEntryToFamily(entry, user.id, admin)
       if (!t.ok) return { ok: false, error: t.error }
       transformed = t.data
-    }
 
-    // Avanzar el child (nuevo o existente) a 3_3_activo_en_terapias
-    if (transformed) {
+      // Avanzar el child recién creado a 3_3_activo_en_terapias
       const nextPhase = catalog.find((c) => c.code === '3_3_activo_en_terapias')
       if (nextPhase) {
         await admin
