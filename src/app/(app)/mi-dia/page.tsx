@@ -163,7 +163,7 @@ export default async function MiDiaPage() {
     : { data: [] as { id: string; full_name: string; preferred_name: string | null }[] }
   const weekChildMap = new Map(
     ((weekChildrenRaw ?? []) as { id: string; full_name: string; preferred_name: string | null }[]).map(
-      (c) => [c.id, c.preferred_name || c.full_name],
+      (c) => [c.id, c.full_name || c.preferred_name],
     ),
   )
 

@@ -109,7 +109,7 @@ export function TimelineRow({
                   <div className="ml-3 space-y-2">
                     {appts.map((a) => {
                       const childName =
-                        a.child_preferred_name ?? a.child_full_name ?? 'Paciente'
+                        a.child_full_name ?? a.child_preferred_name ?? 'Paciente'
                       const service = a.service_type
                         ? a.service_type.replace(/_/g, ' ')
                         : ''

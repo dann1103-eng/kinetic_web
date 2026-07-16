@@ -123,7 +123,7 @@ export function WeekCompletedSection({ items, onReportClick }: Props) {
                           {timeLabel(it.startsAt)}
                         </span>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-fm-on-surface truncate">
+                          <p className="text-sm font-semibold text-fm-on-surface break-words">
                             {it.childName}
                           </p>
                           <p className="text-xs text-fm-on-surface-variant truncate">

@@ -61,7 +61,7 @@ export function TodaySessionsSection({
             const showJournal = openJournalForAppt === appt.id
             const childEntries = appt.child_id ? entriesByChild[appt.child_id] ?? [] : []
             const childName =
-              appt.child_preferred_name ?? appt.child_full_name ?? 'Paciente'
+              appt.child_full_name ?? appt.child_preferred_name ?? 'Paciente'
             const report = session ? reports[session.id] ?? null : null
             const variant = appt.id === primaryId ? 'primary' : 'secondary'
 

@@ -72,7 +72,9 @@ export function BigSessionCard({
     ? Math.floor((new Date().getTime() - new Date(session.started_at).getTime()) / 1000)
     : 0
 
-  const childName = appointment.child_preferred_name ?? appointment.child_full_name ?? 'Paciente'
+  // Nombre completo siempre — el apodo (preferred_name) puede repetirse entre
+  // niños distintos y deja de ser suficiente para diferenciarlos en el día.
+  const childName = appointment.child_full_name ?? appointment.child_preferred_name ?? 'Paciente'
   const initials = getInitials(childName)
   const startLabel = formatTime(appointment.starts_at)
   const endLabel = appointment.ends_at ? formatTime(appointment.ends_at) : null
@@ -177,7 +179,9 @@ export function BigSessionCard({
       )}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h3 className="text-2xl sm:text-[28px] font-bold leading-tight max-w-[260px] truncate">
+          {/* Sin truncate: el nombre completo (nombre + apellidos) debe verse
+              siempre; si no cabe en una línea, hace wrap. */}
+          <h3 className="text-2xl sm:text-[28px] font-bold leading-tight break-words">
             {childName}
           </h3>
           {appointment.service_type && (
@@ -230,7 +234,10 @@ export function BigSessionCard({
       )}
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
-        {appointment.status === 'scheduled' && (
+        {/* Una reposición ('replacement') es una cita tan iniciable como una
+            normal ('scheduled') — solo cambia el badge, no la disponibilidad
+            de los botones. */}
+        {(appointment.status === 'scheduled' || appointment.status === 'replacement') && (
           <>
             {isFreePerson ? (
               <button
