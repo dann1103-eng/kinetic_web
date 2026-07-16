@@ -342,18 +342,24 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0180** | **Fix: plan 100% programa matutino no podía generar/previsualizar el ciclo** ("El plan no tiene terapista principal asignada" para un niño solo-BlueKids con miss y grupo ya asignados). Causa: desde 0157 `primary_therapist_id` se DERIVA solo de terapias individuales no-matutinas; un plan 100% matutino siempre lo tiene NULL legítimamente, pero 4 RPCs (`compute_monthly_appointment_candidates`, `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments`) seguían con el guard incondicional del modelo viejo. Se vuelve condicional: solo bloquea si hay una terapia activa NO matutina sin terapista (reusa `_kn_is_monthly_flat`, misma regla que `planHasTherapistCoverage()` en TS). Verificado contra datos reales tras aplicar. |
 | **0181** | **Los conflictos de horario dejan de bloquear ciclo/agenda**: `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments` (`CREATE OR REPLACE`, mismas firmas) pierden el `RAISE EXCEPTION 'has_conflicts...'` — el check de solape (`compute_monthly_appointment_candidates`) no excluía al propio niño, así que un plan con dos terapias propias con el mismo terapeuta se marcaba "en conflicto consigo mismo" y bloqueaba su ciclo; el mismo guard en `regenerate_cycle_appointments` también podía abortar en silencio la sincronización agenda↔plan al editar. `conflicts[]`/`summary.conflict_count` se siguen calculando igual — la UI (`NewMonthlyCycleModal`/`EditMonthlyCycleModal`) ahora muestra un aviso ámbar no bloqueante en vez de deshabilitar el submit, distinguiendo "choca con otra terapia de la misma niña/niño" vs. "choca con la cita de otro paciente" (`describeMonthlyConflict` en `appointment.ts`, usa `conflict_child_id` que ya venía en el RPC sin consumirse). |
 | **0182** | **Fix: no se podía eliminar un niño con facturas** — drift de esquema real: `invoices.child_id` tenía `ON DELETE RESTRICT` en la BD, contradiciendo lo que `0110_kinetic_invoices.sql` ya pretendía (`SET NULL`) — nunca quedó sincronizado; era la ÚNICA FK hacia `children` en todo el esquema que bloqueaba el borrado (el resto ya cascadea). Se corrige el FK a `SET NULL` + se ajusta `invoices_client_or_child_check` para permitir el estado huérfano (ambas columnas NULL tras borrar al dueño, sin dejar de prohibir que ambas estén asignadas a la vez) + se elimina `invoices_requires_owner` (redundante y en conflicto directo con el ajuste anterior). La factura sobrevive intacta (nombre de familia/niño ya embebidos en `notes`/`client_snapshot_json`/`invoice_items.description`) — mismo patrón "eliminar SIEMPRE conservando el registro contable" de 0169/0170. |
+| **0183** | **Reposiciones individuales sin botón de iniciar sesión**: `start_therapy_session` (mig 0093) solo aceptaba citas `status='scheduled'` — una reposición nace directamente en `status='replacement'` (`resolve_absence_with_replacement`) y nunca pasa por `'scheduled'`, así que la RPC la rechazaba con `appointment_not_found_or_not_eligible`. Se amplía a `status in ('scheduled', 'replacement')`, misma firma. Acompaña un fix en `BigSessionCard.tsx` (el gate de los botones "Iniciar sesión"/"Inasistencia" en `/mi-dia` también solo aceptaba `'scheduled'`) — sin el fix de la RPC, el botón habría aparecido pero fallado al hacer clic. |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard (o vía
 > Management API `POST /v1/projects/<ref>/database/query` con el token del CLI —
 > el token del CLI vive en Windows Credential Manager, target `Supabase CLI:supabase`,
 > se lee con `CredRead` de `advapi32.dll`; ver sesión jul 2026 para el snippet
-> de PowerShell). **GOTCHA nuevo (14-jul-2026): esa API solo ejecuta el PRIMER
+> de PowerShell). **GOTCHA (14-jul-2026): esa API solo ejecuta el PRIMER
 > statement de un query con varios `;` — un archivo de migración con múltiples
 > `ALTER TABLE` aplicó en silencio solo el primero (sin error) y los demás
 > quedaron sin aplicar. Correcto: mandar cada statement DDL por separado y
 > verificar cada uno contra `pg_constraint`/`information_schema` antes de
-> seguir al siguiente.** No hay migración automática. **El repo va hasta 0182;
-> próximo libre = 0183.** ✅ TODAS aplicadas y verificadas en prod (14-jul-2026).
+> seguir al siguiente.** **GOTCHA nuevo (0183)**: incluso con UN SOLO statement,
+> una verificación inmediata después de aplicar puede leer una versión vieja
+> (read-lag del endpoint de query) — si la verificación no muestra el cambio,
+> reintentar la misma consulta de verificación antes de asumir que la
+> aplicación falló; no reaplicar a ciegas. No hay migración automática. **El
+> repo va hasta 0183; próximo libre = 0184.** ✅ TODAS aplicadas y verificadas
+> en prod (14/16-jul-2026).
 > ⚠️ Hay DOS archivos con historia sobre el prefijo 0173 (biweekly_offset y
 > el de menciones renombrado a 0176) — ambos aplicados; no re-correr ninguno
 > de los dos por el nombre viejo.
@@ -374,7 +380,7 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 # Estado del proyecto — junio–julio 2026
 
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
-Todo en `master`, migraciones **0181 y 0182 aplicadas y verificadas en prod**. Spec →
+Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
 plan → implementación con subagentes (superpowers), 8 tareas, cada una con
 doble revisión (spec compliance + calidad). Spec en
 `docs/superpowers/specs/2026-07-14-*.md`, plan en
@@ -427,11 +433,24 @@ doble revisión (spec compliance + calidad). Spec en
   FK hacia `children` en todo el esquema que bloqueaba el borrado; verificado
   con una consulta directa a `pg_constraint` (recomendado antes de asumir que
   el archivo de migración refleja el estado real de prod).
+- **Mi día: nombre completo siempre visible**: `BigSessionCard`/`TodaySessionsSection`/
+  `TimelineRow`/`WeekCompletedSection`/`page.tsx` priorizaban `preferred_name`
+  (apodo, a veces solo el nombre de pila) sobre `full_name`, y truncaban con
+  CSS — dos niños con el mismo apodo quedaban indistinguibles para la miss.
+  Se invierte la prioridad (`full_name` primero) y se quita el `truncate` en
+  las tarjetas principales, en los 5 sitios que renderizan el nombre.
+- **Mig 0183 — reposiciones sin botón de iniciar sesión**: `start_therapy_session`
+  solo aceptaba `status='scheduled'`; una reposición nace directamente en
+  `status='replacement'` y nunca pasa por `'scheduled'`. Se amplía la RPC +
+  el gate de botones en `BigSessionCard.tsx` (tenía el mismo problema del
+  lado del cliente — sin el fix de la RPC el botón habría aparecido pero
+  fallado al hacer clic).
 - **Pendiente**: sincronizar `supabase/scripts/full-setup/02_kinetic_schema.sql`
-  (script de bootstrap de proyecto nuevo) con las migs 0181/0182 — todavía
-  tiene el guard de conflictos viejo en 4 lugares y el FK de invoices sin
-  corregir; un ambiente nuevo partiría con ambos bugs ya arreglados en prod.
-  Flaggeado como tarea aparte, no bloqueaba este lote.
+  (script de bootstrap de proyecto nuevo) con las migs 0181/0182/0183 —
+  todavía tiene el guard de conflictos viejo en 4 lugares, el FK de invoices
+  sin corregir, y `start_therapy_session` sin el estado `replacement`; un
+  ambiente nuevo partiría con los tres bugs ya arreglados en prod. Flaggeado
+  como tarea aparte, no bloqueaba este lote.
 
 ## Sesión 11-14 jul 2026 — lote grande: menciones, capacidad, desacople agenda/facturación
 Todo en `master` hasta commit `ba46778`. Migraciones **0173–0180 aplicadas y
