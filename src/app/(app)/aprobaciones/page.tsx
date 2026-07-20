@@ -10,6 +10,7 @@ import { LateFeeApprovalList } from '@/components/aprobaciones/LateFeeApprovalLi
 import { detectPendingProgressReportsAllTherapists } from '@/lib/domain/progress-reports-pending'
 import { listPendingAbsences } from '@/app/actions/absences'
 import { listSuggestedLateFees } from '@/app/actions/dispatch'
+import { THERAPY_CAPABLE_ROLES } from '@/types/db'
 import type { SessionReport, ProgressReport, ReportTemplate } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
@@ -121,11 +122,12 @@ export default async function AprobacionesPage() {
   // Cargos por recogida tardía sugeridos (pendientes de cobrar/perdonar).
   const suggestedLateFees = await listSuggestedLateFees()
 
-  // Lista de terapistas/maestras para el selector de reagendamiento.
+  // Lista de personal asignable como terapista para el selector de
+  // reagendamiento — mismo set que puede conducir terapias en el plan.
   const { data: therapistsRaw } = await supabase
     .from('users')
     .select('id, full_name, role')
-    .in('role', ['terapista', 'maestra'])
+    .in('role', THERAPY_CAPABLE_ROLES)
     .order('full_name')
   const therapistsForReschedule = (therapistsRaw ?? []) as { id: string; full_name: string; role: string }[]
 

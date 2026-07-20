@@ -13,8 +13,8 @@ import { ChildPhotoUploader } from '@/components/families/ChildPhotoUploader'
 import { ChildIntakePipelinePanel } from '@/components/children/ChildIntakePipelinePanel'
 import { listPhaseCatalog } from '@/app/actions/intake-pipeline'
 import { getChildDashboardData } from '@/lib/domain/child-dashboard'
-import { MORNING_PROGRAM_LABELS } from '@/types/db'
-import type { Child, MonthlySessionCycle, TreatmentPlan, UserRole } from '@/types/db'
+import { MORNING_PROGRAM_LABELS, THERAPY_CAPABLE_ROLES } from '@/types/db'
+import type { Child, MonthlySessionCycle, TreatmentPlan } from '@/types/db'
 import Link from 'next/link'
 import { ChildForm } from '@/components/families/ChildForm'
 import { DeleteChildButton } from '@/components/families/DeleteChildButton'
@@ -38,18 +38,6 @@ const MGMT_ROLES_CYCLES = [
 const CAN_CANCEL_CYCLES_ROLES = ['admin', 'directora', 'coordinadora_familias']
 // Terapistas y maestras tienen su propia vista restringida en /mis-ninos/[childId].
 const REDIRECT_TO_MY_KIDS = ['terapista', 'maestra']
-
-// Roles asignables como terapista principal (y terapista por terapia) de un niño.
-// Además de terapistas/maestras, incluye dirección y coordinación, que también
-// pueden quedar como responsables del plan de un niño.
-const ASSIGNABLE_THERAPIST_ROLES: UserRole[] = [
-  'terapista',
-  'maestra',
-  'admin',
-  'directora',
-  'coordinadora_terapias',
-  'coordinadora_familias',
-]
 
 export const dynamic = 'force-dynamic'
 
@@ -100,7 +88,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
       supabase
         .from('users')
         .select('id, full_name, role')
-        .in('role', ASSIGNABLE_THERAPIST_ROLES)
+        .in('role', THERAPY_CAPABLE_ROLES)
         .order('full_name'),
       supabase
         .from('monthly_session_cycles')

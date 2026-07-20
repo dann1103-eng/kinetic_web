@@ -4,20 +4,11 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
+import { THERAPY_CAPABLE_ROLES } from '@/types/db'
 import type { TreatmentPlan, TreatmentPlanTherapyEntry, UserRole } from '@/types/db'
 
 // Quién puede reasignar en bloque (sustituir una terapeuta por otra).
 const MGMT_ROLES: UserRole[] = ['admin', 'directora', 'coordinadora_terapias', 'recepcion']
-
-// Roles que pueden recibir terapias (candidatos destino de una sustitución).
-const THERAPY_CAPABLE_ROLES: UserRole[] = [
-  'terapista',
-  'maestra',
-  'admin',
-  'directora',
-  'coordinadora_terapias',
-  'coordinadora_familias',
-]
 
 async function getActor() {
   const ctx = await getEffectiveUser()

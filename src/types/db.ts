@@ -116,6 +116,21 @@ export type ClientStatus = 'active' | 'paused' | 'overdue'
 export type CycleStatus = 'current' | 'archived' | 'pending_renewal' | 'scheduled'
 export type PaymentStatus = 'paid' | 'unpaid'
 export type UserRole = 'admin' | 'supervisor' | 'operator' | 'client' | 'directora' | 'coordinadora_familias' | 'coordinadora_terapias' | 'terapista' | 'maestra' | 'recepcion' | 'contable' | 'family'
+
+/**
+ * Roles que pueden quedar asignados como terapista de una terapia (plan de
+ * tratamiento, sustitución, reagendamiento de reposiciones, etc.). Además de
+ * terapistas/maestras, incluye dirección y coordinación, que también pueden
+ * conducir sesiones. Única fuente — no duplicar este array en otros archivos.
+ */
+export const THERAPY_CAPABLE_ROLES: UserRole[] = [
+  'terapista',
+  'maestra',
+  'admin',
+  'directora',
+  'coordinadora_terapias',
+  'coordinadora_familias',
+]
 export type ConversationType = 'dm' | 'channel' | 'voice_channel'
 
 export type CallModality = 'voice' | 'video' | 'screen'
