@@ -16,6 +16,11 @@ import { isMonthlyFlatEntry, therapyLineAmount } from './monthly-flat'
 
 const TZ = 'America/El_Salvador'
 const WEEK_DOWS = ['mon', 'tue', 'wed', 'thu', 'fri'] as const
+const WEEKEND_DOWS = ['sat', 'sun'] as const
+// Orden completo lun..dom, para ordenar entradas que sí pueden caer en fin de
+// semana (desglose por terapia) — WEEK_DOWS por sí solo daría indexOf=-1 para
+// sábado/domingo y los ordenaría antes que lunes.
+const FULL_WEEK_ORDER = [...WEEK_DOWS, ...WEEKEND_DOWS] as const
 export const DOW_LABEL: Record<string, string> = {
   mon: 'Lunes',
   tue: 'Martes',
@@ -71,7 +76,7 @@ export interface CycleDetailData {
   firstDowIndexMon: number // 0 = lunes
   dayHasAppt: boolean[] // longitud daysInMonth+1; índice = día del mes
   therapyBreakdowns: TherapyBreakdown[]
-  weeklyPlan: WeeklyPlanCell[] // lunes..viernes
+  weeklyPlan: WeeklyPlanCell[] // lunes..viernes siempre + sábado/domingo solo si el plan los usa
   costRows: CostRow[]
   subtotal: number
   discountLabel: string | null
@@ -136,14 +141,21 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
           count: dateSet.size,
           dates: Array.from(dateSet).sort((x, y) => x - y),
         }))
-        .sort((a, b) => WEEK_DOWS.indexOf(a.dow as (typeof WEEK_DOWS)[number]) - WEEK_DOWS.indexOf(b.dow as (typeof WEEK_DOWS)[number]))
+        .sort((a, b) => FULL_WEEK_ORDER.indexOf(a.dow as (typeof FULL_WEEK_ORDER)[number]) - FULL_WEEK_ORDER.indexOf(b.dow as (typeof FULL_WEEK_ORDER)[number]))
       const total = days.reduce((s, d) => s + d.count, 0)
       return { service, label: serviceLabel(service), days, total }
     })
     .sort((a, b) => a.label.localeCompare(b.label, 'es'))
 
-  // Plan contratado por día de la semana (lun..vie) desde el patrón.
-  const weeklyPlan: WeeklyPlanCell[] = WEEK_DOWS.map((dow) => {
+  // Plan contratado por día de la semana. Lunes..viernes siempre se muestran
+  // (aunque el día quede sin terapia, como antes); sábado/domingo se agregan
+  // solo si el patrón realmente tiene una terapia ese día — evita 2 columnas
+  // vacías en el caso común (todo entre semana) sin perder las que sí caen
+  // en fin de semana.
+  const usedWeekendDows = WEEKEND_DOWS.filter((dow) =>
+    input.schedule.some((s) => s.day_of_week === dow),
+  )
+  const weeklyPlan: WeeklyPlanCell[] = [...WEEK_DOWS, ...usedWeekendDows].map((dow) => {
     const therapies = input.schedule
       .filter((s) => s.day_of_week === dow)
       .map((s) => serviceLabel(s.service))
