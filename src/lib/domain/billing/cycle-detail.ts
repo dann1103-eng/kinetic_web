@@ -59,6 +59,8 @@ export interface CostRow {
   unitCost: number
   total: number
   isFlat: boolean
+  /** Duración real de la sesión (del patrón de horario) — null en mensualidades planas. */
+  durationMinutes: number | null
 }
 
 export interface WeeklyPlanCell {
@@ -179,7 +181,21 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
         sessions_per_month: count,
         unit_cost_usd: unitCost,
       })
-      return { service: t.service, label: serviceLabel(t.service), count, unitCost, total, isFlat: flat }
+      // Duración real configurada para esta terapia (del patrón de horario, no
+      // asumida) — para aclarar en el PDF a cuánto corresponde el precio
+      // unitario (ej. "Ils Escucha (60 min)" vs. el resto, típicamente 30 min).
+      const durationMinutes = flat
+        ? null
+        : input.schedule.find((s) => s.service === t.service)?.duration_minutes ?? null
+      return {
+        service: t.service,
+        label: serviceLabel(t.service),
+        count,
+        unitCost,
+        total,
+        isFlat: flat,
+        durationMinutes,
+      }
     })
 
   const subtotal = costRows.reduce((s, r) => s + r.total, 0)

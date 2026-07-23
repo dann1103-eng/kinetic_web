@@ -164,7 +164,7 @@ export function CycleDetailPDF({ data, paymentNote }: Props) {
               <View key={r.service} style={s.tr}>
                 <Text style={[s.td, { flex: 3 }]}>
                   {r.label}
-                  {r.isFlat ? ' (mensualidad)' : ''}
+                  {r.isFlat ? ' (mensualidad)' : r.durationMinutes ? ` (${r.durationMinutes} min)` : ''}
                 </Text>
                 <Text style={[s.td, { width: 70, textAlign: 'center' }]}>{r.count}</Text>
                 <Text style={[s.td, { width: 70, textAlign: 'right' }]}>${r.unitCost.toFixed(2)}</Text>

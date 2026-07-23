@@ -54,6 +54,45 @@ describe('buildCycleDetail — weeklyPlan', () => {
   })
 })
 
+describe('buildCycleDetail — costRows.durationMinutes', () => {
+  it('toma la duración real del patrón de horario de esa terapia', () => {
+    const schedule: TreatmentPlanScheduleSlot[] = [
+      { day_of_week: 'sat', time_local: '10:00', duration_minutes: 60, service: 'ils_escucha' },
+    ]
+    const input = {
+      ...baseInput(schedule),
+      therapies: [
+        {
+          service: 'ils_escucha',
+          active: true,
+          sessions_per_month: 1,
+          unit_cost_usd: 60,
+          billing_mode: 'per_session',
+        } as TreatmentPlanTherapyEntry,
+      ],
+    }
+    const data = buildCycleDetail(input)
+    expect(data.costRows[0].durationMinutes).toBe(60)
+  })
+
+  it('es null para mensualidades planas (programas matutinos)', () => {
+    const input = {
+      ...baseInput([]),
+      therapies: [
+        {
+          service: 'blue_kids',
+          active: true,
+          sessions_per_month: 0,
+          unit_cost_usd: 120,
+          billing_mode: 'monthly_flat',
+        } as TreatmentPlanTherapyEntry,
+      ],
+    }
+    const data = buildCycleDetail(input)
+    expect(data.costRows[0].durationMinutes).toBeNull()
+  })
+})
+
 describe('buildCycleDetail — therapyBreakdowns ordena sábado después de viernes', () => {
   it('una cita de sábado no se ordena antes que lunes en el desglose', () => {
     const input = {
