@@ -445,6 +445,31 @@ doble revisión (spec compliance + calidad). Spec en
   el gate de botones en `BigSessionCard.tsx` (tenía el mismo problema del
   lado del cliente — sin el fix de la RPC el botón habría aparecido pero
   fallado al hacer clic).
+- **Coordinadora de terapias no aparecía en el selector de reposiciones**:
+  `/aprobaciones` filtraba el selector de terapista a solo `['terapista',
+  'maestra']` — el mismo set más amplio (+ admin/directora/ambas
+  coordinadoras) ya existía correctamente duplicado en otros dos archivos
+  (asignación de terapista en el plan, "sustituir terapeuta"). Se extrae a
+  una constante única `THERAPY_CAPABLE_ROLES` en `types/db.ts`, usada en los
+  3 lugares para que no se desincronicen otra vez.
+- **PDF de detalle de pago mensual — 2 fixes**: (1) la tabla "Plan de
+  terapias contratado" armaba sus columnas de una lista fija
+  `['mon'..'fri']` — una terapia en sábado/domingo se descartaba en
+  silencio (el calendario y el desglose del mismo PDF sí la mostraban bien,
+  se calculan aparte desde las citas reales). Se agregan sábado/domingo
+  como columnas extra SOLO si el plan los usa (lunes-viernes se siguen
+  mostrando siempre). De paso corrige el orden del desglose por terapia,
+  que ordenaba sábado/domingo ANTES que lunes. (2) A pedido del usuario, se
+  aclara junto a cada terapia en la tabla de costos a cuántos minutos
+  corresponde el precio unitario (ej. "Sensorial (30 min)"), leyendo la
+  duración real de `schedule_pattern_json` en vez de asumir 30 min fijo
+  (una terapia con tarifa propia de 60 min, ej. `ils_escucha`, muestra su
+  duración real). **Deliberadamente no se tocó el cálculo de "# en el mes"
+  ni el monto** — el sistema no dobla automáticamente el precio por
+  duración hoy (se ajusta manualmente al armar el plan); hacerlo solo en
+  este PDF habría hecho que la suma de filas no coincidiera con "Total a
+  pagar" (que viene fijo de `payment_amount_usd`, calculado aparte en las
+  RPCs de ciclo).
 - **Pendiente**: sincronizar `supabase/scripts/full-setup/02_kinetic_schema.sql`
   (script de bootstrap de proyecto nuevo) con las migs 0181/0182/0183 —
   todavía tiene el guard de conflictos viejo en 4 lugares, el FK de invoices
