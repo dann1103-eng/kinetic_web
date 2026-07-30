@@ -5,13 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { userCanViewChild } from '@/lib/domain/my-children'
+import { SESSION_REPORT_SUPER_EDITOR_ROLES } from '@/types/db'
 import type { SessionReport } from '@/types/db'
-
-/**
- * Roles con poder para editar/eliminar reportes en CUALQUIER estado
- * (no solo borrador). Bypassean RLS via admin client.
- */
-const REPORT_SUPER_EDITORS = ['admin', 'coordinadora_familias', 'coordinadora_terapias']
 
 /** Respeta impersonación. */
 async function getActor() {
@@ -209,7 +204,7 @@ export async function updateSessionReportDraft(
 
   // Admin / coordinadoras pueden editar reportes en CUALQUIER estado
   // (incl. approved / sent_to_family). Usan admin client para bypasear RLS.
-  const isSuperEditor = REPORT_SUPER_EDITORS.includes(user.role)
+  const isSuperEditor = SESSION_REPORT_SUPER_EDITOR_ROLES.includes(user.role)
 
   // La terapista principal del niño puede llenar el reporte aunque otra persona
   // haya cubierto la sesión. Si no es la autora actual, usa admin client y toma
@@ -378,7 +373,7 @@ export async function deleteSessionReport(
   if (!report) return { ok: false, error: 'Reporte no encontrado.' }
 
   const isAuthor = (report as { therapist_id: string | null }).therapist_id === user.id
-  const isSuperEditor = REPORT_SUPER_EDITORS.includes(user.role)
+  const isSuperEditor = SESSION_REPORT_SUPER_EDITOR_ROLES.includes(user.role)
 
   if (!isSuperEditor) {
     if (!isAuthor) {

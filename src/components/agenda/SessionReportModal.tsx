@@ -18,13 +18,12 @@ import {
   removeSessionReportFile,
   getReportFileSignedUrl,
 } from '@/app/actions/report-files'
+import { SESSION_REPORT_SUPER_EDITOR_ROLES } from '@/types/db'
 import type { SessionReport } from '@/types/db'
 import { ChildAttachmentManagerLazy } from '@/components/shared/ChildAttachmentManagerLazy'
 import { useUser } from '@/contexts/UserContext'
 import { useDraft } from '@/hooks/useDraft'
 import { DraftRestoreBanner, SaveStatusIndicator, OfflineSaveError } from '@/components/ui/DraftAutosave'
-
-const SUPER_EDITOR_ROLES = ['admin', 'coordinadora_familias', 'coordinadora_terapias']
 
 interface SessionReportModalProps {
   open: boolean
@@ -74,7 +73,7 @@ export function SessionReportModal({
   const [failedOffline, setFailedOffline] = useState(false)
 
   const currentUser = useUser()
-  const isSuperEditor = SUPER_EDITOR_ROLES.includes(currentUser.role)
+  const isSuperEditor = SESSION_REPORT_SUPER_EDITOR_ROLES.includes(currentUser.role)
   // Editable si está en borrador / rechazado (flujo normal) o si el usuario
   // actual es admin / coordinadora (puede modificar cualquier reporte).
   const isEditable =

@@ -24,7 +24,7 @@ import { RestoreChildBanner } from '@/components/families/RestoreChildBanner'
 // gestión: dirección, ambas coordinadoras y recepción (paridad con deleteChild).
 const CAN_DELETE_CHILD_ROLES = ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias', 'recepcion']
 const MGMT_ROLES_PLAN = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable']
-const CAN_EDIT_CHILD_INFO_ROLES = ['admin', 'directora', 'coordinadora_familias', 'contable', 'recepcion']
+const CAN_EDIT_CHILD_INFO_ROLES = ['admin', 'supervisor', 'directora', 'coordinadora_familias', 'contable', 'recepcion']
 const MGMT_ROLES_CYCLES = [
   'admin',
   'directora',

@@ -131,6 +131,22 @@ export const THERAPY_CAPABLE_ROLES: UserRole[] = [
   'coordinadora_terapias',
   'coordinadora_familias',
 ]
+
+/**
+ * Roles con permiso de editar/eliminar un informe de sesión (session_reports)
+ * en CUALQUIER estado, no solo borrador/rechazado — bypassean RLS vía admin
+ * client. Única fuente — no duplicar en otros archivos (drift confirmado:
+ * `directora` estaba en la lista que decide si se muestra el botón pero no
+ * en las que realmente lo permiten, dejando un botón "Editar" sin efecto).
+ * Distinto del `REPORT_SUPER_EDITORS` de progress-reports.ts (informes
+ * cuatrimestrales, otro dominio — no confundir ni fusionar).
+ */
+export const SESSION_REPORT_SUPER_EDITOR_ROLES: UserRole[] = [
+  'admin',
+  'directora',
+  'coordinadora_familias',
+  'coordinadora_terapias',
+]
 export type ConversationType = 'dm' | 'channel' | 'voice_channel'
 
 export type CallModality = 'voice' | 'video' | 'screen'

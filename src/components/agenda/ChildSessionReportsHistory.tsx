@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
+import { SESSION_REPORT_SUPER_EDITOR_ROLES } from '@/types/db'
 import type { SessionReport, SessionReportStatus } from '@/types/db'
 import { ReportFileDownloadButton } from './ReportFileDownloadButton'
 import { EditSessionReportButton } from './EditSessionReportButton'
@@ -9,9 +10,6 @@ interface ChildSessionReportsHistoryProps {
   /** Nombre legible del niño/a — para el título del modal cuando se edita. */
   childName: string
 }
-
-/** Roles con permiso de editar cualquier reporte sin importar estado. */
-const SUPER_EDITOR_ROLES = ['admin', 'directora', 'coordinadora_familias', 'coordinadora_terapias']
 
 const STATUS_LABEL: Record<SessionReportStatus, string> = {
   draft: 'Borrador',
@@ -37,8 +35,7 @@ export async function ChildSessionReportsHistory({ childId, childName }: ChildSe
   const supabase = await createClient()
   const ctx = await getEffectiveUser()
   const userId = ctx?.appUser.id ?? null
-  const role = ctx?.appUser.role ?? ''
-  const isSuperEditor = SUPER_EDITOR_ROLES.includes(role)
+  const isSuperEditor = !!ctx && SESSION_REPORT_SUPER_EDITOR_ROLES.includes(ctx.appUser.role)
 
   // Para niños inscritos en programa matutino (BK / Learning Kids / Aula),
   // los reportes son OPCIONALES — no mostramos chip rojo de urgencia.
