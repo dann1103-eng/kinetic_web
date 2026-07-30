@@ -87,21 +87,53 @@ export async function getNinosDashboardData(
   const childIds = children.map((c) => c.id)
 
   // 2-4 en paralelo
-  const [{ data: plansRaw }, { data: apptsRaw }, { data: cyclesRaw }] = await Promise.all([
-    supabase.from('treatment_plans').select('*').in('child_id', childIds),
-    supabase
-      .from('appointments')
-      .select('child_id, status')
-      .in('child_id', childIds)
-      .gte('starts_at', startISO)
-      .lt('starts_at', endISO),
-    supabase
-      .from('monthly_session_cycles')
-      .select('*')
-      .in('child_id', childIds)
-      .neq('status', 'cancelled')
-      .order('period_month', { ascending: false }),
-  ])
+  const [{ data: plansRaw }, { data: apptsRaw }, { data: cyclesRaw }, { data: groupMembersRaw }] =
+    await Promise.all([
+      supabase.from('treatment_plans').select('*').in('child_id', childIds),
+      supabase
+        .from('appointments')
+        .select('child_id, status')
+        .in('child_id', childIds)
+        .gte('starts_at', startISO)
+        .lt('starts_at', endISO),
+      supabase
+        .from('monthly_session_cycles')
+        .select('*')
+        .in('child_id', childIds)
+        .neq('status', 'cancelled')
+        .order('period_month', { ascending: false }),
+      // Grupos matutinos activos del niño — los programas matutinos no llevan
+      // terapista individual (mig 0180: primary_therapist_id siempre null en
+      // un plan 100% matutino), la cobertura es por staff del grupo.
+      supabase
+        .from('program_group_members')
+        .select('child_id, group_id')
+        .in('child_id', childIds)
+        .eq('active', true),
+    ])
+
+  // Staff de cada grupo matutino referenciado (para unir con los terapistas
+  // del plan más abajo) — mismo patrón que listMyChildren (my-children.ts).
+  const groupIdsByChild = new Map<string, string[]>()
+  const allGroupIds = new Set<string>()
+  for (const m of (groupMembersRaw ?? []) as { child_id: string; group_id: string }[]) {
+    allGroupIds.add(m.group_id)
+    const arr = groupIdsByChild.get(m.child_id) ?? []
+    arr.push(m.group_id)
+    groupIdsByChild.set(m.child_id, arr)
+  }
+  const staffIdsByGroup = new Map<string, string[]>()
+  if (allGroupIds.size > 0) {
+    const { data: groupStaffRaw } = await supabase
+      .from('program_group_staff')
+      .select('group_id, user_id')
+      .in('group_id', [...allGroupIds])
+    for (const gs of (groupStaffRaw ?? []) as { group_id: string; user_id: string }[]) {
+      const arr = staffIdsByGroup.get(gs.group_id) ?? []
+      arr.push(gs.user_id)
+      staffIdsByGroup.set(gs.group_id, arr)
+    }
+  }
 
   // Plan activo por niño (activo primero; si no hay activo, el más reciente)
   const plansByChild = new Map<string, TreatmentPlan>()
@@ -137,13 +169,18 @@ export async function getNinosDashboardData(
     if (!lastCycleByChild.has(c.child_id)) lastCycleByChild.set(c.child_id, c)
   }
 
-  // Terapistas por niño (principal + por terapia) + set global referenciado.
+  // Terapistas por niño (principal + por terapia + staff de su grupo matutino)
+  // + set global referenciado.
   const therapistIdsByChild = new Map<string, string[]>()
   const allTherapistIds = new Set<string>()
   for (const child of children) {
-    const ids = therapistIdsForPlan(plansByChild.get(child.id) ?? null)
-    therapistIdsByChild.set(child.id, ids)
-    for (const id of ids) allTherapistIds.add(id)
+    const ids = new Set(therapistIdsForPlan(plansByChild.get(child.id) ?? null))
+    for (const groupId of groupIdsByChild.get(child.id) ?? []) {
+      for (const staffId of staffIdsByGroup.get(groupId) ?? []) ids.add(staffId)
+    }
+    const idsArr = [...ids]
+    therapistIdsByChild.set(child.id, idsArr)
+    for (const id of idsArr) allTherapistIds.add(id)
   }
 
   // Nombres de los terapistas referenciados (para el dropdown del filtro).
