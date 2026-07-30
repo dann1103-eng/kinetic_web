@@ -470,6 +470,17 @@ doble revisión (spec compliance + calidad). Spec en
   este PDF habría hecho que la suma de filas no coincidiera con "Total a
   pagar" (que viene fijo de `payment_amount_usd`, calculado aparte en las
   RPCs de ciclo).
+- **Fix asistencia BlueKids**: `/ninos` filtraba por terapista armando
+  `therapistIds` SOLO desde `treatment_plans` (`primary_therapist_id` +
+  `therapies_json[].therapist_id`). Un niño de programa matutino puro no
+  lleva terapista individual (mig 0180) — su cobertura real es
+  `program_group_staff`, no el plan — así que si además su única terapia
+  individual estaba asignada a OTRA persona (no la miss de su grupo), esa
+  miss nunca aparecía como cobertura suya en el filtro, aunque sí fuera su
+  miss real de grupo. Se agrega `program_group_members`/`program_group_staff`
+  como fuente adicional en `ninos-dashboard.ts`, unida con la del plan —
+  mismo patrón que ya usaba correctamente `listMyChildren` (`my-children.ts`)
+  para `/mis-ninos`. Verificado contra el niño real reportado (grupo "BK1").
 - **Pendiente**: sincronizar `supabase/scripts/full-setup/02_kinetic_schema.sql`
   (script de bootstrap de proyecto nuevo) con las migs 0181/0182/0183 —
   todavía tiene el guard de conflictos viejo en 4 lugares, el FK de invoices
