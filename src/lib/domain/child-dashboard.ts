@@ -188,6 +188,14 @@ export async function getChildDashboardData(
   }
 
   // KPIs
+  // `total` excluye las citas 'programa_matutino' — regenerateMorningAppointments
+  // (monthly-cycles.ts) sigue creando una cita por-niño además de la sesión de
+  // grupo, y esas citas nunca cambian de status (mig 0151); contarlas acá
+  // duplicaría la asistencia de grupo que se suma aparte más abajo (present/total
+  // reales de program_session_attendance). `scheduled` sí las sigue contando
+  // (loop de abajo) — es lo único que hoy refleja "programadas" para un niño
+  // 100% de programa matutino, ya que no tenemos desglose de pendientes en el
+  // sistema de grupo.
   const kpis: ChildDashboardKpis = {
     scheduled: 0,
     completed: 0,
@@ -195,7 +203,7 @@ export async function getChildDashboardData(
     noShowWaived: 0,
     replacement: 0,
     late_cancel: 0,
-    total: monthAppts.length,
+    total: monthAppts.filter((a) => a.event_type !== 'programa_matutino').length,
   }
 
   for (const a of monthAppts) {
@@ -219,8 +227,13 @@ export async function getChildDashboardData(
   }
 
   // Grilla calendario
+  // Las citas 'programa_matutino' (leftover por-niño, ver comentario de kpis
+  // arriba) se excluyen acá — el bloque de grupo matutino más abajo ya pinta
+  // esa misma fecha con el color real de asistencia; sin este filtro salían
+  // DOS bloques el mismo día (uno gris del leftover, otro del grupo).
   const cellsByDate = new Map<string, AttendanceCell['appointments']>()
   for (const a of monthAppts) {
+    if (a.event_type === 'programa_matutino') continue
     const dateKey = dateKeyInSV(a.starts_at)
     if (!cellsByDate.has(dateKey)) cellsByDate.set(dateKey, [])
     const abs = absencesById.get(a.id)

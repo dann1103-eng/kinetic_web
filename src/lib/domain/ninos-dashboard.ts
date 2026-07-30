@@ -90,10 +90,18 @@ export async function getNinosDashboardData(
   const [{ data: plansRaw }, { data: apptsRaw }, { data: cyclesRaw }, { data: groupMembersRaw }] =
     await Promise.all([
       supabase.from('treatment_plans').select('*').in('child_id', childIds),
+      // `programa_matutino` se excluye: la asistencia de programas matutinos
+      // se cuenta aparte más abajo (fetchMorningAttendanceByChild, sobre
+      // program_session_attendance) — contarla también acá la duplicaría,
+      // porque regenerateMorningAppointments (monthly-cycles.ts) sigue
+      // creando una cita por-niño además de la sesión de grupo. Mismo
+      // patrón de exclusión que ya usan mi-dia/capacidad-terapistas/
+      // therapist-capacity.ts.
       supabase
         .from('appointments')
         .select('child_id, status')
         .in('child_id', childIds)
+        .neq('event_type', 'programa_matutino')
         .gte('starts_at', startISO)
         .lt('starts_at', endISO),
       supabase
@@ -145,7 +153,7 @@ export async function getNinosDashboardData(
   // Asistencia del mes por niño (citas individuales)
   const attendanceByChild = new Map<string, { completed: number; total: number }>()
   for (const a of (apptsRaw ?? []) as { child_id: string; status: string }[]) {
-    if (a.status === 'rescheduled') continue // no cuenta para asistencia
+    if (a.status === 'rescheduled' || a.status === 'cancelled') continue // no cuentan para asistencia
     const curr = attendanceByChild.get(a.child_id) ?? { completed: 0, total: 0 }
     curr.total++
     if (a.status === 'completed') curr.completed++
