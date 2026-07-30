@@ -481,6 +481,38 @@ doble revisión (spec compliance + calidad). Spec en
   como fuente adicional en `ninos-dashboard.ts`, unida con la del plan —
   mismo patrón que ya usaba correctamente `listMyChildren` (`my-children.ts`)
   para `/mis-ninos`. Verificado contra el niño real reportado (grupo "BK1").
+- **Auditoría de allowlists duplicadas** (a pedido del usuario, tras el fix de
+  `/ninos`): encontró 2 gaps activos más, ambos arreglados. (1)
+  `ChildSessionReportsHistory` mostraba "Editar/Corregir" a `directora` para
+  informes de sesión en cualquier estado, pero `SessionReportModal` y la
+  server action (`session-reports.ts`) tenían su propia lista de roles sin
+  `directora` — el botón no hacía nada real para ella. Consolidado en
+  `SESSION_REPORT_SUPER_EDITOR_ROLES` (`types/db.ts`), usada en los 3
+  lugares. (2) `createChild`/`updateChild` ya permiten a `supervisor` crear
+  y editar niños, pero las dos páginas que muestran el botón de editar
+  (`CAN_EDIT_CHILD_ROLES`/`CAN_EDIT_CHILD_INFO_ROLES`) nunca incluían ese
+  rol — se agrega a ambas. Además encontró un gap grande NO arreglado aún
+  (fuera de alcance rápido, flaggeado como tarea aparte): `/reportes/por-terapista`
+  computa KPIs (asistencia, cumplimiento de informes) SOLO desde
+  `treatment_plans` — mismo problema estructural que `/ninos` tenía, nunca
+  actualizado con la lógica de `program_group_staff`/`assignee_ids` que
+  `therapist-capacity.ts` ya usa correctamente. Varios clusters de arrays de
+  roles duplicados-pero-coincidentes también quedaron identificados (no
+  arreglados, bajo riesgo mientras coincidan) — ver memoria de sesión para
+  la lista completa si se retoma.
+- **Fix asistencia de programas matutinos contada doble**: `regenerateMorningAppointments`
+  (`monthly-cycles.ts`) sigue creando una cita por-niño
+  (`event_type='programa_matutino'`, `status='scheduled'` para siempre —
+  mig 0151) además de la sesión de grupo real. `ninos-dashboard.ts` y
+  `child-dashboard.ts` contaban esas citas individuales Y ADEMÁS sumaban la
+  asistencia real de grupo encima — duplicando cada sesión. Otras vistas
+  (mi-dia, capacidad-terapistas, therapist-schedules, therapist-capacity.ts)
+  ya excluían `programa_matutino` de sus conteos; estas dos no. Se corrige
+  en ambas (más el filtro de `'cancelled'` que faltaba en `ninos-dashboard.ts`,
+  y la grilla de calendario de `child-dashboard.ts` que pintaba DOS bloques
+  el mismo día). Verificado contra datos reales: niña Learning Kids, julio
+  2026, tenía 23 citas leftover + 23 sesiones de grupo reales (21 presente)
+  — antes mostraba 21/33, ahora 21/23.
 - **Pendiente**: sincronizar `supabase/scripts/full-setup/02_kinetic_schema.sql`
   (script de bootstrap de proyecto nuevo) con las migs 0181/0182/0183 —
   todavía tiene el guard de conflictos viejo en 4 lugares, el FK de invoices
