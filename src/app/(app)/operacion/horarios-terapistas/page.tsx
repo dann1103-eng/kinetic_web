@@ -2,17 +2,15 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import type { TherapistWorkScheduleBlock } from '@/types/db'
+import { CAN_MANAGE_USERS_ROLES, type TherapistWorkScheduleBlock } from '@/types/db'
 import { TherapistSchedulesList } from '@/components/operacion/TherapistSchedulesList'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_ROLES = ['admin', 'directora']
-
 export default async function HorariosTerapistasPage() {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
-  if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
+  if (!CAN_MANAGE_USERS_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
 
   const supabase = await createClient()
 
