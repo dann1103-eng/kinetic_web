@@ -553,6 +553,26 @@ doble revisión (spec compliance + calidad). Spec en
   anterior. Se agrega `coordinadora_terapias` y se consolida todo en
   `CAN_MANAGE_USERS_ROLES` (`types/db.ts`), usada en los 7 lugares. Los guards
   anti-escalada de admin (no crear/asignar/borrar el rol admin) no se tocaron.
+- **Auditoría de permisos de recepción** (a pedido del usuario, tras el fix
+  anterior): se revisaron todos los arrays con `admin`+`directora` para ver
+  si a `recepcion` le faltaba paridad en algún lado. Un gap real encontrado:
+  `/operacion/horarios-terapistas` (página de "Configurar horarios") tenía su
+  propio guard `['admin', 'directora']`, pero `capacidad-terapistas/page.tsx`
+  (accesible a `recepcion`/`coordinadora_terapias`) enlaza incondicionalmente
+  a esa página con "Configurar horarios →" — **enlace fantasma**: se veía
+  pero redirigía a `/dashboard` al hacer clic, aunque el Server Action real
+  (`therapist-schedules.ts`) ya aceptaba la escritura de esos roles vía
+  `CAN_MANAGE_USERS_ROLES`. Se reemplaza el guard local por la misma
+  constante. El resto de los casos revisados (`CAN_CANCEL_ROLES` sin
+  recepción en anular ciclo, `/aprobaciones` sin recepción en recogidas
+  tardías, roles clínicos como `CAN_FINALIZE_DISCHARGE`/`THERAPY_CAPABLE_ROLES`)
+  son exclusiones **intencionales y ya documentadas** — recepción no gestiona
+  decisiones clínicas ni anulaciones sensibles de factura. Dos hallazgos
+  menores quedaron sin arreglar (bajo riesgo, no bloquean nada): `/admin/tarifas`
+  parece un duplicado legacy de `/catalogos` (solo enlazado desde
+  `MgmtDashboard`, que recepción no ve — candidato a eliminar); y
+  `CAN_DELETE_FAMILY_ROLES` no incluye `directora` (solo admin + ambas
+  coordinadoras) — inversión rara, no confirmada como bug.
 - **Pendiente**: sincronizar `supabase/scripts/full-setup/02_kinetic_schema.sql`
   (script de bootstrap de proyecto nuevo) con las migs 0181/0182/0183 —
   todavía tiene el guard de conflictos viejo en 4 lugares, el FK de invoices
