@@ -535,6 +535,24 @@ doble revisión (spec compliance + calidad). Spec en
   riesgo de confusión existe en TODAS las formas que usan `useDraft`, solo
   se blindó el cierre (Cancelar/X) en esta una; las demás formas quedan con
   el texto más claro pero sin el guard de confirmación todavía.
+- **Paridad coordinadora_familias/coordinadora_terapias en sustituir terapeuta
+  y gestión de usuarios**: a pedido del usuario, dos huecos de permisos
+  cruzados. (1) `coordinadora_familias` gestiona personal (`/users`) pero no
+  podía usar "Sustituir terapeuta" (relevo en bloque de todas las terapias de
+  una miss a otra) — el gate de UI (`UserProfilePanel.tsx`) y el de la Server
+  Action (`therapist-reassignment.ts`) tenían el mismo array inline
+  `['admin','directora','coordinadora_terapias','recepcion']`, coincidente
+  pero duplicado; se agrega el rol y se consolida en `CAN_REASSIGN_THERAPIST_ROLES`
+  (`types/db.ts`). (2) `coordinadora_terapias` podía sustituir terapeutas pero
+  NO gestionar personal ni cuentas de portal (`/users`, `/usuarios-portal`,
+  cambiar roles, horarios/capacidad) — ese permiso (`admin`, `directora`,
+  `recepcion`, `coordinadora_familias`) estaba duplicado con el mismo valor en
+  7 lugares (`users.ts`, `updateUserRole.ts`, `therapist-schedules.ts`,
+  `familyUsers.ts`, guards de página de `/users` y `/usuarios-portal`, y 2
+  entradas del Sidebar) — mismo patrón de allowlist duplicada de la auditoría
+  anterior. Se agrega `coordinadora_terapias` y se consolida todo en
+  `CAN_MANAGE_USERS_ROLES` (`types/db.ts`), usada en los 7 lugares. Los guards
+  anti-escalada de admin (no crear/asignar/borrar el rol admin) no se tocaron.
 - **Pendiente**: sincronizar `supabase/scripts/full-setup/02_kinetic_schema.sql`
   (script de bootstrap de proyecto nuevo) con las migs 0181/0182/0183 —
   todavía tiene el guard de conflictos viejo en 4 lugares, el FK de invoices
