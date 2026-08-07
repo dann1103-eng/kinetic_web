@@ -513,6 +513,28 @@ doble revisión (spec compliance + calidad). Spec en
   el mismo día). Verificado contra datos reales: niña Learning Kids, julio
   2026, tenía 23 citas leftover + 23 sesiones de grupo reales (21 presente)
   — antes mostraba 21/33, ahora 21/23.
+- **Caso real de pérdida de datos investigado (Christian Atilio Romero)**:
+  reportado un niño+familia nueva creada en lista de espera que no dejó
+  ningún rastro en la BD (ni waitlist_entry, ni children, ni families —
+  verificado exhaustivamente contra prod, incluyendo listar las 33 filas
+  completas de `waitlist_entries`). El flujo de creación (`createWaitlistEntry`
+  + `NewWaitlistEntryModal`) SÍ valida `res.ok` antes de cerrar — no hay bug
+  de "éxito falso". Causa más probable: confusión de UX + `useDraft` — el
+  indicador "Guardado local HH:MM" solo significa que el borrador quedó en
+  `localStorage` de ESE navegador, nunca llegó al servidor, y Cancelar/cerrar
+  (X) lo descartaban sin ningún aviso. Alguien vio el indicador, asumió que
+  ya estaba guardado, y cerró sin apretar "Crear entrada" — dato
+  irrecuperable (no hay borrador rescatable si no se sabe qué equipo se usó).
+  Fix preventivo: Cancelar/X en `NewWaitlistEntryModal` ahora piden
+  confirmación si hay contenido real sin enviar; el catch de `handleSubmit`
+  distingue sin-conexión real de cualquier otro error (antes CUALQUIER
+  excepción, incl. sesión vencida, mostraba el mensaje engañoso de "sin
+  conexión, tus datos están a salvo"); `SaveStatusIndicator` (compartido por
+  TreatmentPlanEditor/SessionReportModal/FamilyForm/ChildForm/etc.) pasa de
+  "Guardado local" a "Borrador local... (sin enviar)" + tooltip — mismo
+  riesgo de confusión existe en TODAS las formas que usan `useDraft`, solo
+  se blindó el cierre (Cancelar/X) en esta una; las demás formas quedan con
+  el texto más claro pero sin el guard de confirmación todavía.
 - **Pendiente**: sincronizar `supabase/scripts/full-setup/02_kinetic_schema.sql`
   (script de bootstrap de proyecto nuevo) con las migs 0181/0182/0183 —
   todavía tiene el guard de conflictos viejo en 4 lugares, el FK de invoices
