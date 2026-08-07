@@ -2,7 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-import type { UserRole } from '@/types/db'
+import { CAN_MANAGE_USERS_ROLES, type UserRole } from '@/types/db'
 
 export async function updateUserRole(targetUserId: string, role: UserRole): Promise<{ error: string | null }> {
   try {
@@ -18,8 +18,7 @@ export async function updateUserRole(targetUserId: string, role: UserRole): Prom
       .select('role')
       .eq('id', user.id)
       .single()
-    const USER_MGMT_ROLES = ['admin', 'directora', 'recepcion', 'coordinadora_familias']
-    if (!appUser || !USER_MGMT_ROLES.includes(appUser.role)) {
+    if (!appUser || !CAN_MANAGE_USERS_ROLES.includes(appUser.role)) {
       return { error: 'Sin permisos para cambiar roles de usuario' }
     }
 

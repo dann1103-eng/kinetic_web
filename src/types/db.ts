@@ -147,6 +147,38 @@ export const SESSION_REPORT_SUPER_EDITOR_ROLES: UserRole[] = [
   'coordinadora_familias',
   'coordinadora_terapias',
 ]
+
+/**
+ * Roles que pueden sustituir/redirigir en bloque TODAS las terapias de una
+ * persona a otra (relevos de staff, ej. "Miss X ya no viene por la tarde").
+ * Única fuente — usada tanto por la Server Action (reassignAllFromTherapist)
+ * como por el gate de UI que decide si mostrar el botón (deben coincidir
+ * siempre, o el botón aparece sin tener efecto real).
+ */
+export const CAN_REASSIGN_THERAPIST_ROLES: UserRole[] = [
+  'admin',
+  'directora',
+  'coordinadora_terapias',
+  'coordinadora_familias',
+  'recepcion',
+]
+
+/**
+ * Roles con paridad total en gestión de personal y cuentas de portal: crear/
+ * editar/borrar usuarios, cambiar roles, horarios/capacidad y cuentas de
+ * familia (portal). Única fuente — usada en las Server Actions (users.ts,
+ * updateUserRole.ts, therapist-schedules.ts, familyUsers.ts), los guards de
+ * página (/users, /usuarios-portal) y el Sidebar (deben coincidir siempre,
+ * o el link aparece sin acceso real). Los guards anti-escalada de admin
+ * (no crear/asignar/borrar el rol admin) son aparte y no se tocan aquí.
+ */
+export const CAN_MANAGE_USERS_ROLES: UserRole[] = [
+  'admin',
+  'directora',
+  'recepcion',
+  'coordinadora_familias',
+  'coordinadora_terapias',
+]
 export type ConversationType = 'dm' | 'channel' | 'voice_channel'
 
 export type CallModality = 'voice' | 'video' | 'screen'

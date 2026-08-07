@@ -4,15 +4,14 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { listAllFamilyUsers } from '@/app/actions/familyUsers'
 import { UsuariosPortalClient } from './UsuariosPortalClient'
+import { CAN_MANAGE_USERS_ROLES } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_ROLES = ['admin', 'directora', 'recepcion', 'coordinadora_familias']
 
 export default async function UsuariosPortalPage() {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
-  if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
+  if (!CAN_MANAGE_USERS_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
 
   const supabase = await createClient()
 

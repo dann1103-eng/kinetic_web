@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import type { AppUser } from '@/types/db'
+import { CAN_MANAGE_USERS_ROLES, type AppUser } from '@/types/db'
 import { UsersTable } from './UsersTable'
 import { TopNav } from '@/components/layout/TopNav'
 
@@ -17,7 +17,7 @@ export default async function UsersPage() {
     .select('role')
     .eq('id', authUser.id)
     .single()
-  if (!appUser || !['admin', 'directora', 'recepcion', 'coordinadora_familias'].includes(appUser.role)) redirect('/')
+  if (!appUser || !CAN_MANAGE_USERS_ROLES.includes(appUser.role)) redirect('/')
 
   // Solo usuarios staff: excluir 'client' (FM legacy) y 'family' (portal Kinetic).
   const { data: users } = await supabase

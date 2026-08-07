@@ -3,8 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
-
-const PORTAL_MGMT_ROLES = ['admin', 'directora', 'recepcion', 'coordinadora_familias']
+import { CAN_MANAGE_USERS_ROLES } from '@/types/db'
 
 async function requireAdminOrDirectora() {
   const supabase = await createClient()
@@ -15,7 +14,7 @@ async function requireAdminOrDirectora() {
     .select('role')
     .eq('id', user.id)
     .single()
-  if (!appUser || !PORTAL_MGMT_ROLES.includes(appUser.role)) {
+  if (!appUser || !CAN_MANAGE_USERS_ROLES.includes(appUser.role)) {
     return {
       error: 'Sin permisos para gestionar accesos del portal familia' as const,
       supabase: null,

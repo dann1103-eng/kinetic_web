@@ -4,16 +4,13 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import type { TherapistWorkScheduleBlock } from '@/types/db'
+import { CAN_MANAGE_USERS_ROLES, type TherapistWorkScheduleBlock, type UserRole } from '@/types/db'
 import {
   calculateWeeklyOccupancy,
   startOfWeekMonday,
   type WeeklyOccupancy,
   type GroupSessionLite,
 } from '@/lib/domain/therapist-capacity'
-
-// Roles que gestionan horarios/capacidad desde /users (Administración).
-const SCHEDULE_MGMT_ROLES = ['admin', 'directora', 'recepcion', 'coordinadora_familias'] as const
 
 async function getActor() {
   const supabase = await createClient()
@@ -22,8 +19,8 @@ async function getActor() {
   return { supabase, user: { id: ctx.appUser.id, role: ctx.appUser.role } }
 }
 
-function canManageSchedules(role: string): boolean {
-  return (SCHEDULE_MGMT_ROLES as readonly string[]).includes(role)
+function canManageSchedules(role: UserRole): boolean {
+  return CAN_MANAGE_USERS_ROLES.includes(role)
 }
 
 export interface UpsertScheduleBlockInput {

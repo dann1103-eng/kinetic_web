@@ -3,12 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { UserRole } from '@/types/db'
-
-// Roles que gestionan al personal desde la interfaz /users (Administración).
-// coordinadora_familias tiene paridad con recepción (guards anti-escalada de
-// admin siguen aplicando: no puede crear/asignar/borrar el rol admin).
-const USER_MGMT_ROLES = ['admin', 'directora', 'recepcion', 'coordinadora_familias']
+import { CAN_MANAGE_USERS_ROLES, type UserRole } from '@/types/db'
 
 /** Verifica que el actor pueda gestionar usuarios y devuelve su rol. */
 async function requireUserManager(): Promise<UserRole> {
@@ -16,7 +11,7 @@ async function requireUserManager(): Promise<UserRole> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('No autenticado')
   const { data } = await supabase.from('users').select('role').eq('id', user.id).single()
-  if (!data || !USER_MGMT_ROLES.includes(data.role)) throw new Error('Sin permisos')
+  if (!data || !CAN_MANAGE_USERS_ROLES.includes(data.role)) throw new Error('Sin permisos')
   return data.role as UserRole
 }
 

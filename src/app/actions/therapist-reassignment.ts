@@ -4,11 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import { THERAPY_CAPABLE_ROLES } from '@/types/db'
+import { CAN_REASSIGN_THERAPIST_ROLES, THERAPY_CAPABLE_ROLES } from '@/types/db'
 import type { TreatmentPlan, TreatmentPlanTherapyEntry, UserRole } from '@/types/db'
-
-// Quién puede reasignar en bloque (sustituir una terapeuta por otra).
-const MGMT_ROLES: UserRole[] = ['admin', 'directora', 'coordinadora_terapias', 'recepcion']
 
 async function getActor() {
   const ctx = await getEffectiveUser()
@@ -21,7 +18,7 @@ export async function listReassignTargets(
   excludeUserId: string,
 ): Promise<{ id: string; full_name: string; role: UserRole }[]> {
   const actor = await getActor()
-  if (!MGMT_ROLES.includes(actor.role)) return []
+  if (!CAN_REASSIGN_THERAPIST_ROLES.includes(actor.role)) return []
   const supabase = await createClient()
   const { data } = await supabase
     .from('users')
@@ -48,7 +45,7 @@ export async function reassignAllFromTherapist(
   | { ok: false; error: string }
 > {
   const actor = await getActor()
-  if (!MGMT_ROLES.includes(actor.role)) {
+  if (!CAN_REASSIGN_THERAPIST_ROLES.includes(actor.role)) {
     return { ok: false, error: 'Sin permisos para sustituir terapeutas.' }
   }
   if (!fromTherapistId || !toTherapistId) {

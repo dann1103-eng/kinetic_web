@@ -10,6 +10,7 @@ import { updateUserRole } from '@/app/actions/updateUserRole'
 import { startImpersonation } from '@/app/actions/impersonation'
 import { updateUserSalary } from '@/app/actions/payroll'
 import {
+  CAN_REASSIGN_THERAPIST_ROLES,
   CONTRACT_TYPE_LABELS,
   AFP_PROVIDER_LABELS,
   type PayrollContractType,
@@ -368,7 +369,7 @@ function PerfilTab({
       </div>
 
       {/* Sustituir/redirigir terapias — para relevos sin borrar el perfil */}
-      {['admin', 'directora', 'coordinadora_terapias', 'recepcion'].includes(currentUserRole) &&
+      {CAN_REASSIGN_THERAPIST_ROLES.includes(currentUserRole) &&
         !isCurrentUser && (
           <ReassignTherapistSection
             fromUserId={user.id}
