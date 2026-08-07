@@ -69,9 +69,12 @@ export function SaveStatusIndicator({ savedAt, online, className }: SaveStatusIn
         </span>
       )}
       {savedAt ? (
-        <span className="inline-flex items-center gap-1 text-fm-on-surface-variant">
+        <span
+          className="inline-flex items-center gap-1 text-fm-on-surface-variant"
+          title="Guardado solo en este dispositivo — todavía no se envió al sistema. Hacé clic en el botón de guardar/crear para que quede registrado."
+        >
           <span className="material-symbols-outlined" style={{ fontSize: '13px' }}>save</span>
-          Guardado local {formatTime(savedAt)}
+          Borrador local {formatTime(savedAt)} (sin enviar)
         </span>
       ) : null}
     </span>

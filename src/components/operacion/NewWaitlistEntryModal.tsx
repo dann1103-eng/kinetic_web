@@ -101,6 +101,13 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
     clear() // descarta el borrador local
   }
 
+  // Hay algo real escrito que se perdería si se cierra/cancela sin haber
+  // guardado — "Guardado local" solo significa que quedó en este navegador,
+  // NO que llegó al servidor (ver hasUnsavedContent más abajo).
+  function hasUnsavedContent(): boolean {
+    return !!(childFullName.trim() || parentFullName.trim() || parentPhone.trim())
+  }
+
   function handleSubmit() {
     setError(null)
     setFailedOffline(false)
@@ -133,9 +140,32 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
       router.refresh()
       onClose()
       } catch {
-        setFailedOffline(true)
+        // Distinguir sin-conexión real (mensaje correcto: "tus datos están a
+        // salvo, reintentá") de cualquier otro error inesperado (sesión
+        // vencida, etc.) — mostrar "sin conexión" ahí sería engañoso y podía
+        // hacer que alguien cerrara el modal creyendo que solo faltaba
+        // reintentar, perdiendo la entrada por completo.
+        if (typeof navigator !== 'undefined' && !navigator.onLine) {
+          setFailedOffline(true)
+        } else {
+          setError('Ocurrió un error inesperado al guardar. No cierres esta ventana — intentá de nuevo.')
+        }
       }
     })
+  }
+
+  function handleCancelOrClose() {
+    if (
+      hasUnsavedContent() &&
+      !window.confirm(
+        'Esta entrada todavía NO se ha guardado en el sistema (solo en este navegador). ' +
+          'Si cerrás ahora, se pierde. ¿Cerrar de todas formas?',
+      )
+    ) {
+      return
+    }
+    reset()
+    onClose()
   }
 
   if (!open) return null
@@ -152,7 +182,7 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleCancelOrClose}
             className="text-fm-on-surface-variant hover:text-fm-on-surface"
             aria-label="Cerrar"
           >
@@ -374,10 +404,7 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
           <SaveStatusIndicator savedAt={savedAt} online={online} className="mr-auto" />
           <button
             type="button"
-            onClick={() => {
-              reset()
-              onClose()
-            }}
+            onClick={handleCancelOrClose}
             disabled={isPending}
             className="px-4 py-2 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
           >
