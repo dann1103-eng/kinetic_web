@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { appointmentsOverlap, findClosureAffecting } from '@/lib/domain/appointment'
+import { periodMonthOfSV } from '@/lib/domain/billing/agenda-charge-sync'
+import { syncCycleChargeToAgenda } from './cycle-charge-sync'
 import { usesFreePerson } from '@/types/db'
 import type {
   Appointment,
@@ -232,6 +234,12 @@ export async function createAppointment(
 
   if (error || !data) return { ok: false, error: error?.message ?? 'Error desconocido' }
 
+  // El cobro sigue a la agenda: una terapia extra en un mes con ciclo generado
+  // sube el monto del ciclo sola (antes quedaba agendada pero sin cobrar).
+  if (input.event_type === 'terapia' && input.child_id) {
+    await syncCycleChargeToAgenda(input.child_id, [periodMonthOfSV(input.starts_at)])
+  }
+
   revalidatePath('/agenda')
   revalidatePath('/mi-dia')
   if (child) revalidatePath(`/familias/${child.family_id}`)
@@ -310,6 +318,15 @@ export async function rescheduleAppointment(
     return { ok: false, error: insErr?.message ?? 'Error al reagendar' }
   }
 
+  // Reagendar a otro mes mueve la sesión (y su cobro) de un ciclo al otro; dentro
+  // del mismo mes el conteo no cambia y el sync queda en no-op.
+  if (orig.event_type === 'terapia' && orig.child_id) {
+    await syncCycleChargeToAgenda(orig.child_id, [
+      periodMonthOfSV(orig.starts_at),
+      periodMonthOfSV(newStartsAt),
+    ])
+  }
+
   revalidatePath('/agenda')
   return { ok: true, newAppointmentId: created.id }
 }
@@ -344,7 +361,7 @@ export async function moveAppointment(
 
   const { data: appt } = await supabase
     .from('appointments')
-    .select('id, therapist_id, status, event_type, child_id, external_child_name')
+    .select('id, therapist_id, status, event_type, child_id, external_child_name, starts_at')
     .eq('id', appointmentId)
     .maybeSingle()
   if (!appt) return { ok: false, error: 'Cita no encontrada' }
@@ -398,6 +415,14 @@ export async function moveAppointment(
     .update({ starts_at: newStartsAt, ends_at: newEndsAt })
     .eq('id', appointmentId)
   if (error) return { ok: false, error: error.message }
+
+  // Mover una terapia de un mes a otro cambia el cobro de AMBOS meses.
+  if (appt.event_type === 'terapia' && appt.child_id) {
+    await syncCycleChargeToAgenda(appt.child_id, [
+      periodMonthOfSV(appt.starts_at),
+      periodMonthOfSV(newStartsAt),
+    ])
+  }
 
   // Notificar a la terapista que se le movió la cita (solo terapias/evaluaciones).
   if (appt.therapist_id && NOTIFY_EVENT_TYPES.includes(appt.event_type)) {
@@ -739,7 +764,7 @@ export async function deleteAppointment(
   // Validar estado (no permitir eliminar historial real)
   const { data: appt } = await supabase
     .from('appointments')
-    .select('status')
+    .select('status, event_type, child_id, starts_at')
     .eq('id', appointmentId)
     .maybeSingle()
   if (!appt) return { ok: false, error: 'Cita no encontrada.' }
@@ -755,6 +780,11 @@ export async function deleteAppointment(
     .delete()
     .eq('id', appointmentId)
   if (error) return { ok: false, error: error.message }
+
+  // Borrar una cita agendada por error también baja el cobro del mes.
+  if (appt.event_type === 'terapia' && appt.child_id) {
+    await syncCycleChargeToAgenda(appt.child_id, [periodMonthOfSV(appt.starts_at)])
+  }
 
   revalidatePath('/agenda')
   revalidatePath('/mi-dia')

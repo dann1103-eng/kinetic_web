@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildCycleDetail } from './cycle-detail'
+import { billableSessionCounts, therapiesSyncedToAgenda } from './agenda-charge-sync'
 import type { TreatmentPlanScheduleSlot, TreatmentPlanTherapyEntry } from '@/types/db'
 
 function baseInput(schedule: TreatmentPlanScheduleSlot[]) {
@@ -142,6 +143,33 @@ describe('buildCycleDetail — las filas de costo suman el total', () => {
     expect(data.agendaNotes).toHaveLength(1)
     expect(data.agendaNotes[0]).toContain('1 sesión de reposición')
   })
+
+  it('caso reportado end-to-end: con la extra sincronizada el PDF cierra en $415', () => {
+    // Diana agenda una conductual extra el lunes 10 (no es reposición: la señora
+    // la pidió y la paga). El sync sube las sesiones cobradas de 3 a 4.
+    const conAgendaExtra = [
+      ...appointments.filter((a) => a.status !== 'replacement'),
+      { starts_at: '2026-08-10T17:00:00-06:00', service_type: 'conductual', status: 'scheduled' },
+    ]
+    const synced = therapiesSyncedToAgenda(
+      therapies,
+      billableSessionCounts(conAgendaExtra.map((a) => ({ ...a, event_type: 'terapia' }))),
+      () => 0,
+    )
+    expect(synced.changed).toBe(true)
+
+    const data = buildCycleDetail({
+      ...input,
+      therapies: synced.therapies,
+      appointments: conAgendaExtra,
+      // Lo que el sync deja en payment_amount_usd.
+      paymentAmountUsd: 415,
+    })
+    expect(data.costRows.find((r) => r.service === 'conductual')?.count).toBe(4)
+    expect(data.subtotal).toBe(415)
+    expect(data.total).toBe(415)
+    expect(data.agendaNotes).toEqual([])
+  })
 })
 
 describe('buildCycleDetail — notas de diferencia agenda ↔ cobro', () => {
@@ -176,6 +204,21 @@ describe('buildCycleDetail — notas de diferencia agenda ↔ cobro', () => {
     const notes = build(3, [10, 17]).agendaNotes
     expect(notes).toHaveLength(1)
     expect(notes[0]).toContain('1 sesión cobrada aún no aparece')
+  })
+
+  it('una falta o cancelación no dispara aviso: se cobra igual (rollover la acredita después)', () => {
+    const data = buildCycleDetail({
+      childName: 'Niño de prueba',
+      periodMonth: '2026-08-01',
+      therapies: therapy(3),
+      schedule: [],
+      appointments: [
+        ...apptsOn([10, 17]),
+        ...apptsOn([24], 'cancelled'),
+      ],
+      paymentAmountUsd: 75,
+    })
+    expect(data.agendaNotes).toEqual([])
   })
 
   it('una mensualidad fija no genera avisos por su cantidad de citas', () => {

@@ -25,6 +25,7 @@ import type {
   TreatmentPlanScheduleSlot,
 } from '@/types/db'
 import { isMonthlyFlatEntry, isMorningProgramService, therapyLineAmount } from './monthly-flat'
+import { CHARGE_EXCLUDED_STATUSES } from './agenda-charge-sync'
 
 const TZ = 'America/El_Salvador'
 const WEEK_DOWS = ['mon', 'tue', 'wed', 'thu', 'fri'] as const
@@ -152,9 +153,6 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
   // mes (status 'replacement', mig 0155) — van al calendario y al desglose de
   // fechas, pero NUNCA se cobran de nuevo acá.
   const replacementByService = new Map<string, number>()
-  // Citas del mes que sí son "cobrables" (todo menos reposiciones): sirve para
-  // detectar si la agenda quedó con más o menos sesiones que las facturadas.
-  const billableApptByService = new Map<string, number>()
   for (const a of liveAppts) {
     const svc = a.service_type ?? 'otra'
     const { day, dow } = svParts(a.starts_at)
@@ -165,9 +163,18 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
     dowMap.get(dow)!.add(day)
     if (a.status === 'replacement') {
       replacementByService.set(svc, (replacementByService.get(svc) ?? 0) + 1)
-    } else {
-      billableApptByService.set(svc, (billableApptByService.get(svc) ?? 0) + 1)
     }
+  }
+
+  // Citas cobrables del mes, con la MISMA regla que usa el sync agenda→cobro
+  // (`billableSessionCounts`): así el aviso de diferencia no salta en falso.
+  // Ojo: incluye las `cancelled`, que sí se cobran este mes y se acreditan el
+  // siguiente por rollover — por eso no se calcula sobre `liveAppts`.
+  const billableApptByService = new Map<string, number>()
+  for (const a of input.appointments) {
+    if (CHARGE_EXCLUDED_STATUSES.includes(a.status)) continue
+    const svc = a.service_type ?? 'otra'
+    billableApptByService.set(svc, (billableApptByService.get(svc) ?? 0) + 1)
   }
 
   // Desglose por terapia (ordenado por etiqueta).

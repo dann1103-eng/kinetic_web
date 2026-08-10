@@ -432,6 +432,49 @@ Todo en `master`. Sin migración (fix 100% de capa TS).
   (`createInvoiceForCycle`). O sea este documento y la factura pueden diferir por
   esos conceptos. Es una divergencia previa del modelo de cobro, no del PDF; se
   dejó como está para no cambiar el monto que el sistema le pide a la familia.
+  Ojo también: `upsertTreatmentPlan` SÍ resta el rollover al recalcular el monto
+  — es el único de los 4 caminos que lo hace (generar, editar, sync y plan).
+
+### Cobro automático de terapias extra (`agenda-charge-sync`)
+El caso reportado NO era una reposición: la mamá pidió y pagó una **conductual
+extra** que Diana agendó en el calendario. El cobro no la siguió porque
+**agendar y cobrar eran dos acciones sin ningún vínculo**. A pedido del usuario
+(que eligió cobro automático sobre "avisar y confirmar", sabiendo que el monto
+cambia sin aprobación humana) ahora el cobro sigue a la agenda:
+
+- **Puro**: `src/lib/domain/billing/agenda-charge-sync.ts` —
+  `billableSessionCounts` (conteo cobrable por servicio), `periodMonthOfSV`,
+  `therapiesSyncedToAgenda` (devuelve `therapies_json` con `sessions_per_month`
+  puesto a la agenda).
+- **Glue**: `src/app/actions/cycle-charge-sync.ts` → `syncCycleChargeToAgenda(childId, months[])`.
+  Ciclo **pendiente** → ajusta `payment_amount_usd` (y regenera la factura si ya
+  existía). Ciclo **pagado** → no re-cobra el mes: manda la diferencia a
+  `billing_adjustment_usd`, que se arrastra al mes siguiente (mismo mecanismo
+  que ya usaba `upsertTreatmentPlan`, migs 0177/0178). Ciclo **anulado** → nada.
+  Usa **admin client** a propósito: quien agenda (una terapista) no pasa
+  `kn_can_manage_cycles()` en RLS y el ajuste fallaría en silencio.
+- **Enganchado en** `appointments.ts`: `createAppointment`, `deleteAppointment`,
+  `moveAppointment` y `rescheduleAppointment` (los dos últimos sincronizan
+  **ambos** meses, porque mover una cita de mes cambia el cobro de los dos).
+  Nunca lanza — un fallo del sync no debe tumbar el agendado.
+- **Regla de conteo** (única, compartida con el PDF vía `CHARGE_EXCLUDED_STATUSES`):
+  se excluyen `rescheduled` (lápida de una cita movida/regenerada, contarla
+  duplicaría) y `replacement` (reposición de una falta ya cobrada). **Sí** cuentan
+  `no_show`/`late_cancel`/`cancelled`: se cobran este mes y se acreditan el
+  siguiente por rollover — descontarlas acá las acreditaría dos veces.
+- **Decisiones deliberadas**: (1) un servicio con **0 citas** en el mes NO se pone
+  en cero — anular la agenda (`cancelCycleAgenda`) o borrar la última cita de una
+  terapia no debe vaciar el cobro en silencio; si el cobro queda por encima de la
+  agenda, el PDF lo declara. (2) Un servicio agendado que **no está en el plan** se
+  agrega con el precio del catálogo (`terapia_individual`, BK-aware); sin precio
+  activo NO se cobra y se loguea (`unpricedServices`) — el aviso del PDF queda de
+  red de seguridad. (3) `editMonthlyCycle` sigue permitiendo poner una cantidad
+  distinta a mano, pero **el próximo cambio de agenda de ese mes la revierte** al
+  conteo real; para un ajuste que sobreviva, usar el **descuento** del ciclo.
+- **No enganchado** (a propósito): `regenerate_cycle_appointments` y los cambios
+  de plan van por RPC y ya recalculan el monto en su propio camino
+  (`editMonthlyCycle` / `upsertTreatmentPlan`); `adminUpdateAppointmentTimes` solo
+  corrige la duración de una terapia ya completada.
 
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
