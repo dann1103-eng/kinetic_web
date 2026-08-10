@@ -93,6 +93,140 @@ describe('buildCycleDetail — costRows.durationMinutes', () => {
   })
 })
 
+describe('buildCycleDetail — las filas de costo suman el total', () => {
+  /** Plan real reportado: lunes Sensorial+Lenguaje, martes Lenguaje+Conductual. */
+  const therapies: TreatmentPlanTherapyEntry[] = [
+    { service: 'lenguaje', active: true, sessions_per_month: 7, unit_cost_usd: 25, billing_mode: 'per_session' },
+    { service: 'sensorial', active: true, sessions_per_month: 4, unit_cost_usd: 20, billing_mode: 'per_session' },
+    { service: 'conductual', active: true, sessions_per_month: 3, unit_cost_usd: 40, billing_mode: 'per_session' },
+  ] as TreatmentPlanTherapyEntry[]
+
+  /** Agenda del ciclo (10-ago en adelante) + 1 reposición de conductual el lunes 10. */
+  const appointments = [
+    ...[10, 17, 24, 31].map((d) => ({ starts_at: `2026-08-${d}T15:00:00-06:00`, service_type: 'lenguaje', status: 'scheduled' })),
+    ...[11, 18, 25].map((d) => ({ starts_at: `2026-08-${d}T15:00:00-06:00`, service_type: 'lenguaje', status: 'scheduled' })),
+    ...[10, 17, 24, 31].map((d) => ({ starts_at: `2026-08-${d}T16:00:00-06:00`, service_type: 'sensorial', status: 'scheduled' })),
+    ...[11, 18, 25].map((d) => ({ starts_at: `2026-08-${d}T16:00:00-06:00`, service_type: 'conductual', status: 'scheduled' })),
+    { starts_at: '2026-08-10T17:00:00-06:00', service_type: 'conductual', status: 'replacement' },
+  ]
+
+  const input = {
+    childName: 'Niño de prueba',
+    periodMonth: '2026-08-01',
+    therapies,
+    schedule: [] as TreatmentPlanScheduleSlot[],
+    appointments,
+    paymentAmountUsd: 375,
+  }
+
+  it('cobra las sesiones del snapshot, no las citas de la agenda', () => {
+    const data = buildCycleDetail(input)
+    const conductual = data.costRows.find((r) => r.service === 'conductual')
+    // La agenda tiene 4 conductuales (3 del patrón + 1 reposición); se cobran 3.
+    expect(conductual?.count).toBe(3)
+    expect(conductual?.total).toBe(120)
+    expect(data.subtotal).toBe(375)
+    expect(data.subtotal).toBe(data.total)
+  })
+
+  it('la reposición sigue visible en el desglose de fechas, marcada como tal', () => {
+    const data = buildCycleDetail(input)
+    const conductual = data.therapyBreakdowns.find((b) => b.service === 'conductual')
+    expect(conductual?.total).toBe(4)
+    expect(conductual?.replacements).toBe(1)
+    expect(data.dayHasAppt[10]).toBe(true)
+  })
+
+  it('declara la reposición sin costo en las notas', () => {
+    const data = buildCycleDetail(input)
+    expect(data.agendaNotes).toHaveLength(1)
+    expect(data.agendaNotes[0]).toContain('1 sesión de reposición')
+  })
+})
+
+describe('buildCycleDetail — notas de diferencia agenda ↔ cobro', () => {
+  const therapy = (sessions: number): TreatmentPlanTherapyEntry[] =>
+    [{ service: 'lenguaje', active: true, sessions_per_month: sessions, unit_cost_usd: 25, billing_mode: 'per_session' }] as TreatmentPlanTherapyEntry[]
+
+  const apptsOn = (days: number[], status = 'scheduled') =>
+    days.map((d) => ({ starts_at: `2026-08-${d}T15:00:00-06:00`, service_type: 'lenguaje', status }))
+
+  function build(sessions: number, days: number[]) {
+    return buildCycleDetail({
+      childName: 'Niño de prueba',
+      periodMonth: '2026-08-01',
+      therapies: therapy(sessions),
+      schedule: [],
+      appointments: apptsOn(days),
+      paymentAmountUsd: sessions * 25,
+    })
+  }
+
+  it('sin diferencias no hay notas', () => {
+    expect(build(2, [10, 17]).agendaNotes).toEqual([])
+  })
+
+  it('avisa cuando la agenda tiene sesiones que no se cobraron', () => {
+    const notes = build(2, [10, 17, 24]).agendaNotes
+    expect(notes).toHaveLength(1)
+    expect(notes[0]).toContain('1 sesión agendada este mes no está incluida')
+  })
+
+  it('avisa cuando se cobraron sesiones que no están en la agenda', () => {
+    const notes = build(3, [10, 17]).agendaNotes
+    expect(notes).toHaveLength(1)
+    expect(notes[0]).toContain('1 sesión cobrada aún no aparece')
+  })
+
+  it('una mensualidad fija no genera avisos por su cantidad de citas', () => {
+    const data = buildCycleDetail({
+      childName: 'Niño de prueba',
+      periodMonth: '2026-08-01',
+      therapies: [
+        { service: 'blue_kids', active: true, sessions_per_month: 0, unit_cost_usd: 120, billing_mode: 'monthly_flat' },
+      ] as TreatmentPlanTherapyEntry[],
+      schedule: [],
+      appointments: apptsOn([3, 4, 5]).map((a) => ({ ...a, service_type: 'blue_kids' })),
+      paymentAmountUsd: 120,
+    })
+    expect(data.agendaNotes).toEqual([])
+    expect(data.costRows[0].total).toBe(120)
+  })
+})
+
+describe('buildCycleDetail — descuento', () => {
+  function withDiscount(kind: string, value: number) {
+    return buildCycleDetail({
+      childName: 'Niño de prueba',
+      periodMonth: '2026-08-01',
+      therapies: [
+        { service: 'lenguaje', active: true, sessions_per_month: 4, unit_cost_usd: 25, billing_mode: 'per_session' },
+      ] as TreatmentPlanTherapyEntry[],
+      schedule: [],
+      appointments: [],
+      paymentAmountUsd: 0,
+      discountKind: kind,
+      discountValue: value,
+    })
+  }
+
+  it('porcentual: monto = % del subtotal', () => {
+    const data = withDiscount('percent', 10)
+    expect(data.subtotal).toBe(100)
+    expect(data.discountAmount).toBe(10)
+    expect(data.discountLabel).toBe('Descuento 10%')
+  })
+
+  it('fijo: se topa al subtotal', () => {
+    expect(withDiscount('fixed', 30).discountAmount).toBe(30)
+    expect(withDiscount('fixed', 500).discountAmount).toBe(100)
+  })
+
+  it('sin descuento el monto es 0', () => {
+    expect(withDiscount('none', 0).discountAmount).toBe(0)
+  })
+})
+
 describe('buildCycleDetail — therapyBreakdowns ordena sábado después de viernes', () => {
   it('una cita de sábado no se ordena antes que lunes en el desglose', () => {
     const input = {

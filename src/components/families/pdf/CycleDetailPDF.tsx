@@ -123,6 +123,9 @@ export function CycleDetailPDF({ data, paymentNote }: Props) {
                   ))}
                   <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica-Bold' }}>
                     Total: {tb.total}
+                    {tb.replacements > 0
+                      ? ` (${tb.replacements} de reposición)`
+                      : ''}
                   </Text>
                 </View>
               ))}
@@ -174,24 +177,48 @@ export function CycleDetailPDF({ data, paymentNote }: Props) {
               </View>
             ))}
           </View>
-          {data.discountLabel && (
-            <View style={[s.tr, { borderWidth: 1, borderColor: BORDER, borderTopWidth: 0 }]}>
-              <Text style={{ flex: 1, padding: 4, fontSize: 8, textAlign: 'right', color: TEAL }}>
-                {data.discountLabel}
-              </Text>
-            </View>
-          )}
-          {data.surcharge > 0 && (
-            <View style={[s.tr, { borderWidth: 1, borderColor: BORDER, borderTopWidth: 0 }]}>
-              <Text style={{ flex: 1, padding: 4, fontSize: 8, textAlign: 'right', color: RED }}>
-                Recargo por mora: ${data.surcharge.toFixed(2)}
-              </Text>
-            </View>
+          {/* Subtotal + descuento explícitos: solo si hay descuento, para que la
+              resta hasta el total sea legible. Sin descuento, las filas ya suman
+              el total y una fila de subtotal sería ruido. */}
+          {data.discountAmount > 0 && (
+            <>
+              <View style={[s.tr, { borderWidth: 1, borderColor: BORDER, borderTopWidth: 0 }]}>
+                <Text style={{ flex: 1, padding: 4, fontSize: 8, textAlign: 'right' }}>
+                  Subtotal
+                </Text>
+                <Text style={{ width: 70, padding: 4, fontSize: 8, textAlign: 'right' }}>
+                  ${data.subtotal.toFixed(2)}
+                </Text>
+              </View>
+              <View style={[s.tr, { borderWidth: 1, borderColor: BORDER, borderTopWidth: 0 }]}>
+                <Text style={{ flex: 1, padding: 4, fontSize: 8, textAlign: 'right', color: TEAL }}>
+                  {data.discountLabel}
+                </Text>
+                {/* Guion ASCII a propósito: la Helvetica estándar de react-pdf
+                    no trae el signo menos U+2212 y lo dibuja como espacio. */}
+                <Text style={{ width: 70, padding: 4, fontSize: 8, textAlign: 'right', color: TEAL }}>
+                  -${data.discountAmount.toFixed(2)}
+                </Text>
+              </View>
+            </>
           )}
           <View style={s.totalRow}>
             <Text style={s.totalLabel}>Total a pagar — {data.periodLabel}</Text>
             <Text style={s.totalVal}>${data.total.toFixed(2)}</Text>
           </View>
+          {/* Recargo por mora YA generado en este ciclo: desde la mig 0175 no
+              infla este total — se cobra en la mensualidad siguiente. */}
+          {data.surcharge > 0 && (
+            <Text style={{ marginTop: 4, fontSize: 7.5, color: RED }}>
+              Recargo por mora acumulado: ${data.surcharge.toFixed(2)} — se cobra en la
+              mensualidad siguiente.
+            </Text>
+          )}
+          {data.agendaNotes.map((note, i) => (
+            <Text key={i} style={{ marginTop: 4, fontSize: 7.5, color: GRAY }}>
+              {note}
+            </Text>
+          ))}
         </View>
 
         {/* Pie de pago */}

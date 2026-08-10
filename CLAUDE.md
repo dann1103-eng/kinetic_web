@@ -377,7 +377,61 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 
 ---
 
-# Estado del proyecto — junio–julio 2026
+# Estado del proyecto — junio–agosto 2026
+
+## Sesión 10 ago 2026 — el PDF de detalle de pago no cuadraba con su propio total
+Todo en `master`. Sin migración (fix 100% de capa TS).
+
+- **Síntoma reportado** (niño real, agosto 2026): la tabla de costos sumaba $415
+  pero "Total a pagar" decía $375.
+- **Causa**: eran **dos fuentes distintas**. Las filas se recalculaban **en vivo**
+  contando citas de `appointments` (`cycle-detail.ts`, `count = countByService...`),
+  mientras que "Total a pagar" era `cycle.payment_amount_usd`, **congelado al
+  generar el ciclo**. `buildCycleDetail` incluso calculaba la suma de las filas
+  (`subtotal`) y el PDF nunca la usaba. Al crear el ciclo los dos números nacen
+  iguales (`NewMonthlyCycleModal` sincroniza sesiones cobradas ↔ citas mostradas),
+  pero **nada los re-sincroniza después**: `regenerate_cycle_appointments` (0177)
+  solo toca `appointments_generated_count`/`_at`. En el caso reportado el ciclo se
+  generó del 10-ago en adelante con 3 conductuales ($375 exacto) y después
+  apareció una 4.ª conductual el **lunes 10**, día que el plan no tiene conductual
+  (reposición, sesión extra, o regeneración con "solo futuras").
+- **Bug latente encontrado de paso**: el conteo en vivo **no excluía las
+  reposiciones** (`status='replacement'`, mig 0155), que reponen una falta **ya
+  cobrada**; y la cita original (`no_show`/`late_cancel`) también se contaba. Si
+  falta y reposición caen el mismo mes, se cobraba dos veces la misma sesión.
+- **Fix** (`cycle-detail.ts` + `CycleDetailPDF.tsx`): la tabla de costos cobra lo
+  **facturado** (`snapshot.therapies_json[].sessions_per_month`, la misma fuente
+  que `buildCycleLineItems` de la factura y que `payment_amount_usd`), con
+  fallback al conteo de citas cobrables solo si el snapshot viejo no trae la
+  cantidad. El calendario y "días y fechas por terapia" siguen mostrando la
+  agenda real (el niño sí va), y las diferencias se **declaran** en `agendaNotes`:
+  reposiciones sin costo / sesiones agendadas no incluidas en el cobro / sesiones
+  cobradas que ya no están en la agenda. El desglose marca "Total: 4 (1 de
+  reposición)". Las mensualidades fijas (programas matutinos) nunca generan aviso
+  por cantidad de citas.
+- **De paso, dos incoherencias más del mismo bloque de totales**: (1) el descuento
+  se imprimía como etiqueta suelta ("Descuento 10%") sin monto, así que la resta
+  hasta el total era invisible — ahora salen filas **Subtotal** y **Descuento
+  -$X.XX** (misma regla que la factura: % sobre subtotal, fijo topado al
+  subtotal). (2) El "Recargo por mora" se listaba como línea **antes** del total
+  sin estar incluido en él — desde la mig **0175** ese recargo NO se cobra en el
+  mes que se paga sino en la mensualidad siguiente, así que ahora va **debajo**
+  del total y lo dice explícitamente.
+- **GOTCHA de @react-pdf/renderer**: la Helvetica estándar **no trae el signo
+  menos U+2212 (`−`)** y lo dibuja como **espacio en blanco, sin error** — el
+  descuento salía "$37.50" sin signo. Usar guion ASCII `-`. El em dash `—` sí
+  existe en la codificación y se puede seguir usando. Verificado extrayendo los
+  code points del PDF con `pdfjs-dist` (ver abajo).
+- **Cómo verificar un PDF sin poppler**: `pdftoppm`/ImageMagick no están
+  instalados, pero `pdfjs-dist` sí es dependencia del proyecto — un script que
+  levante `getTextContent()` y agrupe los items por `transform[5]` (Y) reconstruye
+  el documento línea por línea, suficiente para validar montos, orden y glifos.
+- **Limitación conocida (no tocada)**: `payment_amount_usd` no descuenta el
+  rollover en modo `discount` ni incluye los arrastres (`surcharge_carried_in_usd`,
+  `billing_adjustment_carried_in_usd`), que sí entran a la **factura**
+  (`createInvoiceForCycle`). O sea este documento y la factura pueden diferir por
+  esos conceptos. Es una divergencia previa del modelo de cobro, no del PDF; se
+  dejó como está para no cambiar el monto que el sistema le pide a la familia.
 
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
