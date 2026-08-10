@@ -525,6 +525,18 @@ Aritmética del caso real: Lenguaje 8 de cuota → primeras 8 del mes (3, 4, 10,
 17, 18, 24, 25) → futuras = 5, y el 31 nunca entró. Igual para Sensorial (cuota 4
 → 3, 10, 17, 24; el 31 afuera).
 
+**Cuarto bug, mismo modal y misma familia — el override solo se mandaba si el
+usuario editaba algo.** `appointmentsOverride: regenerate && hasEdits ? ... : null`.
+Sin override, `regenerate_cycle_appointments` recomputa por su cuenta con
+`compute_monthly_appointment_candidates`, que vuelve a topar a la cuota del plan
+vivo — o sea creaba MENOS citas que las que el modal mostraba y ya había cobrado.
+Detectado en prod: ciclo cobrando 15 sesiones ($415) con 13 en la agenda
+(`citas_generadas` = 10 = exactamente la cuenta quota-capped: Lenguaje 5,
+Sensorial 2, Conductual 3). Ahora se manda siempre, como en
+`NewMonthlyCycleModal`. **Regla general del modal: lo que se ve en el calendario
+del preview es lo que se crea — cualquier camino que deje al RPC recomputar
+rompe esa promesa.**
+
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
 plan → implementación con subagentes (superpowers), 8 tareas, cada una con

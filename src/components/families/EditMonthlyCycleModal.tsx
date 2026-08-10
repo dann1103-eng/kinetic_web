@@ -366,7 +366,13 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
         reason: reason.trim(),
         regenerateAppointments: regenerate,
         regenerateOnlyFuture: monthInProgress && onlyFuture,
-        appointmentsOverride: regenerate && hasEdits ? editedCandidates : null,
+        // WYSIWYG: se mandan SIEMPRE las citas que muestra el calendario, se
+        // hayan editado o no (igual que `NewMonthlyCycleModal`). Antes solo se
+        // mandaban con `hasEdits`, y sin override el RPC recomputa por su cuenta
+        // topando a la cuota del plan — o sea creaba MENOS citas que las que el
+        // modal mostraba y ya había cobrado, dejando el cobro por encima de la
+        // agenda sin que nadie lo viera.
+        appointmentsOverride: regenerate ? editedCandidates : null,
         // Programa matutino: grupo + días + citas iteradas.
         programGroupId: enrolledProgram ? morning.groupId : null,
         attendanceDays: enrolledProgram ? morning.attendanceDays : null,
