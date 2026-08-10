@@ -17,6 +17,40 @@
 -- =============================================================================
 
 
+-- ── 0. Panorama: qué meses tienen ciclo y si su agenda calza con lo cobrado ──
+-- Un mes SIN fila acá es un mes sin ciclo generado. `citas_cobrables_en_agenda`
+-- cuenta con la misma regla que el cobro (sin 'rescheduled' ni 'replacement'):
+-- si un mes tiene ciclo con citas_generadas > 0 pero 0 en la agenda, la
+-- regeneración se comió las citas y hay que rehacerlas.
+with params as (
+  select 'Apellido'::text as apellido,   -- ← EDITAR
+         date '2026-08-01' as desde      -- ← EDITAR: desde qué mes mirar
+)
+select
+  to_char(c.period_month, 'YYYY-MM')    as mes,
+  c.status,
+  c.payment_status,
+  c.payment_amount_usd                  as total_cobrado,
+  c.appointments_generated_count        as citas_generadas,
+  (select count(*)
+     from public.appointments a
+    where a.child_id = c.child_id
+      and a.event_type = 'terapia'
+      and a.status not in ('rescheduled','replacement')
+      and a.starts_at >= (c.period_month::text || ' 00:00:00')::timestamp at time zone 'America/El_Salvador'
+      and a.starts_at <  ((c.period_month + interval '1 month')::date::text || ' 00:00:00')::timestamp at time zone 'America/El_Salvador'
+  )                                     as citas_cobrables_en_agenda,
+  c.invoice_id is not null              as tiene_factura,
+  c.due_date
+from public.monthly_session_cycles c
+join public.children ch on ch.id = c.child_id
+cross join params p
+where ch.full_name ilike '%' || p.apellido || '%'
+  and c.period_month >= p.desde
+  and c.status <> 'cancelled'
+order by c.period_month;
+
+
 -- ── 1. El ciclo: estado y montos ─────────────────────────────────────────────
 with params as (
   select 'Apellido'::text as apellido,   -- ← EDITAR: apellido del niño/a
