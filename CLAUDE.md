@@ -537,6 +537,13 @@ Sensorial 2, Conductual 3). Ahora se manda siempre, como en
 del preview es lo que se crea — cualquier camino que deje al RPC recomputar
 rompe esa promesa.**
 
+**Botón "Regenerar factura"** (`MonthlyCyclesSection`): editar un ciclo NO
+actualiza su factura — queda emitida por el monto viejo. `createInvoiceForCycle`
+ya sabía **parchar** una factura existente (conserva el número, reescribe totales
+e ítems), pero la UI solo mostraba el botón cuando `!c.invoice_id`, así que no
+había forma de dispararlo. Ahora aparece cuando hay factura y el ciclo sigue
+`generated` + `pending` (una factura pagada no se reescribe), con confirmación.
+
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
 plan → implementación con subagentes (superpowers), 8 tareas, cada una con

@@ -307,6 +307,30 @@ export function MonthlyCyclesSection({
           {invoicingId === c.id ? 'Generando…' : 'Generar factura'}
         </button>
       )}
+      {/* Editar el ciclo NO actualiza su factura: queda emitida por el monto
+          viejo. Sin esto no había forma de ponerla al día desde la UI (el
+          action ya sabía parchar una factura existente, conservando su número).
+          Solo mientras esté pendiente — una factura pagada no se reescribe. */}
+      {c.invoice_id && c.status === 'generated' && c.payment_status === 'pending' && canManage && (
+        <button
+          type="button"
+          disabled={invoicingId === c.id}
+          onClick={() => {
+            if (
+              !window.confirm(
+                'Se va a reescribir la factura de este ciclo con las terapias y montos actuales. Conserva el mismo número de factura. ¿Continuar?',
+              )
+            ) {
+              return
+            }
+            handleGenerateInvoice(c.id)
+          }}
+          className="text-xs font-semibold text-fm-primary hover:underline underline-offset-2 disabled:opacity-50"
+          title="Pone la factura al día con el detalle actual del ciclo (terapias, cantidades, precios, descuento). Mantiene el número de factura."
+        >
+          {invoicingId === c.id ? 'Regenerando…' : 'Regenerar factura'}
+        </button>
+      )}
       {c.status === 'generated' && c.payment_status === 'pending' && canManage && (
         <>
           <button
