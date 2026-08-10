@@ -15,6 +15,10 @@ import type {
 import { validateDiscount } from '@/lib/domain/discounts'
 import { isMonthlyFlatEntry, therapyLineAmount } from '@/lib/domain/billing/monthly-flat'
 import {
+  billableSessionCounts,
+  type ChargeableAppt,
+} from '@/lib/domain/billing/agenda-charge-sync'
+import {
   expectedCycleAmount,
   isCycleEditable,
   type PricedTherapyInput,
@@ -209,14 +213,25 @@ export async function dryRunMonthlyGeneration(
 
 /**
  * Dry-run para REGENERAR las citas de un ciclo existente. Igual que el dry-run
- * normal, pero descarta los conflictos contra las propias citas auto-generadas
- * del ciclo (las que se van a reemplazar) — si no, el preview marcaría falsos
- * choques contra sí mismas.
+ * normal, con dos ajustes:
+ *
+ *  1. Descarta los conflictos contra las propias citas auto-generadas del ciclo
+ *     (las que se van a reemplazar) — si no, el preview marcaría falsos choques
+ *     contra sí mismas.
+ *  2. Con `onlyFuture`, deja fuera los candidatos cuya fecha ya pasó. Regenerar
+ *     un mes EN CURSO sobre las sesiones ya dadas no las "respeta": el RPC solo
+ *     cancela las `scheduled`, así que crearía una cita nueva encima de cada
+ *     sesión ya completada (duplicado) y el preview las reportaba a todas como
+ *     conflicto. Ver `regenerate_cycle_appointments(p_only_future)` (mig 0177).
  */
 export async function dryRunCycleRegeneration(
   childId: string,
   periodMonthInput: string,
-): Promise<{ ok: true; result: MonthlyCandidatesResult } | { ok: false; error: string }> {
+  onlyFuture = false,
+): Promise<
+  | { ok: true; result: MonthlyCandidatesResult; preservedPast: Record<string, number> }
+  | { ok: false; error: string }
+> {
   const base = await dryRunMonthlyGeneration(childId, periodMonthInput)
   if (!base.ok) return base
 
@@ -224,7 +239,7 @@ export async function dryRunCycleRegeneration(
   try {
     periodMonth = normalizePeriodMonth(periodMonthInput)
   } catch {
-    return { ok: true, result: base.result }
+    return { ok: true, result: base.result, preservedPast: {} }
   }
 
   const { supabase } = await getActor()
@@ -246,18 +261,56 @@ export async function dryRunCycleRegeneration(
       .map((a) => a.id),
   )
 
-  if (ownIds.size === 0) return { ok: true, result: base.result }
+  let result = base.result
+  const preservedPast: Record<string, number> = {}
 
-  const conflicts = base.result.conflicts.filter(
-    (c) => !ownIds.has(c.conflicting_appointment_id),
-  )
+  if (onlyFuture) {
+    // Mismo corte que aplica el RPC: `starts_at >= now()`.
+    const nowMs = new Date().getTime()
+    const isFuture = (c: { starts_at: string }) => new Date(c.starts_at).getTime() >= nowMs
+    const candidates = result.candidates.filter(isFuture)
+    const skippedOverquota = result.skipped_overquota.filter(isFuture)
+    result = {
+      ...result,
+      candidates,
+      skipped_overquota: skippedOverquota,
+      skipped_holidays: result.skipped_holidays.filter(isFuture),
+      conflicts: result.conflicts.filter((c) => isFuture(c.candidate)),
+      summary: {
+        ...result.summary,
+        candidate_count: candidates.length,
+        skipped_overquota_count: skippedOverquota.length,
+      },
+    }
+
+    // Citas ya pasadas del mes: el RPC no las toca, así que siguen contando para
+    // el cobro. El modal las suma a los candidatos futuros para no bajar el
+    // monto al regenerar a mitad de mes.
+    const { data: pastRaw } = await supabase
+      .from('appointments')
+      .select('service_type, status, event_type')
+      .eq('child_id', childId)
+      .eq('event_type', 'terapia')
+      .gte('starts_at', startISO)
+      .lt('starts_at', new Date(nowMs).toISOString())
+    for (const [service, n] of billableSessionCounts((pastRaw ?? []) as ChargeableAppt[])) {
+      preservedPast[service] = n
+    }
+  }
+
+  const conflicts =
+    ownIds.size === 0
+      ? result.conflicts
+      : result.conflicts.filter((c) => !ownIds.has(c.conflicting_appointment_id))
+
   return {
     ok: true,
     result: {
-      ...base.result,
+      ...result,
       conflicts,
-      summary: { ...base.result.summary, conflict_count: conflicts.length },
+      summary: { ...result.summary, conflict_count: conflicts.length },
     },
+    preservedPast,
   }
 }
 
@@ -936,6 +989,12 @@ export interface EditMonthlyCycleInput {
   notes?: string | null
   /** Si true, regenera las citas del mes según el plan/override. */
   regenerateAppointments?: boolean
+  /**
+   * Al regenerar, tocar solo las citas futuras. Necesario en un mes EN CURSO:
+   * el RPC solo cancela las `scheduled`, así que regenerar el mes completo
+   * crearía una cita nueva encima de cada sesión ya dada (duplicado).
+   */
+  regenerateOnlyFuture?: boolean
   /** Citas exactas a crear al regenerar (override del auto-compute). */
   appointmentsOverride?: MonthlyCandidateAppointment[] | null
   /** Programa matutino: grupo al que se (re)asigna el niño + sus días. */
@@ -984,6 +1043,7 @@ export async function editMonthlyCycle(
     const { error: regenErr } = await supabase.rpc('regenerate_cycle_appointments', {
       p_cycle_id: cycle.id,
       p_appointments_override: input.appointmentsOverride ?? null,
+      p_only_future: input.regenerateOnlyFuture ?? false,
     })
     if (regenErr) {
       const msg = regenErr.message ?? ''

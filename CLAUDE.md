@@ -476,6 +476,40 @@ cambia sin aprobación humana) ahora el cobro sigue a la agenda:
   (`editMonthlyCycle` / `upsertTreatmentPlan`); `adminUpdateAppointmentTimes` solo
   corrige la duración de una terapia ya completada.
 
+### Regenerar citas a mitad de mes duplicaba las sesiones ya dadas
+Reportado al intentar corregir el ciclo desde la UI: *"si le doy regenerar citas
+del mes me da conflicto con las que ya se dieron hoy"*. Dos bugs encadenados,
+ambos en la capa TS (el RPC ya traía la herramienta desde la 0177):
+
+- **`editMonthlyCycle` nunca pasaba `p_only_future`** al RPC. La 0177 agregó ese
+  argumento justo para esto y quedó sin cablear. Sin él,
+  `regenerate_cycle_appointments` recrea el patrón del **mes completo**, y como
+  el paso 1 solo cancela las citas `status='scheduled'`, una sesión ya
+  `completed` NO se cancela y encima se le crea una nueva → **duplicado** por
+  cada sesión ya dada. El texto del modal decía "las ya completadas o en curso se
+  respetan", que era falso: no se tocan, pero se duplican. Con el cobro
+  automático nuevo ese duplicado además inflaría el monto.
+- **El preview marcaba cada sesión ya dada como conflicto.**
+  `dryRunCycleRegeneration` filtraba los conflictos contra las citas propias del
+  ciclo, pero solo las `status='scheduled'` + auto-generadas (`ownIds`); una
+  sesión `completed` no entra en ese set, así que el candidato del mismo slot se
+  reportaba como choque. De ahí el "me da conflicto y no lo puedo hacer" (el
+  submit nunca estuvo deshabilitado — desde la 0181 el aviso es no bloqueante —
+  pero el rojo frena a cualquiera, y con razón: proceder duplicaba).
+
+**Fix**: `dryRunCycleRegeneration(childId, periodMonth, onlyFuture)` recorta
+candidatos/conflictos a los futuros y devuelve además `preservedPast` (sesiones
+ya dadas por servicio, contadas con `billableSessionCounts` — la misma regla del
+sync). El modal ofrece el alcance **"solo de hoy en adelante"** (default cuando el
+mes ya empezó) vs. "todo el mes" (con aviso explícito de duplicado), suma
+`preservedPast` al contador de "Ses/mes" para que regenerar a mitad de mes no
+baje el monto, y el `−` del stepper no deja bajar por debajo de lo ya dado.
+`editMonthlyCycle` gana `regenerateOnlyFuture` y lo pasa al RPC.
+
+**Ojo para el futuro**: para corregir solo el **cobro** no hay que regenerar nada
+— basta editar "Ses/mes" con la casilla apagada (ahí el campo es un input libre,
+no el stepper ligado al patrón). El texto del modal ahora lo dice.
+
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
 plan → implementación con subagentes (superpowers), 8 tareas, cada una con

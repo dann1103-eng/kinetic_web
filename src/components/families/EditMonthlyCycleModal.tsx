@@ -146,11 +146,26 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
 
   // Regeneración de citas (opcional).
   const [regenerate, setRegenerate] = useState(false)
+  // ¿El mes del ciclo ya empezó? Si sí, regenerar TODO el mes duplicaría las
+  // sesiones ya dadas (el RPC solo cancela las `scheduled`), así que el alcance
+  // por defecto es "solo las futuras".
+  const monthInProgress = useMemo(() => {
+    const firstDay = new Date(`${periodMonth.slice(0, 10)}T00:00:00`)
+    return new Date().getTime() > firstDay.getTime()
+  }, [periodMonth])
+  const [onlyFuture, setOnlyFuture] = useState(true)
   const [dryRun, setDryRun] = useState<MonthlyCandidatesResult | null>(null)
   const [dryError, setDryError] = useState<string | null>(null)
   const [isLoadingDry, startLoadDry] = useTransition()
   const [editedCandidates, setEditedCandidates] = useState<MonthlyCandidateAppointment[]>([])
   const [hasEdits, setHasEdits] = useState(false)
+  /**
+   * Sesiones ya dadas del mes (por servicio) que la regeneración "solo futuras"
+   * NO toca. Siguen cobrándose, así que se suman a los candidatos futuros para
+   * que regenerar a mitad de mes no baje el monto.
+   */
+  const [preservedPast, setPreservedPast] = useState<Record<string, number>>({})
+  const baseFor = (service: string) => preservedPast[service] ?? 0
 
   // Pool de citas que el patrón del plan puede generar este mes, por servicio
   // (= candidatas mostradas + las que sobraban por cuota). Es el tope para
@@ -195,7 +210,7 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
   useEffect(() => {
     if (!regenerate) return
     startLoadDry(async () => {
-      const res = await dryRunCycleRegeneration(childId, periodMonth)
+      const res = await dryRunCycleRegeneration(childId, periodMonth, monthInProgress && onlyFuture)
       if (!res.ok) {
         setDryError(res.error)
         setDryRun(null)
@@ -206,15 +221,19 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
       setDryError(null)
       setDryRun(res.result)
       setEditedCandidates(res.result.candidates)
+      setPreservedPast(res.preservedPast)
       setHasEdits(false)
       // Sincronizar el cobro con las citas que realmente se generan, para que
       // facturar y calendario coincidan (solo terapias por sesión con citas en
       // el patrón). El stepper de abajo permite subir hasta el tope del mes.
-      const genCount: Record<string, number> = {}
+      // Con "solo futuras" se suman las sesiones ya dadas, que no se regeneran
+      // pero se siguen cobrando.
+      const past = res.preservedPast
+      const genCount: Record<string, number> = { ...past }
       for (const c of res.result.candidates) {
         genCount[c.service] = (genCount[c.service] ?? 0) + 1
       }
-      const poolCount: Record<string, number> = {}
+      const poolCount: Record<string, number> = { ...past }
       for (const c of [...res.result.candidates, ...res.result.skipped_overquota]) {
         poolCount[c.service] = (poolCount[c.service] ?? 0) + 1
       }
@@ -226,7 +245,7 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
         ),
       )
     })
-  }, [regenerate, childId, periodMonth])
+  }, [regenerate, childId, periodMonth, monthInProgress, onlyFuture])
 
   function toggleRegenerate(on: boolean) {
     setRegenerate(on)
@@ -273,6 +292,9 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
       patchSessions(idx, priced[idx].sessions_per_month + delta)
       return
     }
+    // Las sesiones ya dadas del mes no están en el pool (no se regeneran) pero
+    // se siguen cobrando: van de piso del contador.
+    const base = baseFor(svc)
     if (delta < 0) {
       const mine = editedCandidates
         .map((c, i) => ({ c, i }))
@@ -280,7 +302,7 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
         .sort((a, b) => a.c.starts_at.localeCompare(b.c.starts_at))
       if (mine.length === 0) return
       const removeI = mine[mine.length - 1].i
-      const newCount = mine.length - 1
+      const newCount = base + mine.length - 1
       setEditedCandidates((prev) => prev.filter((_, i) => i !== removeI))
       setPriced((prev) =>
         prev.map((r, i) => (i === idx ? { ...r, sessions_per_month: newCount } : r)),
@@ -292,7 +314,7 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
       )
       const next = pool.find((c) => !used.has(c.starts_at))
       if (!next) return // sin más slots del patrón este mes
-      const newCount = used.size + 1
+      const newCount = base + used.size + 1
       setEditedCandidates((prev) =>
         [...prev, next].sort((a, b) => a.starts_at.localeCompare(b.starts_at)),
       )
@@ -339,6 +361,7 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
         dueDate: dueDate || null,
         reason: reason.trim(),
         regenerateAppointments: regenerate,
+        regenerateOnlyFuture: monthInProgress && onlyFuture,
         appointmentsOverride: regenerate && hasEdits ? editedCandidates : null,
         // Programa matutino: grupo + días + citas iteradas.
         programGroupId: enrolledProgram ? morning.groupId : null,
@@ -428,7 +451,8 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
                           // Stepper ligado al calendario: + agrega la próxima cita
                           // del patrón (ej. 5º miércoles), − quita la última.
                           (() => {
-                            const poolLen = poolByService[t.service]?.length ?? 0
+                            const base = baseFor(t.service)
+                            const poolLen = (poolByService[t.service]?.length ?? 0) + base
                             const atMax = poolLen > 0 && t.sessions_per_month >= poolLen
                             return (
                               <div className="flex flex-col items-end gap-0.5">
@@ -436,7 +460,12 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
                                   <button
                                     type="button"
                                     onClick={() => stepSessions(idx, -1)}
-                                    disabled={t.sessions_per_month <= 0}
+                                    disabled={t.sessions_per_month <= base}
+                                    title={
+                                      t.sessions_per_month <= base && base > 0
+                                        ? `${base} sesión(es) ya dada(s) este mes — no se pueden quitar del cobro acá`
+                                        : undefined
+                                    }
                                     className="h-6 w-6 rounded-md border border-fm-outline-variant/30 bg-white text-fm-on-surface leading-none disabled:opacity-40 hover:bg-fm-surface-container"
                                     aria-label="Quitar una sesión"
                                   >
@@ -588,12 +617,50 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
               <span className="text-sm text-fm-on-surface">
                 Regenerar también las citas del mes
                 <span className="block text-[11px] text-fm-on-surface-variant">
-                  Reemplaza las citas <b>programadas</b> del mes según el plan actual. Las
-                  ya completadas o en curso se respetan. Usá <b>+ / −</b> en &ldquo;Ses/mes&rdquo;
-                  para agregar/quitar citas del mes (ej. un mes con 5 miércoles).
+                  Reemplaza las citas <b>programadas</b> del mes según el plan actual. Usá{' '}
+                  <b>+ / −</b> en &ldquo;Ses/mes&rdquo; para agregar/quitar citas del mes (ej. un
+                  mes con 5 miércoles). Si solo querés corregir el <b>cobro</b>, no hace falta
+                  regenerar: cambiá &ldquo;Ses/mes&rdquo; con esta casilla apagada.
                 </span>
               </span>
             </label>
+
+            {regenerate && monthInProgress && (
+              <div className="rounded-lg border border-fm-outline-variant/20 bg-fm-surface-container-low/40 p-2.5 space-y-1.5">
+                <p className="text-[11px] font-semibold text-fm-on-surface">
+                  ¿Qué parte del mes regenerar?
+                </p>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    className="mt-0.5"
+                    checked={onlyFuture}
+                    onChange={() => setOnlyFuture(true)}
+                  />
+                  <span className="text-[11px] text-fm-on-surface">
+                    Solo de hoy en adelante
+                    <span className="block text-fm-on-surface-variant">
+                      No toca las sesiones ya dadas — se siguen cobrando igual.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    className="mt-0.5"
+                    checked={!onlyFuture}
+                    onChange={() => setOnlyFuture(false)}
+                  />
+                  <span className="text-[11px] text-fm-on-surface">
+                    Todo el mes
+                    <span className="block text-amber-700">
+                      Vuelve a crear también las citas de días ya pasados: si esas sesiones ya se
+                      dieron, quedan <b>duplicadas</b> en la agenda.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            )}
 
             {regenerate && (
               <div className="space-y-3">
