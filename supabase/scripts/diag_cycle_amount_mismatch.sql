@@ -6,24 +6,22 @@
 --   · las filas de la tabla de costos → treatment_plan_snapshot->therapies_json
 --     (`sessions_per_month` × `unit_cost_usd` de cada terapia activa)
 --   · el "Total a pagar"              → payment_amount_usd
--- Si esos dos no concuerdan entre sí, o no concuerdan con lo que se editó en la
--- UI, el documento se ve mal. Este script muestra los tres números (snapshot,
--- monto guardado y agenda real) para saber cuál quedó atrás.
+-- Si esos dos no concuerdan entre sí, o no concuerdan con la agenda, el
+-- documento se ve mal. Este script muestra los tres números (snapshot, monto
+-- guardado y agenda real) para saber cuál quedó atrás.
 --
--- USO: editar el bloque `params`, correr TODO el bloque de diagnóstico (pasos
--- 1-4) en el SQL Editor de Supabase. El paso 5 (corrección) va comentado.
--- Solo lectura hasta el paso 5.
+-- USO: cada paso es AUTÓNOMO — se corre solo, con su propio bloque `params`.
+-- (El SQL Editor de Supabase ejecuta cada consulta en su propia sesión, así que
+-- una vista temporal compartida entre pasos NO sobrevive.) Editar el `params`
+-- del paso que se vaya a correr. Los pasos 1-4 son solo lectura; el 5 corrige.
 -- =============================================================================
-
--- ── Parámetros ───────────────────────────────────────────────────────────────
--- Editar estas dos líneas. El apellido es un LIKE, no hace falta el nombre completo.
-create temporary view _params as
-select
-  'Apellido'::text  as apellido,   -- ← EDITAR: apellido del niño/a
-  date '2026-08-01' as mes;        -- ← EDITAR: primer día del mes del ciclo
 
 
 -- ── 1. El ciclo: estado y montos ─────────────────────────────────────────────
+with params as (
+  select 'Apellido'::text as apellido,   -- ← EDITAR: apellido del niño/a
+         date '2026-08-01' as mes        -- ← EDITAR: primer día del mes del ciclo
+)
 select
   ch.full_name                          as nino,
   c.id                                  as cycle_id,
@@ -41,13 +39,17 @@ select
   c.notes
 from public.monthly_session_cycles c
 join public.children ch on ch.id = c.child_id
-cross join _params p
+cross join params p
 where ch.full_name ilike '%' || p.apellido || '%'
   and c.period_month = p.mes
   and c.status <> 'cancelled';
 
 
 -- ── 2. Lo que COBRA el snapshot (= las filas de la tabla de costos del PDF) ──
+with params as (
+  select 'Apellido'::text as apellido,
+         date '2026-08-01' as mes
+)
 select
   ch.full_name                                     as nino,
   t->>'service'                                    as terapia,
@@ -59,7 +61,7 @@ select
   end                                              as subtotal_linea
 from public.monthly_session_cycles c
 join public.children ch on ch.id = c.child_id
-cross join _params p
+cross join params p
 cross join lateral jsonb_array_elements(c.treatment_plan_snapshot->'therapies_json') t
 where ch.full_name ilike '%' || p.apellido || '%'
   and c.period_month = p.mes
@@ -68,35 +70,50 @@ where ch.full_name ilike '%' || p.apellido || '%'
 order by terapia;
 
 
--- ── 3. Lo que hay en la AGENDA, por terapia y estado ─────────────────────────
+-- ── 3. Lo que hay en la AGENDA, por mes / terapia / estado ──────────────────
+-- Ventana de DOS meses a propósito: si una sesión desapareció del mes del ciclo
+-- por reagendamiento, la original queda 'rescheduled' acá y la nueva aparece en
+-- el mes siguiente. Así se ve a dónde se fue.
+--
 -- Regla de cobro (`billableSessionCounts`): NO cuentan 'rescheduled' (lápida de
 -- una cita movida) ni 'replacement' (reposición de una falta ya cobrada). Todo
 -- lo demás sí, incluidas no_show / late_cancel / cancelled.
+with params as (
+  select 'Apellido'::text as apellido,
+         date '2026-08-01' as desde,   -- ← EDITAR: mes del ciclo
+         date '2026-10-01' as hasta    -- ← EDITAR: exclusivo (2 meses después)
+)
 select
-  ch.full_name                                                   as nino,
-  a.service_type                                                 as terapia,
+  to_char(a.starts_at at time zone 'America/El_Salvador', 'YYYY-MM') as mes,
+  a.service_type                                                    as terapia,
   a.status,
-  count(*)                                                       as citas,
-  count(*) filter (where a.status not in ('rescheduled','replacement')) as cuentan_para_cobro,
-  string_agg(to_char(a.starts_at at time zone 'America/El_Salvador', 'DD'), ', '
-             order by a.starts_at)                               as dias
+  count(*)                                                          as citas,
+  count(*) filter (
+    where a.status not in ('rescheduled','replacement')
+  )                                                                 as cuentan_para_cobro,
+  string_agg(to_char(a.starts_at at time zone 'America/El_Salvador', 'DD (Dy)'), ', '
+             order by a.starts_at)                                  as dias
 from public.appointments a
 join public.children ch on ch.id = a.child_id
-cross join _params p
+cross join params p
 where ch.full_name ilike '%' || p.apellido || '%'
   and a.event_type = 'terapia'
-  and a.starts_at >= (p.mes::text || ' 00:00:00')::timestamp at time zone 'America/El_Salvador'
-  and a.starts_at <  ((p.mes + interval '1 month')::date::text || ' 00:00:00')::timestamp at time zone 'America/El_Salvador'
-group by ch.full_name, a.service_type, a.status
-order by terapia, a.status;
+  and a.starts_at >= (p.desde::text || ' 00:00:00')::timestamp at time zone 'America/El_Salvador'
+  and a.starts_at <  (p.hasta::text || ' 00:00:00')::timestamp at time zone 'America/El_Salvador'
+group by 1, 2, 3
+order by 1, 2, 3;
 
 
 -- ── 4. El veredicto: cobrado vs. agendado, terapia por terapia ───────────────
-with cyc as (
+with params as (
+  select 'Apellido'::text as apellido,
+         date '2026-08-01' as mes
+),
+cyc as (
   select c.*, ch.full_name
     from public.monthly_session_cycles c
     join public.children ch on ch.id = c.child_id
-    cross join _params p
+    cross join params p
    where ch.full_name ilike '%' || p.apellido || '%'
      and c.period_month = p.mes
      and c.status <> 'cancelled'
@@ -144,6 +161,12 @@ order by terapia;
 -- =============================================================================
 -- ── 5. CORRECCIÓN (destructiva — descomentar solo después de leer 1-4) ───────
 --
+-- OJO: si el paso 4 dice 'ok' en todas las terapias, el cobro YA coincide con la
+-- agenda y el documento está bien. Que el monto no sea el esperado significa que
+-- lo que está mal es la AGENDA (falta o sobra una cita), no el ciclo: arreglar
+-- la agenda y el cobro la sigue solo (`syncCycleChargeToAgenda`). Este paso 5 es
+-- solo para el caso contrario: la agenda está bien y el ciclo quedó atrás.
+--
 -- Pone las sesiones cobradas de UNA terapia al valor correcto y recalcula
 -- payment_amount_usd desde el snapshot (subtotal − descuento), que es la misma
 -- fórmula que usan generar y editar el ciclo. Actualiza los DOS campos que lee
@@ -151,8 +174,6 @@ order by terapia;
 --
 -- Si el ciclo ya está PAGADO no toques payment_amount_usd: la diferencia se
 -- arrastra al mes siguiente vía billing_adjustment_usd (ver createInvoiceForCycle).
---
--- Editar: cycle_id (del paso 1), servicio y sesiones.
 -- =============================================================================
 
 -- begin;
@@ -199,5 +220,3 @@ order by terapia;
 --
 -- -- Revisar el resultado ANTES de confirmar; si no cuadra: rollback;
 -- -- commit;
-
--- drop view _params;
