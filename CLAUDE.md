@@ -510,6 +510,21 @@ baje el monto, y el `−` del stepper no deja bajar por debajo de lo ya dado.
 — basta editar "Ses/mes" con la casilla apagada (ahí el campo es un input libre,
 no el stepper ligado al patrón). El texto del modal ahora lo dice.
 
+**Tercer bug del mismo modal — el final del mes se caía en silencio.** Verificado
+contra datos reales: tras regenerar, la agenda quedó sin Lenguaje ni Sensorial
+del **último lunes** (tumba `rescheduled` sin cita nueva), y el cobro automático
+bajó el monto en consecuencia. Causa: `EditMonthlyCycleModal` arrancaba con
+`res.result.candidates` a secas — ya topadas a `sessions_per_month` por
+`compute_monthly_appointment_candidates`, que gasta la cuota con las fechas MÁS
+TEMPRANAS del mes. Con "solo futuras", esas fechas tempranas ya pasaron y no se
+recrean, así que la cuota se consume en citas que nunca se crean y el excedente
+(el último lunes) se pierde. `NewMonthlyCycleModal` ya hacía lo correcto desde la
+sesión de julio (`candidates` + `skipped_overquota` = patrón completo, WYSIWYG);
+el modal de edición nunca se alineó. Ahora ambos arrancan con el patrón completo.
+Aritmética del caso real: Lenguaje 8 de cuota → primeras 8 del mes (3, 4, 10, 11,
+17, 18, 24, 25) → futuras = 5, y el 31 nunca entró. Igual para Sensorial (cuota 4
+→ 3, 10, 17, 24; el 31 afuera).
+
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
 plan → implementación con subagentes (superpowers), 8 tareas, cada una con

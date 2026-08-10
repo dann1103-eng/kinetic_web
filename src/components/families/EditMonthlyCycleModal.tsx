@@ -220,26 +220,30 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
       }
       setDryError(null)
       setDryRun(res.result)
-      setEditedCandidates(res.result.candidates)
+      // WYSIWYG, igual que al generar el ciclo (`NewMonthlyCycleModal`): se
+      // arranca con TODO el patrón del mes — las candidatas MÁS las que la cuota
+      // del plan dejaba fuera (`skipped_overquota`). Antes se usaban solo las
+      // candidatas, ya topadas a `sessions_per_month`, y como la cuota se
+      // consume con las fechas MÁS TEMPRANAS del mes, regenerar a mitad de mes
+      // dejaba caer el final del mes en silencio (las del último lunes nunca se
+      // volvían a crear). Lo que se ve = lo que se crea; se quitan con − o ✕.
+      const fullPattern = [...res.result.candidates, ...res.result.skipped_overquota].sort(
+        (a, b) => a.starts_at.localeCompare(b.starts_at),
+      )
+      setEditedCandidates(fullPattern)
       setPreservedPast(res.preservedPast)
       setHasEdits(false)
       // Sincronizar el cobro con las citas que realmente se generan, para que
-      // facturar y calendario coincidan (solo terapias por sesión con citas en
-      // el patrón). El stepper de abajo permite subir hasta el tope del mes.
-      // Con "solo futuras" se suman las sesiones ya dadas, que no se regeneran
-      // pero se siguen cobrando.
+      // facturar y calendario coincidan. Con "solo futuras" se suman las
+      // sesiones ya dadas, que no se regeneran pero se siguen cobrando.
       const past = res.preservedPast
       const genCount: Record<string, number> = { ...past }
-      for (const c of res.result.candidates) {
+      for (const c of fullPattern) {
         genCount[c.service] = (genCount[c.service] ?? 0) + 1
-      }
-      const poolCount: Record<string, number> = { ...past }
-      for (const c of [...res.result.candidates, ...res.result.skipped_overquota]) {
-        poolCount[c.service] = (poolCount[c.service] ?? 0) + 1
       }
       setPriced((prev) =>
         prev.map((row) =>
-          row.billing_mode !== 'monthly_flat' && (poolCount[row.service] ?? 0) > 0
+          row.billing_mode !== 'monthly_flat' && (genCount[row.service] ?? 0) > 0
             ? { ...row, sessions_per_month: genCount[row.service] ?? 0 }
             : row,
         ),
