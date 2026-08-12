@@ -45,6 +45,11 @@ export default async function SincronizarCobrosPage() {
             A los ciclos pendientes que ya tenían <b>factura</b> se les regenera con el detalle al
             día.
           </li>
+          <li>
+            Los niños <b>en pausa temporal</b> salen destildados: pausar no cancela sus citas, así
+            que su agenda suele tener sesiones que no se van a dar. Ahí lo que hay que corregir es
+            la agenda, no el cobro.
+          </li>
         </ul>
       </div>
       <SincronizarCobrosClient />

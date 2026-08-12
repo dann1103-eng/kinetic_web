@@ -38,7 +38,9 @@ export function SincronizarCobrosClient() {
         return
       }
       setRows(res.rows)
-      setSelected(new Set(res.rows.map((r) => r.cycleId)))
+      // Los niños en pausa arrancan DESTILDADOS: su agenda suele tener sesiones
+      // que ya no se van a dar, y emparejar les cobraría de más.
+      setSelected(new Set(res.rows.filter((r) => !r.childPaused).map((r) => r.cycleId)))
     })
   }
 
@@ -152,6 +154,13 @@ export function SincronizarCobrosClient() {
                           {r.paymentStatus === 'paid' ? 'Pagado' : 'Pendiente'}
                           {r.hasInvoice ? ' · con factura' : ''}
                         </span>
+                        {r.childPaused && (
+                          <span className="block text-[11px] text-amber-700">
+                            En pausa temporal — pausar no cancela las citas ya agendadas. Revisá
+                            la agenda antes de emparejar: si esas sesiones no se van a dar, hay
+                            que quitarlas de la agenda, no cobrarlas.
+                          </span>
+                        )}
                         {r.unpricedServices.length > 0 && (
                           <span className="block text-[11px] text-amber-700">
                             Sin precio en catálogo: {r.unpricedServices.map(label).join(', ')}

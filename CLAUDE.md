@@ -582,6 +582,18 @@ factura → se regenera; servicio sin citas → no se pone en cero.
 **Deliberadamente NO se hizo por SQL**: habría duplicado la regla de conteo, el
 manejo de pagados y el precio de catálogo en un script sin tests.
 
+**Niños en pausa — la trampa del "la agenda manda".** Al revisar el lote salió un
+niño cobrando 3 con 6 agendadas: está en **pausa temporal**, y pasar a
+`4_1_pausa_temporal` **no cancela las citas ya agendadas** (`isChildPaused` existe
+en `intake-pipeline.ts` pero nadie la consulta para limpiar la agenda). O sea su
+agenda tiene sesiones que no se van a dar: emparejar le cobraría de más, y —peor—
+con el sync automático vivo, CUALQUIER cambio en sus citas le saltaría el cobro
+de 3 a 6. La revisión por mes marca esos niños y los deja **destildados** con el
+aviso de que ahí lo que se corrige es la agenda, no el cobro.
+**Pendiente (backlog)**: que pausar a un niño ofrezca cancelar sus citas futuras
+— mientras no exista, todo niño pausado es una bomba de cobro esperando a que
+alguien le toque una cita.
+
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
 plan → implementación con subagentes (superpowers), 8 tareas, cada una con

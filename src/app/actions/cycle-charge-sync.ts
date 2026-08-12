@@ -34,6 +34,7 @@ import {
   therapiesSyncedToAgenda,
   type ChargeableAppt,
 } from '@/lib/domain/billing/agenda-charge-sync'
+import { isChildPaused } from '@/lib/domain/intake-pipeline'
 import { createInvoiceForCycle } from './kinetic-invoices'
 import type {
   DiscountKind,
@@ -280,6 +281,12 @@ export interface MonthChargeSyncRow {
   lines: ChargeSyncLine[]
   hasInvoice: boolean
   unpricedServices: string[]
+  /**
+   * Niño en pausa temporal. Pausar NO cancela las citas ya agendadas, así que su
+   * agenda suele tener sesiones que no se van a dar: emparejar le cobraría de
+   * más. Primero hay que limpiar la agenda.
+   */
+  childPaused: boolean
 }
 
 async function requireMgmt(): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -291,9 +298,11 @@ async function requireMgmt(): Promise<{ ok: true } | { ok: false; error: string 
   return { ok: true }
 }
 
-async function collectMonthPlans(
-  periodMonth: string,
-): Promise<{ plans: ChargeSyncPlan[]; names: Map<string, string> }> {
+async function collectMonthPlans(periodMonth: string): Promise<{
+  plans: ChargeSyncPlan[]
+  names: Map<string, string>
+  paused: Set<string>
+}> {
   const admin = createAdminClient()
   const { data: cyclesRaw } = await admin
     .from('monthly_session_cycles')
@@ -303,13 +312,19 @@ async function collectMonthPlans(
 
   const cycles = (cyclesRaw ?? []) as MonthlySessionCycle[]
   const names = new Map<string, string>()
+  const paused = new Set<string>()
   if (cycles.length > 0) {
     const { data: kids } = await admin
       .from('children')
-      .select('id, full_name')
+      .select('id, full_name, current_phase_code')
       .in('id', [...new Set(cycles.map((c) => c.child_id))])
-    for (const k of (kids ?? []) as { id: string; full_name: string }[]) {
+    for (const k of (kids ?? []) as {
+      id: string
+      full_name: string
+      current_phase_code: string | null
+    }[]) {
       names.set(k.id, k.full_name)
+      if (isChildPaused(k.current_phase_code)) paused.add(k.id)
     }
   }
 
@@ -318,7 +333,7 @@ async function collectMonthPlans(
     const plan = await buildChargeSyncPlan(admin, cycle)
     if (plan) plans.push(plan)
   }
-  return { plans, names }
+  return { plans, names, paused }
 }
 
 /** Lista, SIN tocar nada, los ciclos del mes cuyo cobro no calza con la agenda. */
@@ -329,7 +344,7 @@ export async function previewMonthChargeSync(
   if (!auth.ok) return auth
 
   try {
-    const { plans, names } = await collectMonthPlans(periodMonth)
+    const { plans, names, paused } = await collectMonthPlans(periodMonth)
     const rows: MonthChargeSyncRow[] = plans.map((p) => ({
       cycleId: p.cycleId,
       childName: names.get(p.childId) ?? 'Niño/a',
@@ -339,6 +354,7 @@ export async function previewMonthChargeSync(
       lines: p.lines,
       hasInvoice: p.hasInvoice,
       unpricedServices: p.unpricedServices,
+      childPaused: paused.has(p.childId),
     }))
     rows.sort((a, b) => a.childName.localeCompare(b.childName, 'es'))
     return { ok: true, rows }
