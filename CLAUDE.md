@@ -544,6 +544,26 @@ e ítems), pero la UI solo mostraba el botón cuando `!c.invoice_id`, así que n
 había forma de dispararlo. Ahora aparece cuando hay factura y el ciclo sigue
 `generated` + `pending` (una factura pagada no se reescribe), con confirmación.
 
+### Generar un ciclo con el mes ya empezado cobraba de más
+Segundo caso reportado (niño de BlueKids + Lenguaje, agosto): el ciclo cobraba 4
+sesiones de Lenguaje y la agenda tenía 3 (martes 11, 18, 25 — faltaba el **4**,
+de la primera semana). El aviso del PDF ("1 sesión cobrada aún no aparece en el
+calendario") fue lo que lo destapó al facturar.
+
+Causa: `compute_monthly_appointment_candidates` recorre el **mes completo**, así
+que generar un ciclo a mitad de mes propone fechas ya pasadas. El modal las
+mostraba, sincronizaba el cobro con ellas y las creaba; después alguien
+borra/cancela las de la primera semana y el cobro se queda arriba. `periodMonth`
+en este modal es `'YYYY-MM'` (sin día) — ojo al comparar.
+
+Fix: `NewMonthlyCycleModal` detecta que se está generando el mes EN CURSO
+(`monthInProgress`) y ofrece el alcance — **"Solo de hoy en adelante"** (default,
+recorta el patrón a las fechas futuras: no las agenda ni las cobra) vs. "Mes
+completo" (para cuando esas sesiones sí se dieron y hay que cobrarlas). No hizo
+falta tocar el servidor: el modal ya manda `appointmentsOverride` siempre, así
+que recortar el patrón recorta agenda y cobro a la vez. Mismo patrón de UI que el
+alcance de regeneración en `EditMonthlyCycleModal`.
+
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
 plan → implementación con subagentes (superpowers), 8 tareas, cada una con

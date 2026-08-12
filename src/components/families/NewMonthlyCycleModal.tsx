@@ -251,6 +251,15 @@ export function NewMonthlyCycleModal({
 
   const periodAlreadyUsed = existingPeriods.some((p) => p.startsWith(periodMonth))
 
+  // ¿Se está generando el ciclo del mes en curso, ya empezado? Solo ahí tiene
+  // sentido recortar las fechas del patrón que ya pasaron.
+  const monthInProgress = useMemo(() => {
+    const now = new Date()
+    const nowYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    return periodMonth === nowYm && now.getDate() > 1
+  }, [periodMonth])
+  const [skipPastDates, setSkipPastDates] = useState(true)
+
   // Cargar preview de rollover (mes anterior) al cambiar período.
   useEffect(() => {
     if (!periodMonth || periodAlreadyUsed) {
@@ -292,13 +301,23 @@ export function NewMonthlyCycleModal({
       const fullPattern = [...res.result.candidates, ...res.result.skipped_overquota].sort(
         (a, b) => a.starts_at.localeCompare(b.starts_at),
       )
-      setEditedCandidates(fullPattern)
+      // Generando un ciclo con el mes YA empezado: el patrón incluye fechas que
+      // ya pasaron (el compute recorre el mes completo). Crearlas es basura en la
+      // agenda, y dejarlas en el cobro deja el ciclo cobrando sesiones que nunca
+      // se van a dar. Por defecto se recortan; la persona puede pedir el mes
+      // completo si de verdad hay que registrar lo ya transcurrido.
+      const nowMs = new Date().getTime()
+      const pattern =
+        monthInProgress && skipPastDates
+          ? fullPattern.filter((c) => new Date(c.starts_at).getTime() >= nowMs)
+          : fullPattern
+      setEditedCandidates(pattern)
       setHasEdits(false)
-      // Sincronizar las sesiones a COBRAR con las citas mostradas (todo el patrón),
+      // Sincronizar las sesiones a COBRAR con las citas mostradas,
       // salvo en rollover acumulado (ese modo suma citas sin recobrar).
       if (rolloverMode === 'none') {
         const genCount: Record<string, number> = {}
-        for (const c of fullPattern) {
+        for (const c of pattern) {
           genCount[c.service] = (genCount[c.service] ?? 0) + 1
         }
         setPriced((prev) =>
@@ -310,7 +329,15 @@ export function NewMonthlyCycleModal({
         )
       }
     })
-  }, [childId, periodMonth, periodAlreadyUsed, rolloverMode, rolloverSessionsMap])
+  }, [
+    childId,
+    periodMonth,
+    periodAlreadyUsed,
+    rolloverMode,
+    rolloverSessionsMap,
+    monthInProgress,
+    skipPastDates,
+  ])
 
   function handleMoveCandidate(idx: number, newStartsAt: string, newEndsAt: string) {
     setEditedCandidates((prev) =>
@@ -778,6 +805,43 @@ export function NewMonthlyCycleModal({
                       generar igual — revisalas cuando puedas, o movelas/quitalas ahora si preferís
                       resolverlas antes.
                     </p>
+                  </div>
+                )}
+
+                {monthInProgress && (
+                  <div className="rounded-lg border border-fm-outline-variant/20 bg-fm-surface-container-low/40 p-2.5 space-y-1.5">
+                    <p className="text-[11px] font-semibold text-fm-on-surface">
+                      El mes ya empezó — ¿desde cuándo agendar?
+                    </p>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        className="mt-0.5"
+                        checked={skipPastDates}
+                        onChange={() => setSkipPastDates(true)}
+                      />
+                      <span className="text-[11px] text-fm-on-surface">
+                        Solo de hoy en adelante
+                        <span className="block text-fm-on-surface-variant">
+                          No agenda ni cobra los días del mes que ya pasaron.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        className="mt-0.5"
+                        checked={!skipPastDates}
+                        onChange={() => setSkipPastDates(false)}
+                      />
+                      <span className="text-[11px] text-fm-on-surface">
+                        Mes completo
+                        <span className="block text-fm-on-surface-variant">
+                          Incluye los días ya transcurridos: úsalo solo si esas sesiones se
+                          dieron y hay que cobrarlas.
+                        </span>
+                      </span>
+                    </label>
                   </div>
                 )}
 
