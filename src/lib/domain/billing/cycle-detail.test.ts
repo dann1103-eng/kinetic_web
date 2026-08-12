@@ -234,6 +234,57 @@ describe('buildCycleDetail — notas de diferencia agenda ↔ cobro', () => {
     })
     expect(data.agendaNotes).toEqual([])
     expect(data.costRows[0].total).toBe(120)
+    // Se cobra 1 × mensualidad, aunque el plan traiga sessions_per_month = 0.
+    expect(data.costRows[0].count).toBe(1)
+  })
+})
+
+describe('buildCycleDetail — mes ya pagado y corregido después', () => {
+  const therapies = [
+    { service: 'blue_kids', active: true, sessions_per_month: 0, unit_cost_usd: 170, billing_mode: 'monthly_flat' },
+    { service: 'lenguaje', active: true, sessions_per_month: 3, unit_cost_usd: 22, billing_mode: 'per_session' },
+  ] as TreatmentPlanTherapyEntry[]
+
+  const base = {
+    childName: 'Niño de prueba',
+    periodMonth: '2026-08-01',
+    therapies,
+    schedule: [] as TreatmentPlanScheduleSlot[],
+    appointments: [11, 18, 25].map((d) => ({
+      starts_at: `2026-08-${d}T15:00:00-06:00`,
+      service_type: 'lenguaje',
+      status: 'scheduled',
+    })),
+  }
+
+  it('el total muestra el detalle corregido, no el monto viejo ya pagado', () => {
+    // Pagó $258 (4 sesiones); el detalle se corrigió a 3 → $236.
+    const data = buildCycleDetail({
+      ...base,
+      paymentAmountUsd: 258,
+      paymentStatus: 'paid',
+      billingAdjustmentUsd: -22,
+    })
+    expect(data.subtotal).toBe(236)
+    expect(data.total).toBe(236)
+    expect(data.settlement).toEqual({ paidAmount: 258, adjustment: -22 })
+  })
+
+  it('sin ajuste registrado lo deduce del propio detalle', () => {
+    const data = buildCycleDetail({ ...base, paymentAmountUsd: 258, paymentStatus: 'paid' })
+    expect(data.settlement?.adjustment).toBe(-22)
+  })
+
+  it('un mes pagado que sí cuadra no muestra liquidación aparte', () => {
+    const data = buildCycleDetail({ ...base, paymentAmountUsd: 236, paymentStatus: 'paid' })
+    expect(data.settlement).toBeNull()
+    expect(data.total).toBe(236)
+  })
+
+  it('un mes PENDIENTE conserva el monto del ciclo como total', () => {
+    const data = buildCycleDetail({ ...base, paymentAmountUsd: 258, paymentStatus: 'pending' })
+    expect(data.settlement).toBeNull()
+    expect(data.total).toBe(258)
   })
 })
 

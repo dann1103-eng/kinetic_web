@@ -582,6 +582,22 @@ factura → se regenera; servicio sin citas → no se pone en cero.
 **Deliberadamente NO se hizo por SQL**: habría duplicado la regla de conteo, el
 manejo de pagados y el precio de catálogo en un script sin tests.
 
+**Corregir un mes YA PAGADO volvía a descuadrar el PDF** (reportado al correr la
+herramienta en prod): `applyChargeSyncPlan` actualiza el snapshot pero NO
+`payment_amount_usd` cuando el ciclo está pagado —correcto, no se re-cobra el mes,
+la diferencia va a `billing_adjustment_usd`— así que el detalle mostraba las filas
+corregidas (3 × $22 = $66 + $170 = $236) contra el total viejo ($258). Fix:
+`buildCycleDetail` recibe `paymentStatus` + `billingAdjustmentUsd` y arma
+`settlement`; con un mes pagado cuyo detalle cambió, el total pasa a ser el del
+detalle (las filas cierran) y debajo se declaran **"Pagado en <mes>: $X"** y
+**"Saldo a favor / Cargo pendiente de $Y — se aplica en la mensualidad
+siguiente"**. Un mes pendiente, o uno pagado que sí cuadra, no cambia en nada
+(`settlement = null`).
+
+De paso: la fila de una **mensualidad fija** mostraba `sessions_per_month` en
+"# EN EL MES" — que no participa del cobro y puede ser 0, dando "0 × $170 =
+$170". Ahora muestra 1, que es lo que efectivamente se cobra.
+
 **Niños en pausa — la trampa del "la agenda manda".** Al revisar el lote salió un
 niño cobrando 3 con 6 agendadas: está en **pausa temporal**, y pasar a
 `4_1_pausa_temporal` **no cancela las citas ya agendadas** (`isChildPaused` existe

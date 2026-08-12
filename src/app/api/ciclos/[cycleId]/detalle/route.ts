@@ -99,6 +99,8 @@ export async function GET(
     discountKind: cycle.discount_kind,
     discountValue: cycle.discount_value,
     surchargeUsd: cycle.surcharge_amount_usd,
+    paymentStatus: cycle.payment_status,
+    billingAdjustmentUsd: cycle.billing_adjustment_usd,
   })
 
   const element = createElement(CycleDetailPDF, { data, paymentNote }) as unknown as ReactElement<

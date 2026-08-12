@@ -104,6 +104,18 @@ export interface CycleDetailData {
    *  de este total: se cobra como línea en la mensualidad siguiente. */
   surcharge: number
   total: number
+  /**
+   * Mes YA PAGADO cuyo detalle se corrigió después (típicamente al emparejar el
+   * cobro con la agenda). El mes no se re-cobra: la diferencia se le acredita o
+   * se le carga en la mensualidad siguiente. Sin esto el documento mostraba las
+   * filas corregidas contra el total viejo y volvía a no cuadrar.
+   */
+  settlement: {
+    /** Lo que la familia efectivamente pagó por este mes. */
+    paidAmount: number
+    /** Positivo = falta cobrarle; negativo = a favor de la familia. */
+    adjustment: number
+  } | null
   /** Diferencias agenda ↔ cobro, redactadas para el padre. Vacío si todo calza. */
   agendaNotes: string[]
 }
@@ -132,6 +144,10 @@ export interface BuildCycleDetailInput {
   discountKind?: string | null
   discountValue?: number | null
   surchargeUsd?: number | null
+  /** Estado de pago del ciclo. Un mes ya pagado no se re-cobra. */
+  paymentStatus?: 'pending' | 'paid' | null
+  /** Diferencia arrastrada a la mensualidad siguiente (mig 0177/0178). */
+  billingAdjustmentUsd?: number | null
 }
 
 export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData {
@@ -224,9 +240,14 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
     .map((t) => {
       const flat = isMonthlyFlatEntry(t)
       const billed = Number(t.sessions_per_month)
-      const count = Number.isFinite(billed)
-        ? billed
-        : billableApptByService.get(t.service) ?? 0
+      // Una mensualidad fija se cobra 1 × precio venga el mes que venga: su
+      // `sessions_per_month` no participa del cobro y puede traer cualquier cosa
+      // (0 incluido), así que mostrarlo daría "0 × $170 = $170".
+      const count = flat
+        ? 1
+        : Number.isFinite(billed)
+          ? billed
+          : billableApptByService.get(t.service) ?? 0
       const unitCost = Number(t.unit_cost_usd ?? 0)
       const total = therapyLineAmount({
         service: t.service,
@@ -322,6 +343,31 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
     { month: 'long', year: 'numeric' },
   )
 
+  // Monto del ciclo (`payment_amount_usd`): lo que el sistema cobra por este mes.
+  const cycleAmount = round2(
+    Number.isFinite(Number(input.paymentAmountUsd))
+      ? Number(input.paymentAmountUsd)
+      : subtotal - discountAmount,
+  )
+  // Costo real del mes según el detalle de arriba.
+  const detailAmount = round2(subtotal - discountAmount)
+
+  // Mes ya pagado cuyo detalle se corrigió después: el total que se muestra es el
+  // del detalle (para que las filas cierren) y aparte se declara lo pagado y el
+  // ajuste que viaja a la mensualidad siguiente. En un mes pendiente, o en uno
+  // pagado sin corrección, `settlement` queda null y todo sigue igual.
+  const settlement =
+    input.paymentStatus === 'paid' && Math.abs(detailAmount - cycleAmount) >= 0.01
+      ? {
+          paidAmount: cycleAmount,
+          adjustment: round2(
+            Number.isFinite(Number(input.billingAdjustmentUsd))
+              ? Number(input.billingAdjustmentUsd)
+              : detailAmount - cycleAmount,
+          ),
+        }
+      : null
+
   return {
     childName: input.childName,
     periodLabel,
@@ -337,14 +383,12 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
     discountLabel,
     discountAmount,
     surcharge: round2(Number(input.surchargeUsd ?? 0)),
-    // El total sigue siendo el monto del ciclo (`payment_amount_usd`): es lo que
-    // el sistema va a cobrar y lo que valida `mark_monthly_cycle_paid`. Con las
-    // filas leyendo el snapshot, equivale a subtotal − descuento.
-    total: round2(
-      Number.isFinite(Number(input.paymentAmountUsd))
-        ? Number(input.paymentAmountUsd)
-        : subtotal - discountAmount,
-    ),
+    // Mes pendiente: el total es el monto del ciclo (`payment_amount_usd`), que
+    // es lo que el sistema va a cobrar y lo que valida `mark_monthly_cycle_paid`.
+    // Mes pagado y corregido: el total es el del detalle, y lo pagado + el ajuste
+    // se declaran aparte (`settlement`).
+    total: settlement ? detailAmount : cycleAmount,
+    settlement,
     agendaNotes,
   }
 }

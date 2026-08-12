@@ -203,9 +203,27 @@ export function CycleDetailPDF({ data, paymentNote }: Props) {
             </>
           )}
           <View style={s.totalRow}>
-            <Text style={s.totalLabel}>Total a pagar — {data.periodLabel}</Text>
+            <Text style={s.totalLabel}>
+              {data.settlement ? 'Total del mes' : 'Total a pagar'} — {data.periodLabel}
+            </Text>
             <Text style={s.totalVal}>${data.total.toFixed(2)}</Text>
           </View>
+          {/* Mes ya pagado cuyo detalle se corrigió: se declara lo pagado y a
+              dónde va la diferencia, para que las filas cierren igual. */}
+          {data.settlement && (
+            <View style={{ marginTop: 4 }}>
+              <Text style={{ fontSize: 7.5, color: GRAY }}>
+                Pagado en {data.periodLabel}: ${data.settlement.paidAmount.toFixed(2)}
+              </Text>
+              {Math.abs(data.settlement.adjustment) >= 0.01 && (
+                <Text style={{ fontSize: 7.5, color: TEAL, marginTop: 2 }}>
+                  {data.settlement.adjustment < 0
+                    ? `Saldo a favor de $${Math.abs(data.settlement.adjustment).toFixed(2)} — se aplica en la mensualidad siguiente.`
+                    : `Cargo pendiente de $${data.settlement.adjustment.toFixed(2)} — se cobra en la mensualidad siguiente.`}
+                </Text>
+              )}
+            </View>
+          )}
           {/* Recargo por mora YA generado en este ciclo: desde la mig 0175 no
               infla este total — se cobra en la mensualidad siguiente. */}
           {data.surcharge > 0 && (
