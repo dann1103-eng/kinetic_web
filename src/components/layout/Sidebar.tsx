@@ -180,6 +180,14 @@ const adminGroupItems: NavItem[] = [
     ),
   },
   {
+    href: '/operacion/calendario-institucional',
+    label: 'Asuetos y cierres',
+    allowedRoles: ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>event_busy</span>
+    ),
+  },
+  {
     href: '/operacion/sincronizar-cobros',
     label: 'Cobros vs agenda',
     allowedRoles: ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'],

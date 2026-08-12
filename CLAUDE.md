@@ -616,8 +616,16 @@ propusieron y cobraron esas fechas: `compute_monthly_appointment_candidates` ya
 salta los asuetos y los devuelve en `skipped_holidays` (el modal hasta muestra el
 contador "Saltadas (asueto)") — pero solo los que están cargados. **No es error
 de quien generó los ciclos**; nadie avisa cuando el mes no tiene cierres
-cargados. Acción operativa: cargar el calendario institucional al inicio del año
-(`src/app/actions/institutional-calendar.ts`).
+cargados.
+
+Causa de fondo: `addInstitutionalClosure`/`removeInstitutionalClosure` existían
+desde la 0092 pero **ninguna pantalla las llamaba** (mismo patrón que el botón de
+regenerar factura), así que no había forma de cargar el calendario desde la app.
+Página nueva `/operacion/calendario-institucional` (ver: roles de gestión; cargar:
+admin/directora, igual que el action; borrar: admin) con selector de año, alta y
+listado por mes. Además **avisa en ámbar qué meses del año quedaron sin ningún
+cierre cargado** — que es la señal que faltaba: un mes en blanco ahí significa que
+sus ciclos van a agendar y cobrar los asuetos como días normales.
 
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
