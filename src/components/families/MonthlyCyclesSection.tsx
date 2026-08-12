@@ -39,6 +39,8 @@ interface Props {
   therapyCatalog?: ServiceCatalogItem[]
   /** Programa matutino del niño — activa precio BK precargado. */
   enrolledProgram?: MorningProgram | null
+  /** Fase del niño — para avisar si se le genera un ciclo estando en pausa. */
+  childPhaseCode?: string | null
 }
 
 const STATUS_CHIP: Record<MonthlySessionCycle['status'], string> = {
@@ -66,6 +68,7 @@ export function MonthlyCyclesSection({
   canDelete,
   therapyCatalog,
   enrolledProgram,
+  childPhaseCode,
 }: Props) {
   const router = useRouter()
   const [cycles, setCycles] = useState(initial)
@@ -496,6 +499,7 @@ export function MonthlyCyclesSection({
           therapyCatalog={therapyCatalog}
           enrolledProgram={enrolledProgram}
           existingPeriods={cycles.filter((c) => c.status !== 'cancelled').map((c) => c.period_month)}
+          childPhaseCode={childPhaseCode}
           onClose={() => setShowCreate(false)}
           onCreated={(cycle) => {
             if (cycle?.id) {

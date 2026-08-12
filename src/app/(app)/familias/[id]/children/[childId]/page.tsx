@@ -363,6 +363,7 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 canDelete={ctx.appUser.role === 'admin' || ctx.appUser.role === 'recepcion'}
                 therapyCatalog={fullCatalog}
                 enrolledProgram={c.enrolled_program}
+                childPhaseCode={c.current_phase_code}
               />
 
               {/* Facturación ad-hoc (matrículas, materiales, evaluaciones, etc.) */}

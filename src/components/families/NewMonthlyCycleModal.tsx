@@ -21,6 +21,7 @@ import type {
   TreatmentPlan,
 } from '@/types/db'
 import { applyDiscount } from '@/lib/domain/discounts'
+import { isChildPaused } from '@/lib/domain/intake-pipeline'
 import { describeMonthlyConflict } from '@/lib/domain/appointment'
 import {
   daysPerWeekLabel,
@@ -44,6 +45,9 @@ interface Props {
   enrolledProgram?: MorningProgram | null
   /** Períodos ya existentes (no cancelled) para evitar duplicar. */
   existingPeriods: string[]
+  /** Fase del niño — para avisar si está en pausa (generar le agenda el mes
+   *  completo, y desde el cobro automático eso además se le cobra). */
+  childPhaseCode?: string | null
   onClose: () => void
   onCreated: (cycle: MonthlySessionCycle) => void
 }
@@ -116,6 +120,7 @@ export function NewMonthlyCycleModal({
   therapyCatalog,
   enrolledProgram,
   existingPeriods,
+  childPhaseCode,
   onClose,
   onCreated,
 }: Props) {
@@ -250,6 +255,10 @@ export function NewMonthlyCycleModal({
   )
 
   const periodAlreadyUsed = existingPeriods.some((p) => p.startsWith(periodMonth))
+  // Pausar a un niño SÍ cancela sus citas futuras (mig 0121), pero nada impide
+  // generarle después un ciclo nuevo — que le vuelve a agendar el mes completo
+  // y, con el cobro automático, se lo cobra.
+  const childPaused = isChildPaused(childPhaseCode)
 
   // ¿Se está generando el ciclo del mes en curso, ya empezado? Solo ahí tiene
   // sentido recortar las fechas del patrón que ya pasaron.
@@ -804,6 +813,17 @@ export function NewMonthlyCycleModal({
                       Pasá el mouse por encima de una celda roja para ver el detalle. Se pueden
                       generar igual — revisalas cuando puedas, o movelas/quitalas ahora si preferís
                       resolverlas antes.
+                    </p>
+                  </div>
+                )}
+
+                {childPaused && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                    <p className="font-semibold">Este niño/a está en pausa temporal.</p>
+                    <p className="mt-0.5">
+                      Generar el ciclo le agenda el mes completo <b>y se lo cobra</b>. Si la pausa
+                      sigue, no generés el ciclo; si ya se reincorporó, primero sacalo de la pausa
+                      en el pipeline de fases.
                     </p>
                   </div>
                 )}

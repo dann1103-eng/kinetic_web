@@ -590,9 +590,34 @@ agenda tiene sesiones que no se van a dar: emparejar le cobraría de más, y —
 con el sync automático vivo, CUALQUIER cambio en sus citas le saltaría el cobro
 de 3 a 6. La revisión por mes marca esos niños y los deja **destildados** con el
 aviso de que ahí lo que se corrige es la agenda, no el cobro.
-**Pendiente (backlog)**: que pausar a un niño ofrezca cancelar sus citas futuras
-— mientras no exista, todo niño pausado es una bomba de cobro esperando a que
-alguien le toque una cita.
+**Ojo — pausar SÍ cancela las citas futuras desde siempre**: la fase
+`4_1_pausa_temporal` trae `cancels_future_appointments = true` en el seed del
+catálogo (mig 0121) y `advanceChildPhase` lo ejecuta pidiendo confirmación. El
+hueco real es otro: **generar un ciclo NO mira la fase del niño** (ni la acción,
+ni el modal, ni el RPC), así que después de pausar se le puede generar el mes
+completo y volverle a agendar —y ahora cobrar— todo. `NewMonthlyCycleModal` avisa
+en ámbar cuando el niño está en pausa (`childPhaseCode` viaja desde la página del
+niño por `MonthlyCyclesSection`). Se dejó como **aviso y no bloqueo**: una pausa
+que termina a mitad de mes es un caso legítimo.
+
+**Cuidado con `cancelled` en la regla de cobro**: `billableSessionCounts` SÍ
+cuenta las citas `cancelled`, porque una cancelación tardía de la familia se
+cobra y se acredita el mes siguiente por rollover. Pero `advanceChildPhase` usa
+ese MISMO estado al cancelar por pausa/alta/retiro, y esas no deberían cobrarse.
+Hoy no explota porque nada re-sincroniza el ciclo al pausar, pero si alguien toca
+una cita de ese niño el sync las contaría. Sin resolver — necesita decidir si se
+separan los dos significados (p. ej. un estado o motivo distinto para la
+cancelación administrativa).
+
+### El calendario institucional vacío es lo que cobró los asuetos
+Verificado contra prod: `institutional_calendar` no tenía NINGUNA fila de agosto
+2026, y la primera semana era asueto (Fiestas Agostinas). Por eso los ciclos
+propusieron y cobraron esas fechas: `compute_monthly_appointment_candidates` ya
+salta los asuetos y los devuelve en `skipped_holidays` (el modal hasta muestra el
+contador "Saltadas (asueto)") — pero solo los que están cargados. **No es error
+de quien generó los ciclos**; nadie avisa cuando el mes no tiene cierres
+cargados. Acción operativa: cargar el calendario institucional al inicio del año
+(`src/app/actions/institutional-calendar.ts`).
 
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
