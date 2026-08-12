@@ -180,6 +180,14 @@ const adminGroupItems: NavItem[] = [
     ),
   },
   {
+    href: '/operacion/sincronizar-cobros',
+    label: 'Cobros vs agenda',
+    allowedRoles: ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>rule</span>
+    ),
+  },
+  {
     href: '/reportes',
     label: 'Reportes',
     allowedRoles: ['admin', 'directora', 'contable', 'recepcion', 'coordinadora_terapias'],

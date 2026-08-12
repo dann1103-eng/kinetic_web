@@ -564,6 +564,24 @@ falta tocar el servidor: el modal ya manda `appointmentsOverride` siempre, así
 que recortar el patrón recorta agenda y cobro a la vez. Mismo patrón de UI que el
 alcance de regeneración en `EditMonthlyCycleModal`.
 
+### `/operacion/sincronizar-cobros` — revisar cobros contra la agenda
+Al barrer agosto 2026 aparecieron **16 niños / 24 líneas** desalineadas, en las
+DOS direcciones (unos cobrando de más, otros de menos): la herencia de todos los
+bugs de arriba, en ciclos generados antes de que el cobro siguiera a la agenda.
+Corregirlos uno por uno en la UI era inviable.
+
+Página nueva (mismo set de roles de gestión de ciclos) con **previsualizar →
+seleccionar → aplicar**. Reusa exactamente la lógica del sync automático:
+`buildChargeSyncPlan` (calcula sin escribir) y `applyChargeSyncPlan` (escribe) se
+extrajeron de `syncCycleChargeToAgenda`, y las tres entradas —sync por cita,
+`previewMonthChargeSync`, `applyMonthChargeSync`— comparten ese núcleo, así que
+no hay una segunda regla de conteo que se pueda desincronizar. Respeta lo mismo
+que el sync: pagado → `billing_adjustment_usd` en vez de re-cobrar; pendiente con
+factura → se regenera; servicio sin citas → no se pone en cero.
+
+**Deliberadamente NO se hizo por SQL**: habría duplicado la regla de conteo, el
+manejo de pagados y el precio de catálogo en un script sin tests.
+
 ## Sesión 14 jul 2026 — conflictos no bloqueantes + fix duplicación lista de espera
 Todo en `master`, migraciones **0181, 0182 y 0183 aplicadas y verificadas en prod**. Spec →
 plan → implementación con subagentes (superpowers), 8 tareas, cada una con
