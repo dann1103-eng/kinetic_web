@@ -598,6 +598,24 @@ De paso: la fila de una **mensualidad fija** mostraba `sessions_per_month` en
 "# EN EL MES" — que no participa del cobro y puede ser 0, dando "0 × $170 =
 $170". Ahora muestra 1, que es lo que efectivamente se cobra.
 
+**El arrastre asumía que un mes pagado se cobró por `payment_amount_usd`, y eso
+puede ser falso.** Caso real: el ciclo tenía registrado $258 pero recepción cobró
+los $236 correctos a ojo. La herramienta creó un crédito de $22 que no existía y
+que le habría descontado de más en septiembre. El sistema **no puede deducirlo**:
+depende de cuánto entró en caja. Por eso:
+- En la revisión, cada ciclo **pagado** ofrece dos opciones — *"pagó el monto
+  viejo → la diferencia va al mes siguiente"* (`carry`, default) vs. *"pagó el
+  correcto → solo corregir el registro"* (`already_correct`, que alinea
+  `payment_amount_usd` **y** `paid_expected_usd` y deja el arrastre en 0).
+- Los arrastres ya creados no volvían a aparecer en la revisión (su detalle ya
+  coincide con la agenda, así que `buildChargeSyncPlan` devuelve null): tienen su
+  propia sección, `listPendingAdjustments` + `clearCycleAdjustment`.
+
+**Regla general**: `payment_amount_usd` es *lo que el sistema pidió*, no
+necesariamente *lo que se recibió*. Nada en el modelo guarda el monto realmente
+cobrado, así que cualquier lógica que dependa de "cuánto pagó" tiene que
+preguntarlo, no inferirlo.
+
 **Niños en pausa — la trampa del "la agenda manda".** Al revisar el lote salió un
 niño cobrando 3 con 6 agendadas: está en **pausa temporal**, y pasar a
 `4_1_pausa_temporal` **no cancela las citas ya agendadas** (`isChildPaused` existe

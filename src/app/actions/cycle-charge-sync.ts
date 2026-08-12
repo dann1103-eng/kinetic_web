@@ -183,11 +183,44 @@ async function buildChargeSyncPlan(
   }
 }
 
+/**
+ * Qué hacer con un ciclo YA PAGADO cuyo detalle se corrigió.
+ *
+ *  - `carry`           — la familia pagó el monto viejo. El mes no se re-cobra y
+ *                        la diferencia viaja a la mensualidad siguiente.
+ *  - `already_correct` — la familia ya pagó el monto correcto (recepción cobró
+ *                        bien aunque el sistema tuviera otro número). No hay nada
+ *                        que arrastrar: se corrige el registro del ciclo.
+ *
+ * El sistema NO puede deducir cuál es: depende de cuánto se recibió en caja.
+ */
+export type PaidCycleMode = 'carry' | 'already_correct'
+
 /** Escribe un plan ya calculado. Devuelve true si tocó el ciclo. */
-async function applyChargeSyncPlan(admin: AdminClient, plan: ChargeSyncPlan): Promise<boolean> {
+async function applyChargeSyncPlan(
+  admin: AdminClient,
+  plan: ChargeSyncPlan,
+  paidMode: PaidCycleMode = 'carry',
+): Promise<boolean> {
   const newSnapshot = { ...plan.snapshot, therapies_json: plan.therapies }
 
   if (plan.paymentStatus === 'paid') {
+    if (paidMode === 'already_correct') {
+      // Lo cobrado fue lo correcto: se alinea el registro del ciclo y no queda
+      // ningún arrastre. `paid_expected_usd` es la base de futuros ajustes, así
+      // que también se mueve.
+      await admin
+        .from('monthly_session_cycles')
+        .update({
+          treatment_plan_snapshot: newSnapshot,
+          payment_amount_usd: plan.newAmount,
+          paid_expected_usd: plan.newAmount,
+          billing_adjustment_usd: 0,
+        })
+        .eq('id', plan.cycleId)
+      return true
+    }
+
     // Ya pagado: no se re-cobra el mes. La diferencia contra lo que se congeló
     // al pagar viaja a la factura del mes siguiente.
     const { data: row } = await admin
@@ -369,7 +402,7 @@ export async function previewMonthChargeSync(
  */
 export async function applyMonthChargeSync(
   periodMonth: string,
-  cycleIds?: string[],
+  selections?: { cycleId: string; paidMode?: PaidCycleMode }[],
 ): Promise<{ ok: true; applied: number; skipped: number } | { ok: false; error: string }> {
   const auth = await requireMgmt()
   if (!auth.ok) return auth
@@ -377,18 +410,139 @@ export async function applyMonthChargeSync(
   try {
     const admin = createAdminClient()
     const { plans } = await collectMonthPlans(periodMonth)
-    const wanted = cycleIds && cycleIds.length > 0 ? new Set(cycleIds) : null
+    const wanted =
+      selections && selections.length > 0
+        ? new Map(selections.map((s) => [s.cycleId, s.paidMode ?? 'carry']))
+        : null
 
     let applied = 0
     let skipped = 0
     for (const plan of plans) {
       if (wanted && !wanted.has(plan.cycleId)) continue
-      const ok = await applyChargeSyncPlan(admin, plan)
+      const ok = await applyChargeSyncPlan(admin, plan, wanted?.get(plan.cycleId) ?? 'carry')
       if (ok) applied++
       else skipped++
     }
     return { ok: true, applied, skipped }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error al aplicar los cambios.' }
+  }
+}
+
+// ── Ajustes que quedaron pendientes de arrastrar ────────────────────────────
+// Un ciclo pagado que se corrigió arrastra la diferencia al mes siguiente. Si la
+// familia en realidad ya había pagado el monto correcto, ese arrastre es un error
+// y hay que quitarlo — pero el ciclo ya no aparece en la revisión (su detalle ya
+// coincide con la agenda), así que necesita su propia lista.
+
+export interface PendingAdjustmentRow {
+  cycleId: string
+  childName: string
+  /** Monto que el ciclo tiene registrado como cobrado. */
+  recordedAmount: number
+  /** Costo real del mes según el detalle actual. */
+  detailAmount: number
+  /** Positivo = se le va a cobrar de más el mes siguiente; negativo = crédito. */
+  adjustment: number
+}
+
+/** Costo del mes según el snapshot: mensualidad fija = 1 × precio, resto sesiones × precio. */
+function snapshotAmount(cycle: MonthlySessionCycle): number {
+  const snapshot = (cycle.treatment_plan_snapshot ?? {}) as {
+    therapies_json?: TreatmentPlanTherapyEntry[]
+  }
+  return expectedCycleAmount(
+    (snapshot.therapies_json ?? [])
+      .filter((t) => t.active !== false)
+      .map((t) => ({
+        service: t.service,
+        sessions_per_month: Number(t.sessions_per_month ?? 0),
+        unit_cost_usd: Number(t.unit_cost_usd ?? 0),
+        billing_mode: t.billing_mode,
+      })),
+    {
+      kind: (cycle.discount_kind ?? 'none') as DiscountKind,
+      value: Number(cycle.discount_value ?? 0),
+    },
+  )
+}
+
+/** Ciclos pagados del mes con un ajuste todavía sin arrastrar a la factura siguiente. */
+export async function listPendingAdjustments(
+  periodMonth: string,
+): Promise<{ ok: true; rows: PendingAdjustmentRow[] } | { ok: false; error: string }> {
+  const auth = await requireMgmt()
+  if (!auth.ok) return auth
+
+  try {
+    const admin = createAdminClient()
+    const { data: raw } = await admin
+      .from('monthly_session_cycles')
+      .select('*')
+      .eq('period_month', periodMonth)
+      .eq('status', 'generated')
+      .eq('payment_status', 'paid')
+      .neq('billing_adjustment_usd', 0)
+      .is('billing_adjustment_carried_at', null)
+
+    const cycles = (raw ?? []) as MonthlySessionCycle[]
+    if (cycles.length === 0) return { ok: true, rows: [] }
+
+    const { data: kids } = await admin
+      .from('children')
+      .select('id, full_name')
+      .in('id', [...new Set(cycles.map((c) => c.child_id))])
+    const names = new Map(
+      ((kids ?? []) as { id: string; full_name: string }[]).map((k) => [k.id, k.full_name]),
+    )
+
+    const rows = cycles.map((c) => ({
+      cycleId: c.id,
+      childName: names.get(c.child_id) ?? 'Niño/a',
+      recordedAmount: Number(c.payment_amount_usd ?? 0),
+      detailAmount: snapshotAmount(c),
+      adjustment: Number(c.billing_adjustment_usd ?? 0),
+    }))
+    rows.sort((a, b) => a.childName.localeCompare(b.childName, 'es'))
+    return { ok: true, rows }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al listar los ajustes.' }
+  }
+}
+
+/**
+ * Quita el arrastre de un ciclo pagado: la familia ya había pagado el monto
+ * correcto, así que se alinea el registro del ciclo y no queda nada pendiente
+ * para el mes siguiente.
+ */
+export async function clearCycleAdjustment(
+  cycleId: string,
+): Promise<{ ok: true; amount: number } | { ok: false; error: string }> {
+  const auth = await requireMgmt()
+  if (!auth.ok) return auth
+
+  try {
+    const admin = createAdminClient()
+    const { data: raw } = await admin
+      .from('monthly_session_cycles')
+      .select('*')
+      .eq('id', cycleId)
+      .maybeSingle()
+    if (!raw) return { ok: false, error: 'Ciclo no encontrado.' }
+    const cycle = raw as MonthlySessionCycle
+    const amount = snapshotAmount(cycle)
+
+    const { error } = await admin
+      .from('monthly_session_cycles')
+      .update({
+        payment_amount_usd: amount,
+        paid_expected_usd: amount,
+        billing_adjustment_usd: 0,
+      })
+      .eq('id', cycleId)
+    if (error) return { ok: false, error: error.message }
+    return { ok: true, amount }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error al quitar el ajuste.' }
   }
 }

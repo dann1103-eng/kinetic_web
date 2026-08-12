@@ -3,8 +3,12 @@
 import { useState, useTransition } from 'react'
 import {
   applyMonthChargeSync,
+  clearCycleAdjustment,
+  listPendingAdjustments,
   previewMonthChargeSync,
   type MonthChargeSyncRow,
+  type PaidCycleMode,
+  type PendingAdjustmentRow,
 } from '@/app/actions/cycle-charge-sync'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type { ServiceType } from '@/types/db'
@@ -22,25 +26,53 @@ export function SincronizarCobrosClient() {
   const [month, setMonth] = useState(currentMonth())
   const [rows, setRows] = useState<MonthChargeSyncRow[] | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  /** Por ciclo pagado: qué se hace con la diferencia. Default 'carry'. */
+  const [paidModes, setPaidModes] = useState<Record<string, PaidCycleMode>>({})
+  const [adjustments, setAdjustments] = useState<PendingAdjustmentRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
   const [isLoading, startLoad] = useTransition()
   const [isApplying, startApply] = useTransition()
+  const [clearingId, setClearingId] = useState<string | null>(null)
+
+  async function refresh() {
+    const [res, adj] = await Promise.all([
+      previewMonthChargeSync(`${month}-01`),
+      listPendingAdjustments(`${month}-01`),
+    ])
+    if (!res.ok) {
+      setError(res.error)
+      setRows(null)
+      return
+    }
+    setRows(res.rows)
+    // Los niños en pausa arrancan DESTILDADOS: su agenda suele tener sesiones
+    // que ya no se van a dar, y emparejar les cobraría de más.
+    setSelected(new Set(res.rows.filter((r) => !r.childPaused).map((r) => r.cycleId)))
+    setPaidModes({})
+    setAdjustments(adj.ok ? adj.rows : [])
+  }
 
   function handlePreview() {
     setError(null)
     setDone(null)
-    startLoad(async () => {
-      const res = await previewMonthChargeSync(`${month}-01`)
-      if (!res.ok) {
-        setError(res.error)
-        setRows(null)
-        return
-      }
-      setRows(res.rows)
-      // Los niños en pausa arrancan DESTILDADOS: su agenda suele tener sesiones
-      // que ya no se van a dar, y emparejar les cobraría de más.
-      setSelected(new Set(res.rows.filter((r) => !r.childPaused).map((r) => r.cycleId)))
+    startLoad(refresh)
+  }
+
+  function handleClearAdjustment(row: PendingAdjustmentRow) {
+    if (
+      !window.confirm(
+        `Se va a quitar el ajuste de ${row.childName} y dejar el mes registrado en $${row.detailAmount.toFixed(2)}. Hacelo solo si la familia YA pagó ese monto. ¿Continuar?`,
+      )
+    ) {
+      return
+    }
+    setClearingId(row.cycleId)
+    startApply(async () => {
+      const res = await clearCycleAdjustment(row.cycleId)
+      if (!res.ok) setError(res.error)
+      setClearingId(null)
+      await refresh()
     })
   }
 
@@ -55,17 +87,16 @@ export function SincronizarCobrosClient() {
     }
     setError(null)
     startApply(async () => {
-      const res = await applyMonthChargeSync(`${month}-01`, [...selected])
+      const res = await applyMonthChargeSync(
+        `${month}-01`,
+        [...selected].map((cycleId) => ({ cycleId, paidMode: paidModes[cycleId] ?? 'carry' })),
+      )
       if (!res.ok) {
         setError(res.error)
         return
       }
       setDone(`Listo: ${res.applied} ciclo(s) actualizado(s)${res.skipped > 0 ? `, ${res.skipped} sin cambios` : ''}.`)
-      const again = await previewMonthChargeSync(`${month}-01`)
-      if (again.ok) {
-        setRows(again.rows)
-        setSelected(new Set(again.rows.map((r) => r.cycleId)))
-      }
+      await refresh()
     })
   }
 
@@ -122,6 +153,66 @@ export function SincronizarCobrosClient() {
         </p>
       )}
 
+      {adjustments && adjustments.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50/60 p-3 space-y-2">
+          <div>
+            <p className="text-sm font-semibold text-amber-900">
+              {adjustments.length} ciclo(s) pagado(s) con diferencia arrastrada a la mensualidad
+              siguiente
+            </p>
+            <p className="text-xs text-amber-900/90 mt-0.5">
+              Se corrigió el detalle de un mes ya pagado, así que la diferencia quedó pendiente para
+              cobrarla o acreditarla el mes que viene. <b>Si la familia ya había pagado el monto
+              correcto</b>, ese arrastre sobra: quitalo acá.
+            </p>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-amber-200 bg-white/70">
+            <table className="w-full text-sm">
+              <thead className="text-[11px] uppercase tracking-wide text-amber-900/80">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold">Niño/a</th>
+                  <th className="px-3 py-2 text-right font-semibold">Registrado</th>
+                  <th className="px-3 py-2 text-right font-semibold">Costo real</th>
+                  <th className="px-3 py-2 text-right font-semibold">Arrastre</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {adjustments.map((a) => (
+                  <tr key={a.cycleId} className="border-t border-amber-200/60">
+                    <td className="px-3 py-2 text-fm-on-surface">{a.childName}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      ${a.recordedAmount.toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums font-medium">
+                      ${a.detailAmount.toFixed(2)}
+                    </td>
+                    <td
+                      className={`px-3 py-2 text-right tabular-nums font-semibold ${
+                        a.adjustment < 0 ? 'text-emerald-700' : 'text-fm-error'
+                      }`}
+                    >
+                      {a.adjustment > 0 ? '+' : ''}
+                      {a.adjustment.toFixed(2)}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleClearAdjustment(a)}
+                        disabled={clearingId === a.cycleId}
+                        className="text-xs font-semibold text-fm-primary hover:underline disabled:opacity-50"
+                      >
+                        {clearingId === a.cycleId ? 'Quitando…' : 'Ya pagó lo correcto'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {rows && rows.length > 0 && (
         <>
           <div className="overflow-x-auto rounded-lg border border-fm-outline-variant/20">
@@ -154,6 +245,41 @@ export function SincronizarCobrosClient() {
                           {r.paymentStatus === 'paid' ? 'Pagado' : 'Pendiente'}
                           {r.hasInvoice ? ' · con factura' : ''}
                         </span>
+                        {r.paymentStatus === 'paid' && (
+                          <span className="mt-1 block text-[11px] text-fm-on-surface">
+                            <span className="block text-fm-on-surface-variant mb-0.5">
+                              Ya pagado — ¿cuánto recibieron en caja?
+                            </span>
+                            <label className="flex items-start gap-1.5 cursor-pointer">
+                              <input
+                                type="radio"
+                                className="mt-[3px]"
+                                checked={(paidModes[r.cycleId] ?? 'carry') === 'carry'}
+                                onChange={() =>
+                                  setPaidModes((p) => ({ ...p, [r.cycleId]: 'carry' }))
+                                }
+                              />
+                              <span>
+                                Pagó ${r.currentAmount.toFixed(2)} — la diferencia va a la
+                                mensualidad siguiente
+                              </span>
+                            </label>
+                            <label className="flex items-start gap-1.5 cursor-pointer">
+                              <input
+                                type="radio"
+                                className="mt-[3px]"
+                                checked={paidModes[r.cycleId] === 'already_correct'}
+                                onChange={() =>
+                                  setPaidModes((p) => ({ ...p, [r.cycleId]: 'already_correct' }))
+                                }
+                              />
+                              <span>
+                                Pagó ${r.newAmount.toFixed(2)} — solo corregir el registro, sin
+                                arrastre
+                              </span>
+                            </label>
+                          </span>
+                        )}
                         {r.childPaused && (
                           <span className="block text-[11px] text-amber-700">
                             En pausa temporal — pausar no cancela las citas ya agendadas. Revisá
