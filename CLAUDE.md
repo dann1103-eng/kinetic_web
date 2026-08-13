@@ -630,18 +630,31 @@ agujero ya producía **facturas en $0** desde antes (`buildCycleLineItems` tambi
 lee `unit_cost_usd ?? 0`): se vio una factura de julio con
 "Sensorial — 8 sesiónes/mes … $0.00", anterior a todo este trabajo.
 
+**Alcance real medido en prod**: 34 facturas en $0 entre mayo y julio de 2026.
+Una parte son **legítimas** (beca completa, pago anual prepagado, becas
+familiares — se distinguen porque el ciclo también cobra $0); el resto son el bug.
+
 Defensas agregadas:
+- `src/lib/domain/billing/catalog-price.ts` (nuevo, puro):
+  `catalogPriceFor(catalog, service, {isMorningChild, daysPerWeek})` +
+  `withCatalogPrices(therapies, catalog)`. Es el espejo de `catalogPriceFor` del
+  `NewMonthlyCycleModal`, ahora en un solo lugar y con tests.
 - `therapiesSyncedToAgenda` **rellena del catálogo** el precio de toda terapia con
-  `unit_cost_usd <= 0` (individual por `service_type` con precio BK, y mensualidad
-  por `morning_program` + `days_per_week` — misma lógica que `catalogPriceFor` del
-  modal) y lo reporta en `backfilledPrices` para que el cambio sea visible.
+  `unit_cost_usd <= 0` y lo reporta en `backfilledPrices` (la revisión lo muestra
+  en verde: "sin precio → $40.00 del catálogo").
 - Guard en `buildChargeSyncPlan`: si el recálculo da **$0** y el ciclo hoy cobra
   algo, **no se toca** y se loguea qué servicio no tiene precio.
+- `createInvoiceForCycle` rellena precios del catálogo antes de armar las líneas,
+  y **falla con mensaje** si la factura saldría en $0 mientras el ciclo cobra algo
+  (antes emitía el documento en cero sin decir nada).
 - Los servicios sin precio activo en Catálogos siguen saliendo en
-  `unpricedServices` (ojo: las 3 terapias nuevas de la 0179 nacieron sin monto).
+  `unpricedServices` / `stillUnpriced` (ojo: las 3 terapias nuevas de la 0179
+  nacieron sin monto).
 
 **Antes de escribir un monto calculado desde un snapshot, verificar que sus
-precios no sean cero.**
+precios no sean cero.** Query para separar las facturas en $0 legítimas de las
+rotas: comparar `invoices.total` contra `monthly_session_cycles.payment_amount_usd`
+— si el ciclo cobra >0 y la factura da 0, está rota.
 
 **Niños en pausa — la trampa del "la agenda manda".** Al revisar el lote salió un
 niño cobrando 3 con 6 agendadas: está en **pausa temporal**, y pasar a

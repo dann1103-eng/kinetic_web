@@ -27,11 +27,13 @@ import type {
   MonthlySessionCycle,
   TreatmentPlan,
   TreatmentPlanTherapyEntry,
+  ServiceCatalogItem,
   ServiceType,
   Invoice,
 } from '@/types/db'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import { daysPerWeekLabel, isMonthlyFlatEntry } from '@/lib/domain/billing/monthly-flat'
+import { withCatalogPrices } from '@/lib/domain/billing/catalog-price'
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
@@ -144,8 +146,20 @@ export async function createInvoiceForCycle(
   const settings = settingsRaw as CompanySettings | null
   if (!settings) return { ok: false, error: 'No hay configuración de empresa. Completá los datos en Ajustes.' }
 
-  // Ítems desde snapshot del plan
-  const snapshot = cycle.treatment_plan_snapshot as TreatmentPlan | Record<string, unknown>
+  // Ítems desde snapshot del plan. El snapshot copia el PLAN, y el plan ya no
+  // guarda precios: si vienen en cero hay que traerlos del catálogo o la factura
+  // sale en $0 (pasó durante meses, ver notas del proyecto).
+  const rawSnapshot = cycle.treatment_plan_snapshot as TreatmentPlan | Record<string, unknown>
+  const rawTherapies =
+    (rawSnapshot as { therapies_json?: TreatmentPlanTherapyEntry[] }).therapies_json ?? []
+  const { data: catalogRaw } = await admin.from('service_catalog').select('*')
+  const priced = withCatalogPrices(rawTherapies, (catalogRaw ?? []) as ServiceCatalogItem[])
+  if (priced.filled.length > 0) {
+    console.warn(
+      `[createInvoiceForCycle] ${cycleId}: precios tomados del catálogo para ${priced.filled.map((f) => f.service).join(', ')} (el snapshot los traía en cero).`,
+    )
+  }
+  const snapshot = { ...rawSnapshot, therapies_json: priced.therapies }
   const items = buildCycleLineItems(snapshot)
 
   if (items.length === 0) {
@@ -290,6 +304,18 @@ export async function createInvoiceForCycle(
     discount_amount: discountAmount,
     retention_rate: 0,
   })
+
+  // GUARD: una factura en $0 es legítima (beca completa, pago anual prepagado) y
+  // en esos casos el ciclo también cobra $0. Pero si el ciclo cobra algo y las
+  // líneas dan cero, es el snapshot sin precios: mejor fallar visible que emitir
+  // un documento en cero. Se emitieron 30+ así antes de detectarlo.
+  if (totals.total === 0 && Number(cycle.payment_amount_usd ?? 0) > 0) {
+    const faltantes = priced.stillUnpriced.length > 0 ? priced.stillUnpriced.join(', ') : 'las terapias del ciclo'
+    return {
+      ok: false,
+      error: `La factura saldría en $0.00 pero el ciclo cobra $${Number(cycle.payment_amount_usd).toFixed(2)}. Falta el precio de ${faltantes} en Catálogos, o los precios del ciclo quedaron en cero. Corregilo antes de facturar.`,
+    }
+  }
 
   const period = periodLabel(cycle.period_month)
   const notes = cycle.discount_reason

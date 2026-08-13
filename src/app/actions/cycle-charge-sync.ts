@@ -28,7 +28,8 @@ import { fromZonedTime } from 'date-fns-tz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { expectedCycleAmount } from '@/lib/domain/billing/cycle-edit'
-import { isMonthlyFlatEntry, isMorningProgramService } from '@/lib/domain/billing/monthly-flat'
+import { isMonthlyFlatEntry } from '@/lib/domain/billing/monthly-flat'
+import { catalogPriceFor } from '@/lib/domain/billing/catalog-price'
 import {
   billableSessionCounts,
   therapiesSyncedToAgenda,
@@ -56,40 +57,6 @@ const MGMT_ROLES = [
 ]
 
 type AdminClient = ReturnType<typeof createAdminClient>
-
-/**
- * Precio de catálogo de un servicio. 0 = sin precio activo.
- * Misma lógica que usa el modal al cobrar (`catalogPriceFor`): terapia individual
- * por `service_type` (con precio BK si el niño va a programa matutino), y
- * mensualidad por `morning_program` con la variante de días/semana del plan.
- */
-function catalogPrice(
-  catalog: ServiceCatalogItem[],
-  service: string,
-  isMorningChild: boolean,
-  daysPerWeek?: number | null,
-): number {
-  const individual = catalog.find(
-    (c) => c.active && c.category === 'terapia_individual' && c.service_type === service,
-  )
-  if (individual) {
-    if (isMorningChild && individual.unit_price_bk_usd != null) {
-      return Number(individual.unit_price_bk_usd)
-    }
-    return Number(individual.unit_price_usd ?? 0)
-  }
-
-  if (isMorningProgramService(service)) {
-    const variants = catalog.filter(
-      (c) => c.active && c.category === 'mensualidad' && c.morning_program === service,
-    )
-    const exact = daysPerWeek ? variants.find((c) => c.days_per_week === daysPerWeek) : undefined
-    const chosen =
-      exact ?? [...variants].sort((a, b) => (b.days_per_week ?? 0) - (a.days_per_week ?? 0))[0]
-    if (chosen) return Number(chosen.unit_price_usd ?? 0)
-  }
-  return 0
-}
 
 /** Una terapia cuyo cobro no coincide con la agenda. */
 export interface ChargeSyncLine {
@@ -161,7 +128,10 @@ async function buildChargeSyncPlan(
   )
 
   const synced = therapiesSyncedToAgenda(current, counts, (service) =>
-    catalogPrice(catalog, service, isMorningChild, daysPerWeekBy.get(service)),
+    catalogPriceFor(catalog, service, {
+      isMorningChild,
+      daysPerWeek: daysPerWeekBy.get(service),
+    }),
   )
   if (!synced.changed) return null
 
