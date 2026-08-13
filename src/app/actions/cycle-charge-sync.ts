@@ -108,8 +108,11 @@ async function buildChargeSyncPlan(
     .gte('starts_at', startISO)
     .lt('starts_at', endISO)
 
+  // Sin citas de terapia individual el mapa queda vacío, pero NO se corta acá: un
+  // niño de solo programa matutino igual puede tener el precio de su mensualidad
+  // en cero en el snapshot, y ese respaldo hay que hacerlo. `therapiesSyncedToAgenda`
+  // decide si hay algo que cambiar.
   const counts = billableSessionCounts((apptsRaw ?? []) as ChargeableAppt[])
-  if (counts.size === 0) return null
 
   const snapshot = (cycle.treatment_plan_snapshot ?? {}) as {
     therapies_json?: TreatmentPlanTherapyEntry[]
