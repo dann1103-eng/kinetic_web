@@ -66,6 +66,8 @@ export interface AgendaSyncResult {
   changed: boolean
   /** Servicios agendados que no se pudieron cobrar por no tener precio conocido. */
   unpricedServices: string[]
+  /** Servicios cuyo precio venía en cero y se tomó del catálogo. */
+  backfilledPrices: { service: string; unitCost: number }[]
 }
 
 /**
@@ -82,6 +84,9 @@ export interface AgendaSyncResult {
  *   - Las mensualidades fijas nunca se tocan (se cobran por mes, no por sesión).
  *   - Un servicio agendado que no está en el plan se agrega si el catálogo le da
  *     precio; si no, se reporta en `unpricedServices` y no se cobra.
+ *   - Una terapia del snapshot SIN precio (`unit_cost_usd` en 0) lo toma del
+ *     catálogo. Sin esto, recalcular el monto desde el snapshot daría cero y
+ *     borraría el cobro del mes.
  */
 export function therapiesSyncedToAgenda(
   therapies: TreatmentPlanTherapyEntry[],
@@ -89,17 +94,37 @@ export function therapiesSyncedToAgenda(
   priceFor: (service: string) => number,
 ): AgendaSyncResult {
   let changed = false
+  const unpricedServices: string[] = []
+  const backfilledPrices: { service: string; unitCost: number }[] = []
 
   const synced = therapies.map((t) => {
-    if (t.active === false || isMonthlyFlatEntry(t)) return t
+    if (t.active === false) return t
+
+    // Precio: el snapshot de un ciclo es una copia del PLAN, y el plan ya no
+    // guarda precios (se eligen del catálogo al cobrar). Muchos snapshots traen
+    // `unit_cost_usd = 0` mientras el monto real vive solo en
+    // `payment_amount_usd`. Recalcular desde ahí daría CERO, así que el precio
+    // faltante se rellena del catálogo antes de tocar nada.
+    let entry = t
+    if (!(Number(t.unit_cost_usd) > 0)) {
+      const price = priceFor(t.service)
+      if (price > 0) {
+        entry = { ...entry, unit_cost_usd: price }
+        backfilledPrices.push({ service: t.service, unitCost: price })
+        changed = true
+      } else {
+        unpricedServices.push(t.service)
+      }
+    }
+
+    if (isMonthlyFlatEntry(t)) return entry
     const count = counts.get(t.service)
-    if (count == null || count === Number(t.sessions_per_month)) return t
+    if (count == null || count === Number(t.sessions_per_month)) return entry
     changed = true
-    return { ...t, sessions_per_month: count }
+    return { ...entry, sessions_per_month: count }
   })
 
   const known = new Set<string>(therapies.map((t) => t.service))
-  const unpricedServices: string[] = []
   for (const [service, count] of counts) {
     if (known.has(service)) continue
     const price = priceFor(service)
@@ -117,5 +142,5 @@ export function therapiesSyncedToAgenda(
     })
   }
 
-  return { therapies: synced, changed, unpricedServices }
+  return { therapies: synced, changed, unpricedServices, backfilledPrices }
 }

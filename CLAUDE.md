@@ -616,6 +616,33 @@ necesariamente *lo que se recibió*. Nada en el modelo guarda el monto realmente
 cobrado, así que cualquier lógica que dependa de "cuánto pagó" tiene que
 preguntarlo, no inferirlo.
 
+### ⚠️ El snapshot del ciclo suele NO tener precios — recalcular desde ahí da $0
+La trampa más cara de todo el lote. `treatment_plan_snapshot` es una copia del
+**plan**, y desde el rediseño de precios el plan **ya no los guarda** (se eligen
+del catálogo al cobrar, `NewMonthlyCycleModal`). El snapshot solo queda con
+precios si la acción TS lo parcha con `pricedTherapies`; en muchos ciclos trae
+`unit_cost_usd = 0` mientras el monto real vive **únicamente** en
+`payment_amount_usd`.
+
+Consecuencia real en prod: la revisión por mes recalculó el monto desde ese
+snapshot, dio **$0**, y lo escribió — borrando el cobro de varios niños. El mismo
+agujero ya producía **facturas en $0** desde antes (`buildCycleLineItems` también
+lee `unit_cost_usd ?? 0`): se vio una factura de julio con
+"Sensorial — 8 sesiónes/mes … $0.00", anterior a todo este trabajo.
+
+Defensas agregadas:
+- `therapiesSyncedToAgenda` **rellena del catálogo** el precio de toda terapia con
+  `unit_cost_usd <= 0` (individual por `service_type` con precio BK, y mensualidad
+  por `morning_program` + `days_per_week` — misma lógica que `catalogPriceFor` del
+  modal) y lo reporta en `backfilledPrices` para que el cambio sea visible.
+- Guard en `buildChargeSyncPlan`: si el recálculo da **$0** y el ciclo hoy cobra
+  algo, **no se toca** y se loguea qué servicio no tiene precio.
+- Los servicios sin precio activo en Catálogos siguen saliendo en
+  `unpricedServices` (ojo: las 3 terapias nuevas de la 0179 nacieron sin monto).
+
+**Antes de escribir un monto calculado desde un snapshot, verificar que sus
+precios no sean cero.**
+
 **Niños en pausa — la trampa del "la agenda manda".** Al revisar el lote salió un
 niño cobrando 3 con 6 agendadas: está en **pausa temporal**, y pasar a
 `4_1_pausa_temporal` **no cancela las citas ya agendadas** (`isChildPaused` existe

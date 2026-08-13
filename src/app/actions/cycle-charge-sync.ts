@@ -28,7 +28,7 @@ import { fromZonedTime } from 'date-fns-tz'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { expectedCycleAmount } from '@/lib/domain/billing/cycle-edit'
-import { isMonthlyFlatEntry } from '@/lib/domain/billing/monthly-flat'
+import { isMonthlyFlatEntry, isMorningProgramService } from '@/lib/domain/billing/monthly-flat'
 import {
   billableSessionCounts,
   therapiesSyncedToAgenda,
@@ -57,18 +57,38 @@ const MGMT_ROLES = [
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
-/** Precio de catálogo de una terapia individual (BK-aware). 0 = sin precio. */
+/**
+ * Precio de catálogo de un servicio. 0 = sin precio activo.
+ * Misma lógica que usa el modal al cobrar (`catalogPriceFor`): terapia individual
+ * por `service_type` (con precio BK si el niño va a programa matutino), y
+ * mensualidad por `morning_program` con la variante de días/semana del plan.
+ */
 function catalogPrice(
   catalog: ServiceCatalogItem[],
   service: string,
   isMorningChild: boolean,
+  daysPerWeek?: number | null,
 ): number {
-  const item = catalog.find(
+  const individual = catalog.find(
     (c) => c.active && c.category === 'terapia_individual' && c.service_type === service,
   )
-  if (!item) return 0
-  if (isMorningChild && item.unit_price_bk_usd != null) return Number(item.unit_price_bk_usd)
-  return Number(item.unit_price_usd ?? 0)
+  if (individual) {
+    if (isMorningChild && individual.unit_price_bk_usd != null) {
+      return Number(individual.unit_price_bk_usd)
+    }
+    return Number(individual.unit_price_usd ?? 0)
+  }
+
+  if (isMorningProgramService(service)) {
+    const variants = catalog.filter(
+      (c) => c.active && c.category === 'mensualidad' && c.morning_program === service,
+    )
+    const exact = daysPerWeek ? variants.find((c) => c.days_per_week === daysPerWeek) : undefined
+    const chosen =
+      exact ?? [...variants].sort((a, b) => (b.days_per_week ?? 0) - (a.days_per_week ?? 0))[0]
+    if (chosen) return Number(chosen.unit_price_usd ?? 0)
+  }
+  return 0
 }
 
 /** Una terapia cuyo cobro no coincide con la agenda. */
@@ -93,6 +113,8 @@ export interface ChargeSyncPlan {
   snapshot: Record<string, unknown>
   /** Servicios agendados sin precio de catálogo: quedan sin cobrar. */
   unpricedServices: string[]
+  /** Terapias cuyo precio venía en cero y se rellenó del catálogo. */
+  backfilledPrices: { service: string; unitCost: number }[]
   hasInvoice: boolean
 }
 
@@ -129,17 +151,17 @@ async function buildChargeSyncPlan(
   const current = snapshot.therapies_json ?? []
   if (current.length === 0) return null
 
-  // Precio de catálogo solo si aparece un servicio que no está en el plan.
-  const known = new Set<string>(current.map((t) => t.service))
-  let catalog: ServiceCatalogItem[] = []
-  if ([...counts.keys()].some((s) => !known.has(s))) {
-    const { data: catRaw } = await admin.from('service_catalog').select('*')
-    catalog = (catRaw ?? []) as ServiceCatalogItem[]
-  }
+  // El catálogo se carga SIEMPRE: además de precios para servicios fuera del
+  // plan, es el respaldo de las terapias del snapshot que vienen sin precio.
+  const { data: catRaw } = await admin.from('service_catalog').select('*')
+  const catalog = (catRaw ?? []) as ServiceCatalogItem[]
   const isMorningChild = current.some((t) => t.active !== false && isMonthlyFlatEntry(t))
+  const daysPerWeekBy = new Map<string, number | null>(
+    current.map((t) => [t.service, t.days_per_week ?? null]),
+  )
 
   const synced = therapiesSyncedToAgenda(current, counts, (service) =>
-    catalogPrice(catalog, service, isMorningChild),
+    catalogPrice(catalog, service, isMorningChild, daysPerWeekBy.get(service)),
   )
   if (!synced.changed) return null
 
@@ -159,6 +181,17 @@ async function buildChargeSyncPlan(
     },
   )
 
+  // GUARD: nunca dejar un ciclo en cero si hoy cobra algo. Pasó en prod — los
+  // snapshots sin precio recalculaban a $0 y el monto real se perdía. Si el
+  // catálogo tampoco tiene precio, se reporta y NO se toca el ciclo.
+  const currentAmount = Number(cycle.payment_amount_usd ?? 0)
+  if (newAmount <= 0 && currentAmount > 0) {
+    console.error(
+      `[cycle-charge-sync] ${cycle.id}: el recálculo da $0 y el ciclo cobra $${currentAmount}. Sin precio de catálogo para ${synced.unpricedServices.join(', ') || 'las terapias del snapshot'}. Se deja como está.`,
+    )
+    return null
+  }
+
   const chargedBy = new Map(current.map((t) => [t.service, Number(t.sessions_per_month ?? 0)]))
   const lines: ChargeSyncLine[] = []
   for (const t of synced.therapies) {
@@ -173,12 +206,13 @@ async function buildChargeSyncPlan(
     childId: cycle.child_id,
     periodMonth,
     paymentStatus: cycle.payment_status,
-    currentAmount: Number(cycle.payment_amount_usd ?? 0),
+    currentAmount,
     newAmount,
     lines,
     therapies: synced.therapies,
     snapshot,
     unpricedServices: synced.unpricedServices,
+    backfilledPrices: synced.backfilledPrices,
     hasInvoice: cycle.invoice_id != null,
   }
 }
@@ -314,6 +348,7 @@ export interface MonthChargeSyncRow {
   lines: ChargeSyncLine[]
   hasInvoice: boolean
   unpricedServices: string[]
+  backfilledPrices: { service: string; unitCost: number }[]
   /**
    * Niño en pausa temporal. Pausar NO cancela las citas ya agendadas, así que su
    * agenda suele tener sesiones que no se van a dar: emparejar le cobraría de
@@ -387,6 +422,7 @@ export async function previewMonthChargeSync(
       lines: p.lines,
       hasInvoice: p.hasInvoice,
       unpricedServices: p.unpricedServices,
+      backfilledPrices: p.backfilledPrices,
       childPaused: paused.has(p.childId),
     }))
     rows.sort((a, b) => a.childName.localeCompare(b.childName, 'es'))

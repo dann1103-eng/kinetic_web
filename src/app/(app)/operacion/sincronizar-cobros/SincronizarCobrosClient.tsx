@@ -300,6 +300,12 @@ export function SincronizarCobrosClient() {
                             <b>{l.scheduled}</b>
                           </span>
                         ))}
+                        {r.backfilledPrices.map((b) => (
+                          <span key={b.service} className="block text-fm-primary">
+                            {label(b.service)}: sin precio → <b>${b.unitCost.toFixed(2)}</b> del
+                            catálogo
+                          </span>
+                        ))}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
                         ${r.currentAmount.toFixed(2)}

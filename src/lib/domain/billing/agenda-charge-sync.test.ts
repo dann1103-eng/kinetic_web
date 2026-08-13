@@ -116,6 +116,36 @@ describe('therapiesSyncedToAgenda', () => {
     expect(res.unpricedServices).toEqual([])
   })
 
+  it('una terapia del plan SIN precio lo toma del catálogo', () => {
+    // El snapshot de un ciclo copia el plan, y el plan ya no guarda precios: sin
+    // este respaldo, recalcular el monto daba $0 y borraba el cobro del mes.
+    const sinPrecio = [
+      { service: 'conductual', active: true, sessions_per_month: 6, unit_cost_usd: 0, billing_mode: 'per_session' },
+    ] as TreatmentPlanTherapyEntry[]
+    const res = therapiesSyncedToAgenda(sinPrecio, new Map([['conductual', 6]]), () => 40)
+    expect(res.changed).toBe(true)
+    expect(res.therapies[0].unit_cost_usd).toBe(40)
+    expect(res.therapies[0].sessions_per_month).toBe(6)
+    expect(res.backfilledPrices).toEqual([{ service: 'conductual', unitCost: 40 }])
+  })
+
+  it('una mensualidad fija sin precio también lo toma del catálogo', () => {
+    const flat = [
+      { service: 'blue_kids', active: true, sessions_per_month: 0, unit_cost_usd: 0, billing_mode: 'monthly_flat' },
+    ] as TreatmentPlanTherapyEntry[]
+    const res = therapiesSyncedToAgenda(flat, new Map([['lenguaje', 2]]), () => 170)
+    expect(res.therapies[0].unit_cost_usd).toBe(170)
+  })
+
+  it('si el catálogo tampoco tiene precio, lo reporta y deja el cero', () => {
+    const sinPrecio = [
+      { service: 'conductual', active: true, sessions_per_month: 6, unit_cost_usd: 0, billing_mode: 'per_session' },
+    ] as TreatmentPlanTherapyEntry[]
+    const res = therapiesSyncedToAgenda(sinPrecio, new Map([['conductual', 6]]), () => 0)
+    expect(res.unpricedServices).toEqual(['conductual'])
+    expect(res.therapies[0].unit_cost_usd).toBe(0)
+  })
+
   it('una terapia sin precio de catálogo no se cobra y se reporta', () => {
     const counts = new Map([['lenguaje', 7], ['conductual', 3], ['sensorial', 1]])
     const res = therapiesSyncedToAgenda(plan(), counts, noPrice)
