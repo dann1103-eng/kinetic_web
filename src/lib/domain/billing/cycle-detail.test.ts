@@ -221,6 +221,29 @@ describe('buildCycleDetail — notas de diferencia agenda ↔ cobro', () => {
     expect(data.agendaNotes).toEqual([])
   })
 
+  it('una inasistencia no cobrada se nombra como tal, no como "falta cobrar"', () => {
+    // Caso real: el niño se fue de vacaciones, la cita del primer sábado quedó
+    // marcada como inasistencia y sobrevivió a la anulación del ciclo.
+    const data = buildCycleDetail({
+      childName: 'Niño de prueba',
+      periodMonth: '2026-08-01',
+      therapies: therapy(3),
+      schedule: [],
+      appointments: [
+        ...apptsOn([8], 'no_show'),
+        ...apptsOn([15, 22, 29]),
+      ],
+      paymentAmountUsd: 75,
+    })
+    expect(data.agendaNotes).toHaveLength(1)
+    expect(data.agendaNotes[0]).toContain('no asistió')
+    expect(data.agendaNotes[0]).not.toContain('no está incluida en este cobro')
+    // La fecha sigue visible en el desglose, marcada.
+    const bd = data.therapyBreakdowns.find((b) => b.service === 'lenguaje')
+    expect(bd?.total).toBe(4)
+    expect(bd?.absences).toBe(1)
+  })
+
   it('una mensualidad fija no genera avisos por su cantidad de citas', () => {
     const data = buildCycleDetail({
       childName: 'Niño de prueba',

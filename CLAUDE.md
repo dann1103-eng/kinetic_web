@@ -656,6 +656,29 @@ precios no sean cero.** Query para separar las facturas en $0 legítimas de las
 rotas: comparar `invoices.total` contra `monthly_session_cycles.payment_amount_usd`
 — si el ciclo cobra >0 y la factura da 0, está rota.
 
+### Inasistencias huérfanas: el calendario marca un día que nadie entiende
+Reportado con un niño que se fue de viaje: se le anuló el ciclo y se generó uno
+nuevo desde su regreso, pero el detalle de pago seguía marcando 4 sábados en vez
+de 3. El monto estaba bien ($120 = 3 × $40, las filas suman) — lo que sobraba era
+la **fecha** del sábado que no iba a venir.
+
+Causa: la cita quedó marcada como **inasistencia** (`no_show`/`late_cancel`) y
+`cancelCycleAgenda` solo pasa a `rescheduled` las citas `status='scheduled'`, así
+que la inasistencia sobrevive a la anulación del ciclo. Dos consecuencias: sale
+en el calendario y el desglose del PDF, y queda pendiente de reposición en
+`/aprobaciones` para siempre.
+
+- El desglose ahora **nombra** lo que muestra: "Total: 4 (1 sin asistir)", igual
+  que ya hacía con las reposiciones (`TherapyBreakdown.absences`).
+- La nota al pie distingue: una fecha no cobrada que es inasistencia dice *"El
+  calendario marca 1 sesión a la que el niño/a no asistió. No se está cobrando"*,
+  en vez del genérico *"no está incluida en este cobro"*, que se leía como si
+  faltara cobrarla.
+- `deleteAppointment` gana `includeAbsences` (default false) para poder borrar la
+  inasistencia que **nunca debió existir** — viaje avisado, cita huérfana de un
+  ciclo anulado. El botón de la agenda ahora aparece para `no_show`/`late_cancel`
+  con una confirmación distinta y explícita. Sigue siendo admin/directora.
+
 **Niños en pausa — la trampa del "la agenda manda".** Al revisar el lote salió un
 niño cobrando 3 con 6 agendadas: está en **pausa temporal**, y pasar a
 `4_1_pausa_temporal` **no cancela las citas ya agendadas** (`isChildPaused` existe

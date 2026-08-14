@@ -319,13 +319,17 @@ export function AppointmentForm({
 
   async function handleDelete() {
     if (!existingAppointment) return
-    if (
-      !window.confirm(
-        '¿Eliminar esta cita permanentemente? Esta opción es solo para citas creadas por error. NO usar para no-shows o cancelaciones tardías (eso es "Cancelar cita"). Esta acción no se puede deshacer.',
-      )
-    ) return
+    // Una cita ya marcada como inasistencia normalmente NO se borra (es historial),
+    // pero la que nunca debió existir —viaje avisado, cita huérfana de un ciclo
+    // anulado— queda marcada en el detalle de pago y pendiente de reposición si no
+    // hay forma de sacarla. Se pide una confirmación aparte, más explícita.
+    const isAbsence = ['no_show', 'late_cancel'].includes(existingAppointment.status)
+    const message = isAbsence
+      ? 'Esta cita está marcada como INASISTENCIA. Eliminarla borra ese registro y su pendiente de reposición.\n\nHacelo solo si la sesión nunca debió agendarse (ej. el niño/a avisó que no vendría ese mes). Si el niño/a sí faltó a una sesión pactada, dejala como está.\n\n¿Eliminar de todos modos?'
+      : '¿Eliminar esta cita permanentemente? Esta opción es solo para citas creadas por error. NO usar para no-shows o cancelaciones tardías (eso es "Cancelar cita"). Esta acción no se puede deshacer.'
+    if (!window.confirm(message)) return
     setSubmitting(true)
-    const res = await deleteAppointment(existingAppointment.id)
+    const res = await deleteAppointment(existingAppointment.id, isAbsence)
     setSubmitting(false)
     if (!res.ok) {
       setError(res.error)
@@ -760,7 +764,9 @@ export function AppointmentForm({
                 </button>
               )}
               {isEdit && isAdmin && existingAppointment &&
-                ['scheduled', 'rescheduled', 'replacement'].includes(existingAppointment.status) && (
+                ['scheduled', 'rescheduled', 'replacement', 'no_show', 'late_cancel'].includes(
+                  existingAppointment.status,
+                ) && (
                 <button
                   type="button"
                   onClick={handleDelete}

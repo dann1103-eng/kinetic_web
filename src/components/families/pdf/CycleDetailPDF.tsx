@@ -123,9 +123,13 @@ export function CycleDetailPDF({ data, paymentNote }: Props) {
                   ))}
                   <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica-Bold' }}>
                     Total: {tb.total}
-                    {tb.replacements > 0
-                      ? ` (${tb.replacements} de reposición)`
-                      : ''}
+                    {(() => {
+                      const notas = [
+                        tb.replacements > 0 ? `${tb.replacements} de reposición` : null,
+                        tb.absences > 0 ? `${tb.absences} sin asistir` : null,
+                      ].filter(Boolean)
+                      return notas.length > 0 ? ` (${notas.join(', ')})` : ''
+                    })()}
                   </Text>
                 </View>
               ))}

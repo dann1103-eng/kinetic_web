@@ -65,6 +65,9 @@ export interface TherapyBreakdown {
   total: number
   /** Cuántas de esas sesiones son reposiciones (ya cobradas en su propio mes). */
   replacements: number
+  /** Cuántas fueron inasistencias (el niño no llegó): la fecha está en la agenda
+   *  pero la sesión no se dio. */
+  absences: number
 }
 
 export interface CostRow {
@@ -169,6 +172,10 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
   // mes (status 'replacement', mig 0155) — van al calendario y al desglose de
   // fechas, pero NUNCA se cobran de nuevo acá.
   const replacementByService = new Map<string, number>()
+  // Inasistencias: la fecha existe en la agenda y el niño no llegó. Se muestran
+  // (es información real para la familia) pero hay que decir qué son, o el
+  // calendario marca un día que nadie entiende.
+  const absenceByService = new Map<string, number>()
   for (const a of liveAppts) {
     const svc = a.service_type ?? 'otra'
     const { day, dow } = svParts(a.starts_at)
@@ -179,6 +186,8 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
     dowMap.get(dow)!.add(day)
     if (a.status === 'replacement') {
       replacementByService.set(svc, (replacementByService.get(svc) ?? 0) + 1)
+    } else if (a.status === 'no_show' || a.status === 'late_cancel') {
+      absenceByService.set(svc, (absenceByService.get(svc) ?? 0) + 1)
     }
   }
 
@@ -211,6 +220,7 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
         days,
         total,
         replacements: replacementByService.get(service) ?? 0,
+        absences: absenceByService.get(service) ?? 0,
       }
     })
     .sort((a, b) => a.label.localeCompare(b.label, 'es'))
@@ -303,6 +313,9 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
   let replacementsTotal = 0
   for (const [svc, n] of replacementByService) if (!isFlatService(svc)) replacementsTotal += n
 
+  let absencesTotal = 0
+  for (const [svc, n] of absenceByService) if (!isFlatService(svc)) absencesTotal += n
+
   // Servicios a comparar: los que tienen fila de cobro + los que solo aparecen
   // en la agenda (ej. una terapia agregada al plan después de generar el ciclo).
   let extraNotBilled = 0
@@ -323,11 +336,23 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
         : `El calendario incluye ${replacementsTotal} sesiones de reposición sin costo: reponen faltas ya cobradas en su mensualidad.`,
     )
   }
-  if (extraNotBilled > 0) {
+  // Una fecha marcada en el calendario que no se cobra suele ser una inasistencia
+  // que no se le cargó a la familia. Decir solo "no está incluida en este cobro"
+  // hace pensar que falta cobrarla; hay que nombrarla por lo que es.
+  const absencesNotBilled = Math.min(absencesTotal, extraNotBilled)
+  const otherNotBilled = extraNotBilled - absencesNotBilled
+  if (absencesNotBilled > 0) {
     agendaNotes.push(
-      extraNotBilled === 1
+      absencesNotBilled === 1
+        ? 'El calendario marca 1 sesión a la que el niño/a no asistió. No se está cobrando.'
+        : `El calendario marca ${absencesNotBilled} sesiones a las que el niño/a no asistió. No se están cobrando.`,
+    )
+  }
+  if (otherNotBilled > 0) {
+    agendaNotes.push(
+      otherNotBilled === 1
         ? '1 sesión agendada este mes no está incluida en este cobro.'
-        : `${extraNotBilled} sesiones agendadas este mes no están incluidas en este cobro.`,
+        : `${otherNotBilled} sesiones agendadas este mes no están incluidas en este cobro.`,
     )
   }
   if (billedNotScheduled > 0) {

@@ -751,6 +751,14 @@ export async function markAppointmentInProgress(
  */
 export async function deleteAppointment(
   appointmentId: string,
+  /**
+   * Permite borrar también una cita marcada como inasistencia. Es para la
+   * inasistencia que NUNCA debió existir — el niño avisó que se iba de viaje y la
+   * sesión no estaba pactada, o la cita quedó huérfana de un ciclo anulado. Sin
+   * esto no había forma de sacarla: queda marcada en el calendario del detalle de
+   * pago y pendiente de reposición en Aprobaciones para siempre.
+   */
+  includeAbsences = false,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const ctx = await getEffectiveUser()
   if (!ctx) return { ok: false, error: 'No autenticado' }
@@ -768,7 +776,10 @@ export async function deleteAppointment(
     .eq('id', appointmentId)
     .maybeSingle()
   if (!appt) return { ok: false, error: 'Cita no encontrada.' }
-  if (!['scheduled', 'rescheduled', 'replacement'].includes(appt.status)) {
+  const deletable = includeAbsences
+    ? ['scheduled', 'rescheduled', 'replacement', 'no_show', 'late_cancel']
+    : ['scheduled', 'rescheduled', 'replacement']
+  if (!deletable.includes(appt.status)) {
     return {
       ok: false,
       error: 'Solo se pueden eliminar citas que aún no se realizaron. Para no-shows o cancelaciones tardías usá "Cancelar cita" — eso preserva el historial.',
