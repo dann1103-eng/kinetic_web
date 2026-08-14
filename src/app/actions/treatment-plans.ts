@@ -9,6 +9,7 @@ import type {
   TreatmentPlanChange,
   TreatmentPlanScheduleSlot,
   TreatmentPlanTherapyEntry,
+  ServiceCatalogItem,
   ServiceType,
   DayOfWeek,
   DiscountKind,
@@ -16,6 +17,7 @@ import type {
 import { SERVICE_TYPE_LABELS, DAY_OF_WEEK_LABELS } from '@/types/db'
 import { applyDiscount, validateDiscount } from '@/lib/domain/discounts'
 import { therapyLineAmount, isMorningProgramService, planTherapistIds } from '@/lib/domain/billing/monthly-flat'
+import { withCatalogPrices, withPreservedPrices } from '@/lib/domain/billing/catalog-price'
 import { createInvoiceForCycle } from './kinetic-invoices'
 import { toZonedTime } from 'date-fns-tz'
 
@@ -350,8 +352,10 @@ export async function upsertTreatmentPlan(
       .eq('status', 'generated')
       .gte('period_month', currentMonthStart)
 
-    // Subtotal esperado del PLAN NUEVO (para el ajuste de ciclos pagados).
-    const newSubtotal = recalcSubtotal(therapiesValidated)
+    // Catálogo: respaldo de precio para terapias que el snapshot todavía no
+    // tenía (el plan nunca los trae).
+    const { data: catalogRaw } = await admin.from('service_catalog').select('*')
+    const catalogForPrices = (catalogRaw ?? []) as ServiceCatalogItem[]
 
     let regenerated = 0
     const conflictMonths: string[] = []
@@ -383,9 +387,23 @@ export async function upsertTreatmentPlan(
 
       // Refrescar el snapshot con el plan nuevo (therapies + horario) para que la
       // facturación y el detalle de pago lean lo actual (cierre de fuga de snapshot).
+      //
+      // OJO CON LOS PRECIOS: el plan NO los guarda (se eligen del catálogo al
+      // cobrar y viven en el snapshot). Copiar el plan tal cual encima borraba el
+      // precio del mes — pasó en prod: el detalle de pago quedó en "$0.00" por
+      // sesión. Se conserva el del snapshot, y para un servicio nuevo se toma del
+      // catálogo.
+      const priorTherapies =
+        ((c.treatment_plan_snapshot ?? {}) as { therapies_json?: TreatmentPlanTherapyEntry[] })
+          .therapies_json ?? []
+      const pricedTherapies = withCatalogPrices(
+        withPreservedPrices(therapiesValidated, priorTherapies),
+        catalogForPrices,
+      ).therapies
+
       const mergedSnapshot = {
         ...(c.treatment_plan_snapshot ?? {}),
-        therapies_json: therapiesValidated,
+        therapies_json: pricedTherapies,
         schedule_pattern_json: scheduleValidated,
       }
       await admin
@@ -394,12 +412,15 @@ export async function upsertTreatmentPlan(
         .eq('id', c.id)
 
       // Monto esperado del ciclo con el plan nuevo (subtotal − descuento del ciclo
-      // − descuento por rollover).
-      let newExpected = newSubtotal
+      // − descuento por rollover). Se calcula con los precios ya resueltos: con
+      // los del plan (en cero) daba 0, y en un ciclo PAGADO eso se convertía en un
+      // crédito por el total a favor de la familia.
+      const cycleSubtotal = recalcSubtotal(pricedTherapies)
+      let newExpected = cycleSubtotal
       if (c.discount_kind === 'percent' && c.discount_value > 0) {
-        newExpected = newSubtotal * (1 - c.discount_value / 100)
+        newExpected = cycleSubtotal * (1 - c.discount_value / 100)
       } else if (c.discount_kind === 'fixed' && c.discount_value > 0) {
-        newExpected = Math.max(0, newSubtotal - c.discount_value)
+        newExpected = Math.max(0, cycleSubtotal - c.discount_value)
       }
       if (c.rollover_mode === 'discount') {
         newExpected = Math.max(0, newExpected - Number(c.rollover_discount_usd ?? 0))

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { catalogPriceFor, withCatalogPrices } from './catalog-price'
+import { catalogPriceFor, withCatalogPrices, withPreservedPrices } from './catalog-price'
 import type { ServiceCatalogItem, TreatmentPlanTherapyEntry } from '@/types/db'
 
 const catalog = [
@@ -96,5 +96,40 @@ describe('withCatalogPrices', () => {
     const res = withCatalogPrices(therapies, catalog)
     expect(res.therapies[0].unit_cost_usd).toBe(0)
     expect(res.filled).toEqual([])
+  })
+})
+
+describe('withPreservedPrices', () => {
+  // El plan de tratamiento no guarda precios: al refrescar el snapshot desde el
+  // plan, el precio del mes se perdía y el detalle quedaba en $0.00.
+  const prior = [
+    { service: 'sensorial', active: true, sessions_per_month: 3, unit_cost_usd: 40 },
+    { service: 'lenguaje', active: true, sessions_per_month: 4, unit_cost_usd: 25 },
+  ] as TreatmentPlanTherapyEntry[]
+
+  it('conserva el precio del snapshot cuando el plan viene sin precio', () => {
+    const next = [
+      { service: 'sensorial', active: true, sessions_per_month: 8, unit_cost_usd: 0 },
+    ] as TreatmentPlanTherapyEntry[]
+    const out = withPreservedPrices(next, prior)
+    expect(out[0].unit_cost_usd).toBe(40)
+    // Las sesiones sí se toman del plan nuevo.
+    expect(out[0].sessions_per_month).toBe(8)
+  })
+
+  it('un precio explícito del plan nuevo manda sobre el anterior', () => {
+    const next = [
+      { service: 'sensorial', active: true, sessions_per_month: 8, unit_cost_usd: 55 },
+    ] as TreatmentPlanTherapyEntry[]
+    expect(withPreservedPrices(next, prior)[0].unit_cost_usd).toBe(55)
+  })
+
+  it('una terapia que el snapshot no tenía queda en cero (la rellena el catálogo)', () => {
+    const next = [
+      { service: 'conductual', active: true, sessions_per_month: 2, unit_cost_usd: 0 },
+    ] as TreatmentPlanTherapyEntry[]
+    const out = withPreservedPrices(next, prior)
+    expect(out[0].unit_cost_usd).toBe(0)
+    expect(withCatalogPrices(out, catalog).therapies[0].unit_cost_usd).toBe(40)
   })
 })

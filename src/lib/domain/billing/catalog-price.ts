@@ -51,6 +51,33 @@ export function catalogPriceFor(
   return 0
 }
 
+/**
+ * Conserva el precio que ya tenía el snapshot al refrescarlo desde el plan.
+ *
+ * El plan de tratamiento NO guarda precios: se eligen del catálogo al cobrar y
+ * quedan en el snapshot del ciclo. Copiar el plan encima del snapshot borra ese
+ * precio (lo deja en 0), y con él el cobro del mes. Pasó en prod: editar el plan
+ * de un niño dejó su detalle de pago en "$0.00" por sesión.
+ *
+ * El precio del snapshot manda porque puede haberse editado al cobrar (tarifa
+ * especial de esa familia); el catálogo es el respaldo para servicios nuevos.
+ */
+export function withPreservedPrices(
+  next: TreatmentPlanTherapyEntry[],
+  prior: TreatmentPlanTherapyEntry[],
+): TreatmentPlanTherapyEntry[] {
+  const priorPriceBy = new Map<string, number>()
+  for (const t of prior) {
+    const price = Number(t.unit_cost_usd)
+    if (price > 0) priorPriceBy.set(t.service, price)
+  }
+  return next.map((t) => {
+    if (Number(t.unit_cost_usd) > 0) return t
+    const prev = priorPriceBy.get(t.service)
+    return prev ? { ...t, unit_cost_usd: prev } : t
+  })
+}
+
 export interface PriceBackfillResult {
   therapies: TreatmentPlanTherapyEntry[]
   /** Terapias cuyo precio venía en cero y se tomó del catálogo. */

@@ -649,6 +649,15 @@ Defensas agregadas:
 - `createInvoiceForCycle` rellena precios del catálogo antes de armar las líneas,
   y **falla con mensaje** si la factura saldría en $0 mientras el ciclo cobra algo
   (antes emitía el documento en cero sin decir nada).
+- **`upsertTreatmentPlan` era la tercera puerta al mismo agujero** (detectada en
+  prod: editar el plan de un niño dejó su detalle en "$0.00 por sesión"). Refresca
+  el snapshot de los ciclos con `therapies_json` del PLAN, que no trae precios, y
+  los pisaba con cero. Ahora usa `withPreservedPrices` (el precio del snapshot
+  manda — puede ser una tarifa especial editada al cobrar) + `withCatalogPrices`
+  para lo que no existía antes. **De paso arregla un bug de plata peor**: el
+  subtotal se recalculaba con esos ceros, así que editar el plan de un ciclo YA
+  PAGADO le generaba un `billing_adjustment_usd` negativo por el total — un
+  reembolso completo a favor de la familia, silencioso.
 - Los servicios sin precio activo en Catálogos siguen saliendo en
   `unpricedServices` / `stillUnpriced` (ojo: las 3 terapias nuevas de la 0179
   nacieron sin monto).
