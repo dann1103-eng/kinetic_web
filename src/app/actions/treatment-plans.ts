@@ -391,15 +391,19 @@ export async function upsertTreatmentPlan(
       // OJO CON LOS PRECIOS: el plan NO los guarda (se eligen del catálogo al
       // cobrar y viven en el snapshot). Copiar el plan tal cual encima borraba el
       // precio del mes — pasó en prod: el detalle de pago quedó en "$0.00" por
-      // sesión. Se conserva el del snapshot, y para un servicio nuevo se toma del
-      // catálogo.
+      // sesión.
       const priorTherapies =
         ((c.treatment_plan_snapshot ?? {}) as { therapies_json?: TreatmentPlanTherapyEntry[] })
           .therapies_json ?? []
-      const pricedTherapies = withCatalogPrices(
-        withPreservedPrices(therapiesValidated, priorTherapies),
-        catalogForPrices,
-      ).therapies
+      // Orden a propósito: manda el CATÁLOGO. Todas las terapias son de 30 min y
+      // el catálogo cotiza por media hora, así que es la fuente de precios. El
+      // snapshot solo se usa de respaldo para un servicio que el catálogo no
+      // tenga cotizado. (Al revés, un plan que parte una sesión de 60 en dos de
+      // 30 se quedaba con el precio viejo de 60.)
+      const pricedTherapies = withPreservedPrices(
+        withCatalogPrices(therapiesValidated, catalogForPrices).therapies,
+        priorTherapies,
+      )
 
       const mergedSnapshot = {
         ...(c.treatment_plan_snapshot ?? {}),

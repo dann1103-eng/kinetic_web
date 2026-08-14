@@ -652,9 +652,13 @@ Defensas agregadas:
 - **`upsertTreatmentPlan` era la tercera puerta al mismo agujero** (detectada en
   prod: editar el plan de un niño dejó su detalle en "$0.00 por sesión"). Refresca
   el snapshot de los ciclos con `therapies_json` del PLAN, que no trae precios, y
-  los pisaba con cero. Ahora usa `withPreservedPrices` (el precio del snapshot
-  manda — puede ser una tarifa especial editada al cobrar) + `withCatalogPrices`
-  para lo que no existía antes. **De paso arregla un bug de plata peor**: el
+  los pisaba con cero. Ahora resuelve con `withCatalogPrices` **primero** y
+  `withPreservedPrices` de respaldo. **El orden es política del centro**: todas
+  las terapias son de 30 min y el catálogo cotiza por media hora, así que el
+  catálogo es LA fuente de precios; el snapshot solo cubre un servicio que el
+  catálogo no cotice. Al revés, un plan que parte una sesión de 60 min en dos de
+  30 se quedaba con el precio de la de 60. **De paso arregla un bug de plata
+  peor**: el
   subtotal se recalculaba con esos ceros, así que editar el plan de un ciclo YA
   PAGADO le generaba un `billing_adjustment_usd` negativo por el total — un
   reembolso completo a favor de la familia, silencioso.

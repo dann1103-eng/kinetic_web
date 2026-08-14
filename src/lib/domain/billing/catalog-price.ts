@@ -52,15 +52,18 @@ export function catalogPriceFor(
 }
 
 /**
- * Conserva el precio que ya tenía el snapshot al refrescarlo desde el plan.
+ * Rellena con el precio que ya tenía el snapshot lo que siga sin precio.
  *
  * El plan de tratamiento NO guarda precios: se eligen del catálogo al cobrar y
  * quedan en el snapshot del ciclo. Copiar el plan encima del snapshot borra ese
  * precio (lo deja en 0), y con él el cobro del mes. Pasó en prod: editar el plan
  * de un niño dejó su detalle de pago en "$0.00" por sesión.
  *
- * El precio del snapshot manda porque puede haberse editado al cobrar (tarifa
- * especial de esa familia); el catálogo es el respaldo para servicios nuevos.
+ * ORDEN DE PRIORIDAD (ver `upsertTreatmentPlan`): primero el CATÁLOGO, que es la
+ * fuente de precios — todas las terapias son de 30 min y el catálogo cotiza por
+ * media hora. Esto es el respaldo, para un servicio que el catálogo no tenga
+ * cotizado. Aplicarlo al revés dejaba precios viejos pegados: un plan que parte
+ * una sesión de 60 min en dos de 30 conservaba el precio de la de 60.
  */
 export function withPreservedPrices(
   next: TreatmentPlanTherapyEntry[],
