@@ -49,6 +49,9 @@ export interface CycleDetailAppt {
   starts_at: string
   service_type: string | null
   status: string
+  /** Cita sacada de la agenda por una suspensión avisada (mig 0184): ni se
+   *  muestra como fecha del mes ni se cobra. */
+  suspension_id?: string | null
 }
 
 export interface TherapyDayBreakdown {
@@ -198,6 +201,7 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
   const billableApptByService = new Map<string, number>()
   for (const a of input.appointments) {
     if (CHARGE_EXCLUDED_STATUSES.includes(a.status)) continue
+    if (a.suspension_id) continue // suspensión avisada: no se cobra
     const svc = a.service_type ?? 'otra'
     billableApptByService.set(svc, (billableApptByService.get(svc) ?? 0) + 1)
   }

@@ -100,9 +100,11 @@ async function buildChargeSyncPlan(
   const startISO = fromZonedTime(new Date(y, m - 1, 1, 0, 0, 0), TZ).toISOString()
   const endISO = fromZonedTime(new Date(y, m, 1, 0, 0, 0), TZ).toISOString()
 
+  // select('*') a propósito: nombrar `suspension_id` haría fallar la consulta
+  // entera si la migración 0184 todavía no se aplicó en ese ambiente.
   const { data: apptsRaw } = await admin
     .from('appointments')
-    .select('service_type, status, event_type')
+    .select('*')
     .eq('child_id', cycle.child_id)
     .eq('event_type', 'terapia')
     .gte('starts_at', startISO)

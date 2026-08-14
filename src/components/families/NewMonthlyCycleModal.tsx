@@ -22,6 +22,9 @@ import type {
 } from '@/types/db'
 import { applyDiscount } from '@/lib/domain/discounts'
 import { isChildPaused } from '@/lib/domain/intake-pipeline'
+import { activeSuspensions, isSuspended, suspensionRangeLabel } from '@/lib/domain/suspensions'
+import { listChildSuspensions } from '@/app/actions/child-suspensions'
+import type { ChildSuspension } from '@/types/db'
 import { describeMonthlyConflict } from '@/lib/domain/appointment'
 import {
   daysPerWeekLabel,
@@ -268,6 +271,13 @@ export function NewMonthlyCycleModal({
     return periodMonth === nowYm && now.getDate() > 1
   }, [periodMonth])
   const [skipPastDates, setSkipPastDates] = useState(true)
+  const [suspendedSkipped, setSuspendedSkipped] = useState(0)
+
+  // Suspensiones avisadas: sus días no se agendan ni se cobran (mig 0184).
+  const [suspensions, setSuspensions] = useState<ChildSuspension[]>([])
+  useEffect(() => {
+    listChildSuspensions(childId).then((rows) => setSuspensions(activeSuspensions(rows)))
+  }, [childId])
 
   // Cargar preview de rollover (mes anterior) al cambiar período.
   useEffect(() => {
@@ -316,10 +326,14 @@ export function NewMonthlyCycleModal({
       // se van a dar. Por defecto se recortan; la persona puede pedir el mes
       // completo si de verdad hay que registrar lo ya transcurrido.
       const nowMs = new Date().getTime()
-      const pattern =
+      const withoutPast =
         monthInProgress && skipPastDates
           ? fullPattern.filter((c) => new Date(c.starts_at).getTime() >= nowMs)
           : fullPattern
+      // La familia avisó que no viene esos días: ni se agendan ni se cobran.
+      const pattern = withoutPast.filter((c) => !isSuspended(c.starts_at, suspensions))
+      const skippedBySuspension = withoutPast.length - pattern.length
+      setSuspendedSkipped(skippedBySuspension)
       setEditedCandidates(pattern)
       setHasEdits(false)
       // Sincronizar las sesiones a COBRAR con las citas mostradas,
@@ -346,6 +360,7 @@ export function NewMonthlyCycleModal({
     rolloverSessionsMap,
     monthInProgress,
     skipPastDates,
+    suspensions,
   ])
 
   function handleMoveCandidate(idx: number, newStartsAt: string, newEndsAt: string) {
@@ -813,6 +828,22 @@ export function NewMonthlyCycleModal({
                       Pasá el mouse por encima de una celda roja para ver el detalle. Se pueden
                       generar igual — revisalas cuando puedas, o movelas/quitalas ahora si preferís
                       resolverlas antes.
+                    </p>
+                  </div>
+                )}
+
+                {suspensions.length > 0 && (
+                  <div className="rounded-lg border border-fm-primary/30 bg-fm-primary/5 px-3 py-2 text-xs text-fm-on-surface">
+                    <p className="font-semibold">
+                      Suspensión avisada: no viene{' '}
+                      {suspensions
+                        .map((s) => suspensionRangeLabel(s.starts_on, s.ends_on))
+                        .join(' · ')}
+                    </p>
+                    <p className="mt-0.5 text-fm-on-surface-variant">
+                      {suspendedSkipped > 0
+                        ? `${suspendedSkipped} fecha(s) del patrón caen en ese período: no se agendan ni se cobran.`
+                        : 'Ninguna fecha de este mes cae en el período suspendido.'}
                     </p>
                   </div>
                 )}

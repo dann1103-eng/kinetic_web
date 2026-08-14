@@ -74,7 +74,9 @@ export async function GET(
   const endISO = fromZonedTime(new Date(y, m, 1, 0, 0, 0), TZ).toISOString()
   const { data: apptsRaw } = await supabase
     .from('appointments')
-    .select('starts_at, service_type, status')
+    // select('*') a propósito: nombrar `suspension_id` haría fallar la consulta
+    // entera si la migración 0184 todavía no se aplicó.
+    .select('*')
     .eq('child_id', cycle.child_id)
     .in('event_type', ['terapia', 'programa_matutino'])
     .gte('starts_at', startISO)

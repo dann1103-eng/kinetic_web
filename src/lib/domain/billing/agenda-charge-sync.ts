@@ -36,6 +36,12 @@ export interface ChargeableAppt {
   service_type: string | null
   status: string
   event_type?: string | null
+  /**
+   * Cita sacada de la agenda por una suspensión avisada (mig 0184). NO se cobra:
+   * la familia avisó con anticipación que el niño/a no vendría. Distinto de una
+   * cancelación tardía, que sí se cobra y se acredita el mes siguiente.
+   */
+  suspension_id?: string | null
 }
 
 /** Mes del ciclo ('YYYY-MM-01') al que pertenece un instante, en hora SV. */
@@ -54,6 +60,8 @@ export function billableSessionCounts(appointments: ChargeableAppt[]): Map<strin
   for (const a of appointments) {
     if (a.event_type != null && a.event_type !== 'terapia') continue
     if (CHARGE_EXCLUDED_STATUSES.includes(a.status)) continue
+    // Suspensión avisada: la familia avisó que no vendría. No se cobra.
+    if (a.suspension_id) continue
     const svc = a.service_type
     if (!svc || isMorningProgramService(svc)) continue
     counts.set(svc, (counts.get(svc) ?? 0) + 1)

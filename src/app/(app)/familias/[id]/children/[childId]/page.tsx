@@ -8,6 +8,8 @@ import { NewProgressReportButton } from '@/components/agenda/NewProgressReportBu
 import { TreatmentPlanSection } from '@/components/families/TreatmentPlanSection'
 import { AdHocInvoiceTrigger } from '@/components/billing/AdHocInvoiceTrigger'
 import { MonthlyCyclesSection } from '@/components/families/MonthlyCyclesSection'
+import { ChildSuspensionsSection } from '@/components/children/ChildSuspensionsSection'
+import { listChildSuspensions } from '@/app/actions/child-suspensions'
 import { ChildDashboardPanel } from '@/components/dashboard/ChildDashboardPanel'
 import { ChildPhotoUploader } from '@/components/families/ChildPhotoUploader'
 import { ChildIntakePipelinePanel } from '@/components/children/ChildIntakePipelinePanel'
@@ -129,6 +131,9 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
 
   // Catálogo de sub-fases para el widget de pipeline
   const phaseCatalog = await listPhaseCatalog()
+
+  // Suspensiones avisadas (mig 0184) — solo se muestran en el tab de resumen.
+  const suspensions = tab === 'resumen' ? await listChildSuspensions(childId) : []
 
   // Autores que aparecen en el timeline del niño
   const { data: staffRaw } = await supabase
@@ -364,6 +369,11 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
                 therapyCatalog={fullCatalog}
                 enrolledProgram={c.enrolled_program}
                 childPhaseCode={c.current_phase_code}
+              />
+              <ChildSuspensionsSection
+                childId={childId}
+                suspensions={suspensions}
+                canManage={canManageCycles}
               />
 
               {/* Facturación ad-hoc (matrículas, materiales, evaluaciones, etc.) */}

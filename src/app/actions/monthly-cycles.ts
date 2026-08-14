@@ -288,7 +288,7 @@ export async function dryRunCycleRegeneration(
     // monto al regenerar a mitad de mes.
     const { data: pastRaw } = await supabase
       .from('appointments')
-      .select('service_type, status, event_type')
+      .select('*')
       .eq('child_id', childId)
       .eq('event_type', 'terapia')
       .gte('starts_at', startISO)

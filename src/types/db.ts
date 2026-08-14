@@ -2184,9 +2184,28 @@ export interface Database {
           program_group_id?: string | null
           custom_event_label?: string | null
           reassigned_from_therapist_id?: string | null
+          suspension_id?: string | null
           created_by_user_id?: string | null
         }
         Update: Partial<Omit<Appointment, 'id' | 'created_at'>>
+        Relationships: []
+      }
+      child_suspensions: {
+        Row: AsRow<ChildSuspension>
+        Insert: {
+          id?: string
+          child_id: string
+          starts_on: string
+          ends_on: string
+          reason?: SuspensionReason
+          notes?: string | null
+          status?: 'active' | 'reverted'
+          cancelled_appointments_count?: number
+          created_by_user_id?: string | null
+          reverted_by_user_id?: string | null
+          reverted_at?: string | null
+        }
+        Update: Partial<Omit<ChildSuspension, 'id' | 'created_at'>>
         Relationships: []
       }
       appointment_change_events: {
@@ -3240,6 +3259,12 @@ export const EXTRA_REASON_LABELS: Record<ExtraReason, string> = {
 
 export interface Appointment {
   id: string
+  /**
+   * Mig 0184: cita sacada de la agenda por una suspensión avisada. NO se cobra
+   * (ver `billableSessionCounts`) y se puede restaurar en bloque al revertirla.
+   * Distinto de una cancelación tardía de la familia, que sí se cobra.
+   */
+  suspension_id?: string | null
   /** Null para evaluaciones a personas nuevas no registradas (ver external_child_name). */
   child_id: string | null
   /** Nombre libre de la persona evaluada cuando no hay child_id (evaluaciones). */
@@ -3397,6 +3422,39 @@ export interface WaitlistEntry {
   referral_channel: ReferralChannel | null
   referral_channel_other: string | null
   interest_text: string | null
+}
+
+/**
+ * Mig 0184: suspensión avisada. La familia avisa que el niño/a NO vendrá durante
+ * un período con fecha de regreso conocida (viaje, salud, economía).
+ *
+ * No es una pausa clínica (no toca la fase del niño), no es una inasistencia
+ * (avisó con anticipación) y no es una baja (vuelve). Las citas del período se
+ * cancelan atadas a la suspensión y **no se cobran**.
+ */
+export type SuspensionReason = 'viaje' | 'salud' | 'economico' | 'otro'
+
+export const SUSPENSION_REASON_LABELS: Record<SuspensionReason, string> = {
+  viaje: 'Viaje',
+  salud: 'Salud',
+  economico: 'Motivo económico',
+  otro: 'Otro',
+}
+
+export interface ChildSuspension {
+  id: string
+  child_id: string
+  /** Rango inclusivo, en fechas locales (SV). */
+  starts_on: string
+  ends_on: string
+  reason: SuspensionReason
+  notes: string | null
+  status: 'active' | 'reverted'
+  cancelled_appointments_count: number
+  created_by_user_id: string | null
+  created_at: string
+  reverted_by_user_id: string | null
+  reverted_at: string | null
 }
 
 /** Mig 0165: comentario/bitácora de una entrada de lista de espera. */

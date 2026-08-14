@@ -342,6 +342,7 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0180** | **Fix: plan 100% programa matutino no podía generar/previsualizar el ciclo** ("El plan no tiene terapista principal asignada" para un niño solo-BlueKids con miss y grupo ya asignados). Causa: desde 0157 `primary_therapist_id` se DERIVA solo de terapias individuales no-matutinas; un plan 100% matutino siempre lo tiene NULL legítimamente, pero 4 RPCs (`compute_monthly_appointment_candidates`, `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments`) seguían con el guard incondicional del modelo viejo. Se vuelve condicional: solo bloquea si hay una terapia activa NO matutina sin terapista (reusa `_kn_is_monthly_flat`, misma regla que `planHasTherapistCoverage()` en TS). Verificado contra datos reales tras aplicar. |
 | **0181** | **Los conflictos de horario dejan de bloquear ciclo/agenda**: `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments` (`CREATE OR REPLACE`, mismas firmas) pierden el `RAISE EXCEPTION 'has_conflicts...'` — el check de solape (`compute_monthly_appointment_candidates`) no excluía al propio niño, así que un plan con dos terapias propias con el mismo terapeuta se marcaba "en conflicto consigo mismo" y bloqueaba su ciclo; el mismo guard en `regenerate_cycle_appointments` también podía abortar en silencio la sincronización agenda↔plan al editar. `conflicts[]`/`summary.conflict_count` se siguen calculando igual — la UI (`NewMonthlyCycleModal`/`EditMonthlyCycleModal`) ahora muestra un aviso ámbar no bloqueante en vez de deshabilitar el submit, distinguiendo "choca con otra terapia de la misma niña/niño" vs. "choca con la cita de otro paciente" (`describeMonthlyConflict` en `appointment.ts`, usa `conflict_child_id` que ya venía en el RPC sin consumirse). |
 | **0182** | **Fix: no se podía eliminar un niño con facturas** — drift de esquema real: `invoices.child_id` tenía `ON DELETE RESTRICT` en la BD, contradiciendo lo que `0110_kinetic_invoices.sql` ya pretendía (`SET NULL`) — nunca quedó sincronizado; era la ÚNICA FK hacia `children` en todo el esquema que bloqueaba el borrado (el resto ya cascadea). Se corrige el FK a `SET NULL` + se ajusta `invoices_client_or_child_check` para permitir el estado huérfano (ambas columnas NULL tras borrar al dueño, sin dejar de prohibir que ambas estén asignadas a la vez) + se elimina `invoices_requires_owner` (redundante y en conflicto directo con el ajuste anterior). La factura sobrevive intacta (nombre de familia/niño ya embebidos en `notes`/`client_snapshot_json`/`invoice_items.description`) — mismo patrón "eliminar SIEMPRE conservando el registro contable" de 0169/0170. |
+| **0184** | **Suspensión avisada** (`child_suspensions` + `appointments.suspension_id`): la familia avisa que el niño/a no vendrá un período y regresa. Las citas del rango se cancelan **atadas a la suspensión**, y lo que tiene `suspension_id` **no se cobra** (`billableSessionCounts`) — así no hubo que tocar el significado de `status='cancelled'`, que sigue siendo "cancelación tardía de la familia, se cobra y se acredita el mes siguiente". Revertible en bloque. NO cambia la fase clínica del niño. |
 | **0183** | **Reposiciones individuales sin botón de iniciar sesión**: `start_therapy_session` (mig 0093) solo aceptaba citas `status='scheduled'` — una reposición nace directamente en `status='replacement'` (`resolve_absence_with_replacement`) y nunca pasa por `'scheduled'`, así que la RPC la rechazaba con `appointment_not_found_or_not_eligible`. Se amplía a `status in ('scheduled', 'replacement')`, misma firma. Acompaña un fix en `BigSessionCard.tsx` (el gate de los botones "Iniciar sesión"/"Inasistencia" en `/mi-dia` también solo aceptaba `'scheduled'`) — sin el fix de la RPC, el botón habría aparecido pero fallado al hacer clic. |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard (o vía
@@ -358,7 +359,8 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > (read-lag del endpoint de query) — si la verificación no muestra el cambio,
 > reintentar la misma consulta de verificación antes de asumir que la
 > aplicación falló; no reaplicar a ciegas. No hay migración automática. **El
-> repo va hasta 0183; próximo libre = 0184.** ✅ TODAS aplicadas y verificadas
+> repo va hasta 0184; próximo libre = 0185. La 0184 (suspensión avisada) está
+> PENDIENTE DE APLICAR.** ✅ TODAS aplicadas y verificadas
 > en prod (14/16-jul-2026).
 > ⚠️ Hay DOS archivos con historia sobre el prefijo 0173 (biweekly_offset y
 > el de menciones renombrado a 0176) — ambos aplicados; no re-correr ninguno
@@ -678,6 +680,36 @@ en el calendario y el desglose del PDF, y queda pendiente de reposición en
   inasistencia que **nunca debió existir** — viaje avisado, cita huérfana de un
   ciclo anulado. El botón de la agenda ahora aparece para `no_show`/`late_cancel`
   con una confirmación distinta y explícita. Sigue siendo admin/directora.
+
+### Suspensión avisada (mig 0184) — la figura que faltaba
+El caso de arriba salió de usar `4_1_pausa_temporal` para un viaje. La pausa es
+una fase **clínica**: dice que el proceso terapéutico está detenido, no tiene
+fecha de regreso, y hay que acordarse de revertirla. Un viaje de dos semanas no
+es eso, y encima dejaba inasistencias huérfanas.
+
+- **Tabla `child_suspensions`**: rango inclusivo de días locales (`starts_on` /
+  `ends_on`), motivo (`viaje`/`salud`/`economico`/`otro`), `status`
+  `active`|`reverted`. NO toca `children.current_phase_code`.
+- **`appointments.suspension_id`**: las citas del rango se cancelan atadas a la
+  suspensión en vez de borrarse. Eso resuelve de un saque las tres cosas que
+  necesitaba: excluirlas del cobro sin redefinir `cancelled`, revertirlas en
+  bloque, y dejar rastro de por qué desaparecieron de la agenda.
+- **Absorbe las inasistencias del período** (`no_show`/`late_cancel`), que es
+  justo lo que quedaba huérfano marcando fechas en el detalle de pago y pendiente
+  de reposición en `/aprobaciones`. Lo ya `completed` no se toca.
+- **Puro**: `src/lib/domain/suspensions.ts` (`isSuspended`, `monthsInRange`,
+  `validateSuspensionRange` — rechaza solapes con otra activa, que casi siempre
+  son doble registro del mismo viaje).
+- **Glue**: `src/app/actions/child-suspensions.ts`. Al crear y al revertir llama
+  a `syncCycleChargeToAgenda` de los meses tocados, así el cobro se acomoda solo.
+- **UI**: sección en la ficha del niño (`ChildSuspensionsSection`) y aviso en
+  `NewMonthlyCycleModal`, que además **filtra del patrón las fechas suspendidas**
+  antes de agendarlas y cobrarlas.
+
+**GOTCHA de despliegue**: las consultas de citas que necesitan `suspension_id`
+usan `select('*')` a propósito — nombrar la columna haría fallar la consulta
+entera en un ambiente donde la 0184 todavía no se aplicó, y el deploy de Vercel
+sale antes que la migración manual.
 
 **Niños en pausa — la trampa del "la agenda manda".** Al revisar el lote salió un
 niño cobrando 3 con 6 agendadas: está en **pausa temporal**, y pasar a
