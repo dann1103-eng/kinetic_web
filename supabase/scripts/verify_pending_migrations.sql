@@ -420,6 +420,34 @@ WITH checks AS (
             AND contype = 'c'
             AND pg_get_constraintdef(oid) ILIKE '%extra_reason%'
             AND pg_get_constraintdef(oid) ILIKE '%evaluacion%')
+  UNION ALL
+  -- ── 0184 (suspensión avisada) ────────────────────────────────────────────
+  -- La migración trae ~15 statements. Se verifican las 4 piezas que la hacen
+  -- funcionar, porque una aplicación parcial deja la tabla sin el vínculo o sin
+  -- RLS y falla recién al usarla.
+  SELECT 69, 'mig_0184_tabla_child_suspensions',
+         (SELECT COUNT(*)::int FROM information_schema.tables
+          WHERE table_schema='public' AND table_name='child_suspensions')
+  UNION ALL
+  SELECT 70, 'mig_0184_appointments_suspension_id',
+         (SELECT COUNT(*)::int FROM information_schema.columns
+          WHERE table_schema='public' AND table_name='appointments'
+            AND column_name='suspension_id')
+  UNION ALL
+  -- El vínculo debe ser ON DELETE SET NULL: borrar la suspensión no puede
+  -- llevarse el historial de citas.
+  SELECT 71, 'mig_0184_fk_set_null',
+         (SELECT (CASE WHEN COUNT(*) >= 1 THEN 1 ELSE 0 END)::int
+          FROM pg_constraint
+          WHERE conrelid = 'public.appointments'::regclass
+            AND contype = 'f'
+            AND confrelid = to_regclass('public.child_suspensions')
+            AND confdeltype = 'n')
+  UNION ALL
+  SELECT 72, 'mig_0184_rls_policies',
+         (SELECT (CASE WHEN COUNT(*) >= 4 THEN 1 ELSE 0 END)::int
+          FROM pg_policies
+          WHERE schemaname='public' AND tablename='child_suspensions')
 )
 SELECT
   check_name,
