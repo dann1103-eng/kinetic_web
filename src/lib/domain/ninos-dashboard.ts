@@ -9,7 +9,6 @@ import { fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Child, TreatmentPlan, MonthlySessionCycle, Database } from '@/types/db'
 import { compareByLastName } from '@/lib/domain/name-sort'
-import { fetchMorningAttendanceByChild } from '@/lib/domain/morning-attendance'
 
 const TZ = 'America/El_Salvador'
 
@@ -90,13 +89,11 @@ export async function getNinosDashboardData(
   const [{ data: plansRaw }, { data: apptsRaw }, { data: cyclesRaw }, { data: groupMembersRaw }] =
     await Promise.all([
       supabase.from('treatment_plans').select('*').in('child_id', childIds),
-      // `programa_matutino` se excluye: la asistencia de programas matutinos
-      // se cuenta aparte más abajo (fetchMorningAttendanceByChild, sobre
-      // program_session_attendance) — contarla también acá la duplicaría,
-      // porque regenerateMorningAppointments (monthly-cycles.ts) sigue
-      // creando una cita por-niño además de la sesión de grupo. Mismo
-      // patrón de exclusión que ya usan mi-dia/capacidad-terapistas/
-      // therapist-capacity.ts.
+      // `programa_matutino` se excluye: esta barra mide solo las terapias
+      // individuales (ver más abajo). Además, regenerateMorningAppointments
+      // (monthly-cycles.ts) sigue creando una cita por-niño además de la sesión
+      // de grupo, así que contarlas acá duplicaría. Mismo patrón de exclusión
+      // que ya usan mi-dia/capacidad-terapistas/therapist-capacity.ts.
       supabase
         .from('appointments')
         .select('child_id, status')
@@ -160,16 +157,13 @@ export async function getNinosDashboardData(
     attendanceByChild.set(a.child_id, curr)
   }
 
-  // Sumar la asistencia de programas matutinos (grupos). No vive en `appointments`;
-  // se lee de program_session_attendance + program_group_sessions.
-  const morningByChild = await fetchMorningAttendanceByChild(supabase, childIds, startISO, endISO)
-  for (const [childId, m] of morningByChild) {
-    if (m.total === 0) continue
-    const curr = attendanceByChild.get(childId) ?? { completed: 0, total: 0 }
-    curr.completed += m.present
-    curr.total += m.total
-    attendanceByChild.set(childId, curr)
-  }
+  // Los programas matutinos NO entran en esta barra: funcionan como un colegio
+  // (el niño asiste a la jornada, no a sesiones contratadas), y su asistencia se
+  // pasa por grupo en /operacion/grupos. Esta barra mide únicamente las terapias
+  // individuales de la tarde, que es lo que se contrata por sesión.
+  //
+  // Antes se sumaba `fetchMorningAttendanceByChild` acá, y un niño de solo
+  // programa matutino mostraba una barra que no correspondía a ninguna terapia.
 
   // Último ciclo por niño (ya vienen ordenados desc por period_month)
   const lastCycleByChild = new Map<string, MonthlySessionCycle>()
