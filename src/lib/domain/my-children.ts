@@ -123,6 +123,11 @@ export async function listMyChildren(
     .from('appointments')
     .select('id, child_id, therapist_id, starts_at, ends_at, service_type, status, event_type')
     .in('child_id', activeIds)
+    // Ventana de 120 días × todos los niños de la terapista: sin este filtro la
+    // respuesta se pasaba del tope de 1000 filas de PostgREST y se perdían citas
+    // reales. Acá solo se usan scheduled/in_progress/replacement (próxima cita) y
+    // completed (última dada), así que las lápidas y anuladas no hacen falta.
+    .not('status', 'in', '(rescheduled,cancelled)')
     .gte('starts_at', sixtyDaysAgo)
     .lte('starts_at', sixtyDaysAhead)
     .order('starts_at', { ascending: true })

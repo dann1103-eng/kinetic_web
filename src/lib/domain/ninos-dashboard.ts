@@ -99,6 +99,12 @@ export async function getNinosDashboardData(
         .select('child_id, status')
         .in('child_id', childIds)
         .neq('event_type', 'programa_matutino')
+        // Se descartan en la CONSULTA, no en el bucle: PostgREST corta la
+        // respuesta en 1000 filas, y las lápidas de las regeneraciones
+        // (`rescheduled`) llegaron a ser más de mil en un solo mes — se comían
+        // la respuesta y las citas completadas nunca llegaban, dejando todas
+        // las barras de asistencia en 0.
+        .not('status', 'in', '(rescheduled,cancelled)')
         .gte('starts_at', startISO)
         .lt('starts_at', endISO),
       supabase

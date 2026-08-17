@@ -671,6 +671,26 @@ precios no sean cero.** Query para separar las facturas en $0 legítimas de las
 rotas: comparar `invoices.total` contra `monthly_session_cycles.payment_amount_usd`
 — si el ciclo cobra >0 y la factura da 0, está rota.
 
+### ⚠️ El tope de 1000 filas de PostgREST — las barras de asistencia en 0
+Reportado con TODAS las tarjetas de `/ninos` mostrando `0/N (0%)`. Había 178
+citas `completed` en el mes: el problema era que no llegaban a la respuesta.
+
+`getNinosDashboardData` traía **todas** las citas del mes de todos los niños y
+descartaba `rescheduled`/`cancelled` en el bucle. Agosto 2026 tenía **1049
+lápidas `rescheduled`** (la acumulación de todas las regeneraciones de ciclos) de
+un total de 1709 filas — PostgREST corta en **1000** y las completadas quedaban
+afuera, en silencio.
+
+**Regla**: filtrar por estado en la CONSULTA, nunca solo en el bucle, en toda
+query de citas que abarque varios niños o varios meses. Corregidos
+`ninos-dashboard.ts` (mes × todos los niños) y `my-children.ts` (120 días × los
+niños de una terapista, que tenía el mismo agujero latente). El síntoma es
+traicionero: no hay error, solo datos que faltan.
+
+De paso, la barra de `/ninos` **dejó de sumar la asistencia de programas
+matutinos**: mide solo terapias individuales, que son las que se contratan por
+sesión. Los programas funcionan como un colegio y su asistencia se pasa por grupo.
+
 ### Inasistencias huérfanas: el calendario marca un día que nadie entiende
 Reportado con un niño que se fue de viaje: se le anuló el ciclo y se generó uno
 nuevo desde su regreso, pero el detalle de pago seguía marcando 4 sábados en vez
