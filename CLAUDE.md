@@ -174,7 +174,7 @@ Visible si AL MENOS UN item es accesible al usuario. Cada item respeta su propio
 - `/users` — Equipo unificado con panel lateral (tabs Perfil / Horario / Capacidad). Roles: admin, directora, **recepcion**.
 - `/usuarios-portal` — Cuentas family. Roles: admin, directora, **recepcion**.
 - `/operacion/capacidad-terapistas` — Tabla semanal comparativa de ocupación (admin/directora/coord_terapias/recepción)
-- `/catalogos` — **Catálogos de precios (cobro) y costos (pago terapista)** editables (admin/contable/recepción). Mig 0135.
+- `/catalogos` — **Catálogos de precios (cobro) y costos (pago terapista)** editables (admin/contable/recepción). Mig 0135. Desde ago 2026 también **crea** artículos (botón "Nuevo artículo", formulario adaptado a la categoría) y los **quita desactivándolos** (nunca borra la fila: las citas y facturas que ya los usaron conservan la referencia). Los inactivos se ocultan salvo que se pida "Mostrar inactivos". **Es la única entrada al catálogo**: `/admin/tarifas` fue eliminada (ago 2026).
 - `/reportes` — Landing de reportería Kinetic (admin, directora, contable, recepcion, coordinadora_terapias). Tarjetas activas: **Ingresos**, **Egresos**, **Planillas** y **Por terapista**.
   - `/reportes/financieros` — Sección de **Ingresos** (en UI). 5 reportes web+PDF: ingresos mensuales, comparativa anual, ciclos, pagos por método, **churn de familias** (altas, alta médica, bajas, pausas, neto). La ruta sigue siendo `/financieros` por compatibilidad.
   - `/reportes/egresos` — Egresos del centro: total mensual, desglose por mes (planilla auto + gastos generales), distribución por categoría, CRUD de gastos generales (renta, luz, agua, transporte, etc.). Roles: admin, directora, contable.
@@ -380,6 +380,62 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 ---
 
 # Estado del proyecto — junio–agosto 2026
+
+## Sesión 20 ago 2026 — dar de alta artículos en el catálogo
+Todo en `master`. **Sin migración.** Spec en
+`docs/superpowers/specs/2026-08-20-catalogo-crear-articulos-design.md`.
+
+- **Síntoma**: recepción necesitaba agregar un tipo de evaluación nuevo y no
+  encontraba dónde. No existía: `/catalogos` solo editaba precio y costo de
+  filas ya cargadas.
+- **Otro caso del patrón "la acción existe, la UI nunca la llamó"** (igual que
+  "Regenerar factura" y el calendario institucional):
+  `createServiceCatalogItem` estaba escrita y validada desde la mig 0107 y no
+  la invocaba ningún botón de la página.
+- **Modal "Nuevo artículo"** con campos que se adaptan a la categoría. Las
+  reglas viven en `categoryFieldRules` (`src/lib/domain/service-catalog.ts`),
+  espejo de los CHECK de la base (`mensualidad_requires_program`,
+  `proration_requires_months`). El código se autogenera del nombre
+  (`slugifyCatalogCode`) y el `sort_order` cae al final de su categoría
+  (`nextSortOrder`) — el default 0 lo habría puesto arriba de todo.
+- **"Quitar" desactiva, no borra** (decisión del usuario): las citas y facturas
+  que ya usaron el artículo conservan su referencia. Los inactivos se ocultan
+  salvo "Mostrar inactivos".
+- **El grupo de prorrateo es un select de los grupos que YA existen**, no texto
+  libre: `findMatriculaForMonth`/`findMaterialForMonth` buscan por nombre fijo
+  (`matricula_bk_lk`, `matricula_ae`, `material_bk_ae`), así que inventar un
+  grupo nuevo crearía un item que nada lee.
+- **Cero migraciones, verificado**: el enum `service_category` ya tiene las 10
+  categorías y la RLS de la 0135 es `FOR ALL ... WITH CHECK`, o sea el INSERT ya
+  estaba permitido para admin/contable/recepción. Crear categorías nuevas SÍ
+  exigiría migrar el enum — quedó fuera de alcance.
+- **Un item de evaluación activo aparece solo** en el selector de "Evaluación"
+  al agendar (`/agenda` consulta `service_catalog` por las 3 categorías
+  `evaluacion*`). No hay que tocar nada más.
+- **2 bugs corregidos de paso**: (1) desactivar una fila no actualizaba la
+  pantalla — `router.refresh()` **no re-inicializa un `useState(props)`**, así
+  que el chip nunca cambiaba; `setServiceCatalogActive` ahora devuelve la fila y
+  el estado local se actualiza. (2) El error `23505` se atribuía siempre a
+  código duplicado, pero el índice `service_catalog_mensualidad_unique` (una
+  sola mensualidad activa por programa + días/semana) lo lanza también.
+- **`/admin/tarifas` ELIMINADA** (`page.tsx`, `TarifasClient.tsx`,
+  `TarifaForm.tsx`, + su enlace en `MgmtDashboard`). Era el duplicado legacy que
+  la auditoría de julio ya había marcado, pero resultó **activamente peligroso**:
+  su formulario sí creaba items, y estaba **desactualizado** — no manejaba
+  `cost_usd` (0135), `unit_price_bk_usd` ni `service_type` (0130). Crear una
+  terapia individual desde ahí producía un item sin tipo de terapia (invisible
+  para el precio del plan) y sin costo (invisible para la planilla). El
+  directorio `src/app/(app)/admin/` quedó vacío.
+- **Ojo — `directora` perdió acceso de lectura al catálogo**: `/admin/tarifas`
+  la admitía (solo lectura, `canEdit = isAdmin`) y `/catalogos` no la incluye.
+  Se quitó el enlace del `MgmtDashboard` en vez de apuntarlo a `/catalogos`,
+  para no dejar un **enlace fantasma** (mismo problema documentado con
+  `/operacion/horarios-terapistas`). Si se la quiere de vuelta, hay que sumarla
+  a `ALLOWED_ROLES` de la página — pero eso le daría también escritura.
+- **Desbloquea el backlog de la 0179**: las 3 terapias nuevas (Psicométrica,
+  Neurodesarrollo, Diagnóstica TEA) no tienen fila en `service_catalog` — la
+  migración agregó los `ServiceType` y nunca creó los items. Cargarlos era
+  imposible sin UI de alta; ahora se puede.
 
 ## Sesión 10 ago 2026 — el PDF de detalle de pago no cuadraba con su propio total
 Todo en `master`. Sin migración (fix 100% de capa TS).
@@ -983,6 +1039,7 @@ doble revisión (spec compliance + calidad). Spec en
   `MgmtDashboard`, que recepción no ve — candidato a eliminar); y
   `CAN_DELETE_FAMILY_ROLES` no incluye `directora` (solo admin + ambas
   coordinadoras) — inversión rara, no confirmada como bug.
+  **(ago 2026: `/admin/tarifas` eliminada — ver sesión 20-ago.)**
 - **Pendiente**: sincronizar `supabase/scripts/full-setup/02_kinetic_schema.sql`
   (script de bootstrap de proyecto nuevo) con las migs 0181/0182/0183 —
   todavía tiene el guard de conflictos viejo en 4 lugares, el FK de invoices
@@ -1232,8 +1289,11 @@ Todo en `master`. **Requiere aplicar migraciones 0134–0141 en orden.**
 - (Backlog) Formulario público de solicitud de cita (waitlist autoservicio)
 - (Backlog, del desacople F1-F4) Precios/costos en `/catalogos` para los 3
   tipos de terapia nuevos (Psicométrica, Neurodesarrollo, Diagnóstica TEA) —
-  quedaron sin monto, alguien con acceso a Catálogos debe cargarlos cuando
-  se necesiten para facturar.
+  la mig 0179 agregó los `ServiceType` pero **nunca creó filas en
+  `service_catalog`**, así que no tienen precio ni costo. Era imposible
+  cargarlos: no existía UI de alta. **Desbloqueado desde ago 2026** — se crean
+  con "Nuevo artículo" (categoría Terapia individual + el tipo de terapia
+  correspondiente). Sigue pendiente que alguien les ponga monto.
 
 ---
 
