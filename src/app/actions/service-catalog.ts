@@ -133,6 +133,18 @@ export async function createServiceCatalogItem(
 
   if (error) {
     if (error.code === '23505') {
+      // 23505 lo lanzan DOS restricciones distintas: el UNIQUE de `code` y el
+      // índice `service_catalog_mensualidad_unique` (una sola mensualidad activa
+      // por programa + días/semana, mig 0107). Culpar siempre al código daba un
+      // mensaje falso al duplicar una mensualidad.
+      const detail = `${error.message} ${error.details ?? ''}`
+      if (detail.includes('mensualidad')) {
+        return {
+          ok: false,
+          error:
+            'Ya existe una mensualidad activa para ese programa y esa cantidad de días por semana. Desactivá la anterior o editá su precio.',
+        }
+      }
       return { ok: false, error: `Ya existe un item con código "${input.code}".` }
     }
     return { ok: false, error: error.message }
@@ -175,19 +187,30 @@ export async function updateServiceCatalogItem(
 export async function setServiceCatalogActive(
   id: string,
   active: boolean,
-): Promise<ActionResult> {
+): Promise<ActionResult<ServiceCatalogItem>> {
   const auth = await requireAdmin()
   if ('error' in auth) return { ok: false, error: auth.error }
 
   const supabase = await createClient()
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('service_catalog')
     .update({ active, updated_at: new Date().toISOString() })
     .eq('id', id)
+    .select('*')
+    .single()
 
-  if (error) return { ok: false, error: error.message }
+  if (error) {
+    if (error.code === '23505') {
+      return {
+        ok: false,
+        error:
+          'No se puede reactivar: ya hay una mensualidad activa para ese programa y esa cantidad de días por semana.',
+      }
+    }
+    return { ok: false, error: error.message }
+  }
 
   revalidatePath('/catalogos')
   revalidatePath('/billing/invoices/nueva')
-  return { ok: true }
+  return { ok: true, data: data as ServiceCatalogItem }
 }

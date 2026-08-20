@@ -105,6 +105,69 @@ export function groupByCategory(
   return result
 }
 
+// =============================================================================
+// Alta de artículos nuevos (formulario de /catalogos)
+// =============================================================================
+
+/**
+ * Convierte el nombre visible en un código snake_case para `service_catalog.code`.
+ *
+ * El código es un detalle técnico (clave única, referenciada por
+ * `appointments.service_code` e `invoices`), pero quien carga el catálogo es
+ * recepción o contabilidad — no tienen por qué inventarlo. Se propone desde el
+ * nombre y queda editable.
+ *
+ * Garantiza pasar el `/^[a-z0-9_]+$/` que valida `createServiceCatalogItem`, o
+ * devuelve cadena vacía si el nombre no tiene ni una letra ni un número (el
+ * formulario pide entonces uno a mano).
+ */
+export function slugifyCatalogCode(name: string): string {
+  return normalize(name)
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+/** Qué campos extra exige cada categoría del catálogo. */
+export interface CategoryFieldRules {
+  /** Mensualidad: programa matutino + días/semana son obligatorios. */
+  needsProgram: boolean
+  /** Terapia individual: se enlaza a un `ServiceType` para heredar el precio. */
+  needsServiceType: boolean
+  /** Matrícula y material: pueden prorratearse por rango de meses. */
+  allowsProration: boolean
+}
+
+/**
+ * Única fuente de verdad de qué pide cada categoría, para que el formulario no
+ * se desincronice de la validación del servidor ni de los CHECK de la base
+ * (`mensualidad_requires_program`, `proration_requires_months`, mig 0107).
+ */
+export function categoryFieldRules(category: ServiceCategory): CategoryFieldRules {
+  return {
+    needsProgram: category === 'mensualidad',
+    needsServiceType: category === 'terapia_individual',
+    allowsProration: category === 'matricula' || category === 'material_didactico',
+  }
+}
+
+/**
+ * Orden que le toca a un artículo nuevo: al final de su categoría.
+ *
+ * El default de la columna es 0, que lo mandaría al tope de la lista por encima
+ * de todo lo ya cargado. Cuenta también los inactivos: siguen ocupando lugar y
+ * pueden reactivarse.
+ */
+export function nextSortOrder(
+  items: ServiceCatalogItem[],
+  category: ServiceCategory,
+): number {
+  const orders = items
+    .filter((i) => i.category === category)
+    .map((i) => i.sort_order ?? 0)
+  if (orders.length === 0) return 0
+  return Math.max(...orders) + 1
+}
+
 /** Búsqueda fuzzy simple (case-insensitive, sin acentos) para el combobox. */
 export function searchItems(
   items: ServiceCatalogItem[],

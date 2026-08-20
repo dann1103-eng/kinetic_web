@@ -1,11 +1,11 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { useRouter } from 'next/navigation'
 import {
   updateServiceCatalogItem,
   setServiceCatalogActive,
 } from '@/app/actions/service-catalog'
+import { NewCatalogItemModal } from './NewCatalogItemModal'
 import {
   SERVICE_CATEGORY_LABELS,
   SERVICE_CATEGORY_ORDER,
@@ -27,9 +27,22 @@ function money(n: number | null | undefined): string {
 }
 
 export function CatalogosClient({ items: initial }: Props) {
-  const router = useRouter()
   const [tab, setTab] = useState<Tab>('precios')
   const [items, setItems] = useState<ServiceCatalogItem[]>(initial)
+  const [showInactive, setShowInactive] = useState(false)
+  const [newOpen, setNewOpen] = useState(false)
+
+  const inactiveCount = useMemo(
+    () => items.filter((i) => !i.active).length,
+    [items],
+  )
+
+  // Un artículo desactivado equivale a eliminado: se esconde de la lista salvo
+  // que se pidan explícitamente, para poder reactivarlo.
+  const visible = useMemo(
+    () => (showInactive ? items : items.filter((i) => i.active)),
+    [items, showInactive],
+  )
 
   // Categorías con costo interno (pago a quien realiza el servicio): no solo
   // terapias — también entrevistas, asesorías y evaluaciones de todo tipo.
@@ -39,7 +52,7 @@ export function CatalogosClient({ items: initial }: Props) {
       'evaluacion', 'evaluacion_dx_tea', 'evaluacion_psicologica',
     ])
     const map = new Map<ServiceCategory, ServiceCatalogItem[]>()
-    for (const it of items) {
+    for (const it of visible) {
       if (!allowed.has(it.category)) continue
       const arr = map.get(it.category) ?? []
       arr.push(it)
@@ -48,18 +61,26 @@ export function CatalogosClient({ items: initial }: Props) {
     return SERVICE_CATEGORY_ORDER.filter((c) => map.has(c)).map(
       (c) => [c, map.get(c)!] as [ServiceCategory, ServiceCatalogItem[]],
     )
-  }, [items])
+  }, [visible])
 
-  // Agrupar por categoría para la pestaña de precios.
+  // Agrupar por categoría para la pestaña de precios, en el orden estable.
   const grouped = useMemo(() => {
     const map = new Map<ServiceCategory, ServiceCatalogItem[]>()
-    for (const it of items) {
+    for (const it of visible) {
       const arr = map.get(it.category) ?? []
       arr.push(it)
       map.set(it.category, arr)
     }
-    return Array.from(map.entries())
-  }, [items])
+    for (const rows of map.values()) {
+      rows.sort(
+        (a, b) =>
+          a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'es'),
+      )
+    }
+    return SERVICE_CATEGORY_ORDER.filter((c) => map.has(c)).map(
+      (c) => [c, map.get(c)!] as [ServiceCategory, ServiceCatalogItem[]],
+    )
+  }, [visible])
 
   function applyLocal(updated: ServiceCatalogItem) {
     setItems((prev) => prev.map((i) => (i.id === updated.id ? updated : i)))
@@ -67,22 +88,56 @@ export function CatalogosClient({ items: initial }: Props) {
 
   return (
     <div className="space-y-5">
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-fm-outline-variant/20">
-        <TabButton active={tab === 'precios'} onClick={() => setTab('precios')}>
-          Precios (cobro)
-        </TabButton>
-        <TabButton active={tab === 'costos'} onClick={() => setTab('costos')}>
-          Costos (pago a terapista)
-        </TabButton>
+      {/* Tabs + acciones */}
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-fm-outline-variant/20">
+        <div className="flex gap-1">
+          <TabButton active={tab === 'precios'} onClick={() => setTab('precios')}>
+            Precios (cobro)
+          </TabButton>
+          <TabButton active={tab === 'costos'} onClick={() => setTab('costos')}>
+            Costos (pago a terapista)
+          </TabButton>
+        </div>
+        <div className="flex items-center gap-3 pb-2">
+          <label className="flex items-center gap-1.5 text-xs text-fm-on-surface-variant cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+            />
+            Mostrar inactivos
+            {inactiveCount > 0 && !showInactive && ` (${inactiveCount})`}
+          </label>
+          <button
+            type="button"
+            onClick={() => setNewOpen(true)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-fm-primary text-white text-sm font-medium hover:opacity-90"
+          >
+            <span className="material-symbols-outlined text-base leading-none">add</span>
+            Nuevo artículo
+          </button>
+        </div>
       </div>
+
+      <NewCatalogItemModal
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        items={items}
+        onCreated={(created) => setItems((prev) => [...prev, created])}
+      />
 
       {tab === 'precios' ? (
         <div className="space-y-6">
           <p className="text-xs text-fm-on-surface-variant">
             Precios que se cobran a las familias. <b>Precio BK</b> = tarifa con descuento
             para niños en programa matutino (Blue Kids / Learning Kids / Aula).
+            <b> Quitar</b> no borra el artículo: lo esconde y podés reactivarlo.
           </p>
+          {grouped.length === 0 && (
+            <p className="text-sm text-fm-on-surface-variant">
+              No hay artículos activos en el catálogo.
+            </p>
+          )}
           {grouped.map(([cat, rows]) => (
             <section key={cat} className="space-y-1.5">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-fm-on-surface-variant">
@@ -95,13 +150,13 @@ export function CatalogosClient({ items: initial }: Props) {
                       <th className="text-left px-3 py-2 font-semibold">Servicio</th>
                       <th className="text-right px-3 py-2 font-semibold w-28">Precio</th>
                       <th className="text-right px-3 py-2 font-semibold w-28">Precio BK</th>
-                      <th className="text-center px-3 py-2 font-semibold w-20">Activo</th>
-                      <th className="w-24" />
+                      <th className="text-center px-3 py-2 font-semibold w-20">Estado</th>
+                      <th className="w-44" />
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((it) => (
-                      <PriceRow key={it.id} item={it} onSaved={applyLocal} onRefresh={() => router.refresh()} />
+                      <PriceRow key={it.id} item={it} onSaved={applyLocal} />
                     ))}
                   </tbody>
                 </table>
@@ -178,11 +233,9 @@ function TabButton({
 function PriceRow({
   item,
   onSaved,
-  onRefresh,
 }: {
   item: ServiceCatalogItem
   onSaved: (i: ServiceCatalogItem) => void
-  onRefresh: () => void
 }) {
   const [price, setPrice] = useState(item.unit_price_usd?.toString() ?? '0')
   const [priceBk, setPriceBk] = useState(item.unit_price_bk_usd?.toString() ?? '')
@@ -209,13 +262,25 @@ function PriceRow({
   }
 
   function toggleActive() {
+    if (
+      item.active &&
+      !window.confirm(
+        `¿Quitar "${item.name}" del catálogo?\n\n` +
+          'Deja de aparecer al agendar y al cobrar, pero no se borra: las citas y ' +
+          'facturas que ya lo usaron lo conservan, y podés reactivarlo cuando quieras ' +
+          'con "Mostrar inactivos".',
+      )
+    ) {
+      return
+    }
+    setError(null)
     start(async () => {
       const res = await setServiceCatalogActive(item.id, !item.active)
       if (!res.ok) {
         setError(res.error)
         return
       }
-      onRefresh()
+      onSaved(res.data)
     })
   }
 
@@ -233,28 +298,37 @@ function PriceRow({
         <NumInput value={priceBk} onChange={setPriceBk} placeholder="—" />
       </td>
       <td className="px-3 py-1.5 text-center">
-        <button
-          type="button"
-          onClick={toggleActive}
-          disabled={isPending}
-          className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+        <span
+          className={`inline-block text-[10px] px-2 py-0.5 rounded-full font-medium ${
             item.active ? 'bg-emerald-100 text-emerald-700' : 'bg-zinc-200 text-zinc-600'
           }`}
         >
           {item.active ? 'Activo' : 'Inactivo'}
-        </button>
+        </span>
       </td>
-      <td className="px-3 py-1.5 text-right">
+      <td className="px-3 py-1.5 text-right whitespace-nowrap">
         {dirty && (
           <button
             type="button"
             onClick={save}
             disabled={isPending}
-            className="text-xs px-2.5 py-1 rounded-lg bg-fm-primary text-white font-medium hover:opacity-90 disabled:opacity-60"
+            className="text-xs px-2.5 py-1 rounded-lg bg-fm-primary text-white font-medium hover:opacity-90 disabled:opacity-60 mr-1.5"
           >
             {isPending ? '…' : 'Guardar'}
           </button>
         )}
+        <button
+          type="button"
+          onClick={toggleActive}
+          disabled={isPending}
+          className={`text-xs px-2.5 py-1 rounded-lg font-medium disabled:opacity-60 ${
+            item.active
+              ? 'text-fm-error hover:bg-red-50'
+              : 'text-fm-primary hover:bg-fm-surface-container-low'
+          }`}
+        >
+          {item.active ? 'Quitar' : 'Reactivar'}
+        </button>
       </td>
     </tr>
   )
