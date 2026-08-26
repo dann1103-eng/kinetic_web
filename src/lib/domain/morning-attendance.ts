@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/db'
+import { fetchAllPaged } from '@/lib/supabase/paged'
 
 /**
  * Asistencia de programas matutinos (grupos) para los dashboards del niño.
@@ -236,14 +237,22 @@ export async function fetchMorningAttendanceByChild(
   const sessions = (sessionsRaw ?? []) as GroupSessionLite[]
 
   const sessionIds = sessions.map((s) => s.id)
-  const { data: attendanceRaw } = sessionIds.length
-    ? await supabase
-        .from('program_session_attendance')
-        .select('child_id, session_id, status')
-        .in('session_id', sessionIds)
-        .in('child_id', childIds)
-    : { data: [] as AttendanceRowLite[] }
-  const attendance = (attendanceRaw ?? []) as AttendanceRowLite[]
+  // Paginada: la lista pasada crece como niños × días del mes. Con /ninos, que
+  // consulta TODOS los niños a la vez, tres grupos matutinos ya pasan las 1000
+  // filas que devuelve PostgREST como máximo — y el corte es mudo, así que la
+  // asistencia simplemente aparecía incompleta.
+  const attendance = sessionIds.length
+    ? await fetchAllPaged<AttendanceRowLite>(
+        () =>
+          supabase
+            .from('program_session_attendance')
+            .select('child_id, session_id, status')
+            .in('session_id', sessionIds)
+            .in('child_id', childIds)
+            .order('id'),
+        'program_session_attendance',
+      )
+    : []
 
   return computeMorningAttendance(memberships, sessions, attendance)
 }

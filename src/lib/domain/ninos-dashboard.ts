@@ -9,13 +9,18 @@ import { fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Child, TreatmentPlan, MonthlySessionCycle, Database } from '@/types/db'
 import { compareByLastName } from '@/lib/domain/name-sort'
+import { fetchMorningAttendanceByChild } from '@/lib/domain/morning-attendance'
+import { fetchAllPaged } from '@/lib/supabase/paged'
 
 const TZ = 'America/El_Salvador'
 
 export interface NinoCardData {
   child: Child
   plan: TreatmentPlan | null
-  /** Citas del mes seleccionado (null = no hay datos para ese mes) */
+  /**
+   * Asistencia del mes: terapias individuales + programas matutinos (la lista
+   * de grupo). `null` = el niño no tenía nada agendado ese mes.
+   */
   attendance: { completed: number; total: number } | null
   lastCycle: MonthlySessionCycle | null
   /** IDs de terapistas asignados al niño (principal + por terapia). Para filtrar. */
@@ -59,11 +64,19 @@ export function getAvailableMonths(): string[] {
 }
 
 /**
- * Carga todos los datos necesarios para la grilla de /ninos en 3 queries paralelas:
- * 1. Todos los niños (ordenados por nombre)
- * 2. Todos los plans de tratamiento
- * 3. Appointments del mes seleccionado (para calcular asistencia)
- * 4. Últimos ciclos pagados por niño
+ * Carga todo lo que necesita la grilla de /ninos: primero los niños, y con sus
+ * ids en mano el resto en paralelo:
+ * 1. Todos los niños (ordenados por apellido)
+ * 2. Planes de tratamiento
+ * 3. Citas individuales del mes (asistencia de terapias)
+ * 4. Ciclos, para el chip de "Último pago"
+ * 5. Membresías de grupos matutinos (para el filtro por terapista)
+ * 6. Asistencia de programas matutinos (la otra mitad de la barra)
+ *
+ * La barra de asistencia suma las dos cosas: las terapias individuales, que
+ * viven en `appointments`, y los programas matutinos, cuya lista se pasa por
+ * grupo y vive en otras tablas. Un niño de solo BlueKids no tiene ninguna cita
+ * individual, así que sin el punto 6 su tarjeta queda vacía.
  */
 export async function getNinosDashboardData(
   supabase: SupabaseClient<Database>,
@@ -73,61 +86,87 @@ export async function getNinosDashboardData(
   const { startISO, endISO } = monthBoundsForPeriod(periodMonth)
 
   // 1. Niños (por defecto excluye los archivados — mig 0166).
-  let childrenQuery = supabase.from('children').select('*')
-  if (!includeArchived) childrenQuery = childrenQuery.is('archived_at', null)
-  const { data: childrenRaw } = await childrenQuery
+  const childrenRaw = await fetchAllPaged<Child>(() => {
+    const q = supabase.from('children').select('*').order('id')
+    return includeArchived ? q : q.is('archived_at', null)
+  }, 'children')
 
   // Orden alfabético por apellido (apellido paterno) del nombre completo.
-  const children = ((childrenRaw ?? []) as Child[])
+  const children = childrenRaw
     .slice()
     .sort((a, b) => compareByLastName(a.full_name, b.full_name))
   if (children.length === 0) return { niños: [], therapists: [] }
 
   const childIds = children.map((c) => c.id)
 
-  // 2-4 en paralelo
-  const [{ data: plansRaw }, { data: apptsRaw }, { data: cyclesRaw }, { data: groupMembersRaw }] =
-    await Promise.all([
-      supabase.from('treatment_plans').select('*').in('child_id', childIds),
-      // `programa_matutino` se excluye: esta barra mide solo las terapias
-      // individuales (ver más abajo). Además, regenerateMorningAppointments
-      // (monthly-cycles.ts) sigue creando una cita por-niño además de la sesión
-      // de grupo, así que contarlas acá duplicaría. Mismo patrón de exclusión
-      // que ya usan mi-dia/capacidad-terapistas/therapist-capacity.ts.
-      supabase
-        .from('appointments')
-        .select('child_id, status')
-        .in('child_id', childIds)
-        .neq('event_type', 'programa_matutino')
-        // Se descartan en la CONSULTA, no en el bucle: PostgREST corta la
-        // respuesta en 1000 filas, y las lápidas de las regeneraciones
-        // (`rescheduled`) llegaron a ser más de mil en un solo mes — se comían
-        // la respuesta y las citas completadas nunca llegaban, dejando todas
-        // las barras de asistencia en 0.
-        .not('status', 'in', '(rescheduled,cancelled)')
-        .gte('starts_at', startISO)
-        .lt('starts_at', endISO),
-      supabase
-        .from('monthly_session_cycles')
-        .select('*')
-        .in('child_id', childIds)
-        .neq('status', 'cancelled')
-        .order('period_month', { ascending: false }),
-      // Grupos matutinos activos del niño — los programas matutinos no llevan
-      // terapista individual (mig 0180: primary_therapist_id siempre null en
-      // un plan 100% matutino), la cobertura es por staff del grupo.
-      supabase
-        .from('program_group_members')
-        .select('child_id, group_id')
-        .in('child_id', childIds)
-        .eq('active', true),
-    ])
+  // 2-6 en paralelo.
+  //
+  // Todas las lecturas que crecen con la cantidad de niños o de meses van
+  // paginadas: PostgREST corta cada respuesta en 1000 filas sin dar error, y
+  // esto ya dejó todas las barras en cero una vez (ver fetchAllPaged).
+  const [plans, appts, cycles, groupMembersRaw, morningByChild] = await Promise.all([
+    fetchAllPaged<TreatmentPlan>(
+      () => supabase.from('treatment_plans').select('*').in('child_id', childIds).order('id'),
+      'treatment_plans',
+    ),
+    // `programa_matutino` se excluye acá porque la asistencia de los programas
+    // se cuenta aparte, desde las sesiones de grupo (morningByChild, más
+    // abajo). Sumar ambas la duplicaría: regenerateMorningAppointments
+    // (monthly-cycles.ts) sigue creando una cita por-niño además de la sesión
+    // de grupo real. Mismo patrón de exclusión que ya usan
+    // mi-dia/capacidad-terapistas/therapist-capacity.ts.
+    fetchAllPaged<{ child_id: string; status: string }>(
+      () =>
+        supabase
+          .from('appointments')
+          .select('child_id, status')
+          .in('child_id', childIds)
+          .neq('event_type', 'programa_matutino')
+          // Los estados que no cuentan se descartan en la CONSULTA, no en el
+          // bucle: traerlos solo para tirarlos gastaba el cupo de filas.
+          .not('status', 'in', '(rescheduled,cancelled)')
+          .gte('starts_at', startISO)
+          .lt('starts_at', endISO)
+          .order('id'),
+      'appointments',
+    ),
+    fetchAllPaged<MonthlySessionCycle>(
+      () =>
+        supabase
+          .from('monthly_session_cycles')
+          .select('*')
+          .in('child_id', childIds)
+          .neq('status', 'cancelled')
+          .order('period_month', { ascending: false })
+          // Desempate estable: period_month se repite entre niños y sin una
+          // columna única las páginas podrían repetir u omitir filas.
+          .order('id'),
+      'monthly_session_cycles',
+    ),
+    // Grupos matutinos activos del niño — los programas matutinos no llevan
+    // terapista individual (mig 0180: primary_therapist_id siempre null en
+    // un plan 100% matutino), la cobertura es por staff del grupo.
+    fetchAllPaged<{ child_id: string; group_id: string }>(
+      () =>
+        supabase
+          .from('program_group_members')
+          .select('child_id, group_id')
+          .in('child_id', childIds)
+          .eq('active', true)
+          .order('id'),
+      'program_group_members',
+    ),
+    // Asistencia de programas matutinos (BlueKids, Learning Kids, Aula
+    // Educativa). No vive en `appointments`: son sesiones de grupo con lista
+    // pasada (program_group_sessions + program_session_attendance).
+    fetchMorningAttendanceByChild(supabase, childIds, startISO, endISO),
+  ])
 
   // Staff de cada grupo matutino referenciado (para unir con los terapistas
   // del plan más abajo) — mismo patrón que listMyChildren (my-children.ts).
   const groupIdsByChild = new Map<string, string[]>()
   const allGroupIds = new Set<string>()
-  for (const m of (groupMembersRaw ?? []) as { child_id: string; group_id: string }[]) {
+  for (const m of groupMembersRaw) {
     allGroupIds.add(m.group_id)
     const arr = groupIdsByChild.get(m.child_id) ?? []
     arr.push(m.group_id)
@@ -148,14 +187,14 @@ export async function getNinosDashboardData(
 
   // Plan activo por niño (activo primero; si no hay activo, el más reciente)
   const plansByChild = new Map<string, TreatmentPlan>()
-  for (const p of (plansRaw ?? []) as TreatmentPlan[]) {
+  for (const p of plans) {
     const existing = plansByChild.get(p.child_id)
     if (!existing || p.active) plansByChild.set(p.child_id, p)
   }
 
   // Asistencia del mes por niño (citas individuales)
   const attendanceByChild = new Map<string, { completed: number; total: number }>()
-  for (const a of (apptsRaw ?? []) as { child_id: string; status: string }[]) {
+  for (const a of appts) {
     if (a.status === 'rescheduled' || a.status === 'cancelled') continue // no cuentan para asistencia
     const curr = attendanceByChild.get(a.child_id) ?? { completed: 0, total: 0 }
     curr.total++
@@ -163,17 +202,22 @@ export async function getNinosDashboardData(
     attendanceByChild.set(a.child_id, curr)
   }
 
-  // Los programas matutinos NO entran en esta barra: funcionan como un colegio
-  // (el niño asiste a la jornada, no a sesiones contratadas), y su asistencia se
-  // pasa por grupo en /operacion/grupos. Esta barra mide únicamente las terapias
-  // individuales de la tarde, que es lo que se contrata por sesión.
-  //
-  // Antes se sumaba `fetchMorningAttendanceByChild` acá, y un niño de solo
-  // programa matutino mostraba una barra que no correspondía a ninguna terapia.
+  // Se suma la asistencia de los programas matutinos. Un niño de BlueKids,
+  // Learning Kids o Aula Educativa no tiene citas individuales por su programa:
+  // asiste a la jornada y la miss pasa lista por grupo. Sin esto su tarjeta
+  // decía "Sin sesiones este mes" aunque hubiera venido todo el mes, y el número
+  // no cuadraba con el del panel del niño, que sí la suma (child-dashboard.ts).
+  for (const [childId, m] of morningByChild) {
+    if (m.total === 0) continue
+    const curr = attendanceByChild.get(childId) ?? { completed: 0, total: 0 }
+    curr.completed += m.present
+    curr.total += m.total
+    attendanceByChild.set(childId, curr)
+  }
 
   // Último ciclo por niño (ya vienen ordenados desc por period_month)
   const lastCycleByChild = new Map<string, MonthlySessionCycle>()
-  for (const c of (cyclesRaw ?? []) as MonthlySessionCycle[]) {
+  for (const c of cycles) {
     if (!lastCycleByChild.has(c.child_id)) lastCycleByChild.set(c.child_id, c)
   }
 

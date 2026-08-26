@@ -381,6 +381,60 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 
 # Estado del proyecto — junio–agosto 2026
 
+## Sesión 26 ago 2026 — la barra de `/ninos` vuelve a contar los programas matutinos
+Sin migración (fix 100% de capa TS). Tests nuevos: `src/lib/domain/ninos-dashboard.test.ts`.
+
+- **Síntoma**: filtrando `/ninos` por BlueKids, casi todas las tarjetas decían
+  **"Sin sesiones este mes"** aunque los niños asistieran todo el mes.
+- **Causa raíz: el commit `781a0d1` (17-ago) la había quitado a propósito.**
+  No fue un bug que se filtró: fue una decisión tomada "de paso" mientras se
+  cazaba otro problema (el tope de PostgREST, `8af6780`, 8 minutos después), con
+  el argumento de que la barra mide terapias contratadas por sesión. **El usuario
+  la quiere contando la mañana.** Un niño de solo BlueKids no tiene NINGUNA cita
+  individual, así que sin la suma su tarjeta queda vacía.
+- **Incoherencia que lo delataba**: `child-dashboard.ts` NUNCA dejó de sumarla
+  (`fetchMorningAttendanceByChild`), así que el panel del niño y su tarjeta en
+  `/ninos` daban números distintos para el mismo niño y el mismo mes.
+- **No hay doble conteo**: la consulta sigue excluyendo `programa_matutino` de
+  `appointments` (las citas leftover por-niño de `regenerateMorningAppointments`,
+  mig 0151); la mañana entra solo desde las sesiones de grupo. Hay un test.
+
+### ⚠️ Filtrar por estado no alcanzaba: ahora se PAGINA
+`8af6780` había bajado agosto a ~660 filas filtrando estados en la consulta, pero
+la consulta **crece con la cantidad de niños y de meses** — iba a volver a topar.
+Peor: `program_session_attendance` (la lista pasada de los grupos) crece como
+**niños × días del mes**, y con tres grupos matutinos pasa las mil filas, así que
+restaurar la suma sin paginar habría dado asistencia incompleta.
+
+- **`src/lib/supabase/paged.ts`** — `fetchAllPaged`, extraído del helper local que
+  ya vivía en `agenda/page.tsx` (nacido del mismo tope: "no se veían citas más
+  allá de julio"). Ahora es uno solo y la agenda lo importa.
+- **Contrato**: `makeQuery` debe traer un **`order` por columna única** (o `id` de
+  desempate). Sin orden estable, paginar puede repetir u omitir filas. Se le
+  agregó `.order('id')` a las consultas de la agenda, que ordenaban solo por
+  `starts_at` (que se repite).
+- Paginadas: `children`, `treatment_plans`, `appointments`,
+  `monthly_session_cycles`, `program_group_members` y `program_session_attendance`.
+- **De paso se arregló el chip "Último pago"**: `monthly_session_cycles` traía
+  TODOS los ciclos de TODOS los niños sin paginar, ordenados por mes desc — un
+  niño cuyo último ciclo quedara fuera de las 1000 filas más recientes perdía el
+  chip. Hay test.
+
+### Un fake de Supabase que reproduce el tope en un test
+`src/lib/supabase/testing.ts` (solo para vitest). Aplica los filtros encadenados
+de verdad —con semántica SQL de NULL: una fila con la columna NULL **no** pasa un
+`neq`/`not-in`— y **emula el corte en 1000 filas**. Sin eso, un test pasa feliz
+con datos que en producción llegan truncados: los 7 tests nuevos fallan contra el
+código viejo, y el primero devuelve exactamente el `null` que la UI pinta como
+"Sin sesiones este mes".
+
+### Pendiente de verificar contra producción
+No se pudo consultar la BD en esta sesión (no hay `.env.local` en el equipo y el
+token del CLI quedó bloqueado). Si tras el deploy algún niño de BlueKids **sigue**
+sin barra, no es este bug: revisar que tenga **membresía activa de grupo**
+(`program_group_members`) y que el mes tenga **sesiones generadas**
+(`generate_group_sessions_for_month`, que corre al generar el ciclo).
+
 ## Sesión 20 ago 2026 — dar de alta artículos en el catálogo
 Todo en `master`. **Sin migración.** Spec en
 `docs/superpowers/specs/2026-08-20-catalogo-crear-articulos-design.md`.
@@ -743,9 +797,15 @@ query de citas que abarque varios niños o varios meses. Corregidos
 niños de una terapista, que tenía el mismo agujero latente). El síntoma es
 traicionero: no hay error, solo datos que faltan.
 
-De paso, la barra de `/ninos` **dejó de sumar la asistencia de programas
-matutinos**: mide solo terapias individuales, que son las que se contratan por
-sesión. Los programas funcionan como un colegio y su asistencia se pasa por grupo.
+> ⚠️ **Filtrar solo corre la pared; hay que PAGINAR.** Ver la sesión del 26-ago
+> más abajo: filtrar por estado bajó agosto a ~660 filas, pero la consulta seguía
+> creciendo con los niños y los meses. Ahora todas las lecturas de
+> `getNinosDashboardData` usan `fetchAllPaged` (`src/lib/supabase/paged.ts`).
+
+> ⚠️ **En esta misma sesión la barra de `/ninos` dejó de sumar los programas
+> matutinos** — decisión tomada de paso, no pedida, y **revertida el 26-ago**
+> porque dejaba a los niños de BlueKids con la tarjeta vacía. No volver a
+> quitarla: ver la sesión del 26-ago.
 
 ### Inasistencias huérfanas: el calendario marca un día que nadie entiende
 Reportado con un niño que se fue de viaje: se le anuló el ciclo y se generó uno

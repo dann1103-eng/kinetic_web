@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { fetchAllPaged } from '@/lib/supabase/paged'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { AgendaPageClient, type GroupSessionForClient } from './AgendaPageClient'
@@ -21,27 +22,6 @@ const ALLOWED_ROLES = [
   'operator',
 ]
 
-/**
- * Trae TODAS las filas de una query paginando de a 1000, porque PostgREST topa
- * cada respuesta en 1000 filas. Sin esto, la agenda (>2400 citas, hasta 2027)
- * se truncaba y "no se veían citas más allá de julio". `makeQuery` debe devolver
- * un builder ya con select/filtros/order (sin `.range`).
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function fetchAllPaged<T>(makeQuery: () => any): Promise<T[]> {
-  const pageSize = 1000
-  let from = 0
-  const all: T[] = []
-  for (;;) {
-    const { data } = await makeQuery().range(from, from + pageSize - 1)
-    const rows = (data ?? []) as T[]
-    all.push(...rows)
-    if (rows.length < pageSize) break
-    from += pageSize
-  }
-  return all
-}
-
 export default async function AgendaPage() {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
@@ -61,7 +41,14 @@ export default async function AgendaPage() {
   // Citas. RLS filtra: is_agency_user() ve todas; el resto solo las suyas.
   // Paginado para superar el tope de 1000 filas de PostgREST (había >2400).
   const appointments = await fetchAllPaged<Appointment>(() =>
-    supabase.from('appointments').select('*').gte('starts_at', rangeStart).order('starts_at'),
+    supabase
+      .from('appointments')
+      .select('*')
+      .gte('starts_at', rangeStart)
+      .order('starts_at')
+      // Desempate único: dos citas pueden empezar a la misma hora y sin esto el
+      // orden entre páginas no está garantizado (filas repetidas u omitidas).
+      .order('id'),
   )
 
   // Niños activos para autocomplete del modal (no críticos para la grid).
@@ -119,7 +106,8 @@ export default async function AgendaPage() {
       .from('program_group_sessions')
       .select('id, group_id, starts_at, ends_at, status, program_groups(name, program)')
       .gte('starts_at', rangeStart)
-      .order('starts_at'),
+      .order('starts_at')
+      .order('id'),
   )
 
   type GSRow = {
