@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type { ServiceType } from '@/types/db'
 import type { ChildDashboardData, UpcomingAppointment } from '@/lib/domain/child-dashboard'
+import { formatSvDateTime } from '@/lib/format/datetime-sv'
 import { ChildDashboardCalendar } from './ChildDashboardCalendar'
 
 interface Props {
@@ -13,15 +14,13 @@ interface Props {
   childName?: string
 }
 
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('es-SV', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
+/**
+ * Este panel es un server component: `toLocaleString` sin `timeZone` formatea
+ * en la zona del runtime, que en Vercel es UTC. Por eso la sesión de las 7:30
+ * a.m. se anunciaba como "01:30 p. m." acá mientras el calendario (client) la
+ * pintaba bien. `formatSvDateTime` fija la zona de El Salvador.
+ */
+const formatDateTime = formatSvDateTime
 
 function relativeFromNow(iso: string): string {
   const diffMs = new Date(iso).getTime() - Date.now()
@@ -86,7 +85,10 @@ export function ChildDashboardPanel({ data, familyId, childId, childName }: Prop
 
       {/* Stats — KPIs como overview superior */}
       <dl className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Kpi label="Programadas" value={kpis.scheduled} />
+        {/* Sesiones del mes (terapias individuales + jornadas de programa
+            matutino), no las que siguen pendientes: un niño de BlueKids venía
+            todos los días y la tarjeta mostraba un número mucho menor. */}
+        <Kpi label="Programadas" value={kpis.total} />
         <Kpi label="Asistidas" value={kpis.completed} tone="ok" />
         <Kpi
           label="Pendientes de reponer"

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { SESSION_REPORT_SUPER_EDITOR_ROLES } from '@/types/db'
+import { APP_TZ } from '@/lib/domain/dates'
 import type { SessionReport, SessionReportStatus } from '@/types/db'
 import { ReportFileDownloadButton } from './ReportFileDownloadButton'
 import { EditSessionReportButton } from './EditSessionReportButton'
@@ -102,7 +103,11 @@ export async function ChildSessionReportsHistory({ childId, childName }: ChildSe
           : '—'
         const appt = appointmentMap[report.appointment_id]
         const dateLabel = appt
-          ? new Date(appt.starts_at).toLocaleString('es-SV', {
+          ? // `timeZone` es obligatorio: esto es un server component y sin él
+            // formatea en la zona del runtime (UTC en Vercel), corriendo la
+            // hora +6. Ver el aviso en @/lib/format/datetime-sv.
+            new Date(appt.starts_at).toLocaleString('es-SV', {
+              timeZone: APP_TZ,
               weekday: 'short',
               day: 'numeric',
               month: 'short',
@@ -111,6 +116,7 @@ export async function ChildSessionReportsHistory({ childId, childName }: ChildSe
               minute: '2-digit',
             })
           : new Date(report.created_at).toLocaleString('es-SV', {
+              timeZone: APP_TZ,
               day: 'numeric',
               month: 'short',
               year: 'numeric',

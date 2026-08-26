@@ -381,6 +381,15 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 
 # Estado del proyecto — junio–agosto 2026
 
+> **Las citas leftover de programa matutino son una trampa recurrente.**
+> `regenerateMorningAppointments` crea una cita por-niño (`event_type =
+> 'programa_matutino'`, `status='scheduled'` para siempre, mig 0151) ADEMÁS de la
+> sesión de grupo real. **Toda** consulta de `appointments` que alimente un
+> conteo o un calendario tiene que excluirlas, y la asistencia del programa se
+> lee de `program_group_sessions`/`program_session_attendance`. Ya causó cuatro
+> bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
+> el KPI y el calendario del panel del niño (26-ago).
+
 ## Sesión 26 ago 2026 — la barra de `/ninos` vuelve a contar los programas matutinos
 Sin migración (fix 100% de capa TS). Tests nuevos: `src/lib/domain/ninos-dashboard.test.ts`.
 
@@ -427,6 +436,37 @@ de verdad —con semántica SQL de NULL: una fila con la columna NULL **no** pas
 con datos que en producción llegan truncados: los 7 tests nuevos fallan contra el
 código viejo, y el primero devuelve exactamente el `null` que la UI pinta como
 "Sin sesiones este mes".
+
+### El panel del niño: KPI inflado, mañanas duplicadas y hora corrida
+Reportado sobre un niño con mensualidad de BlueKids de lunes a viernes +
+Lenguaje los sábados. Tres causas distintas, todas visibles en la misma pantalla.
+Tests: `src/lib/domain/child-dashboard.test.ts`.
+
+- **"18 Programadas" no eran las veces que iba a venir.** La tarjeta mostraba
+  `kpis.scheduled` (citas que siguen en estado `scheduled`), no las sesiones del
+  mes. Y ese contador estaba **contaminado con las citas leftover de programa
+  matutino**, que nacen `scheduled` y nunca cambian (mig 0151), mientras que las
+  sesiones de grupo reales no entraban. `kpis.total` **ya calculaba el número
+  correcto** y solo se mostraba en la letra chica del pie ("N sesiones
+  registradas") — otra vez el patrón "el dato ya estaba, la UI miraba otro".
+  Ahora la tarjeta usa `total`, y **ningún** KPI cuenta las leftover.
+- **Dos bloques de BlueKids por día, a partir de HOY.** La consulta de "próximas
+  14 días" no excluía `event_type='programa_matutino'`, así que traía la cita
+  leftover por-niño **y** la sesión de grupo real. `ChildDashboardCalendar`
+  deduplica **por id**, y son dos filas de dos tablas distintas: el dedupe no las
+  junta. El síntoma señalaba la causa — la duplicación empezaba justo en `now`,
+  que es donde arranca esa consulta, y se extendía a septiembre porque la
+  ventana es de 14 días (por eso el mes siguiente mostraba pills en la grilla,
+  que solo tiene datos del mes en curso).
+- **La hora salía +6.** `ChildDashboardPanel` es un **server component** y tenía
+  su propio `formatDateTime` con `toLocaleString('es-SV')` **sin `timeZone`**:
+  en Vercel el runtime es UTC, así que la sesión de las 7:30 a.m. se anunciaba
+  como "01:30 p. m." mientras el calendario (client, zona del navegador) la
+  pintaba bien. Es exactamente lo que advierte el encabezado de
+  `@/lib/format/datetime-sv`. Se cambió por `formatSvDateTime`.
+  **Auditoría de paso**: el único otro server component con el mismo agujero era
+  `ChildSessionReportsHistory` (historial de notas de sesión) — se le agregó
+  `timeZone: APP_TZ` conservando el formato con año.
 
 ### Pendiente de verificar contra producción
 No se pudo consultar la BD en esta sesión (no hay `.env.local` en el equipo y el

@@ -207,6 +207,11 @@ export async function getChildDashboardData(
   }
 
   for (const a of monthAppts) {
+    // Las citas leftover de programa matutino no entran a NINGÚN KPI: la
+    // asistencia real del programa se suma abajo desde las sesiones de grupo.
+    // Nacen `scheduled` y nunca cambian (mig 0151), así que contarlas inflaba
+    // "programadas" con jornadas que ya habían pasado.
+    if (a.event_type === 'programa_matutino') continue
     const abs = absencesById.get(a.id)
     if (a.status === 'scheduled' || a.status === 'in_progress') kpis.scheduled++
     else if (a.status === 'completed') kpis.completed++
@@ -300,6 +305,12 @@ export async function getChildDashboardData(
     .from('appointments')
     .select('*')
     .eq('child_id', childId)
+    // Sin esto salía DUPLICADO cada programa matutino: la cita leftover
+    // por-niño (siempre `scheduled`, mig 0151) y la sesión de grupo real, que
+    // se agrega más abajo, son dos filas distintas con ids distintos — el
+    // dedupe por id del calendario no las junta. El síntoma delataba la causa:
+    // la duplicación empezaba justo HOY, porque esta consulta arranca en `now`.
+    .neq('event_type', 'programa_matutino')
     .gte('starts_at', now.toISOString())
     .lt('starts_at', fourteenDaysLater.toISOString())
     .in('status', ['scheduled', 'in_progress', 'replacement'])
