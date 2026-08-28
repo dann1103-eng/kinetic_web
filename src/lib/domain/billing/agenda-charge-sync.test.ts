@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   billableSessionCounts,
+  needsChargeSync,
   periodMonthOfSV,
   therapiesSyncedToAgenda,
 } from './agenda-charge-sync'
@@ -152,5 +153,33 @@ describe('therapiesSyncedToAgenda', () => {
     expect(res.changed).toBe(false)
     expect(res.therapies).toHaveLength(2)
     expect(res.unpricedServices).toEqual(['sensorial'])
+  })
+})
+
+describe('needsChargeSync', () => {
+  it('marca el ciclo cuyo detalle ya cuadra pero cuyo monto quedó viejo', () => {
+    // Caso real: 3 sesiones de Lenguaje en el snapshot y en la agenda, pero el
+    // ciclo quedó registrado en $258 (4 sesiones) contra $236 del detalle.
+    expect(
+      needsChargeSync({ therapiesChanged: false, currentAmount: 258, newAmount: 236 }),
+    ).toBe(true)
+  })
+
+  it('marca el ciclo cuyo detalle no cuadra con la agenda', () => {
+    expect(needsChargeSync({ therapiesChanged: true, currentAmount: 236, newAmount: 236 })).toBe(
+      true,
+    )
+  })
+
+  it('no marca nada cuando todo cuadra', () => {
+    expect(needsChargeSync({ therapiesChanged: false, currentAmount: 236, newAmount: 236 })).toBe(
+      false,
+    )
+  })
+
+  it('ignora diferencias por debajo del centavo', () => {
+    expect(
+      needsChargeSync({ therapiesChanged: false, currentAmount: 236, newAmount: 236.004 }),
+    ).toBe(false)
   })
 })

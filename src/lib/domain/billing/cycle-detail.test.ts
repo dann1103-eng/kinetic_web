@@ -290,7 +290,7 @@ describe('buildCycleDetail — mes ya pagado y corregido después', () => {
     })
     expect(data.subtotal).toBe(236)
     expect(data.total).toBe(236)
-    expect(data.settlement).toEqual({ paidAmount: 258, adjustment: -22 })
+    expect(data.settlement).toEqual({ kind: 'paid', registeredAmount: 258, adjustment: -22 })
   })
 
   it('sin ajuste registrado lo deduce del propio detalle', () => {
@@ -304,10 +304,20 @@ describe('buildCycleDetail — mes ya pagado y corregido después', () => {
     expect(data.total).toBe(236)
   })
 
-  it('un mes PENDIENTE conserva el monto del ciclo como total', () => {
+  // Caso real reportado: el ciclo quedó registrado en $258 (4 martes de agosto)
+  // pero solo se agendaron y cobraron 3 sesiones de Lenguaje. El documento
+  // mostraba filas por $236 y un total de $258, sin explicar la diferencia — y
+  // la factura, que sale del mismo snapshot, decía $236.
+  it('un mes PENDIENTE cobra el detalle y declara el monto registrado que no cuadra', () => {
     const data = buildCycleDetail({ ...base, paymentAmountUsd: 258, paymentStatus: 'pending' })
+    expect(data.total).toBe(236)
+    expect(data.settlement).toEqual({ kind: 'pending', registeredAmount: 258, adjustment: -22 })
+  })
+
+  it('un mes pendiente que sí cuadra no declara nada aparte', () => {
+    const data = buildCycleDetail({ ...base, paymentAmountUsd: 236, paymentStatus: 'pending' })
     expect(data.settlement).toBeNull()
-    expect(data.total).toBe(258)
+    expect(data.total).toBe(236)
   })
 })
 

@@ -212,18 +212,25 @@ export function CycleDetailPDF({ data, paymentNote }: Props) {
             </Text>
             <Text style={s.totalVal}>${data.total.toFixed(2)}</Text>
           </View>
-          {/* Mes ya pagado cuyo detalle se corrigió: se declara lo pagado y a
-              dónde va la diferencia, para que las filas cierren igual. */}
+          {/* El total de arriba siempre cierra con las filas. Si el monto que el
+              ciclo tiene registrado no coincide, se declara acá en vez de dejar
+              un documento que se contradice solo. */}
           {data.settlement && (
             <View style={{ marginTop: 4 }}>
               <Text style={{ fontSize: 7.5, color: GRAY }}>
-                Pagado en {data.periodLabel}: ${data.settlement.paidAmount.toFixed(2)}
+                {data.settlement.kind === 'paid'
+                  ? `Pagado en ${data.periodLabel}: $${data.settlement.registeredAmount.toFixed(2)}`
+                  : `Monto registrado para ${data.periodLabel}: $${data.settlement.registeredAmount.toFixed(2)}`}
               </Text>
               {Math.abs(data.settlement.adjustment) >= 0.01 && (
                 <Text style={{ fontSize: 7.5, color: TEAL, marginTop: 2 }}>
-                  {data.settlement.adjustment < 0
-                    ? `Saldo a favor de $${Math.abs(data.settlement.adjustment).toFixed(2)} — se aplica en la mensualidad siguiente.`
-                    : `Cargo pendiente de $${data.settlement.adjustment.toFixed(2)} — se cobra en la mensualidad siguiente.`}
+                  {data.settlement.kind === 'paid'
+                    ? data.settlement.adjustment < 0
+                      ? `Saldo a favor de $${Math.abs(data.settlement.adjustment).toFixed(2)} — se aplica en la mensualidad siguiente.`
+                      : `Cargo pendiente de $${data.settlement.adjustment.toFixed(2)} — se cobra en la mensualidad siguiente.`
+                    : data.settlement.adjustment < 0
+                      ? `Son $${Math.abs(data.settlement.adjustment).toFixed(2)} menos de lo registrado: se cobra el detalle de arriba.`
+                      : `Son $${data.settlement.adjustment.toFixed(2)} más de lo registrado: se cobra el detalle de arriba.`}
                 </Text>
               )}
             </View>

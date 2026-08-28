@@ -111,14 +111,23 @@ export interface CycleDetailData {
   surcharge: number
   total: number
   /**
-   * Mes YA PAGADO cuyo detalle se corrigió después (típicamente al emparejar el
-   * cobro con la agenda). El mes no se re-cobra: la diferencia se le acredita o
-   * se le carga en la mensualidad siguiente. Sin esto el documento mostraba las
-   * filas corregidas contra el total viejo y volvía a no cuadrar.
+   * El monto registrado en el ciclo (`payment_amount_usd`) no coincide con lo
+   * que suman las filas de este detalle. **Las filas siempre mandan**: son la
+   * misma fuente que arma la factura (`buildCycleLineItems`), así que un total
+   * distinto haría que este documento contradijera a la factura del mismo mes.
+   *
+   * - `paid`: el mes ya se pagó y el detalle se corrigió después (típicamente al
+   *   emparejar el cobro con la agenda). No se re-cobra: la diferencia se
+   *   acredita o se carga en la mensualidad siguiente.
+   * - `pending`: el mes todavía no se cobra y el monto registrado quedó
+   *   desactualizado — pasa cuando el ciclo se generó con el patrón completo del
+   *   mes y después se agendaron menos sesiones. Hay que emparejarlo desde
+   *   /operacion/sincronizar-cobros.
    */
   settlement: {
-    /** Lo que la familia efectivamente pagó por este mes. */
-    paidAmount: number
+    kind: 'paid' | 'pending'
+    /** `payment_amount_usd`: lo que el ciclo tiene registrado, pagado o no. */
+    registeredAmount: number
     /** Positivo = falta cobrarle; negativo = a favor de la familia. */
     adjustment: number
   } | null
@@ -381,16 +390,26 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
   // Costo real del mes según el detalle de arriba.
   const detailAmount = round2(subtotal - discountAmount)
 
-  // Mes ya pagado cuyo detalle se corrigió después: el total que se muestra es el
-  // del detalle (para que las filas cierren) y aparte se declara lo pagado y el
-  // ajuste que viaja a la mensualidad siguiente. En un mes pendiente, o en uno
-  // pagado sin corrección, `settlement` queda null y todo sigue igual.
+  // El documento NUNCA muestra un total que sus propias filas contradicen: si el
+  // monto registrado en el ciclo no cuadra, manda el detalle y la diferencia se
+  // declara aparte. Vale igual para un mes pagado (la diferencia viaja a la
+  // mensualidad siguiente) que para uno pendiente (el monto registrado quedó
+  // viejo — hay que emparejarlo en /operacion/sincronizar-cobros).
+  //
+  // Antes esto solo aplicaba al mes pagado: uno pendiente imprimía
+  // `payment_amount_usd` contra unas filas que sumaban otra cosa, sin decir
+  // nada. Caso real: filas por $236 (3 sesiones) bajo un total de $258 (4), o
+  // sea $22 de más, mientras la factura del mismo mes decía $236.
+  const mismatch = Math.abs(detailAmount - cycleAmount) >= 0.01
   const settlement =
-    input.paymentStatus === 'paid' && Math.abs(detailAmount - cycleAmount) >= 0.01
+    mismatch && (input.paymentStatus === 'paid' || input.paymentStatus === 'pending')
       ? {
-          paidAmount: cycleAmount,
+          kind: input.paymentStatus,
+          registeredAmount: cycleAmount,
           adjustment: round2(
-            Number.isFinite(Number(input.billingAdjustmentUsd))
+            // El ajuste registrado solo aplica al mes ya pagado; en uno
+            // pendiente la diferencia es simplemente detalle − registrado.
+            input.paymentStatus === 'paid' && Number.isFinite(Number(input.billingAdjustmentUsd))
               ? Number(input.billingAdjustmentUsd)
               : detailAmount - cycleAmount,
           ),
@@ -412,10 +431,9 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
     discountLabel,
     discountAmount,
     surcharge: round2(Number(input.surchargeUsd ?? 0)),
-    // Mes pendiente: el total es el monto del ciclo (`payment_amount_usd`), que
-    // es lo que el sistema va a cobrar y lo que valida `mark_monthly_cycle_paid`.
-    // Mes pagado y corregido: el total es el del detalle, y lo pagado + el ajuste
-    // se declaran aparte (`settlement`).
+    // Manda el detalle siempre que haya desfase; si todo cuadra, da igual cuál
+    // se use. (`mark_monthly_cycle_paid` no recibe ningún monto, así que imprimir
+    // el del detalle no afecta el registro del pago.)
     total: settlement ? detailAmount : cycleAmount,
     settlement,
     agendaNotes,

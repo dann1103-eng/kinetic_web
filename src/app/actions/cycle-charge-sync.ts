@@ -32,6 +32,7 @@ import { isMonthlyFlatEntry } from '@/lib/domain/billing/monthly-flat'
 import { catalogPriceFor } from '@/lib/domain/billing/catalog-price'
 import {
   billableSessionCounts,
+  needsChargeSync,
   therapiesSyncedToAgenda,
   type ChargeableAppt,
 } from '@/lib/domain/billing/agenda-charge-sync'
@@ -138,7 +139,6 @@ async function buildChargeSyncPlan(
       daysPerWeek: daysPerWeekBy.get(service),
     }),
   )
-  if (!synced.changed) return null
 
   // Monto esperado con el mismo criterio que generar y editar el ciclo:
   // subtotal − descuento. (El rollover en modo 'discount' se aplica en la
@@ -164,6 +164,14 @@ async function buildChargeSyncPlan(
     console.error(
       `[cycle-charge-sync] ${cycle.id}: el recálculo da $0 y el ciclo cobra $${currentAmount}. Sin precio de catálogo para ${synced.unpricedServices.join(', ') || 'las terapias del snapshot'}. Se deja como está.`,
     )
+    return null
+  }
+
+  // Se revisa el desfase contra la agenda Y el del monto registrado: un ciclo
+  // cuyo detalle ya cuadra con la agenda pero que quedó con un
+  // `payment_amount_usd` viejo también hay que emparejarlo. Antes se cortaba
+  // acá con `!synced.changed` y ese caso era invisible para la revisión.
+  if (!needsChargeSync({ therapiesChanged: synced.changed, currentAmount, newAmount })) {
     return null
   }
 

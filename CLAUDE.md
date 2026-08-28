@@ -388,9 +388,9 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > conteo o un calendario tiene que excluirlas, y la asistencia del programa se
 > lee de `program_group_sessions`/`program_session_attendance`. Ya causó cuatro
 > bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
-> el KPI y el calendario del panel del niño (26-ago).
+> el KPI y el calendario del panel del niño (28-ago).
 
-## Sesión 26 ago 2026 — la barra de `/ninos` vuelve a contar los programas matutinos
+## Sesión 28 ago 2026 — la barra de `/ninos` vuelve a contar los programas matutinos
 Sin migración (fix 100% de capa TS). Tests nuevos: `src/lib/domain/ninos-dashboard.test.ts`.
 
 - **Síntoma**: filtrando `/ninos` por BlueKids, casi todas las tarjetas decían
@@ -467,6 +467,52 @@ Tests: `src/lib/domain/child-dashboard.test.ts`.
   **Auditoría de paso**: el único otro server component con el mismo agujero era
   `ChildSessionReportsHistory` (historial de notas de sesión) — se le agregó
   `timeZone: APP_TZ` conservando el formato con año.
+
+### El detalle de pago volvía a no cuadrar con su propio total (mes PENDIENTE)
+Reportado con un niño de BlueKids + Lenguaje: filas por $170 + $66 = **$236** bajo
+un total de **$258**, o sea $22 de más (una cuarta sesión de Lenguaje que nunca se
+agendó — agosto tiene 4 martes y solo se agendaron 3).
+
+- **No era un descuido: había un test que aseguraba ese comportamiento**
+  (`un mes PENDIENTE conserva el monto del ciclo como total`). La sesión del
+  10-ago arregló el mes **pagado** (`settlement`) y dejó el pendiente mostrando
+  `payment_amount_usd` a propósito, con el argumento de que "es lo que valida
+  `mark_monthly_cycle_paid`". **Ese argumento es falso**: esa RPC no recibe
+  ningún monto (`p_cycle_id`, `p_payment_method`, `p_payment_reference`,
+  `p_paid_at`), así que imprimir otro total no afecta el registro del pago.
+- **La factura ya decía $236.** `buildCycleLineItems` arma las líneas desde
+  `snapshot.therapies_json[].sessions_per_month`, la misma fuente que las filas
+  del detalle. O sea el único documento que decía $258 era este PDF, que además
+  se contradecía solo.
+- **Ahora las filas mandan siempre**: `settlement` cubre `paid` y `pending`
+  (`{kind, registeredAmount, adjustment}`), el total es el del detalle y la
+  diferencia se declara al pie.
+
+#### La revisión de cobros no podía encontrar este caso
+`/operacion/sincronizar-cobros` comparaba **snapshot vs agenda** (3 = 3 → nada que
+hacer) y era ciega al desfase **snapshot vs `payment_amount_usd`** — justo el de
+este ciclo. Se cortaba en `if (!synced.changed) return null` antes de calcular el
+monto. Ahora la decisión vive en `needsChargeSync` (puro, con tests) y mira los
+dos desfases; la fila muestra "El detalle ya cuadra con la agenda; el monto
+registrado del ciclo no" cuando no hay diferencias por terapia.
+
+**Sin verificar**: por qué se separaron los dos números en este ciclo concreto. Las
+dos hipótesis son (a) se generó con el patrón completo del mes (4 martes) y después
+se quitó la cita del 4 antes de que existiera el sync automático (10-ago), o (b)
+alguien puso "Ses/mes = 3" a mano y el monto se calculó de las fechas generadas.
+Hace falta mirar el ciclo en la base para saberlo.
+
+### Exportar el calendario del niño se llevaba el mes siguiente
+El botón "Exportar PDF" del panel mandaba **todos** los eventos cargados, y esos
+son dos ventanas distintas: las celdas del mes MÁS las próximas 14 días. Exportando
+agosto salían 5 sesiones de Lenguaje (las 3 de agosto + el 1 y el 8 de septiembre)
+donde el panel mostraba 3. Ahora se exporta solo el período visible
+(`withinVisibleRange`, `src/lib/domain/calendar-range.ts`, con tests).
+
+> **Limitación conocida (no tocada)**: ese PDF sigue sin incluir las sesiones de
+> programa matutino — la ruta `/api/agenda/pdf` re-consulta `appointments` por id
+> y las sesiones de grupo no viven ahí. Para un niño de BlueKids el export solo
+> trae sus terapias individuales.
 
 ### Pendiente de verificar contra producción
 No se pudo consultar la BD en esta sesión (no hay `.env.local` en el equipo y el
@@ -837,15 +883,15 @@ query de citas que abarque varios niños o varios meses. Corregidos
 niños de una terapista, que tenía el mismo agujero latente). El síntoma es
 traicionero: no hay error, solo datos que faltan.
 
-> ⚠️ **Filtrar solo corre la pared; hay que PAGINAR.** Ver la sesión del 26-ago
+> ⚠️ **Filtrar solo corre la pared; hay que PAGINAR.** Ver la sesión del 28-ago
 > más abajo: filtrar por estado bajó agosto a ~660 filas, pero la consulta seguía
 > creciendo con los niños y los meses. Ahora todas las lecturas de
 > `getNinosDashboardData` usan `fetchAllPaged` (`src/lib/supabase/paged.ts`).
 
 > ⚠️ **En esta misma sesión la barra de `/ninos` dejó de sumar los programas
-> matutinos** — decisión tomada de paso, no pedida, y **revertida el 26-ago**
+> matutinos** — decisión tomada de paso, no pedida, y **revertida el 28-ago**
 > porque dejaba a los niños de BlueKids con la tarjeta vacía. No volver a
-> quitarla: ver la sesión del 26-ago.
+> quitarla: ver la sesión del 28-ago.
 
 ### Inasistencias huérfanas: el calendario marca un día que nadie entiende
 Reportado con un niño que se fue de viaje: se le anuló el ciclo y se generó uno

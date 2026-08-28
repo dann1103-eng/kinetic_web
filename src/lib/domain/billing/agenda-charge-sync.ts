@@ -152,3 +152,28 @@ export function therapiesSyncedToAgenda(
 
   return { therapies: synced, changed, unpricedServices, backfilledPrices }
 }
+
+/**
+ * ¿Hay algo que corregir en este ciclo?
+ *
+ * Son DOS desfases distintos y hay que mirar los dos:
+ *
+ *  1. el detalle contra la agenda (`therapiesChanged`) — se cobran 4 sesiones
+ *     y hay 3 agendadas;
+ *  2. el monto registrado (`payment_amount_usd`) contra lo que suma ese mismo
+ *     detalle — el ciclo dice $258 mientras sus terapias suman $236.
+ *
+ * La revisión por mes solo miraba el primero, así que un ciclo cuyo detalle ya
+ * cuadraba con la agenda pero cuyo monto había quedado viejo era invisible: no
+ * aparecía en la lista y no había forma de emparejarlo desde la app. Es
+ * justamente el caso que llega al PDF de detalle como un total que no coincide
+ * con la suma de sus propias filas.
+ */
+export function needsChargeSync(input: {
+  therapiesChanged: boolean
+  currentAmount: number
+  newAmount: number
+}): boolean {
+  if (input.therapiesChanged) return true
+  return Math.abs(input.newAmount - input.currentAmount) >= 0.01
+}

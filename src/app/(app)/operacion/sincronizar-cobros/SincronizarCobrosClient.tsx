@@ -306,6 +306,14 @@ export function SincronizarCobrosClient() {
                             catálogo
                           </span>
                         ))}
+                        {/* Desfase solo del monto: las terapias ya cuadran con la
+                            agenda, el que quedó viejo es `payment_amount_usd`.
+                            Sin esta línea la celda salía en blanco. */}
+                        {r.lines.length === 0 && r.backfilledPrices.length === 0 && (
+                          <span className="block text-fm-on-surface-variant">
+                            El detalle ya cuadra con la agenda; el monto registrado del ciclo no.
+                          </span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
                         ${r.currentAmount.toFixed(2)}

@@ -31,6 +31,7 @@ import {
   type KineticEventDatum,
 } from '@/components/calendar/KineticCalendar'
 import { KineticMonthGrid } from '@/components/calendar/KineticMonthGrid'
+import { withinVisibleRange } from '@/lib/domain/calendar-range'
 import type { View } from 'react-big-calendar'
 
 interface Props {
@@ -144,9 +145,12 @@ export function ChildDashboardCalendar({ attendance, upcoming, periodMonth, chil
   const label = formatCalendarLabel(view, date)
 
   function handleExportPdf() {
-    const ids = events.map((e) => e.id)
+    // Solo lo que se está viendo. `events` mezcla dos ventanas — las celdas del
+    // mes y las próximas 14 días — así que exportar todo metía citas del mes
+    // siguiente: en agosto salían 5 sesiones de Lenguaje donde el panel mostraba 3.
+    const ids = withinVisibleRange(events, view, date).map((e) => e.id)
     if (ids.length === 0) {
-      window.alert('No hay citas que exportar.')
+      window.alert('No hay citas que exportar en el período que estás viendo.')
       return
     }
     const params = new URLSearchParams()
