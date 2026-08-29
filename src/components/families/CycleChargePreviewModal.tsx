@@ -133,7 +133,13 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
   function backToAuto(service: string) {
     const row = data?.editableRows.find((r) => r.service === service)
     setOverridden((prev) => ({ ...prev, [service]: false }))
-    if (row) setCounts((prev) => ({ ...prev, [service]: row.sessionsPerMonth }))
+    // Vuelve al conteo REAL de la agenda, que es lo que va a poner el
+    // emparejado automático. Si el servicio no tiene citas este mes, ese
+    // emparejado tampoco lo tocaría, así que se conserva la cantidad actual.
+    if (row) {
+      const auto = row.agendaCount ?? row.sessionsPerMonth
+      setCounts((prev) => ({ ...prev, [service]: auto }))
+    }
   }
 
   function setPrice(service: string, value: number) {

@@ -161,3 +161,60 @@ describe('buildCycleChargePreview', () => {
     expect(agosto?.billing_adjustment_carried_at).toBeNull()
   })
 })
+
+describe('buildCycleChargePreview — agendaCount para "volver a automático"', () => {
+  const appt = (day: number, service = 'lenguaje', status = 'scheduled') => ({
+    id: `a-${service}-${day}`,
+    child_id: 'nino-1',
+    event_type: 'terapia',
+    service_type: service,
+    status,
+    starts_at: `2026-09-${String(day).padStart(2, '0')}T15:00:00.000Z`,
+    ends_at: `2026-09-${String(day).padStart(2, '0')}T15:30:00.000Z`,
+  })
+
+  it('expone las sesiones que hay de verdad en la agenda', async () => {
+    // El snapshot cobra 3 (fijado a mano) y la agenda tiene 4: soltar la marca
+    // tiene que devolver el 4, que es lo que pondría el emparejado.
+    const t = tables({
+      monthly_session_cycles: [
+        {
+          ...cycle(),
+          treatment_plan_snapshot: {
+            therapies_json: [
+              { ...THERAPIES[0] },
+              { ...THERAPIES[1], sessions_per_month: 3, sessions_overridden: true },
+            ],
+            schedule_pattern_json: [],
+          },
+        },
+      ],
+      appointments: [appt(1), appt(8), appt(15), appt(22)],
+    })
+
+    const res = await load(t)
+    const lenguaje = res?.editableRows.find((r) => r.service === 'lenguaje')
+
+    expect(lenguaje?.sessionsPerMonth).toBe(3)
+    expect(lenguaje?.overridden).toBe(true)
+    expect(lenguaje?.agendaCount).toBe(4)
+  })
+
+  it('no cuenta reposiciones ni lápidas, igual que el emparejado', async () => {
+    const t = tables({
+      appointments: [appt(1), appt(8, 'lenguaje', 'replacement'), appt(15, 'lenguaje', 'rescheduled')],
+    })
+
+    const res = await load(t)
+
+    expect(res?.editableRows.find((r) => r.service === 'lenguaje')?.agendaCount).toBe(1)
+  })
+
+  it('sin citas del servicio en el mes devuelve null, no cero', async () => {
+    // Poner 0 vaciaría el cobro en silencio al anular una agenda; el emparejado
+    // tampoco lo hace.
+    const res = await load(tables())
+
+    expect(res?.editableRows.find((r) => r.service === 'lenguaje')?.agendaCount).toBeNull()
+  })
+})

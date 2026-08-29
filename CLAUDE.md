@@ -563,6 +563,11 @@ arregla el **cobro**, nunca la agenda.
 - `upsertTreatmentPlan` las preserva al refrescar el snapshot.
 - La marca se escribe o se borra según lo que llegue, **nunca se hereda** del
   snapshot previo: si se heredara, "volver a automático" no podría quitarla.
+- **"Volver a automático" devuelve el conteo REAL de la agenda** (`agendaCount`
+  en la previsualización, con la misma regla de `billableSessionCounts`), no el
+  valor que había quedado fijado. Un servicio sin citas ese mes devuelve `null` y
+  conserva la cantidad: poner 0 vaciaría el cobro en silencio al anular una
+  agenda, que es justo lo que el emparejado tampoco hace.
 
 > **`editMonthlyCycle` solo edita ciclos PENDIENTES** (`.eq('payment_status',
 > 'pending')` en el update, `monthly-cycles.ts`). En un mes pagado o anulado la

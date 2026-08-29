@@ -20,6 +20,7 @@ import { buildCycleDetail, type CycleDetailData } from './cycle-detail'
 import { loadCycleDetailInput } from './cycle-detail-input'
 import { chargeTotalWithCarryIns, computeCarryIns, type CarryInLine } from './carry-ins'
 import { isMonthlyFlatEntry } from './monthly-flat'
+import { billableSessionCounts, type ChargeableAppt } from './agenda-charge-sync'
 import {
   extraChargesTotal,
   normalizeExtraCharges,
@@ -73,6 +74,15 @@ export interface EditableChargeRow {
   overridden: boolean
   /** El precio lo fijó una persona: el catálogo no lo pisa. */
   priceOverridden: boolean
+  /**
+   * Sesiones que hay REALMENTE en la agenda del mes, para que "volver a
+   * automático" devuelva ese número en vez de dejar el que había quedado fijado.
+   *
+   * `null` cuando el servicio no tiene ninguna cita en el mes: ahí el
+   * emparejado tampoco lo toca (poner 0 vaciaría el cobro en silencio al anular
+   * una agenda), así que soltar la marca conserva la cantidad actual.
+   */
+  agendaCount: number | null
 }
 
 /** `null` si el ciclo no existe. */
@@ -164,6 +174,10 @@ export async function buildCycleChargePreview(
   const rolloverDiscountUsd =
     cycle.rollover_mode === 'discount' ? Number(cycle.rollover_discount_usd ?? 0) : 0
 
+  // Conteo real de la agenda del mes, con la MISMA regla del emparejado
+  // automático (no cuenta reposiciones, lápidas ni citas suspendidas).
+  const agendaCounts = billableSessionCounts(input.appointments as unknown as ChargeableAppt[])
+
   // Tolera que la 0185 no esté aplicada todavía: la columna llega `undefined` y
   // `normalizeExtraCharges` devuelve lista vacía en vez de romper.
   const extraCharges = normalizeExtraCharges(
@@ -197,6 +211,7 @@ export async function buildCycleChargePreview(
         billingMode: t.billing_mode,
         overridden: hasSessionsOverride(t),
         priceOverridden: hasUnitCostOverride(t),
+        agendaCount: agendaCounts.get(t.service) ?? null,
       })),
     discountKind: (cycle.discount_kind ?? 'none') as DiscountKind,
     discountValue: Number(cycle.discount_value ?? 0),
