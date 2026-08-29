@@ -538,12 +538,40 @@ con un total equivocado llegó hasta una mamá sin que nadie lo viera antes.
 > descuentos es conjunto** (`min(subtotal, descuento + rollover)`): toparlos por
 > separado deja el mes en negativo. Tiene test.
 
-**Pendientes de las entregas 2–4** (con el diseño ya acordado): editar cantidades
-y descuento en esa pantalla, precio unitario por mes, y líneas libres de cobro
-(esa sí lleva migración, la **0185**). La pieza transversal es la marca de **valor
-fijado a mano**, sin la cual el sync automático revierte cualquier corrección en
-silencio — y `upsertTreatmentPlan` la borraría al refrescar el snapshot si no se
-la enseña a preservar.
+### Entrega 2 — editar cantidades y descuento (con la marca de "fijado a mano")
+Plan: `docs/superpowers/plans/2026-08-28-detalle-pago-previsualizacion-entrega-2.md`.
+
+La pantalla ahora **corrige**, no solo muestra. Lo que se corrige se guarda en el
+ciclo por `editMonthlyCycle`, siempre con `regenerateAppointments: false`: acá se
+arregla el **cobro**, nunca la agenda.
+
+> ⚠️ **La marca de "fijado a mano" (`sessions_overridden` en el jsonb del
+> snapshot) no es un adorno: sin ella la función no sirve.** El cobro se ajusta
+> solo por dos caminos, y los dos pisan cualquier corrección manual —
+> `therapiesSyncedToAgenda` (corre en cada crear/borrar/mover cita del mes) y el
+> refresco del snapshot de `upsertTreatmentPlan` (trae `sessions_per_month` del
+> PLAN). Corregir Lenguaje a 3 y que alguien mueva una cita lo devolvía a 4 en
+> silencio. Una entrada marcada **gana** hasta que alguien la suelte (decisión del
+> usuario). Sin migración.
+
+- `manual-overrides.ts` (nuevo, puro, 10 tests): `hasSessionsOverride`,
+  `withSessionsOverride`, `clearSessionsOverride`, `withPreservedOverrides`.
+- `therapiesSyncedToAgenda` no toca las marcadas y las reporta en
+  `overriddenServices`; `/operacion/sincronizar-cobros` lo muestra — si no, se ve
+  que la agenda dice 4 y el cobro 3 y parece que la herramienta está rota.
+- `upsertTreatmentPlan` las preserva al refrescar el snapshot.
+- La marca se escribe o se borra según lo que llegue, **nunca se hereda** del
+  snapshot previo: si se heredara, "volver a automático" no podría quitarla.
+
+> **`editMonthlyCycle` solo edita ciclos PENDIENTES** (`.eq('payment_status',
+> 'pending')` en el update, `monthly-cycles.ts`). En un mes pagado o anulado la
+> pantalla queda de solo lectura y manda a `/operacion/sincronizar-cobros`, que
+> arrastra la diferencia al mes siguiente en vez de re-cobrar el mes.
+
+**Pendientes de las entregas 3–4** (con el diseño ya acordado): precio unitario
+por mes (mismo patrón, `unit_cost_overridden`, más enseñarle la marca a los tres
+caminos donde hoy manda el catálogo) y líneas libres de cobro (esa sí lleva
+migración, la **0185**).
 
 ### Pendiente de verificar contra producción
 No se pudo consultar la BD en esta sesión (no hay `.env.local` en el equipo y el

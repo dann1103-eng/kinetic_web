@@ -83,6 +83,8 @@ export interface ChargeSyncPlan {
   unpricedServices: string[]
   /** Terapias cuyo precio venía en cero y se rellenó del catálogo. */
   backfilledPrices: { service: string; unitCost: number }[]
+  /** Terapias con la cantidad fijada a mano: el emparejado no las toca. */
+  overriddenServices: string[]
   hasInvoice: boolean
 }
 
@@ -196,6 +198,7 @@ async function buildChargeSyncPlan(
     snapshot,
     unpricedServices: synced.unpricedServices,
     backfilledPrices: synced.backfilledPrices,
+    overriddenServices: synced.overriddenServices,
     hasInvoice: cycle.invoice_id != null,
   }
 }
@@ -332,6 +335,8 @@ export interface MonthChargeSyncRow {
   hasInvoice: boolean
   unpricedServices: string[]
   backfilledPrices: { service: string; unitCost: number }[]
+  /** Terapias con la cantidad fijada a mano: el emparejado no las toca. */
+  overriddenServices: string[]
   /**
    * Niño en pausa temporal. Pausar NO cancela las citas ya agendadas, así que su
    * agenda suele tener sesiones que no se van a dar: emparejar le cobraría de
@@ -406,6 +411,7 @@ export async function previewMonthChargeSync(
       hasInvoice: p.hasInvoice,
       unpricedServices: p.unpricedServices,
       backfilledPrices: p.backfilledPrices,
+      overriddenServices: p.overriddenServices,
       childPaused: paused.has(p.childId),
     }))
     rows.sort((a, b) => a.childName.localeCompare(b.childName, 'es'))

@@ -14,10 +14,13 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Database, MonthlySessionCycle } from '@/types/db'
+import { SERVICE_TYPE_LABELS } from '@/types/db'
+import type { Database, DiscountKind, MonthlySessionCycle, ServiceType } from '@/types/db'
 import { buildCycleDetail, type CycleDetailData } from './cycle-detail'
 import { loadCycleDetailInput } from './cycle-detail-input'
 import { chargeTotalWithCarryIns, computeCarryIns, type CarryInLine } from './carry-ins'
+import { isMonthlyFlatEntry } from './monthly-flat'
+import { hasSessionsOverride } from './manual-overrides'
 
 export interface CycleChargePreview {
   childName: string
@@ -34,6 +37,33 @@ export interface CycleChargePreview {
   /** Para avisar que un ciclo anulado no se le va a cobrar a nadie. */
   cycleStatus: string
   paymentStatus: 'pending' | 'paid'
+  /**
+   * Filas tal como hay que guardarlas. `detail.costRows` sirve para MOSTRAR: en
+   * una mensualidad fija muestra 1 porque es lo que se cobra, y guardar ese 1
+   * pisaría el valor real del snapshot.
+   */
+  editableRows: EditableChargeRow[]
+  discountKind: DiscountKind
+  discountValue: number
+  discountReason: string | null
+  /**
+   * `editMonthlyCycle` actualiza con un guard de `payment_status='pending'`, así
+   * que un ciclo pagado o anulado no se puede editar desde acá: se corrige por
+   * /operacion/sincronizar-cobros, que manda la diferencia al mes siguiente.
+   */
+  canEdit: boolean
+}
+
+export interface EditableChargeRow {
+  service: string
+  label: string
+  /** El valor real del snapshot, no el 1 de presentación de una mensualidad. */
+  sessionsPerMonth: number
+  unitCostUsd: number
+  isFlat: boolean
+  billingMode?: string
+  /** La cantidad la fijó una persona: el emparejado automático no la toca. */
+  overridden: boolean
 }
 
 /** `null` si el ciclo no existe. */
@@ -136,5 +166,20 @@ export async function buildCycleChargePreview(
     }),
     cycleStatus: String(cycle.status),
     paymentStatus: cycle.payment_status,
+    editableRows: input.therapies
+      .filter((t) => t.active !== false)
+      .map((t) => ({
+        service: t.service,
+        label: SERVICE_TYPE_LABELS[t.service as ServiceType] ?? t.service,
+        sessionsPerMonth: Number(t.sessions_per_month ?? 0),
+        unitCostUsd: Number(t.unit_cost_usd ?? 0),
+        isFlat: isMonthlyFlatEntry(t),
+        billingMode: t.billing_mode,
+        overridden: hasSessionsOverride(t),
+      })),
+    discountKind: (cycle.discount_kind ?? 'none') as DiscountKind,
+    discountValue: Number(cycle.discount_value ?? 0),
+    discountReason: cycle.discount_reason ?? null,
+    canEdit: cycle.status === 'generated' && cycle.payment_status === 'pending',
   }
 }

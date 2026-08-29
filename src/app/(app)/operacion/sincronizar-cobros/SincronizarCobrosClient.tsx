@@ -306,10 +306,21 @@ export function SincronizarCobrosClient() {
                             catálogo
                           </span>
                         ))}
+                        {/* Una cantidad fijada a mano gana sobre la agenda. Hay
+                            que decirlo: si no, se ve que la agenda dice 4 y el
+                            cobro 3 y parece que la herramienta no funciona. */}
+                        {r.overriddenServices.length > 0 && (
+                          <span className="block text-[11px] text-fm-on-surface-variant">
+                            Fijadas a mano (no se emparejan):{' '}
+                            {r.overriddenServices.map(label).join(', ')}
+                          </span>
+                        )}
                         {/* Desfase solo del monto: las terapias ya cuadran con la
                             agenda, el que quedó viejo es `payment_amount_usd`.
                             Sin esta línea la celda salía en blanco. */}
-                        {r.lines.length === 0 && r.backfilledPrices.length === 0 && (
+                        {r.lines.length === 0 &&
+                          r.backfilledPrices.length === 0 &&
+                          r.overriddenServices.length === 0 && (
                           <span className="block text-fm-on-surface-variant">
                             El detalle ya cuadra con la agenda; el monto registrado del ciclo no.
                           </span>
