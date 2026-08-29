@@ -14,6 +14,7 @@ import type {
 } from '@/types/db'
 import { validateDiscount } from '@/lib/domain/discounts'
 import { isMonthlyFlatEntry, therapyLineAmount } from '@/lib/domain/billing/monthly-flat'
+import { clearSessionsOverride, withSessionsOverride } from '@/lib/domain/billing/manual-overrides'
 import {
   billableSessionCounts,
   type ChargeableAppt,
@@ -1076,7 +1077,7 @@ export async function editMonthlyCycle(
   )
   const newTherapies = input.pricedTherapies.map((p) => {
     const old = existingByService.get(p.service)
-    return {
+    const merged = {
       ...(old ?? {}),
       service: p.service,
       active: true,
@@ -1084,6 +1085,11 @@ export async function editMonthlyCycle(
       unit_cost_usd: p.unit_cost_usd,
       ...(p.billing_mode ? { billing_mode: p.billing_mode } : {}),
     } as TreatmentPlanTherapyEntry
+    // La marca se escribe o se borra según lo que llegue, nunca se hereda del
+    // `...old`: si no, "volver a automático" no podría quitarla.
+    return p.sessionsOverridden
+      ? withSessionsOverride(merged, p.sessions_per_month)
+      : clearSessionsOverride(merged)
   })
   // [Desacople F4 — fuga de snapshot] Refrescar también schedule_pattern_json del
   // plan vivo, para que el detalle de pago (PDF) no caiga al plan vivo por falta

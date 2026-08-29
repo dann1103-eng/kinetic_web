@@ -16,6 +16,12 @@ export interface PricedTherapyInput {
   sessions_per_month: number
   unit_cost_usd: number
   billing_mode?: TherapyBillingMode
+  /**
+   * La cantidad la fijó una persona: el emparejado automático con la agenda no
+   * la toca. Se manda SIEMPRE (true la pone, false la quita) — si se omitiera no
+   * habría forma de volver a automático.
+   */
+  sessionsOverridden?: boolean
 }
 
 /** Subtotal del ciclo: suma de las líneas de terapia (BK-aware). */
