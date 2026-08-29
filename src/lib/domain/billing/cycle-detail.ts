@@ -19,6 +19,11 @@
 
 import { toZonedTime } from 'date-fns-tz'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
+import {
+  extraChargesTotal,
+  normalizeExtraCharges,
+  type ExtraChargeLine,
+} from './extra-charges'
 import type {
   ServiceType,
   TreatmentPlanTherapyEntry,
@@ -103,6 +108,8 @@ export interface CycleDetailData {
   weeklyPlan: WeeklyPlanCell[] // lunes..viernes siempre + sábado/domingo solo si el plan los usa
   costRows: CostRow[]
   subtotal: number
+  /** Cargos que no son terapias (mig 0185). Entran al total, no al descuento. */
+  extraCharges: ExtraChargeLine[]
   discountLabel: string | null
   /** Monto del descuento en $ (misma regla que la factura), 0 si no hay. */
   discountAmount: number
@@ -161,6 +168,8 @@ export interface BuildCycleDetailInput {
   surchargeUsd?: number | null
   /** Estado de pago del ciclo. Un mes ya pagado no se re-cobra. */
   paymentStatus?: 'pending' | 'paid' | null
+  /** Cargos libres del ciclo (mig 0185). */
+  extraCharges?: ExtraChargeLine[]
   /** Diferencia arrastrada a la mensualidad siguiente (mig 0177/0178). */
   billingAdjustmentUsd?: number | null
 }
@@ -387,8 +396,12 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
       ? Number(input.paymentAmountUsd)
       : subtotal - discountAmount,
   )
-  // Costo real del mes según el detalle de arriba.
-  const detailAmount = round2(subtotal - discountAmount)
+  // Costo real del mes según el detalle de arriba. Los cargos libres van FUERA
+  // del descuento (es sobre terapias contratadas) pero SÍ dentro del total: si
+  // no, este documento volvería a decir algo distinto de la factura.
+  const extraCharges = normalizeExtraCharges(input.extraCharges)
+  const extrasTotal = extraChargesTotal(extraCharges)
+  const detailAmount = round2(subtotal - discountAmount + extrasTotal)
 
   // El documento NUNCA muestra un total que sus propias filas contradicen: si el
   // monto registrado en el ciclo no cuadra, manda el detalle y la diferencia se
@@ -428,6 +441,7 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
     weeklyPlan,
     costRows,
     subtotal,
+    extraCharges,
     discountLabel,
     discountAmount,
     surcharge: round2(Number(input.surchargeUsd ?? 0)),

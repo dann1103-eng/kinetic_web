@@ -343,6 +343,7 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0181** | **Los conflictos de horario dejan de bloquear ciclo/agenda**: `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments` (`CREATE OR REPLACE`, mismas firmas) pierden el `RAISE EXCEPTION 'has_conflicts...'` — el check de solape (`compute_monthly_appointment_candidates`) no excluía al propio niño, así que un plan con dos terapias propias con el mismo terapeuta se marcaba "en conflicto consigo mismo" y bloqueaba su ciclo; el mismo guard en `regenerate_cycle_appointments` también podía abortar en silencio la sincronización agenda↔plan al editar. `conflicts[]`/`summary.conflict_count` se siguen calculando igual — la UI (`NewMonthlyCycleModal`/`EditMonthlyCycleModal`) ahora muestra un aviso ámbar no bloqueante en vez de deshabilitar el submit, distinguiendo "choca con otra terapia de la misma niña/niño" vs. "choca con la cita de otro paciente" (`describeMonthlyConflict` en `appointment.ts`, usa `conflict_child_id` que ya venía en el RPC sin consumirse). |
 | **0182** | **Fix: no se podía eliminar un niño con facturas** — drift de esquema real: `invoices.child_id` tenía `ON DELETE RESTRICT` en la BD, contradiciendo lo que `0110_kinetic_invoices.sql` ya pretendía (`SET NULL`) — nunca quedó sincronizado; era la ÚNICA FK hacia `children` en todo el esquema que bloqueaba el borrado (el resto ya cascadea). Se corrige el FK a `SET NULL` + se ajusta `invoices_client_or_child_check` para permitir el estado huérfano (ambas columnas NULL tras borrar al dueño, sin dejar de prohibir que ambas estén asignadas a la vez) + se elimina `invoices_requires_owner` (redundante y en conflicto directo con el ajuste anterior). La factura sobrevive intacta (nombre de familia/niño ya embebidos en `notes`/`client_snapshot_json`/`invoice_items.description`) — mismo patrón "eliminar SIEMPRE conservando el registro contable" de 0169/0170. |
 | **0184** | **Suspensión avisada** (`child_suspensions` + `appointments.suspension_id`): la familia avisa que el niño/a no vendrá un período y regresa. Las citas del rango se cancelan **atadas a la suspensión**, y lo que tiene `suspension_id` **no se cobra** (`billableSessionCounts`) — así no hubo que tocar el significado de `status='cancelled'`, que sigue siendo "cancelación tardía de la familia, se cobra y se acredita el mes siguiente". Revertible en bloque. NO cambia la fase clínica del niño. |
+| **0185** | **Líneas libres de cobro**: `monthly_session_cycles.extra_charges_json jsonb` (default `[]`) — cargos que no son terapias (materiales, evaluación suelta). Van fuera del descuento y dentro del total. **PENDIENTE DE APLICAR**; el código la tolera ausente (ver sesión 26–28 ago). |
 | **0183** | **Reposiciones individuales sin botón de iniciar sesión**: `start_therapy_session` (mig 0093) solo aceptaba citas `status='scheduled'` — una reposición nace directamente en `status='replacement'` (`resolve_absence_with_replacement`) y nunca pasa por `'scheduled'`, así que la RPC la rechazaba con `appointment_not_found_or_not_eligible`. Se amplía a `status in ('scheduled', 'replacement')`, misma firma. Acompaña un fix en `BigSessionCard.tsx` (el gate de los botones "Iniciar sesión"/"Inasistencia" en `/mi-dia` también solo aceptaba `'scheduled'`) — sin el fix de la RPC, el botón habría aparecido pero fallado al hacer clic. |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard (o vía
@@ -568,10 +569,38 @@ arregla el **cobro**, nunca la agenda.
 > pantalla queda de solo lectura y manda a `/operacion/sincronizar-cobros`, que
 > arrastra la diferencia al mes siguiente en vez de re-cobrar el mes.
 
-**Pendientes de las entregas 3–4** (con el diseño ya acordado): precio unitario
-por mes (mismo patrón, `unit_cost_overridden`, más enseñarle la marca a los tres
-caminos donde hoy manda el catálogo) y líneas libres de cobro (esa sí lleva
-migración, la **0185**).
+### Entrega 3 — precio unitario fijado a mano
+Mismo mecanismo (`unit_cost_overridden`), sin migración. El agujero real **no**
+era que el catálogo pisara un precio manual mayor que cero —`withCatalogPrices`
+solo rellena ceros— sino dos casos:
+
+- **el plan no guarda precios**, así que al editarlo `therapiesValidated` llega
+  con 0, el catálogo lo rellena y el acuerdo del mes se pierde;
+- **un precio puesto en CERO a propósito** (terapia becada) lo rellenaba el
+  respaldo del catálogo y se volvía a cobrar solo.
+
+La marca la respetan los dos rellenos (`withCatalogPrices` y el de
+`therapiesSyncedToAgenda`) y viaja en `withPreservedOverrides`.
+
+### Entrega 4 — líneas libres de cobro (mig 0185)
+`monthly_session_cycles.extra_charges_json jsonb` —
+`[{description, quantity, unit_price}]`. Materiales, una evaluación suelta, un
+cargo acordado: antes todo lo cobrable tenía que ser una terapia, porque el monto
+y las líneas de la factura salían las dos de `therapies_json`.
+
+- **Van FUERA del descuento** (es sobre terapias contratadas) y **DENTRO del
+  total**. Lo consumen `buildCycleDetail` (filas + total), el PDF,
+  `createInvoiceForCycle` y el recálculo de `editMonthlyCycle` — los cuatro, o el
+  documento volvería a decir un total distinto del que cobra la factura.
+- Las RPC de SQL que calculan `payment_amount_usd` **al generar** el ciclo no las
+  conocen, y no hace falta: al generar todavía no existen. Solo se agregan desde
+  la previsualización, que recalcula en TS.
+
+> ⚠️ **La 0185 está PENDIENTE DE APLICAR.** El código la tolera ausente a
+> propósito: las lecturas usan `select('*')` y `normalizeExtraCharges(undefined)`
+> devuelve `[]`, y `editMonthlyCycle` **solo nombra la columna si hay algo que
+> escribir** — si la nombrara siempre, toda edición de ciclo fallaría hasta
+> aplicarla. Hasta entonces, agregar una línea da error de columna inexistente.
 
 ### Pendiente de verificar contra producción
 No se pudo consultar la BD en esta sesión (no hay `.env.local` en el equipo y el

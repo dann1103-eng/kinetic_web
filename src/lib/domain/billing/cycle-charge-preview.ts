@@ -20,6 +20,11 @@ import { buildCycleDetail, type CycleDetailData } from './cycle-detail'
 import { loadCycleDetailInput } from './cycle-detail-input'
 import { chargeTotalWithCarryIns, computeCarryIns, type CarryInLine } from './carry-ins'
 import { isMonthlyFlatEntry } from './monthly-flat'
+import {
+  extraChargesTotal,
+  normalizeExtraCharges,
+  type ExtraChargeLine,
+} from './extra-charges'
 import { hasSessionsOverride, hasUnitCostOverride } from './manual-overrides'
 
 export interface CycleChargePreview {
@@ -30,6 +35,8 @@ export interface CycleChargePreview {
   detail: CycleDetailData
   /** Lo que se suma o resta por meses anteriores. Vacío si no hay nada. */
   carryIns: CarryInLine[]
+  /** Líneas de cobro que no son terapias (materiales, evaluación suelta…). */
+  extraCharges: ExtraChargeLine[]
   /** Crédito por sesiones no dadas (solo si el ciclo usa `rollover_mode='discount'`). */
   rolloverDiscountUsd: number
   /** Lo que la familia va a pagar: el mes ± los arrastres. */
@@ -89,6 +96,9 @@ export async function buildCycleChargePreview(
     surchargeUsd: cycle.surcharge_amount_usd,
     paymentStatus: cycle.payment_status,
     billingAdjustmentUsd: cycle.billing_adjustment_usd,
+    extraCharges: normalizeExtraCharges(
+      (cycle as { extra_charges_json?: unknown }).extra_charges_json,
+    ),
   })
 
   // La exención de mora es de la familia, no del niño.
@@ -154,17 +164,25 @@ export async function buildCycleChargePreview(
   const rolloverDiscountUsd =
     cycle.rollover_mode === 'discount' ? Number(cycle.rollover_discount_usd ?? 0) : 0
 
+  // Tolera que la 0185 no esté aplicada todavía: la columna llega `undefined` y
+  // `normalizeExtraCharges` devuelve lista vacía en vez de romper.
+  const extraCharges = normalizeExtraCharges(
+    (cycle as { extra_charges_json?: unknown }).extra_charges_json,
+  )
+
   return {
     childName: input.childName,
     periodMonth: input.periodMonth,
     detail,
     carryIns: carry.lines,
+    extraCharges,
     rolloverDiscountUsd,
     totalToCharge: chargeTotalWithCarryIns({
       subtotal: detail.subtotal,
       discountAmount: detail.discountAmount,
       rolloverDiscountUsd,
       carryInTotal: carry.surchargeTotal + carry.adjustmentTotal,
+      extraChargesTotal: extraChargesTotal(extraCharges),
     }),
     cycleStatus: String(cycle.status),
     paymentStatus: cycle.payment_status,

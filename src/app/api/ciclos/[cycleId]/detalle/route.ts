@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { CycleDetailPDF } from '@/components/families/pdf/CycleDetailPDF'
 import { buildCycleDetail } from '@/lib/domain/billing/cycle-detail'
 import { loadCycleDetailInput } from '@/lib/domain/billing/cycle-detail-input'
+import { normalizeExtraCharges } from '@/lib/domain/billing/extra-charges'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,6 +51,9 @@ export async function GET(
     surchargeUsd: cycle.surcharge_amount_usd,
     paymentStatus: cycle.payment_status,
     billingAdjustmentUsd: cycle.billing_adjustment_usd,
+    extraCharges: normalizeExtraCharges(
+      (cycle as { extra_charges_json?: unknown }).extra_charges_json,
+    ),
   })
 
   const element = createElement(CycleDetailPDF, { data, paymentNote }) as unknown as ReactElement<

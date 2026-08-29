@@ -35,6 +35,7 @@ import { SERVICE_TYPE_LABELS } from '@/types/db'
 import { daysPerWeekLabel, isMonthlyFlatEntry } from '@/lib/domain/billing/monthly-flat'
 import { withCatalogPrices } from '@/lib/domain/billing/catalog-price'
 import { computeCarryIns, periodLabel } from '@/lib/domain/billing/carry-ins'
+import { normalizeExtraCharges } from '@/lib/domain/billing/extra-charges'
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
@@ -176,6 +177,19 @@ export async function createInvoiceForCycle(
   if (rolloverDiscount > 0) {
     discountAmount = Math.min(subtotalRaw, discountAmount + rolloverDiscount)
   }
+  // Líneas libres del ciclo (mig 0185): materiales, una evaluación suelta. Se
+  // agregan DESPUÉS del descuento, igual que los arrastres — el descuento es
+  // sobre las terapias contratadas. Tolera la columna sin migrar.
+  for (const extra of normalizeExtraCharges(
+    (cycle as { extra_charges_json?: unknown }).extra_charges_json,
+  )) {
+    items.push({
+      description: extra.description,
+      quantity: extra.quantity,
+      unit_price: extra.unit_price,
+    })
+  }
+
   // Arrastres de meses anteriores: recargo por mora (mig 0175) y ajuste de plan
   // (migs 0177/0178). La REGLA vive en `computeCarryIns` — pura y con tests — para
   // que la previsualización del cobro pueda usar exactamente la misma sin escribir

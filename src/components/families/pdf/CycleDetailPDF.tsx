@@ -206,6 +206,23 @@ export function CycleDetailPDF({ data, paymentNote }: Props) {
               </View>
             </>
           )}
+          {/* Cargos que no son terapias (mig 0185). Van fuera del descuento pero
+              dentro del total: si no aparecieran acá, este documento diría un
+              total distinto del que cobra la factura. */}
+          {data.extraCharges.map((e, i) => (
+            <View
+              key={`extra-${i}`}
+              style={[s.tr, { borderWidth: 1, borderColor: BORDER, borderTopWidth: 0 }]}
+            >
+              <Text style={{ flex: 1, padding: 4, fontSize: 8, textAlign: 'right' }}>
+                {e.description}
+                {e.quantity !== 1 ? ` x ${e.quantity}` : ''}
+              </Text>
+              <Text style={{ width: 70, padding: 4, fontSize: 8, textAlign: 'right' }}>
+                ${(e.quantity * e.unit_price).toFixed(2)}
+              </Text>
+            </View>
+          ))}
           <View style={s.totalRow}>
             <Text style={s.totalLabel}>
               {data.settlement ? 'Total del mes' : 'Total a pagar'} — {data.periodLabel}

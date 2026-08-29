@@ -21,6 +21,7 @@ import { getCycleChargePreview } from '@/app/actions/cycle-charge-preview'
 import { editMonthlyCycle } from '@/app/actions/monthly-cycles'
 import type { CycleChargePreview } from '@/lib/domain/billing/cycle-charge-preview'
 import { chargeTotalWithCarryIns } from '@/lib/domain/billing/carry-ins'
+import { extraChargesTotal, type ExtraChargeLine } from '@/lib/domain/billing/extra-charges'
 import { pricedSubtotal } from '@/lib/domain/billing/cycle-edit'
 import { discountAmount as computeDiscount } from '@/lib/domain/discounts'
 import type { DiscountKind } from '@/types/db'
@@ -44,6 +45,7 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
   const [overridden, setOverridden] = useState<Record<string, boolean>>({})
   const [prices, setPrices] = useState<Record<string, number>>({})
   const [priceOverridden, setPriceOverridden] = useState<Record<string, boolean>>({})
+  const [extras, setExtras] = useState<ExtraChargeLine[]>([])
   const [discKind, setDiscKind] = useState<DiscountKind>('none')
   const [discValue, setDiscValue] = useState(0)
   const [discReason, setDiscReason] = useState('')
@@ -66,6 +68,7 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
       setPriceOverridden(
         Object.fromEntries(res.data.editableRows.map((r) => [r.service, r.priceOverridden])),
       )
+      setExtras(res.data.extraCharges)
       setDiscKind(res.data.discountKind)
       setDiscValue(res.data.discountValue)
       setDiscReason(res.data.discountReason ?? '')
@@ -92,18 +95,21 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
       subtotal,
       discount,
       carryInTotal,
+      extrasTotal: extraChargesTotal(extras),
       totalToCharge: chargeTotalWithCarryIns({
         subtotal,
         discountAmount: discount,
         rolloverDiscountUsd: data.rolloverDiscountUsd,
         carryInTotal,
+        extraChargesTotal: extraChargesTotal(extras),
       }),
     }
-  }, [data, counts, prices, discKind, discValue])
+  }, [data, counts, prices, extras, discKind, discValue])
 
   const dirty = useMemo(() => {
     if (!data) return false
     if (discKind !== data.discountKind || discValue !== data.discountValue) return true
+    if (JSON.stringify(extras) !== JSON.stringify(data.extraCharges)) return true
     return data.editableRows.some(
       (r) =>
         (counts[r.service] ?? r.sessionsPerMonth) !== r.sessionsPerMonth ||
@@ -111,7 +117,7 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
         (prices[r.service] ?? r.unitCostUsd) !== r.unitCostUsd ||
         (priceOverridden[r.service] ?? r.priceOverridden) !== r.priceOverridden,
     )
-  }, [data, counts, overridden, prices, priceOverridden, discKind, discValue])
+  }, [data, counts, overridden, prices, priceOverridden, extras, discKind, discValue])
 
   function setCount(service: string, value: number) {
     setCounts((prev) => ({ ...prev, [service]: Math.max(0, Math.round(value)) }))
@@ -154,6 +160,7 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
         sessionsOverridden: overridden[p.service] ?? false,
         unitCostOverridden: priceOverridden[p.service] ?? false,
       })),
+      extraCharges: extras.filter((e) => e.description.trim().length > 0),
       discountKind: discKind,
       discountValue: discValue,
       discountReason: discReason.trim() || null,
@@ -304,6 +311,88 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
                 </table>
               </div>
 
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-fm-on-surface-variant">
+                    Otros cargos del mes
+                  </p>
+                  {editable && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExtras((prev) => [
+                          ...prev,
+                          { description: '', quantity: 1, unit_price: 0 },
+                        ])
+                      }
+                      className="text-[11px] font-semibold text-fm-primary hover:underline"
+                    >
+                      + Agregar
+                    </button>
+                  )}
+                </div>
+                {extras.length === 0 ? (
+                  <p className="text-[11px] text-fm-on-surface-variant/70">
+                    Materiales, una evaluación suelta, un cargo acordado. No llevan el descuento
+                    del mes.
+                  </p>
+                ) : (
+                  extras.map((e, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <input
+                        value={e.description}
+                        onChange={(ev) =>
+                          setExtras((prev) =>
+                            prev.map((x, j) => (j === i ? { ...x, description: ev.target.value } : x)),
+                          )
+                        }
+                        disabled={!editable}
+                        placeholder="Concepto"
+                        className="flex-1 text-sm rounded border border-fm-outline-variant/40 bg-transparent px-2 py-1"
+                      />
+                      <input
+                        type="number"
+                        min={0}
+                        value={e.quantity}
+                        onChange={(ev) =>
+                          setExtras((prev) =>
+                            prev.map((x, j) =>
+                              j === i ? { ...x, quantity: Number(ev.target.value) } : x,
+                            ),
+                          )
+                        }
+                        disabled={!editable}
+                        className="w-14 text-sm text-right tabular-nums rounded border border-fm-outline-variant/40 bg-transparent px-1.5 py-1"
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={e.unit_price}
+                        onChange={(ev) =>
+                          setExtras((prev) =>
+                            prev.map((x, j) =>
+                              j === i ? { ...x, unit_price: Number(ev.target.value) } : x,
+                            ),
+                          )
+                        }
+                        disabled={!editable}
+                        className="w-20 text-sm text-right tabular-nums rounded border border-fm-outline-variant/40 bg-transparent px-1.5 py-1"
+                      />
+                      {editable && (
+                        <button
+                          type="button"
+                          onClick={() => setExtras((prev) => prev.filter((_, j) => j !== i))}
+                          className="p-1 rounded text-fm-on-surface-variant hover:text-fm-error"
+                          aria-label="Quitar cargo"
+                        >
+                          <span className="material-symbols-outlined text-[18px]">close</span>
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
               <DiscountFields
                 subtotal={totals.subtotal}
                 kind={discKind}
@@ -325,6 +414,9 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
                     label="Crédito por sesiones no dadas"
                     value={`-${money(data.rolloverDiscountUsd)}`}
                   />
+                )}
+                {totals.extrasTotal !== 0 && (
+                  <Row label="Otros cargos" value={money(totals.extrasTotal)} />
                 )}
               </div>
 

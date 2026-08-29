@@ -142,10 +142,17 @@ export function chargeTotalWithCarryIns(input: {
   rolloverDiscountUsd: number
   /** Suma de los arrastres: positivo cobra, negativo acredita. */
   carryInTotal: number
+  /**
+   * Líneas libres de cobro del mes (mig 0185). Van FUERA del descuento a
+   * propósito: el descuento es sobre las terapias contratadas, no sobre unos
+   * materiales o una evaluación suelta.
+   */
+  extraChargesTotal?: number
 }): number {
   const discount = Math.min(
     input.subtotal,
     input.discountAmount + Math.max(0, input.rolloverDiscountUsd),
   )
-  return Math.round((input.subtotal - discount + input.carryInTotal) * 100) / 100
+  const extras = Number(input.extraChargesTotal ?? 0)
+  return Math.round((input.subtotal - discount + extras + input.carryInTotal) * 100) / 100
 }

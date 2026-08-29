@@ -13,6 +13,11 @@ import type {
   TreatmentPlanTherapyEntry,
 } from '@/types/db'
 import { validateDiscount } from '@/lib/domain/discounts'
+import {
+  extraChargesTotal,
+  normalizeExtraCharges,
+  type ExtraChargeLine,
+} from '@/lib/domain/billing/extra-charges'
 import { isMonthlyFlatEntry, therapyLineAmount } from '@/lib/domain/billing/monthly-flat'
 import {
   clearSessionsOverride,
@@ -993,6 +998,10 @@ export interface EditMonthlyCycleInput {
   /** Justificación del cambio (obligatoria, queda en las notas para auditoría). */
   reason: string
   notes?: string | null
+  /**
+   * Líneas de cobro que no son terapias (mig 0185). `undefined` = no tocarlas.
+   */
+  extraCharges?: ExtraChargeLine[]
   /** Si true, regenera las citas del mes según el plan/override. */
   regenerateAppointments?: boolean
   /**
@@ -1119,10 +1128,14 @@ export async function editMonthlyCycle(
     ...(newSchedulePattern ? { schedule_pattern_json: newSchedulePattern } : {}),
   }
 
-  const expected = expectedCycleAmount(input.pricedTherapies, {
-    kind: discountKind,
-    value: discountValue,
-  })
+  // Las líneas libres van FUERA del descuento: es sobre terapias contratadas.
+  const priorExtras = normalizeExtraCharges(
+    (cycle as { extra_charges_json?: unknown }).extra_charges_json,
+  )
+  const extras = input.extraCharges ? normalizeExtraCharges(input.extraCharges) : priorExtras
+  const expected =
+    expectedCycleAmount(input.pricedTherapies, { kind: discountKind, value: discountValue }) +
+    extraChargesTotal(extras)
 
   // Auditoría: dejar una línea con la justificación en las notas del ciclo.
   const stamp = new Date().toLocaleDateString('es-SV', { timeZone: 'America/El_Salvador' })
@@ -1143,6 +1156,12 @@ export async function editMonthlyCycle(
       discount_value: discountKind === 'none' ? 0 : discountValue,
       discount_reason: discountKind === 'none' ? null : input.discountReason ?? null,
       notes: newNotes,
+      // La columna se nombra SOLO si hay algo que escribir: el deploy sale antes
+      // que la migración manual, y nombrarla siempre rompería toda edición de
+      // ciclo hasta que alguien aplique la 0185.
+      ...(input.extraCharges || priorExtras.length > 0
+        ? { extra_charges_json: extras }
+        : {}),
       ...(input.programGroupId
         ? { program_group_id: input.programGroupId, attendance_days: input.attendanceDays ?? [] }
         : {}),

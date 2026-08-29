@@ -369,3 +369,50 @@ describe('buildCycleDetail — therapyBreakdowns ordena sábado después de vier
     expect(days).toEqual(['mon', 'sat'])
   })
 })
+
+describe('buildCycleDetail — cargos libres (mig 0185)', () => {
+  const base = {
+    childName: 'Niño de prueba',
+    periodMonth: '2026-08-01',
+    therapies: [
+      { service: 'lenguaje', active: true, sessions_per_month: 3, unit_cost_usd: 22, billing_mode: 'per_session' },
+    ] as TreatmentPlanTherapyEntry[],
+    schedule: [] as TreatmentPlanScheduleSlot[],
+    appointments: [],
+  }
+
+  it('el total incluye los cargos libres', () => {
+    // Si el documento no los sumara, volvería a decir un total distinto del que
+    // cobra la factura — el bug que originó todo este trabajo.
+    const data = buildCycleDetail({
+      ...base,
+      paymentAmountUsd: 81,
+      extraCharges: [{ description: 'Materiales', quantity: 1, unit_price: 15 }],
+    })
+
+    expect(data.subtotal).toBe(66)
+    expect(data.total).toBe(81)
+    expect(data.extraCharges).toHaveLength(1)
+  })
+
+  it('el descuento NO se aplica sobre los cargos libres', () => {
+    // 10% sobre las terapias (66 → 59.40) + 15 de materiales.
+    const data = buildCycleDetail({
+      ...base,
+      paymentAmountUsd: 74.4,
+      discountKind: 'percent',
+      discountValue: 10,
+      extraCharges: [{ description: 'Materiales', quantity: 1, unit_price: 15 }],
+    })
+
+    expect(data.discountAmount).toBe(6.6)
+    expect(data.total).toBe(74.4)
+  })
+
+  it('sin la columna migrada no hay cargos ni cambia el total', () => {
+    const data = buildCycleDetail({ ...base, paymentAmountUsd: 66 })
+
+    expect(data.extraCharges).toEqual([])
+    expect(data.total).toBe(66)
+  })
+})
