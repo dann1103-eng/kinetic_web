@@ -17,6 +17,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import type { MonthlySessionCycle } from '@/types/db'
 import { getCycleChargePreview } from '@/app/actions/cycle-charge-preview'
 import { editMonthlyCycle } from '@/app/actions/monthly-cycles'
 import type { CycleChargePreview } from '@/lib/domain/billing/cycle-charge-preview'
@@ -30,7 +31,10 @@ import { DiscountFields } from './DiscountFields'
 interface Props {
   cycleId: string
   onClose: () => void
-  onSaved?: () => void
+  /** Recibe el ciclo actualizado: la tabla guarda su propia copia en estado y
+   *  `router.refresh()` NO re-inicializa un `useState(props)`. Sin esto el monto
+   *  de la fila se quedaba viejo hasta recargar la página a mano. */
+  onSaved?: (cycle: MonthlySessionCycle) => void
 }
 
 const money = (n: number) => `$${n.toFixed(2)}`
@@ -174,7 +178,7 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
       setSaveError(res.error)
       return
     }
-    onSaved?.()
+    onSaved?.(res.cycle)
     router.refresh()
     onClose()
   }

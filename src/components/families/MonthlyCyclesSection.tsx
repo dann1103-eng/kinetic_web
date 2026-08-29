@@ -521,6 +521,9 @@ export function MonthlyCyclesSection({
         <CycleChargePreviewModal
           cycleId={previewCycleId}
           onClose={() => setPreviewCycleId(null)}
+          onSaved={(updated) =>
+            setCycles((prev) => prev.map((c) => (c.id === updated.id ? updated : c)))
+          }
         />
       )}
 
