@@ -13,6 +13,7 @@
  */
 import type { ServiceCatalogItem, TreatmentPlanTherapyEntry } from '@/types/db'
 import { isMorningProgramService } from './monthly-flat'
+import { hasUnitCostOverride } from './manual-overrides'
 
 export interface CatalogPriceOptions {
   /** El niño va a programa matutino: aplica el precio BK de la terapia. */
@@ -76,6 +77,7 @@ export function withPreservedPrices(
   }
   return next.map((t) => {
     if (Number(t.unit_cost_usd) > 0) return t
+    if (hasUnitCostOverride(t)) return t
     const prev = priorPriceBy.get(t.service)
     return prev ? { ...t, unit_cost_usd: prev } : t
   })
@@ -106,6 +108,9 @@ export function withCatalogPrices(
 
   const out = therapies.map((t) => {
     if (t.active === false || Number(t.unit_cost_usd) > 0) return t
+    // Precio fijado a mano: se respeta aunque sea CERO. Una terapia becada tiene
+    // precio 0 legítimo, y rellenarla del catálogo la volvería a cobrar sola.
+    if (hasUnitCostOverride(t)) return t
     const price = catalogPriceFor(catalog, t.service, {
       isMorningChild,
       daysPerWeek: t.days_per_week,

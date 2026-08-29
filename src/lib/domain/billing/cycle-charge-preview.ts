@@ -20,7 +20,7 @@ import { buildCycleDetail, type CycleDetailData } from './cycle-detail'
 import { loadCycleDetailInput } from './cycle-detail-input'
 import { chargeTotalWithCarryIns, computeCarryIns, type CarryInLine } from './carry-ins'
 import { isMonthlyFlatEntry } from './monthly-flat'
-import { hasSessionsOverride } from './manual-overrides'
+import { hasSessionsOverride, hasUnitCostOverride } from './manual-overrides'
 
 export interface CycleChargePreview {
   childName: string
@@ -64,6 +64,8 @@ export interface EditableChargeRow {
   billingMode?: string
   /** La cantidad la fijó una persona: el emparejado automático no la toca. */
   overridden: boolean
+  /** El precio lo fijó una persona: el catálogo no lo pisa. */
+  priceOverridden: boolean
 }
 
 /** `null` si el ciclo no existe. */
@@ -176,6 +178,7 @@ export async function buildCycleChargePreview(
         isFlat: isMonthlyFlatEntry(t),
         billingMode: t.billing_mode,
         overridden: hasSessionsOverride(t),
+        priceOverridden: hasUnitCostOverride(t),
       })),
     discountKind: (cycle.discount_kind ?? 'none') as DiscountKind,
     discountValue: Number(cycle.discount_value ?? 0),

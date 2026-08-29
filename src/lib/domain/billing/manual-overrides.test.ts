@@ -4,6 +4,9 @@ import {
   withSessionsOverride,
   clearSessionsOverride,
   withPreservedOverrides,
+  hasUnitCostOverride,
+  withUnitCostOverride,
+  clearUnitCostOverride,
 } from './manual-overrides'
 import type { TreatmentPlanTherapyEntry } from '@/types/db'
 
@@ -103,5 +106,57 @@ describe('withPreservedOverrides', () => {
     const nuevas = [entry({ sessions_per_month: 8 })]
 
     expect(withPreservedOverrides(nuevas, [])).toEqual(nuevas)
+  })
+})
+
+describe('precio fijado a mano', () => {
+  it('una entrada normal no tiene el precio marcado', () => {
+    expect(hasUnitCostOverride(entry())).toBe(false)
+  })
+
+  it('fija el precio y deja la marca', () => {
+    const res = withUnitCostOverride(entry(), 18)
+
+    expect(res.unit_cost_usd).toBe(18)
+    expect(hasUnitCostOverride(res)).toBe(true)
+  })
+
+  it('acepta un precio en cero puesto a propósito', () => {
+    // Una terapia becada. Sin la marca, el respaldo del catálogo la volvería a
+    // cobrar sola.
+    const res = withUnitCostOverride(entry(), 0)
+
+    expect(res.unit_cost_usd).toBe(0)
+    expect(hasUnitCostOverride(res)).toBe(true)
+  })
+
+  it('clearUnitCostOverride quita solo esa marca', () => {
+    const fijada = withUnitCostOverride(withSessionsOverride(entry(), 3), 18)
+    const res = clearUnitCostOverride(fijada)
+
+    expect(hasUnitCostOverride(res)).toBe(false)
+    expect(hasSessionsOverride(res)).toBe(true)
+  })
+
+  it('withPreservedOverrides traslada el precio fijado', () => {
+    // Editar el plan trae precio 0 (el plan ya no guarda precios) y el catálogo
+    // lo rellena a 22, pisando el acuerdo de 18 de ese mes.
+    const previas = [withUnitCostOverride(entry(), 18)]
+    const nuevas = [entry({ unit_cost_usd: 22 })]
+
+    const res = withPreservedOverrides(nuevas, previas)
+
+    expect(res[0].unit_cost_usd).toBe(18)
+    expect(hasUnitCostOverride(res[0])).toBe(true)
+  })
+
+  it('withPreservedOverrides traslada las dos marcas juntas', () => {
+    const previas = [withUnitCostOverride(withSessionsOverride(entry(), 3), 18)]
+    const nuevas = [entry({ sessions_per_month: 8, unit_cost_usd: 22 })]
+
+    const res = withPreservedOverrides(nuevas, previas)
+
+    expect(res[0].sessions_per_month).toBe(3)
+    expect(res[0].unit_cost_usd).toBe(18)
   })
 })

@@ -13,8 +13,8 @@
  *
  * Vive en el jsonb del snapshot del ciclo, así que no lleva migración.
  *
- * Por ahora cubre la CANTIDAD. El precio unitario llega en la entrega 3 con el
- * mismo patrón (`unit_cost_overridden`).
+ * Cubre la CANTIDAD y el PRECIO UNITARIO, cada uno con su marca. Son
+ * independientes: se puede fijar la cantidad y dejar el precio en automático.
  */
 
 import type { TreatmentPlanTherapyEntry } from '@/types/db'
@@ -22,6 +22,7 @@ import type { TreatmentPlanTherapyEntry } from '@/types/db'
 /** Campos que la marca agrega al jsonb (no están en el tipo del plan). */
 interface OverrideFields {
   sessions_overridden?: boolean
+  unit_cost_overridden?: boolean
 }
 
 type Entry = TreatmentPlanTherapyEntry & OverrideFields
@@ -56,12 +57,43 @@ export function clearSessionsOverride(
   return rest as TreatmentPlanTherapyEntry
 }
 
+export function hasUnitCostOverride(entry: TreatmentPlanTherapyEntry): boolean {
+  return (entry as Entry).unit_cost_overridden === true
+}
+
+/**
+ * Fija el precio de ese mes y lo marca como puesto a mano.
+ *
+ * Acepta CERO a propósito: una terapia becada tiene precio 0, y sin la marca el
+ * respaldo del catálogo (que rellena todo lo que venga en cero) la volvería a
+ * cobrar sola.
+ */
+export function withUnitCostOverride(
+  entry: TreatmentPlanTherapyEntry,
+  unitCostUsd: number,
+): TreatmentPlanTherapyEntry {
+  return {
+    ...entry,
+    unit_cost_usd: unitCostUsd,
+    unit_cost_overridden: true,
+  } as TreatmentPlanTherapyEntry
+}
+
+/** Suelta el precio: vuelve a mandar el catálogo. */
+export function clearUnitCostOverride(
+  entry: TreatmentPlanTherapyEntry,
+): TreatmentPlanTherapyEntry {
+  const { unit_cost_overridden: _ignored, ...rest } = entry as Entry
+  void _ignored
+  return rest as TreatmentPlanTherapyEntry
+}
+
 /**
  * Traslada las marcas (y los valores fijados) de un snapshot previo al nuevo.
  *
- * Es el respaldo para el refresco del snapshot al editar el plan, que trae
- * `sessions_per_month` **del plan** y borraría la corrección del mes. Mismo
- * patrón que `withPreservedPrices` para los precios.
+ * Es el respaldo para el refresco del snapshot al editar el plan, que trae la
+ * cantidad **del plan** y un precio en cero que el catálogo rellena — los dos
+ * borrarían la corrección del mes. Mismo patrón que `withPreservedPrices`.
  */
 export function withPreservedOverrides(
   therapies: TreatmentPlanTherapyEntry[],
@@ -72,7 +104,14 @@ export function withPreservedOverrides(
 
   return therapies.map((t) => {
     const before = priorByService.get(t.service)
-    if (!before || before.sessions_overridden !== true) return t
-    return withSessionsOverride(t, Number(before.sessions_per_month))
+    if (!before) return t
+    let out = t
+    if (before.sessions_overridden === true) {
+      out = withSessionsOverride(out, Number(before.sessions_per_month))
+    }
+    if (before.unit_cost_overridden === true) {
+      out = withUnitCostOverride(out, Number(before.unit_cost_usd))
+    }
+    return out
   })
 }

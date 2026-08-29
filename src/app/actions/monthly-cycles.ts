@@ -14,7 +14,12 @@ import type {
 } from '@/types/db'
 import { validateDiscount } from '@/lib/domain/discounts'
 import { isMonthlyFlatEntry, therapyLineAmount } from '@/lib/domain/billing/monthly-flat'
-import { clearSessionsOverride, withSessionsOverride } from '@/lib/domain/billing/manual-overrides'
+import {
+  clearSessionsOverride,
+  clearUnitCostOverride,
+  withSessionsOverride,
+  withUnitCostOverride,
+} from '@/lib/domain/billing/manual-overrides'
 import {
   billableSessionCounts,
   type ChargeableAppt,
@@ -1085,11 +1090,15 @@ export async function editMonthlyCycle(
       unit_cost_usd: p.unit_cost_usd,
       ...(p.billing_mode ? { billing_mode: p.billing_mode } : {}),
     } as TreatmentPlanTherapyEntry
-    // La marca se escribe o se borra según lo que llegue, nunca se hereda del
-    // `...old`: si no, "volver a automático" no podría quitarla.
-    return p.sessionsOverridden
+    // Las marcas se escriben o se borran según lo que llegue, nunca se heredan
+    // del `...old`: si no, "volver a automático" no podría quitarlas.
+    let out = p.sessionsOverridden
       ? withSessionsOverride(merged, p.sessions_per_month)
       : clearSessionsOverride(merged)
+    out = p.unitCostOverridden
+      ? withUnitCostOverride(out, p.unit_cost_usd)
+      : clearUnitCostOverride(out)
+    return out
   })
   // [Desacople F4 — fuga de snapshot] Refrescar también schedule_pattern_json del
   // plan vivo, para que el detalle de pago (PDF) no caiga al plan vivo por falta

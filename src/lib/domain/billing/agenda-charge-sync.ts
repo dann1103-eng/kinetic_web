@@ -16,7 +16,7 @@
 import { toZonedTime } from 'date-fns-tz'
 import type { TreatmentPlanTherapyEntry } from '@/types/db'
 import { isMonthlyFlatEntry, isMorningProgramService } from './monthly-flat'
-import { hasSessionsOverride } from './manual-overrides'
+import { hasSessionsOverride, hasUnitCostOverride } from './manual-overrides'
 
 const TZ = 'America/El_Salvador'
 
@@ -118,7 +118,7 @@ export function therapiesSyncedToAgenda(
     // `payment_amount_usd`. Recalcular desde ahí daría CERO, así que el precio
     // faltante se rellena del catálogo antes de tocar nada.
     let entry = t
-    if (!(Number(t.unit_cost_usd) > 0)) {
+    if (!(Number(t.unit_cost_usd) > 0) && !hasUnitCostOverride(t)) {
       const price = priceFor(t.service)
       if (price > 0) {
         entry = { ...entry, unit_cost_usd: price }

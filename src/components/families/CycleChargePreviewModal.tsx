@@ -42,6 +42,8 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
   // Estado editable, sembrado de la previsualización.
   const [counts, setCounts] = useState<Record<string, number>>({})
   const [overridden, setOverridden] = useState<Record<string, boolean>>({})
+  const [prices, setPrices] = useState<Record<string, number>>({})
+  const [priceOverridden, setPriceOverridden] = useState<Record<string, boolean>>({})
   const [discKind, setDiscKind] = useState<DiscountKind>('none')
   const [discValue, setDiscValue] = useState(0)
   const [discReason, setDiscReason] = useState('')
@@ -60,6 +62,10 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
       setData(res.data)
       setCounts(Object.fromEntries(res.data.editableRows.map((r) => [r.service, r.sessionsPerMonth])))
       setOverridden(Object.fromEntries(res.data.editableRows.map((r) => [r.service, r.overridden])))
+      setPrices(Object.fromEntries(res.data.editableRows.map((r) => [r.service, r.unitCostUsd])))
+      setPriceOverridden(
+        Object.fromEntries(res.data.editableRows.map((r) => [r.service, r.priceOverridden])),
+      )
       setDiscKind(res.data.discountKind)
       setDiscValue(res.data.discountValue)
       setDiscReason(res.data.discountReason ?? '')
@@ -75,7 +81,7 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
     const priced = data.editableRows.map((r) => ({
       service: r.service,
       sessions_per_month: counts[r.service] ?? r.sessionsPerMonth,
-      unit_cost_usd: r.unitCostUsd,
+      unit_cost_usd: prices[r.service] ?? r.unitCostUsd,
       billing_mode: r.billingMode as never,
     }))
     const subtotal = pricedSubtotal(priced)
@@ -93,7 +99,7 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
         carryInTotal,
       }),
     }
-  }, [data, counts, discKind, discValue])
+  }, [data, counts, prices, discKind, discValue])
 
   const dirty = useMemo(() => {
     if (!data) return false
@@ -101,9 +107,11 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
     return data.editableRows.some(
       (r) =>
         (counts[r.service] ?? r.sessionsPerMonth) !== r.sessionsPerMonth ||
-        (overridden[r.service] ?? r.overridden) !== r.overridden,
+        (overridden[r.service] ?? r.overridden) !== r.overridden ||
+        (prices[r.service] ?? r.unitCostUsd) !== r.unitCostUsd ||
+        (priceOverridden[r.service] ?? r.priceOverridden) !== r.priceOverridden,
     )
-  }, [data, counts, overridden, discKind, discValue])
+  }, [data, counts, overridden, prices, priceOverridden, discKind, discValue])
 
   function setCount(service: string, value: number) {
     setCounts((prev) => ({ ...prev, [service]: Math.max(0, Math.round(value)) }))
@@ -116,6 +124,19 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
     const row = data?.editableRows.find((r) => r.service === service)
     setOverridden((prev) => ({ ...prev, [service]: false }))
     if (row) setCounts((prev) => ({ ...prev, [service]: row.sessionsPerMonth }))
+  }
+
+  function setPrice(service: string, value: number) {
+    // Se admite 0 a propósito (terapia becada); la marca es lo que evita que el
+    // catálogo lo vuelva a rellenar.
+    setPrices((prev) => ({ ...prev, [service]: Math.max(0, value) }))
+    setPriceOverridden((prev) => ({ ...prev, [service]: true }))
+  }
+
+  function priceBackToAuto(service: string) {
+    const row = data?.editableRows.find((r) => r.service === service)
+    setPriceOverridden((prev) => ({ ...prev, [service]: false }))
+    if (row) setPrices((prev) => ({ ...prev, [service]: row.unitCostUsd }))
   }
 
   async function handleSave() {
@@ -131,6 +152,7 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
       pricedTherapies: totals.priced.map((p) => ({
         ...p,
         sessionsOverridden: overridden[p.service] ?? false,
+        unitCostOverridden: priceOverridden[p.service] ?? false,
       })),
       discountKind: discKind,
       discountValue: discValue,
@@ -208,7 +230,9 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
                     {data.editableRows.map((r) => {
                       const count = counts[r.service] ?? r.sessionsPerMonth
                       const isOver = overridden[r.service] ?? r.overridden
-                      const lineTotal = r.isFlat ? r.unitCostUsd : count * r.unitCostUsd
+                      const price = prices[r.service] ?? r.unitCostUsd
+                      const isPriceOver = priceOverridden[r.service] ?? r.priceOverridden
+                      const lineTotal = r.isFlat ? price : count * price
                       return (
                         <tr key={r.service} className="border-b border-fm-outline-variant/10">
                           <td className="py-1.5">
@@ -244,7 +268,34 @@ export function CycleChargePreviewModal({ cycleId, onClose, onSaved }: Props) {
                               <span className="tabular-nums">{count}</span>
                             )}
                           </td>
-                          <td className="py-1.5 text-right tabular-nums">{money(r.unitCostUsd)}</td>
+                          <td className="py-1.5 text-right">
+                            {editable ? (
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={price}
+                                onChange={(e) => setPrice(r.service, Number(e.target.value))}
+                                className="w-20 text-right tabular-nums rounded border border-fm-outline-variant/40 bg-transparent px-1.5 py-0.5"
+                              />
+                            ) : (
+                              <span className="tabular-nums">{money(price)}</span>
+                            )}
+                            {isPriceOver && (
+                              <span className="block text-[10px] text-fm-on-surface-variant">
+                                Precio fijado ·{' '}
+                                {editable && (
+                                  <button
+                                    type="button"
+                                    onClick={() => priceBackToAuto(r.service)}
+                                    className="underline underline-offset-2 hover:text-fm-on-surface"
+                                  >
+                                    automático
+                                  </button>
+                                )}
+                              </span>
+                            )}
+                          </td>
                           <td className="py-1.5 text-right tabular-nums">{money(lineTotal)}</td>
                         </tr>
                       )

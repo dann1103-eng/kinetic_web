@@ -22,6 +22,8 @@ export interface PricedTherapyInput {
    * habría forma de volver a automático.
    */
   sessionsOverridden?: boolean
+  /** Idem para el precio unitario: el catálogo deja de pisarlo. */
+  unitCostOverridden?: boolean
 }
 
 /** Subtotal del ciclo: suma de las líneas de terapia (BK-aware). */
