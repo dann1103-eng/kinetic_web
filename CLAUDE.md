@@ -343,7 +343,7 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0181** | **Los conflictos de horario dejan de bloquear ciclo/agenda**: `confirm_monthly_payment_and_generate`, `generate_cycle_agenda`, `regenerate_cycle_appointments` (`CREATE OR REPLACE`, mismas firmas) pierden el `RAISE EXCEPTION 'has_conflicts...'` — el check de solape (`compute_monthly_appointment_candidates`) no excluía al propio niño, así que un plan con dos terapias propias con el mismo terapeuta se marcaba "en conflicto consigo mismo" y bloqueaba su ciclo; el mismo guard en `regenerate_cycle_appointments` también podía abortar en silencio la sincronización agenda↔plan al editar. `conflicts[]`/`summary.conflict_count` se siguen calculando igual — la UI (`NewMonthlyCycleModal`/`EditMonthlyCycleModal`) ahora muestra un aviso ámbar no bloqueante en vez de deshabilitar el submit, distinguiendo "choca con otra terapia de la misma niña/niño" vs. "choca con la cita de otro paciente" (`describeMonthlyConflict` en `appointment.ts`, usa `conflict_child_id` que ya venía en el RPC sin consumirse). |
 | **0182** | **Fix: no se podía eliminar un niño con facturas** — drift de esquema real: `invoices.child_id` tenía `ON DELETE RESTRICT` en la BD, contradiciendo lo que `0110_kinetic_invoices.sql` ya pretendía (`SET NULL`) — nunca quedó sincronizado; era la ÚNICA FK hacia `children` en todo el esquema que bloqueaba el borrado (el resto ya cascadea). Se corrige el FK a `SET NULL` + se ajusta `invoices_client_or_child_check` para permitir el estado huérfano (ambas columnas NULL tras borrar al dueño, sin dejar de prohibir que ambas estén asignadas a la vez) + se elimina `invoices_requires_owner` (redundante y en conflicto directo con el ajuste anterior). La factura sobrevive intacta (nombre de familia/niño ya embebidos en `notes`/`client_snapshot_json`/`invoice_items.description`) — mismo patrón "eliminar SIEMPRE conservando el registro contable" de 0169/0170. |
 | **0184** | **Suspensión avisada** (`child_suspensions` + `appointments.suspension_id`): la familia avisa que el niño/a no vendrá un período y regresa. Las citas del rango se cancelan **atadas a la suspensión**, y lo que tiene `suspension_id` **no se cobra** (`billableSessionCounts`) — así no hubo que tocar el significado de `status='cancelled'`, que sigue siendo "cancelación tardía de la familia, se cobra y se acredita el mes siguiente". Revertible en bloque. NO cambia la fase clínica del niño. |
-| **0185** | **Líneas libres de cobro**: `monthly_session_cycles.extra_charges_json jsonb` (default `[]`) — cargos que no son terapias (materiales, evaluación suelta). Van fuera del descuento y dentro del total. **PENDIENTE DE APLICAR**; el código la tolera ausente (ver sesión 26–28 ago). |
+| **0185** | **Líneas libres de cobro**: `monthly_session_cycles.extra_charges_json jsonb` (default `[]`) — cargos que no son terapias (materiales, evaluación suelta). Van fuera del descuento y dentro del total. ✅ **Aplicada y verificada en prod (29-ago-2026)**: se guardó un cargo libre sin error de columna. El código la tolera ausente igual (ver sesión 26–29 ago). |
 | **0183** | **Reposiciones individuales sin botón de iniciar sesión**: `start_therapy_session` (mig 0093) solo aceptaba citas `status='scheduled'` — una reposición nace directamente en `status='replacement'` (`resolve_absence_with_replacement`) y nunca pasa por `'scheduled'`, así que la RPC la rechazaba con `appointment_not_found_or_not_eligible`. Se amplía a `status in ('scheduled', 'replacement')`, misma firma. Acompaña un fix en `BigSessionCard.tsx` (el gate de los botones "Iniciar sesión"/"Inasistencia" en `/mi-dia` también solo aceptaba `'scheduled'`) — sin el fix de la RPC, el botón habría aparecido pero fallado al hacer clic. |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard (o vía
@@ -360,9 +360,8 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > (read-lag del endpoint de query) — si la verificación no muestra el cambio,
 > reintentar la misma consulta de verificación antes de asumir que la
 > aplicación falló; no reaplicar a ciegas. No hay migración automática. **El
-> repo va hasta 0184; próximo libre = 0185. La 0184 (suspensión avisada) está
-> PENDIENTE DE APLICAR.** ✅ TODAS aplicadas y verificadas
-> en prod (14/16-jul-2026).
+> repo va hasta 0185; próximo libre = 0186.** ✅ TODAS aplicadas y verificadas
+> en prod (la 0185, el 29-ago-2026).
 > ⚠️ Hay DOS archivos con historia sobre el prefijo 0173 (biweekly_offset y
 > el de menciones renombrado a 0176) — ambos aplicados; no re-correr ninguno
 > de los dos por el nombre viejo.
@@ -391,7 +390,7 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
 > el KPI y el calendario del panel del niño (28-ago).
 
-## Sesión 26–28 ago 2026 — la barra de `/ninos` vuelve a contar los programas matutinos
+## Sesión 26–29 ago 2026 — la barra de `/ninos` vuelve a contar los programas matutinos
 Sin migración (fix 100% de capa TS). Tests nuevos: `src/lib/domain/ninos-dashboard.test.ts`.
 
 - **Síntoma**: filtrando `/ninos` por BlueKids, casi todas las tarjetas decían
@@ -555,8 +554,9 @@ arregla el **cobro**, nunca la agenda.
 > silencio. Una entrada marcada **gana** hasta que alguien la suelte (decisión del
 > usuario). Sin migración.
 
-- `manual-overrides.ts` (nuevo, puro, 10 tests): `hasSessionsOverride`,
-  `withSessionsOverride`, `clearSessionsOverride`, `withPreservedOverrides`.
+- `manual-overrides.ts` (nuevo, puro, 16 tests contando los del precio de la
+  entrega 3): `hasSessionsOverride`, `withSessionsOverride`,
+  `clearSessionsOverride`, `withPreservedOverrides` (+ las tres del precio).
 - `therapiesSyncedToAgenda` no toca las marcadas y las reporta en
   `overriddenServices`; `/operacion/sincronizar-cobros` lo muestra — si no, se ve
   que la agenda dice 4 y el cobro 3 y parece que la herramienta está rota.
@@ -601,17 +601,72 @@ y las líneas de la factura salían las dos de `therapies_json`.
   conocen, y no hace falta: al generar todavía no existen. Solo se agregan desde
   la previsualización, que recalcula en TS.
 
-> ⚠️ **La 0185 está PENDIENTE DE APLICAR.** El código la tolera ausente a
-> propósito: las lecturas usan `select('*')` y `normalizeExtraCharges(undefined)`
-> devuelve `[]`, y `editMonthlyCycle` **solo nombra la columna si hay algo que
-> escribir** — si la nombrara siempre, toda edición de ciclo fallaría hasta
-> aplicarla. Hasta entonces, agregar una línea da error de columna inexistente.
+> **La 0185 ya está aplicada** (29-ago-2026). El código igual la tolera ausente a
+> propósito, porque el deploy de Vercel sale antes que la migración manual: las
+> lecturas usan `select('*')`, `normalizeExtraCharges(undefined)` devuelve `[]`, y
+> `editMonthlyCycle` **solo nombra la columna si hay algo que escribir** — si la
+> nombrara siempre, toda edición de ciclo habría fallado hasta aplicarla. Mantener
+> ese patrón en cualquier columna nueva del ciclo.
+
+### Verificación end-to-end contra producción (29-ago-2026)
+Hecha por el asistente **en el navegador del usuario**, ya logueado, sobre un niño
+real (BlueKids mensual + Lenguaje los martes) y su ciclo **pendiente** de
+septiembre. Todo lo que se tocó se **revirtió** al terminar: el ciclo quedó igual
+que antes ($338.00, 4 citas, sin cargos libres, sin marcas).
+
+| Qué se probó | Resultado |
+|---|---|
+| Cantidad fijada a mano | Lenguaje 4→3: total en vivo a $316, fila marcada, campo de motivo obligatorio, **"Descargar PDF" deshabilitado** con cambios sin guardar. Persistió tras recargar. |
+| Precio unitario | Editable, con marca propia e independiente de la cantidad. |
+| Línea libre + mig 0185 | "Materiales" × $15 guardó sin error → **la migración está aplicada**. Subtotal $316 + $15 = **$331**. |
+| El PDF | Filas $250 + $66 + $15 = **$331**, el mismo total de la pantalla. |
+| La marca sobrevive al emparejado | Ver abajo. |
+
+**Por qué el PDF era la prueba clave**: es donde el sistema se contradecía. Se
+verificó extrayendo el texto del PDF descargado con `pdfjs-dist` (mismo método que
+la sesión del 10-ago; no hace falta poppler). El documento además trajo solo la
+nota **"1 sesión agendada este mes no está incluida en este cobro"** — la red de
+seguridad declarando que la agenda tenía 4 Lenguaje y se cobraban 3.
+
+#### La marca sobrevive: se probó SIN mover ninguna cita
+La prueba natural sería mover una cita y ver si el cobro se revierte. **No se
+hizo**: la grilla semanal de `/agenda` es muy densa, y un arrastre mal soltado
+movería la cita de OTRO niño a un horario equivocado, con notificación de cambio
+incluida (mig 0160). No es un riesgo aceptable sobre horarios reales.
+
+Se usó un camino que ejerce **la misma decisión** sin escribir nada: dejar el
+cobro de Lenguaje en 3 con 4 citas agendadas y correr
+**`/operacion/sincronizar-cobros`** para septiembre. Esa pantalla ejecuta
+`therapiesSyncedToAgenda`, que es exactamente la función que revertiría la marca.
+Respondió *"Todos los ciclos de este mes cobran exactamente lo que tienen
+agendado. No hay nada que emparejar."* — o sea miró el desfase 3 vs 4 y decidió
+**no tocarlo**. Sin la marca lo habría listado como "cobra 3 → agendadas 4".
+
+> **Reutilizable**: para probar cualquier cambio en la regla de emparejado, la
+> previsualización por mes es un banco de pruebas de solo lectura sobre datos
+> reales. No hace falta tocar la agenda.
+
+#### Dos bugs encontrados probando (ya corregidos)
+- **La tabla de ciclos no se actualizaba tras guardar** desde la previsualización:
+  el monto quedaba viejo hasta recargar a mano. `router.refresh()` **no**
+  re-inicializa un `useState(props)` — la misma trampa ya documentada con los
+  chips de `/catalogos`. El modal ahora devuelve el ciclo actualizado y la tabla
+  actualiza su copia local, como ya hacían "Marcar pagado" y "Prorrogar gracia".
+- **"Volver a automático" no volvía a nada**: soltaba la marca pero dejaba la
+  cantidad fijada, así que restaurar un valor eran dos guardadas. Ahora la
+  previsualización expone `agendaCount` (misma regla de `billableSessionCounts`) y
+  el botón devuelve el conteo real de la agenda en un solo paso. Un servicio **sin
+  citas** ese mes devuelve `null` y conserva la cantidad: poner 0 vaciaría el cobro
+  en silencio al anular una agenda, que es justo lo que el emparejado tampoco hace.
+
+> **Estado al cerrar la sesión**: las 4 entregas en `master` y desplegadas, mig
+> 0185 aplicada, **271 tests** en verde, build y lint limpios. Spec y los dos
+> planes en `docs/superpowers/`.
 
 ### Pendiente de verificar contra producción
-No se pudo consultar la BD en esta sesión (no hay `.env.local` en el equipo y el
-token del CLI quedó bloqueado). Si tras el deploy algún niño de BlueKids **sigue**
-sin barra, no es este bug: revisar que tenga **membresía activa de grupo**
-(`program_group_members`) y que el mes tenga **sesiones generadas**
+De la parte de las **barras de asistencia** (no del cobro): si algún niño de
+BlueKids **sigue** sin barra, no es ese bug — revisar que tenga **membresía activa
+de grupo** (`program_group_members`) y que el mes tenga **sesiones generadas**
 (`generate_group_sessions_for_month`, que corre al generar el ciclo).
 
 ## Sesión 20 ago 2026 — dar de alta artículos en el catálogo
