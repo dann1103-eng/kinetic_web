@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeCarryIns } from './carry-ins'
+import { chargeTotalWithCarryIns, computeCarryIns } from './carry-ins'
 
 const base = {
   cycle: {
@@ -137,5 +137,39 @@ describe('computeCarryIns', () => {
     expect(res.lines).toHaveLength(2)
     expect(res.surchargeTotal).toBe(12.5)
     expect(res.adjustmentTotal).toBe(-22)
+  })
+})
+
+describe('chargeTotalWithCarryIns', () => {
+  const base = { subtotal: 236, discountAmount: 0, rolloverDiscountUsd: 0, carryInTotal: 0 }
+
+  it('sin descuentos ni arrastres cobra el subtotal', () => {
+    expect(chargeTotalWithCarryIns(base)).toBe(236)
+  })
+
+  it('un crédito arrastrado baja el total', () => {
+    expect(chargeTotalWithCarryIns({ ...base, carryInTotal: -22 })).toBe(214)
+  })
+
+  it('un recargo arrastrado lo sube', () => {
+    expect(chargeTotalWithCarryIns({ ...base, carryInTotal: 12.5 })).toBe(248.5)
+  })
+
+  it('el rollover en modo descuento también descuenta', () => {
+    expect(chargeTotalWithCarryIns({ ...base, rolloverDiscountUsd: 40 })).toBe(196)
+  })
+
+  it('el tope va sobre la SUMA de los descuentos, no sobre cada uno', () => {
+    // Con un descuento fijo de 200 y rollover de 100, topar cada uno por
+    // separado dejaría el total en -64. El tope es conjunto: el mes cae a 0.
+    expect(
+      chargeTotalWithCarryIns({ subtotal: 236, discountAmount: 200, rolloverDiscountUsd: 100, carryInTotal: 0 }),
+    ).toBe(0)
+  })
+
+  it('con el mes en cero, un recargo arrastrado se sigue cobrando', () => {
+    expect(
+      chargeTotalWithCarryIns({ subtotal: 236, discountAmount: 236, rolloverDiscountUsd: 0, carryInTotal: 12.5 }),
+    ).toBe(12.5)
   })
 })

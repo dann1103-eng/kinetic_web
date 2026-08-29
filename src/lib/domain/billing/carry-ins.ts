@@ -122,3 +122,30 @@ export function computeCarryIns(input: CarryInInput): CarryInResult {
     adjustmentFromCycleIds,
   }
 }
+
+/**
+ * Lo que se le va a pedir a la familia: el mes, menos sus descuentos, más lo que
+ * se arrastra de meses anteriores.
+ *
+ * **El tope de los descuentos es conjunto.** Es la regla de `createInvoiceForCycle`
+ * (`discountAmount = min(subtotal, discountAmount + rolloverDiscount)`): topar
+ * cada descuento por separado puede dejar el mes en negativo cuando un descuento
+ * fijo grande se junta con el rollover.
+ *
+ * El arrastre queda FUERA del tope a propósito: un recargo de un mes anterior se
+ * cobra aunque este mes esté becado al 100%.
+ */
+export function chargeTotalWithCarryIns(input: {
+  subtotal: number
+  discountAmount: number
+  /** Crédito por sesiones no dadas cuando el ciclo usa `rollover_mode='discount'`. */
+  rolloverDiscountUsd: number
+  /** Suma de los arrastres: positivo cobra, negativo acredita. */
+  carryInTotal: number
+}): number {
+  const discount = Math.min(
+    input.subtotal,
+    input.discountAmount + Math.max(0, input.rolloverDiscountUsd),
+  )
+  return Math.round((input.subtotal - discount + input.carryInTotal) * 100) / 100
+}

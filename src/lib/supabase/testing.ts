@@ -19,7 +19,7 @@ export const POSTGREST_MAX_ROWS = 1000
 type Row = Record<string, unknown>
 export type FakeTables = Record<string, Row[]>
 
-type OpKind = 'eq' | 'neq' | 'is' | 'in' | 'notIn' | 'gte' | 'lt'
+type OpKind = 'eq' | 'neq' | 'is' | 'in' | 'notIn' | 'gte' | 'gt' | 'lt' | 'lte'
 interface Op {
   kind: OpKind
   col: string
@@ -42,8 +42,12 @@ function matches(row: Row, op: Op): boolean {
       return v != null && !(op.val as unknown[]).includes(v)
     case 'gte':
       return v != null && (v as string | number) >= (op.val as string | number)
+    case 'gt':
+      return v != null && (v as string | number) > (op.val as string | number)
     case 'lt':
       return v != null && (v as string | number) < (op.val as string | number)
+    case 'lte':
+      return v != null && (v as string | number) <= (op.val as string | number)
   }
 }
 
@@ -107,7 +111,19 @@ export function createFakeSupabase(tables: FakeTables): FakeSupabase {
         is: (col: string, val: unknown) => push('is', col, val),
         in: (col: string, val: unknown[]) => push('in', col, val),
         gte: (col: string, val: unknown) => push('gte', col, val),
+        gt: (col: string, val: unknown) => push('gt', col, val),
         lt: (col: string, val: unknown) => push('lt', col, val),
+        lte: (col: string, val: unknown) => push('lte', col, val),
+        // PostgREST devuelve la fila o `null`; `single` además da error si no hay
+        // exactamente una, pero para estos tests alcanza con la fila o null.
+        maybeSingle: () => ({
+          then: (resolve: (v: { data: Row | null; error: null }) => unknown) =>
+            resolve({ data: run()[0] ?? null, error: null }),
+        }),
+        single: () => ({
+          then: (resolve: (v: { data: Row | null; error: null }) => unknown) =>
+            resolve({ data: run()[0] ?? null, error: null }),
+        }),
         not: (col: string, op: string, val: unknown) =>
           op === 'in' ? push('notIn', col, parseInList(val)) : builder,
         order: (col: string, opts?: { ascending?: boolean }) => {
