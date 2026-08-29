@@ -390,7 +390,7 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
 > el KPI y el calendario del panel del niño (28-ago).
 
-## Sesión 28 ago 2026 — la barra de `/ninos` vuelve a contar los programas matutinos
+## Sesión 26–28 ago 2026 — la barra de `/ninos` vuelve a contar los programas matutinos
 Sin migración (fix 100% de capa TS). Tests nuevos: `src/lib/domain/ninos-dashboard.test.ts`.
 
 - **Síntoma**: filtrando `/ninos` por BlueKids, casi todas las tarjetas decían
