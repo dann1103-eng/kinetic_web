@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { NewMonthlyCycleModal } from './NewMonthlyCycleModal'
 import { EditMonthlyCycleModal } from './EditMonthlyCycleModal'
+import { CycleChargePreviewModal } from './CycleChargePreviewModal'
 import {
   cancelMonthlyCycle,
   markMonthlyCyclePaid,
@@ -73,6 +74,7 @@ export function MonthlyCyclesSection({
   const router = useRouter()
   const [cycles, setCycles] = useState(initial)
   const [showCreate, setShowCreate] = useState(false)
+  const [previewCycleId, setPreviewCycleId] = useState<string | null>(null)
   const [editingCycle, setEditingCycle] = useState<MonthlySessionCycle | null>(null)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
   const [cancelReason, setCancelReason] = useState('')
@@ -281,15 +283,17 @@ export function MonthlyCyclesSection({
 
   const renderActions = (c: MonthlySessionCycle) => (
     <>
-      <a
-        href={`/api/ciclos/${c.id}/detalle`}
-        target="_blank"
-        rel="noopener noreferrer"
+      {/* Antes descargaba el PDF directo, sin que nadie lo viera. Ahora primero
+          se revisa en pantalla: el mes y lo que se arrastra de meses anteriores,
+          que es lo que la familia realmente paga. */}
+      <button
+        type="button"
+        onClick={() => setPreviewCycleId(c.id)}
         className="text-xs font-semibold text-fm-primary hover:underline underline-offset-2"
-        title="Descargar el detalle de pago del mes (citas, fechas y costos) para enviárselo al padre antes de cobrar"
+        title="Ver lo que se le va a cobrar este mes antes de descargar el documento"
       >
         Detalle de pago
-      </a>
+      </button>
       {c.invoice_id && (
         <Link
           href={`/billing/invoices/${c.invoice_id}`}
@@ -510,6 +514,13 @@ export function MonthlyCyclesSection({
             // especialmente si el data del RPC vino null en el primer intento.
             window.location.reload()
           }}
+        />
+      )}
+
+      {previewCycleId && (
+        <CycleChargePreviewModal
+          cycleId={previewCycleId}
+          onClose={() => setPreviewCycleId(null)}
         />
       )}
 

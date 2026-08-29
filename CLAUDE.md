@@ -514,6 +514,37 @@ donde el panel mostraba 3. Ahora se exporta solo el período visible
 > y las sesiones de grupo no viven ahí. Para un niño de BlueKids el export solo
 > trae sus terapias individuales.
 
+### Previsualizar el detalle de pago — entrega 1 de 4
+Spec: `docs/superpowers/specs/2026-08-28-detalle-pago-previsualizacion-design.md`.
+Plan: `docs/superpowers/plans/2026-08-28-detalle-pago-previsualizacion-entrega-1.md`.
+
+El botón "Detalle de pago" **ya no descarga a ciegas**: abre un modal con lo que
+la familia va a pagar y desde ahí se descarga el PDF. Nace de que un documento
+con un total equivocado llegó hasta una mamá sin que nadie lo viera antes.
+
+- **`carry-ins.ts` (nuevo, puro)**: la regla de qué se arrastra de meses
+  anteriores. Vivía dentro de `createInvoiceForCycle`, que además **marca** los
+  ciclos de origen como ya cobrados. Separar *decidir* de *persistir* es lo que
+  permite previsualizar sin escribir nada. 15 tests.
+- **`cycle-detail-input.ts` (nuevo)**: el armado del detalle sale de la ruta del
+  PDF. El documento y la pantalla leen lo mismo — dos armados paralelos del mismo
+  detalle es exactamente cómo nacieron los desfases de esta parte.
+- **`cycle-charge-preview.ts` (nuevo)**: detalle + arrastres + **total a cobrar**.
+- **`CycleChargePreviewModal.tsx` (nuevo)** + el botón de `MonthlyCyclesSection`.
+
+> **El total a cobrar NO se puede leer del ciclo.** `payment_amount_usd` no
+> descuenta el rollover en modo `discount` ni incluye los arrastres, que sí entran
+> a la factura. Se recalcula con la regla de la factura, y **el tope de los
+> descuentos es conjunto** (`min(subtotal, descuento + rollover)`): toparlos por
+> separado deja el mes en negativo. Tiene test.
+
+**Pendientes de las entregas 2–4** (con el diseño ya acordado): editar cantidades
+y descuento en esa pantalla, precio unitario por mes, y líneas libres de cobro
+(esa sí lleva migración, la **0185**). La pieza transversal es la marca de **valor
+fijado a mano**, sin la cual el sync automático revierte cualquier corrección en
+silencio — y `upsertTreatmentPlan` la borraría al refrescar el snapshot si no se
+la enseña a preservar.
+
 ### Pendiente de verificar contra producción
 No se pudo consultar la BD en esta sesión (no hay `.env.local` en el equipo y el
 token del CLI quedó bloqueado). Si tras el deploy algún niño de BlueKids **sigue**
