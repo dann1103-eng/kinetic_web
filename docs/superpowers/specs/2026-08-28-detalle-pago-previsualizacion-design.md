@@ -97,6 +97,22 @@ Va en el jsonb del snapshot — **sin migración**. Reglas:
 Distinguir "puesto a mano" de "quedó viejo" es lo que permite que el catálogo siga
 ganándole a los snapshots desactualizados sin pisar una decisión deliberada.
 
+> **Hueco encontrado al revisar el spec:** `upsertTreatmentPlan` refresca el
+> snapshot de los ciclos con el `therapies_json` **del plan**, que no tiene estas
+> marcas — o sea que editar el plan borraría los valores puestos a mano sin
+> avisar. Hay que preservarlos al refrescar, con el mismo patrón que ya usa
+> `withPreservedPrices` para los precios. Va en la entrega 2, no se puede dejar
+> para después: sin eso la marca dura hasta el próximo cambio de plan y la
+> pantalla vuelve a mentir.
+
+### Permisos
+
+Los mismos que ya gobiernan los ciclos: leer/previsualizar con el set de gestión
+(`MGMT_ROLES` de `monthly-cycles.ts` — admin, directora, ambas coordinadoras,
+recepción y contable), y guardar por `editMonthlyCycle`, que ya valida ese mismo
+set. La pantalla no introduce un permiso nuevo; si alguien puede editar el ciclo
+hoy, puede editarlo desde acá.
+
 ### Entrega 1 — Previsualizar el cobro real (solo lectura)
 
 1. Extraer de `createInvoiceForCycle` una función de solo lectura
