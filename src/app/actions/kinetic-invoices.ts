@@ -34,6 +34,7 @@ import type {
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import { daysPerWeekLabel, isMonthlyFlatEntry } from '@/lib/domain/billing/monthly-flat'
 import { withCatalogPrices } from '@/lib/domain/billing/catalog-price'
+import { computeCarryIns, periodLabel } from '@/lib/domain/billing/carry-ins'
 
 type Result<T> = { ok: true; data: T } | { ok: false; error: string }
 
@@ -79,16 +80,8 @@ function buildCycleLineItems(
     })
 }
 
-/**
- * Genera el período como label legible (ej. "abril 2026").
- * `periodMonth` viene como 'YYYY-MM-01'.
- */
-function periodLabel(periodMonth: string): string {
-  return new Date(`${periodMonth.slice(0, 10)}T00:00:00`).toLocaleDateString('es-SV', {
-    month: 'long',
-    year: 'numeric',
-  })
-}
+// `periodLabel` vive junto a la regla de arrastres (carry-ins.ts), que es quien
+// más lo usa: una sola definición para las descripciones de las líneas.
 
 /**
  * Crea una factura para un ciclo mensual de terapia ya registrado.
@@ -183,24 +176,13 @@ export async function createInvoiceForCycle(
   if (rolloverDiscount > 0) {
     discountAmount = Math.min(subtotalRaw, discountAmount + rolloverDiscount)
   }
-
-  // Recargo por mora de mensualidades ANTERIORES (mig 0175): la multa generada
-  // al pagar tarde un mes ya no se cobra en ese mes — se arrastra como línea de
-  // CARGO en la factura siguiente (espejo del rollover-descuento). Se agrega
-  // DESPUÉS de calcular el descuento porcentual para que este no lo reduzca.
-  // Familias exentas (late_fee_exempt) no arrastran nada nuevo.
-  let carriedSurchargeTotal = 0
-  const carriedFromCycleIds: string[] = []
-  if (Number(cycle.surcharge_carried_in_usd ?? 0) > 0) {
-    // Factura re-generada: el arrastre ya quedó registrado en este ciclo.
-    carriedSurchargeTotal = Number(cycle.surcharge_carried_in_usd)
-    items.push({
-      description: 'Recargo por mora de mensualidad anterior',
-      quantity: 1,
-      unit_price: carriedSurchargeTotal,
-    })
-  } else if (!(family as { late_fee_exempt?: boolean }).late_fee_exempt) {
-    const { data: pendingRaw } = await admin
+  // Arrastres de meses anteriores: recargo por mora (mig 0175) y ajuste de plan
+  // (migs 0177/0178). La REGLA vive en `computeCarryIns` — pura y con tests — para
+  // que la previsualización del cobro pueda usar exactamente la misma sin escribir
+  // nada. Acá quedan las lecturas y, después de facturar, el marcado de los ciclos
+  // de origen (`persist*`), que es lo que evita cobrar dos veces lo mismo.
+  const [{ data: pendingSurchargeRaw }, { data: pendingAdjRaw }] = await Promise.all([
+    admin
       .from('monthly_session_cycles')
       .select('id, period_month, surcharge_amount_usd')
       .eq('child_id', cycle.child_id)
@@ -209,54 +191,8 @@ export async function createInvoiceForCycle(
       .gt('surcharge_amount_usd', 0)
       .is('surcharge_carried_at', null)
       .lt('period_month', cycle.period_month)
-      .order('period_month')
-    for (const prev of (pendingRaw ?? []) as {
-      id: string
-      period_month: string
-      surcharge_amount_usd: number
-    }[]) {
-      const amount = Number(prev.surcharge_amount_usd)
-      carriedSurchargeTotal += amount
-      carriedFromCycleIds.push(prev.id)
-      items.push({
-        description: `Recargo por mora — mensualidad de ${periodLabel(prev.period_month)} pagada tarde`,
-        quantity: 1,
-        unit_price: amount,
-      })
-    }
-  }
-
-  /** Persiste el arrastre tras crear/parchar la factura (evita doble cobro). */
-  async function persistCarriedSurcharge() {
-    if (carriedFromCycleIds.length === 0) return
-    await admin
-      .from('monthly_session_cycles')
-      .update({ surcharge_carried_in_usd: carriedSurchargeTotal })
-      .eq('id', cycleId)
-    await admin
-      .from('monthly_session_cycles')
-      .update({ surcharge_carried_at: new Date().toISOString() })
-      .in('id', carriedFromCycleIds)
-  }
-
-  // Ajuste por cambio de plan tras el pago (desacople F4): un ciclo YA pagado que
-  // cambió de monto arrastra la diferencia (positiva=cargo, negativa=crédito) a la
-  // factura del mes siguiente — espejo del recargo por mora arrastrado.
-  let carriedAdjustmentTotal = 0
-  const carriedAdjFromCycleIds: string[] = []
-  if (Number(cycle.billing_adjustment_carried_in_usd ?? 0) !== 0) {
-    // Factura re-generada: el arrastre ya quedó registrado en este ciclo.
-    carriedAdjustmentTotal = Number(cycle.billing_adjustment_carried_in_usd)
-    items.push({
-      description:
-        carriedAdjustmentTotal >= 0
-          ? 'Ajuste de mensualidad anterior (cambio de plan)'
-          : 'Crédito de mensualidad anterior (cambio de plan)',
-      quantity: 1,
-      unit_price: carriedAdjustmentTotal,
-    })
-  } else {
-    const { data: adjRaw } = await admin
+      .order('period_month'),
+    admin
       .from('monthly_session_cycles')
       .select('id, period_month, billing_adjustment_usd')
       .eq('child_id', cycle.child_id)
@@ -265,37 +201,58 @@ export async function createInvoiceForCycle(
       .neq('billing_adjustment_usd', 0)
       .is('billing_adjustment_carried_at', null)
       .lt('period_month', cycle.period_month)
-      .order('period_month')
-    for (const prev of (adjRaw ?? []) as {
+      .order('period_month'),
+  ])
+
+  const carry = computeCarryIns({
+    cycle: {
+      period_month: String(cycle.period_month),
+      surcharge_carried_in_usd: cycle.surcharge_carried_in_usd,
+      billing_adjustment_carried_in_usd: cycle.billing_adjustment_carried_in_usd,
+    },
+    familyLateFeeExempt: !!(family as { late_fee_exempt?: boolean }).late_fee_exempt,
+    pendingSurchargeCycles: (pendingSurchargeRaw ?? []) as {
+      id: string
+      period_month: string
+      surcharge_amount_usd: number
+    }[],
+    pendingAdjustmentCycles: (pendingAdjRaw ?? []) as {
       id: string
       period_month: string
       billing_adjustment_usd: number
-    }[]) {
-      const amount = Number(prev.billing_adjustment_usd)
-      carriedAdjustmentTotal += amount
-      carriedAdjFromCycleIds.push(prev.id)
-      items.push({
-        description:
-          amount >= 0
-            ? `Ajuste — mensualidad de ${periodLabel(prev.period_month)} (cambio de plan tras el pago)`
-            : `Crédito — mensualidad de ${periodLabel(prev.period_month)} (cambio de plan tras el pago)`,
-        quantity: 1,
-        unit_price: amount,
-      })
-    }
+    }[],
+  })
+
+  // Las líneas de arrastre se agregan DESPUÉS del descuento a propósito: el
+  // porcentaje no debe reducir un recargo ni un ajuste que vienen de otro mes.
+  for (const line of carry.lines) {
+    items.push({ description: line.description, quantity: 1, unit_price: line.amount })
   }
 
-  /** Persiste el arrastre del ajuste tras crear/parchar la factura. */
-  async function persistCarriedAdjustment() {
-    if (carriedAdjFromCycleIds.length === 0) return
+  /** Marca los ciclos de origen del recargo tras crear/parchar la factura. */
+  async function persistCarriedSurcharge() {
+    if (carry.surchargeFromCycleIds.length === 0) return
     await admin
       .from('monthly_session_cycles')
-      .update({ billing_adjustment_carried_in_usd: carriedAdjustmentTotal })
+      .update({ surcharge_carried_in_usd: carry.surchargeTotal })
+      .eq('id', cycleId)
+    await admin
+      .from('monthly_session_cycles')
+      .update({ surcharge_carried_at: new Date().toISOString() })
+      .in('id', carry.surchargeFromCycleIds)
+  }
+
+  /** Marca los ciclos de origen del ajuste tras crear/parchar la factura. */
+  async function persistCarriedAdjustment() {
+    if (carry.adjustmentFromCycleIds.length === 0) return
+    await admin
+      .from('monthly_session_cycles')
+      .update({ billing_adjustment_carried_in_usd: carry.adjustmentTotal })
       .eq('id', cycleId)
     await admin
       .from('monthly_session_cycles')
       .update({ billing_adjustment_carried_at: new Date().toISOString() })
-      .in('id', carriedAdjFromCycleIds)
+      .in('id', carry.adjustmentFromCycleIds)
   }
 
   const totals = calculateTotals({
