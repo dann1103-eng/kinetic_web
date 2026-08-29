@@ -5,6 +5,7 @@ import {
   periodMonthOfSV,
   therapiesSyncedToAgenda,
 } from './agenda-charge-sync'
+import { withSessionsOverride } from './manual-overrides'
 import type { TreatmentPlanTherapyEntry } from '@/types/db'
 
 const appt = (service: string, status = 'scheduled', event_type = 'terapia') => ({
@@ -181,5 +182,70 @@ describe('needsChargeSync', () => {
     expect(
       needsChargeSync({ therapiesChanged: false, currentAmount: 236, newAmount: 236.004 }),
     ).toBe(false)
+  })
+})
+
+describe('therapiesSyncedToAgenda — cantidades fijadas a mano', () => {
+  const noPrice = () => 0
+
+  it('no pisa una cantidad marcada aunque la agenda diga otra cosa', () => {
+    // Es lo que hace útil corregir: sin esto, mover una cita del mes revierte
+    // la corrección en silencio.
+    const therapies = [
+      withSessionsOverride(
+        {
+          service: 'lenguaje',
+          active: true,
+          sessions_per_month: 4,
+          unit_cost_usd: 22,
+          billing_mode: 'per_session',
+        } as TreatmentPlanTherapyEntry,
+        3,
+      ),
+    ]
+    const res = therapiesSyncedToAgenda(therapies, new Map([['lenguaje', 4]]), noPrice)
+
+    expect(res.changed).toBe(false)
+    expect(res.therapies[0].sessions_per_month).toBe(3)
+    expect(res.overriddenServices).toEqual(['lenguaje'])
+  })
+
+  it('una terapia sin marcar se sigue emparejando', () => {
+    const therapies = [
+      {
+        service: 'lenguaje',
+        active: true,
+        sessions_per_month: 4,
+        unit_cost_usd: 22,
+        billing_mode: 'per_session',
+      } as TreatmentPlanTherapyEntry,
+    ]
+    const res = therapiesSyncedToAgenda(therapies, new Map([['lenguaje', 3]]), noPrice)
+
+    expect(res.changed).toBe(true)
+    expect(res.therapies[0].sessions_per_month).toBe(3)
+    expect(res.overriddenServices).toEqual([])
+  })
+
+  it('a una entrada marcada igual se le rellena el precio faltante', () => {
+    // La marca es de la CANTIDAD. Un snapshot sin precio seguiría recalculando
+    // el mes en $0, que es el bug que el respaldo de catálogo evita.
+    const therapies = [
+      withSessionsOverride(
+        {
+          service: 'conductual',
+          active: true,
+          sessions_per_month: 6,
+          unit_cost_usd: 0,
+          billing_mode: 'per_session',
+        } as TreatmentPlanTherapyEntry,
+        3,
+      ),
+    ]
+    const res = therapiesSyncedToAgenda(therapies, new Map([['conductual', 6]]), () => 40)
+
+    expect(res.therapies[0].unit_cost_usd).toBe(40)
+    expect(res.therapies[0].sessions_per_month).toBe(3)
+    expect(res.changed).toBe(true)
   })
 })

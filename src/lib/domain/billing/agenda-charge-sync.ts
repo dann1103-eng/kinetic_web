@@ -16,6 +16,7 @@
 import { toZonedTime } from 'date-fns-tz'
 import type { TreatmentPlanTherapyEntry } from '@/types/db'
 import { isMonthlyFlatEntry, isMorningProgramService } from './monthly-flat'
+import { hasSessionsOverride } from './manual-overrides'
 
 const TZ = 'America/El_Salvador'
 
@@ -76,6 +77,8 @@ export interface AgendaSyncResult {
   unpricedServices: string[]
   /** Servicios cuyo precio venía en cero y se tomó del catálogo. */
   backfilledPrices: { service: string; unitCost: number }[]
+  /** Servicios cuya cantidad está fijada a mano: el emparejado no los toca. */
+  overriddenServices: string[]
 }
 
 /**
@@ -103,6 +106,7 @@ export function therapiesSyncedToAgenda(
 ): AgendaSyncResult {
   let changed = false
   const unpricedServices: string[] = []
+  const overriddenServices: string[] = []
   const backfilledPrices: { service: string; unitCost: number }[] = []
 
   const synced = therapies.map((t) => {
@@ -126,6 +130,16 @@ export function therapiesSyncedToAgenda(
     }
 
     if (isMonthlyFlatEntry(t)) return entry
+
+    // Cantidad fijada a mano: gana sobre la agenda hasta que alguien la suelte.
+    // Sin esto, corregir el cobro no servía de nada — mover una cita del mes lo
+    // revertía en silencio. Se reporta para que la revisión de cobros pueda
+    // explicar por qué no está emparejando esta terapia.
+    if (hasSessionsOverride(t)) {
+      overriddenServices.push(t.service)
+      return entry
+    }
+
     const count = counts.get(t.service)
     if (count == null || count === Number(t.sessions_per_month)) return entry
     changed = true
@@ -150,7 +164,7 @@ export function therapiesSyncedToAgenda(
     })
   }
 
-  return { therapies: synced, changed, unpricedServices, backfilledPrices }
+  return { therapies: synced, changed, unpricedServices, backfilledPrices, overriddenServices }
 }
 
 /**
