@@ -18,6 +18,7 @@ import { SERVICE_TYPE_LABELS, DAY_OF_WEEK_LABELS } from '@/types/db'
 import { applyDiscount, validateDiscount } from '@/lib/domain/discounts'
 import { therapyLineAmount, isMorningProgramService, planTherapistIds } from '@/lib/domain/billing/monthly-flat'
 import { withCatalogPrices, withPreservedPrices } from '@/lib/domain/billing/catalog-price'
+import { withPreservedOverrides } from '@/lib/domain/billing/manual-overrides'
 import { createInvoiceForCycle } from './kinetic-invoices'
 import { toZonedTime } from 'date-fns-tz'
 
@@ -400,8 +401,14 @@ export async function upsertTreatmentPlan(
       // snapshot solo se usa de respaldo para un servicio que el catálogo no
       // tenga cotizado. (Al revés, un plan que parte una sesión de 60 en dos de
       // 30 se quedaba con el precio viejo de 60.)
-      const pricedTherapies = withPreservedPrices(
-        withCatalogPrices(therapiesValidated, catalogForPrices).therapies,
+      // Y encima se preservan las cantidades que alguien fijó a mano en el mes:
+      // `therapiesValidated` trae las del PLAN, así que sin esto editar el plan
+      // borraba la corrección del cobro en silencio.
+      const pricedTherapies = withPreservedOverrides(
+        withPreservedPrices(
+          withCatalogPrices(therapiesValidated, catalogForPrices).therapies,
+          priorTherapies,
+        ),
         priorTherapies,
       )
 
