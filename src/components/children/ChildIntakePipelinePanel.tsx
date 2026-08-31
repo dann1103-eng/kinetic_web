@@ -34,23 +34,32 @@ export function ChildIntakePipelinePanel({
   const [dischargeType, setDischargeType] = useState<DischargeType | null>(null)
 
   /**
-   * Alta o retiro empezado y sin terminar. **Sin esto era invisible**: la ficha
-   * no lista las bajas, y la única forma de ver si hay una era abrir el
+   * Alta o retiro que dejó algo sin resolver. **Sin esto era invisible**: la
+   * ficha no lista las bajas, y la única forma de ver si había una era abrir el
    * formulario — que CREA un borrador si no existe, así que revisar contaminaba
-   * el dato. Una baja a medio hacer deja al niño activo para todo el equipo y
-   * nadie tenía cómo enterarse (caso reportado el 31-ago-2026).
+   * el dato (caso reportado el 31-ago-2026).
+   *
+   * **Firmar cierra la baja.** Enviarle el documento a la familia es opcional,
+   * así que un registro firmado NO se avisa... salvo que el niño siga sin su
+   * fase terminal: eso son las bajas firmadas ANTES de que el cambio de fase se
+   * moviera a la firma, que quedaron a medias y hay que destrabar.
    */
   const [pending, setPending] = useState<ChildDischargeRecord | null>(null)
+  const isTerminal =
+    currentPhaseCode === '5_1_alta_terapeutica' || currentPhaseCode === '5_2_retirado'
   useEffect(() => {
     let cancelled = false
     listDischargeRecordsForChild(childId).then((recs) => {
       if (cancelled) return
-      setPending(recs.find((r) => r.status !== 'sent_to_family') ?? null)
+      const unfinished = recs.find(
+        (r) => r.status === 'draft' || (r.status === 'signed' && !isTerminal),
+      )
+      setPending(unfinished ?? null)
     })
     return () => {
       cancelled = true
     }
-  }, [childId])
+  }, [childId, isTerminal])
 
   return (
     <div className="space-y-3">
@@ -64,7 +73,7 @@ export function ChildIntakePipelinePanel({
             <p className="text-[12px] text-amber-800 mt-0.5">
               {pending.status === 'draft'
                 ? 'Quedó en borrador, sin firmar. El niño/a sigue apareciendo activo para todo el equipo hasta que se firme.'
-                : 'Está firmado pero no se envió a la familia. Abrilo y enviálo para completarlo.'}
+                : 'Se firmó, pero el niño/a quedó sin su fase de cierre. Abrilo y volvé a completarlo.'}
             </p>
           </div>
           <button

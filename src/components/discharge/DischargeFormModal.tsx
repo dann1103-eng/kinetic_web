@@ -27,12 +27,17 @@ interface Props {
  * Modal de alta o retiro. Flujo:
  *   1. Al abrir, busca el draft activo del niño para ese tipo, o crea uno nuevo.
  *   2. Mientras está `draft`: editable (objetivos, recomendaciones, plan, motivo).
- *   3. "Firmar y finalizar" → coordinadora_terapias / admin / directora cierran la
- *      baja con SU sola firma (status='signed'). La ÚNICA firma requerida para
- *      dar de alta es la de la coordinadora de terapias; queda estampada en
+ *   3. "Firmar y finalizar" → **acá termina la baja**: coordinadora_terapias /
+ *      admin / directora la cierran con SU sola firma (status='signed'), el niño
+ *      pasa a su fase terminal y sale del horario. La ÚNICA firma requerida es
+ *      la de la coordinadora de terapias; queda estampada en
  *      signed_by_coordinadora_* (mig 0174). Las firmas de terapista/directora se
  *      muestran solo en registros históricos que las tengan.
- *   4. "Enviar a familia" → status='sent_to_family' + avanzar fase del niño al código terminal.
+ *   4. "Enviar a familia" es **opcional**: entrega el documento a los padres
+ *      (status='sent_to_family'). No cambia nada del estado del niño — si no se
+ *      hace, la baja igual está completa. Antes era el paso que disparaba el
+ *      cambio de fase, y por eso una baja firmada y no enviada dejaba al niño
+ *      activo para todo el equipo.
  */
 export function DischargeFormModal({
   childId,
@@ -296,7 +301,7 @@ export function DischargeFormModal({
               type="button"
               disabled={isPending}
               onClick={handleFinalizeSolo}
-              title="Firma y cierra la baja con tu sola firma (la única requerida). A la directora se le notifica al enviar a la familia / cambiar de fase."
+              title="Firma y cierra la baja con tu sola firma (la única requerida): el niño/a pasa a su fase de cierre y sale del horario. A la directora se le notifica."
               className="px-3 py-1.5 text-sm rounded-lg bg-fm-primary text-white font-semibold hover:bg-fm-primary/90 disabled:opacity-50"
             >
               Firmar y finalizar
@@ -304,6 +309,9 @@ export function DischargeFormModal({
           )}
           {record.status === 'signed' && (
             <>
+              <span className="mr-auto text-xs text-emerald-700 font-medium">
+                Baja completada
+              </span>
               <a
                 href={`/api/discharge/${record.id}`}
                 target="_blank"
@@ -316,9 +324,10 @@ export function DischargeFormModal({
                 type="button"
                 disabled={isPending}
                 onClick={handleSendToFamily}
-                className="px-3 py-1.5 text-sm rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                title="Opcional: le entrega el documento a los padres. La baja ya está completa."
+                className="px-3 py-1.5 text-sm rounded-lg border border-emerald-600 text-emerald-700 font-semibold hover:bg-emerald-50 disabled:opacity-50"
               >
-                Enviar a familia
+                Enviar a familia (opcional)
               </button>
             </>
           )}

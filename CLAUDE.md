@@ -431,10 +431,15 @@ la única manera de ver si hay una era abrir el formulario… que **crea un borr
 si no existe** (`DischargeFormModal`, efecto de carga). Revisar contaminaba el
 dato que se quería revisar.
 
-Ahora la ficha muestra un aviso ámbar cuando hay un alta/retiro con estado
-distinto de `sent_to_family`, diciendo si quedó en borrador (el niño sigue activo
-hasta firmar) o firmado sin enviar. Usa `listDischargeRecordsForChild`, que ya
-existía y es solo lectura.
+Ahora la ficha muestra un aviso ámbar cuando la baja dejó algo sin resolver. Usa
+`listDischargeRecordsForChild`, que ya existía y es solo lectura.
+
+**Firmar CIERRA la baja; enviar a la familia es opcional** (decisión del usuario,
+31-ago). Por eso el aviso NO aparece por un registro firmado… salvo que el niño
+siga sin su fase terminal: esas son las bajas firmadas antes de que el cambio de
+fase se moviera a la firma, y son las únicas que hay que destrabar. El botón dice
+"Enviar a familia (opcional)" y al firmar el modal muestra **"Baja completada"**:
+entregarle el documento a los padres no cambia nada del estado del niño.
 
 > **Ojo al diagnosticar**: fase activa + historial de fases vacío **no** significa
 > que nadie intentó nada. Firmar una baja (código viejo) o dejarla en borrador
