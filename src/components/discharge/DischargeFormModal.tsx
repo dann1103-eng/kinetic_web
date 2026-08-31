@@ -9,20 +9,17 @@ import {
   sendDischargeToFamily,
   listDischargeRecordsForChild,
 } from '@/app/actions/discharge-records'
-import { advanceChildPhase } from '@/app/actions/intake-pipeline'
 import { useUser } from '@/contexts/UserContext'
 import {
   DISCHARGE_TYPE_LABELS,
   type ChildDischargeRecord,
   type DischargeType,
-  type IntakePhaseCatalogEntry,
 } from '@/types/db'
 
 interface Props {
   childId: string
   childName: string
   dischargeType: DischargeType
-  phaseCatalog: IntakePhaseCatalogEntry[]
   onClose: () => void
 }
 
@@ -41,7 +38,6 @@ export function DischargeFormModal({
   childId,
   childName,
   dischargeType,
-  phaseCatalog,
   onClose,
 }: Props) {
   const router = useRouter()
@@ -149,6 +145,9 @@ export function DischargeFormModal({
               signed_by_directora_at: now,
             }
       setRecord({ ...record, status: 'signed', ...signaturePatch })
+      // Firmar ahora también deja al niño en su fase terminal: hay que refrescar
+      // para que el pipeline de la ficha deje de decir "Activo en Terapias".
+      router.refresh()
     })
   }
 
@@ -161,14 +160,10 @@ export function DischargeFormModal({
         setError(res.error)
         return
       }
-      // Avanzar al niño a la fase terminal correspondiente
-      const targetCode = isAlta ? '5_1_alta_terapeutica' : '5_2_retirado'
-      const phase = phaseCatalog.find((p) => p.code === targetCode)
-      if (phase) {
-        await advanceChildPhase(childId, targetCode, `Cierre confirmado al enviar a familia.`, {
-          confirmCancelAppointments: true,
-        })
-      }
+      // La fase ya cambió al FIRMAR (finalizeDischarge). Volver a avanzarla acá
+      // fallaría: salir de una fase terminal solo lo permite admin/directora
+      // (`validateTransition`), así que a la coordinadora le daría error en un
+      // paso que en realidad salió bien.
       router.refresh()
       onClose()
     })

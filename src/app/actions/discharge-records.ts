@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { calculateDischargeStats } from '@/lib/domain/intake-pipeline'
+import { advanceChildPhase } from './intake-pipeline'
 import type {
   Appointment,
   Child,
@@ -263,12 +264,24 @@ export async function signDischargeAsDirectora(
   return { ok: true, data: null }
 }
 
-// Finalizar la baja SIN la firma bloqueante de directora. La coordinadora de
-// terapias (y admin) puede cerrar el registro (status='signed') para poder
-// enviarlo a la familia y avanzar la fase del niño; a la directora se le
-// notifica cuando se saca al niño del horario (createDischargeNotifications en
-// advanceChildPhase, al "Enviar a familia"). Pedido de dirección: "una vez Diana
-// lo cambie de fase se efectúe sin mi aprobación; a mí solo se me notifica".
+/**
+ * Finaliza la baja: firma el registro Y deja al niño en su fase terminal.
+ *
+ * **El cambio de fase va acá, no al enviar el documento a la familia.** Antes
+ * colgaba de "Enviar a familia", el último de tres pasos, así que una baja
+ * firmada y no enviada dejaba al niño en "Activo en Terapias" para todo el
+ * resto del sistema — la agenda, /ninos, /mis-ninos y los dashboards leen
+ * `current_phase_code`. La coordinadora daba el retiro por hecho y a los demás
+ * les seguía apareciendo activo (caso reportado el 31-ago-2026).
+ *
+ * Firmar ES la decisión; mandarle el documento a la familia es logística
+ * posterior. Es además lo que pidió dirección: "una vez Diana lo cambie de fase
+ * se efectúe sin mi aprobación; a mí solo se me notifica" — la notificación la
+ * sigue disparando `advanceChildPhase`.
+ *
+ * Sin la firma bloqueante de directora: la coordinadora de terapias (y admin)
+ * cierran el registro solas (`CAN_FINALIZE_DISCHARGE`, mig 0174).
+ */
 export async function finalizeDischarge(recordId: string): Promise<Result<null>> {
   const { user } = await getActor()
   if (!CAN_FINALIZE_DISCHARGE.includes(user.role)) {
@@ -278,7 +291,7 @@ export async function finalizeDischarge(recordId: string): Promise<Result<null>>
   const admin = createAdminClient()
   const { data: existing } = await admin
     .from('child_discharge_records')
-    .select('id, status')
+    .select('id, status, child_id, discharge_type')
     .eq('id', recordId)
     .maybeSingle()
   if (!existing) return { ok: false, error: 'Registro no encontrado.' }
@@ -307,6 +320,27 @@ export async function finalizeDischarge(recordId: string): Promise<Result<null>>
     .eq('id', recordId)
   if (error) return { ok: false, error: error.message }
 
+  // Y el niño queda efectivamente dado de alta / retirado. Si esto fallara, la
+  // firma ya quedó guardada y `finalizeDischarge` no se puede reintentar (exige
+  // borrador), así que el error tiene que decir exactamente qué pasó y qué
+  // falta, en vez de dejar la baja a medias en silencio.
+  const targetCode =
+    (existing as { discharge_type?: DischargeType }).discharge_type === 'alta'
+      ? '5_1_alta_terapeutica'
+      : '5_2_retirado'
+  const advanced = await advanceChildPhase(
+    (existing as { child_id: string }).child_id,
+    targetCode,
+    'Cierre firmado.',
+    { confirmCancelAppointments: true },
+  )
+  if (!advanced.ok) {
+    return {
+      ok: false,
+      error: `La baja quedó firmada, pero el niño/a NO cambió de fase: ${advanced.error} Cambiala a mano desde la ficha, o el resto del equipo lo va a seguir viendo activo.`,
+    }
+  }
+
   return { ok: true, data: null }
 }
 
@@ -323,7 +357,7 @@ export async function sendDischargeToFamily(
   const admin = createAdminClient()
   const { data: existing } = await admin
     .from('child_discharge_records')
-    .select('id, status, child_id')
+    .select('id, status, child_id, discharge_type')
     .eq('id', recordId)
     .maybeSingle()
   if (!existing) return { ok: false, error: 'Registro no encontrado.' }
@@ -337,12 +371,34 @@ export async function sendDischargeToFamily(
     .eq('id', recordId)
   if (error) return { ok: false, error: error.message }
 
-  // Refrescar vista de la familia
+  // Red de seguridad para las bajas FIRMADAS ANTES de que el cambio de fase se
+  // moviera a `finalizeDischarge` (31-ago-2026): esas quedaron con el niño
+  // activo, y sin esto no tendrían ningún camino para retirarse — el desplegable
+  // de fase abre este mismo formulario, y finalizeDischarge exige un borrador.
+  // Si la fase ya es la terminal no se toca: volver a avanzar desde una fase
+  // terminal solo lo permite admin/directora y le daría un error inútil a la
+  // coordinadora.
   const { data: childRow } = await admin
     .from('children')
-    .select('family_id')
+    .select('family_id, current_phase_code')
     .eq('id', existing.child_id)
     .maybeSingle()
+
+  const targetCode =
+    (existing as { discharge_type?: DischargeType }).discharge_type === 'alta'
+      ? '5_1_alta_terapeutica'
+      : '5_2_retirado'
+  if (childRow && (childRow as { current_phase_code?: string }).current_phase_code !== targetCode) {
+    const advanced = await advanceChildPhase(existing.child_id, targetCode, 'Cierre enviado a la familia.', {
+      confirmCancelAppointments: true,
+    })
+    if (!advanced.ok) {
+      console.error(
+        `[sendDischargeToFamily] ${recordId}: enviado, pero el niño ${existing.child_id} no cambió de fase: ${advanced.error}`,
+      )
+    }
+  }
+
   if (childRow) {
     revalidatePath(`/familias/${childRow.family_id}/children/${existing.child_id}`)
   }

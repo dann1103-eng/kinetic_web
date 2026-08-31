@@ -68,7 +68,6 @@ export function ChildIntakePipelinePanel({
           childId={childId}
           childName={childName}
           dischargeType={dischargeType}
-          phaseCatalog={phaseCatalog}
           onClose={() => setDischargeType(null)}
         />
       )}

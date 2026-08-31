@@ -390,6 +390,43 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
 > el KPI y el calendario del panel del niño (28-ago).
 
+## Sesión 31 ago 2026 — un niño retirado le seguía apareciendo activo a los demás
+Sin migración.
+
+- **Síntoma**: la coordinadora de terapias pone a un niño en retirado y al resto
+  del equipo le sigue apareciendo activo. "A veces".
+- **No era caché ni datos viejos.** Retirar es un flujo de TRES pasos —crear el
+  borrador, firmar, **enviar a la familia**— y `current_phase_code` **solo
+  cambiaba en el tercero** (`DischargeFormModal.handleSendToFamily`). Firmar
+  dejaba el registro en `signed` y al niño en `3_3_activo_en_terapias`. Para ella
+  el trámite estaba hecho; la agenda, `/ninos`, `/mis-ninos` y los dashboards
+  leen la fase, así que mostraban lo correcto según la base. El "a veces" es si
+  se completó o no el último paso.
+- **Elegir "5.2 Retirado" en el desplegable no cambia la fase**: `is_terminal`
+  hace que `handleSelectPhase` abra el formulario de baja y salga
+  (`ChildIntakePipelineWidget:79`). Es el único camino a una fase terminal.
+- **Fix**: la fase cambia al **FIRMAR** (`finalizeDischarge`). Firmar es la
+  decisión; mandarle el documento a la familia es logística. Coincide con lo
+  pedido por dirección, que era no exigir su aprobación ("una vez Diana lo cambie
+  de fase se efectúe sin mi aprobación; a mí solo se me notifica") — la
+  notificación la sigue disparando `advanceChildPhase`.
+
+> ⚠️ **Hay que quitar la segunda llamada, no dejar las dos.** Salir de una fase
+> terminal solo lo permite admin/directora (`validateTransition`), así que
+> volver a llamar `advanceChildPhase` al enviar le daría a la coordinadora un
+> error en un paso que salió bien.
+
+> **Red de seguridad para las bajas ya firmadas antes del fix** (Nicolás
+> Comandari y las que haya): quedaron con el niño activo y sin ningún camino para
+> retirarse — el desplegable abre el formulario y `finalizeDischarge` exige un
+> borrador. Por eso `sendDischargeToFamily` avanza la fase **si todavía no es la
+> terminal**. Enviar esas bajas pendientes las destraba.
+
+**Si el cambio de fase falla tras firmar**, el error lo dice explícito ("la baja
+quedó firmada, pero el niño/a NO cambió de fase… el resto del equipo lo va a
+seguir viendo activo"): `finalizeDischarge` no se puede reintentar porque exige
+borrador, así que fallar en silencio dejaría exactamente el bug que se arregló.
+
 ## Sesión 26–29 ago 2026 — la barra de `/ninos` vuelve a contar los programas matutinos
 Sin migración (fix 100% de capa TS). Tests nuevos: `src/lib/domain/ninos-dashboard.test.ts`.
 
