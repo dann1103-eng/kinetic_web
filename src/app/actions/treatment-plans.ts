@@ -20,6 +20,7 @@ import { therapyLineAmount, isMorningProgramService, planTherapistIds } from '@/
 import { withCatalogPrices, withPreservedPrices } from '@/lib/domain/billing/catalog-price'
 import { withPreservedOverrides } from '@/lib/domain/billing/manual-overrides'
 import { createInvoiceForCycle } from './kinetic-invoices'
+import { fullMonthPatternOverride } from './monthly-cycles'
 import { toZonedTime } from 'date-fns-tz'
 
 const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'] as const
@@ -374,9 +375,27 @@ export async function upsertTreatmentPlan(
       treatment_plan_snapshot: Record<string, unknown> | null
     }
     for (const c of (cyclesRaw ?? []) as CycleRow[]) {
+      // El patrón COMPLETO del mes se manda explícito. Con override `null` el
+      // RPC recomputa y topa cada servicio a la cuota del plan gastándola con
+      // las fechas MÁS TEMPRANAS; como acá siempre se regenera `only_future`,
+      // esas fechas ya pasaron y no se recrean, así que la cuota se consume en
+      // citas que nunca se crean y se pierde el final del mes. Fue exactamente
+      // eso: cuatro niños se quedaron sin su sesión del lunes 31 de agosto de
+      // 2026 al editarles el plan, sus misses no los vieron en la lista de
+      // asistencia, y el cobro automático bajó el monto de un mes ya pagado.
+      const pattern = await fullMonthPatternOverride(input.childId, c.period_month, true)
+      if (pattern === null) {
+        // Sin patrón no se regenera a ciegas: dejar las citas como están es
+        // mucho menos malo que borrarles el final del mes.
+        console.error(
+          `[upsertTreatmentPlan] ${c.period_month}: no se pudo calcular el patrón; no se regenera.`,
+        )
+        conflictMonths.push(c.period_month.slice(0, 7))
+        continue
+      }
       const { error: rErr } = await supabase.rpc('regenerate_cycle_appointments', {
         p_cycle_id: c.id,
-        p_appointments_override: null,
+        p_appointments_override: pattern,
         p_only_future: true, // 'only_future': nunca toca las citas pasadas/marcadas
       })
       if (rErr) {

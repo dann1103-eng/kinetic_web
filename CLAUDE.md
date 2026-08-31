@@ -390,6 +390,39 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
 > el KPI y el calendario del panel del niño (28-ago).
 
+## Sesión 31 ago 2026 — editar el plan borraba el último lunes del mes
+Sin migración.
+
+- **Síntoma**: a cuatro niños (Daniel Pérez Godoy, Jesús Sánchez, Lucas Berdugo,
+  David Matamoros) no les aparecía la sesión del **lunes 31 de agosto** en la
+  lista de asistencia de sus misses ni en la agenda. El detalle de pago que se
+  les había mandado a las familias a inicio de mes **sí** la tenía y ya la habían
+  pagado; re-exportando el mismo detalle hoy, el 31 ya no salía.
+- **Aritmética del caso** (Pérez Godoy): el ciclo pasó de **16 citas / $330** a
+  **14 / $285**. Conductual 4→3 y Sensorial 8→7; Funciones Ejecutivas quedó en 4.
+  Es la cuota del plan repartida entre las fechas **más tempranas** del mes.
+- **Causa**: `upsertTreatmentPlan` regeneraba las citas de TODOS los ciclos del
+  niño con `p_appointments_override: null` y `p_only_future: true`
+  (`treatment-plans.ts`). Con override `null` el RPC recomputa y topa cada
+  servicio a la cuota gastándola desde el principio del mes; como se regenera
+  solo lo futuro, esas fechas ya pasaron y no se recrean — **la cuota se consume
+  en citas que nunca se crean y el excedente del final del mes se pierde**.
+- Después el cobro automático siguió a la agenda y **bajó el monto de un mes que
+  las familias ya habían pagado**. El ciclo dice $285 y en caja entraron $330.
+
+> ⚠️ **NUNCA regenerar con `p_appointments_override: null`.** Es la segunda vez
+> que este mismo defecto rompe producción: la primera fue `EditMonthlyCycleModal`
+> (ago 2026) y se arregló solo ahí; el camino de editar el PLAN quedó con el bug.
+> Ahora hay un helper único, `fullMonthPatternOverride` (`monthly-cycles.ts`),
+> que arma el patrón completo del mes (`candidates + skipped_overquota`,
+> recortado a futuro) y **devuelve `null` si no lo puede calcular** — ahí no se
+> regenera: dejar las citas como están es mucho menos malo que borrar el final
+> del mes.
+
+**Cómo detectarlo**: el mes pierde exactamente las sesiones de la última semana y
+el monto baja en consecuencia. Comparar el PDF de detalle viejo con el nuevo lo
+muestra de una.
+
 ## Sesión 31 ago 2026 — un niño retirado le seguía apareciendo activo a los demás
 Sin migración.
 
