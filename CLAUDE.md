@@ -422,6 +422,24 @@ Sin migración.
 > borrador. Por eso `sendDischargeToFamily` avanza la fase **si todavía no es la
 > terminal**. Enviar esas bajas pendientes las destraba.
 
+### Una baja a medio hacer era invisible
+Al revisar el caso reportado (Nicolás C.) la ficha mostraba fase **3.3 Activo** e
+**historial de fases vacío** — que es exactamente la huella que deja una baja
+firmada sin enviar, porque el código viejo no tocaba la fase ni escribía
+historial. Pero **no había forma de confirmarlo**: la ficha no lista las bajas, y
+la única manera de ver si hay una era abrir el formulario… que **crea un borrador
+si no existe** (`DischargeFormModal`, efecto de carga). Revisar contaminaba el
+dato que se quería revisar.
+
+Ahora la ficha muestra un aviso ámbar cuando hay un alta/retiro con estado
+distinto de `sent_to_family`, diciendo si quedó en borrador (el niño sigue activo
+hasta firmar) o firmado sin enviar. Usa `listDischargeRecordsForChild`, que ya
+existía y es solo lectura.
+
+> **Ojo al diagnosticar**: fase activa + historial de fases vacío **no** significa
+> que nadie intentó nada. Firmar una baja (código viejo) o dejarla en borrador
+> producen los dos exactamente esa huella.
+
 **Si el cambio de fase falla tras firmar**, el error lo dice explícito ("la baja
 quedó firmada, pero el niño/a NO cambió de fase… el resto del equipo lo va a
 seguir viendo activo"): `finalizeDischarge` no se puede reintentar porque exige
