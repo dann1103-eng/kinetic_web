@@ -179,6 +179,21 @@ export const CAN_MANAGE_USERS_ROLES: UserRole[] = [
   'coordinadora_familias',
   'coordinadora_terapias',
 ]
+
+/**
+ * Roles que pueden ver y editar los catálogos de precios (cobro a familias) y
+ * costos (pago a terapistas), incluyendo dar de alta y desactivar artículos.
+ * Única fuente — usada por el guard de la página (/catalogos), las Server
+ * Actions (service-catalog.ts) y el Sidebar. Debe coincidir con la policy RLS
+ * `service_catalog_mgmt_write` (mig 0186), o la escritura falla en silencio.
+ */
+export const CAN_MANAGE_CATALOG_ROLES: UserRole[] = [
+  'admin',
+  'contable',
+  'recepcion',
+  'coordinadora_familias',
+]
+
 export type ConversationType = 'dm' | 'channel' | 'voice_channel'
 
 export type CallModality = 'voice' | 'video' | 'screen'

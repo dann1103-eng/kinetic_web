@@ -2,18 +2,18 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { CAN_MANAGE_CATALOG_ROLES } from '@/types/db'
 import type {
   ServiceCatalogItem,
   ServiceCategory,
   MorningProgram,
   ServiceType,
+  UserRole,
 } from '@/types/db'
 
 type ActionResult<T = void> =
   | ({ ok: true } & (T extends void ? object : { data: T }))
   | { ok: false; error: string }
-
-const CATALOG_MANAGER_ROLES = ['admin', 'contable', 'recepcion']
 
 async function requireAdmin(): Promise<{ error: string } | { userId: string }> {
   const supabase = await createClient()
@@ -28,8 +28,14 @@ async function requireAdmin(): Promise<{ error: string } | { userId: string }> {
     .eq('id', user.id)
     .single()
 
-  if (!appUser?.role || !CATALOG_MANAGER_ROLES.includes(appUser.role)) {
-    return { error: 'Solo admin, contable o recepción pueden editar los catálogos.' }
+  if (
+    !appUser?.role ||
+    !CAN_MANAGE_CATALOG_ROLES.includes(appUser.role as UserRole)
+  ) {
+    return {
+      error:
+        'Solo admin, contable, recepción o coordinadora de familias pueden editar los catálogos.',
+    }
   }
   return { userId: user.id }
 }

@@ -3,16 +3,14 @@ import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { TopNav } from '@/components/layout/TopNav'
 import { listServiceCatalog } from '@/app/actions/service-catalog'
 import { CatalogosClient } from '@/components/catalogos/CatalogosClient'
-import type { UserRole } from '@/types/db'
+import { CAN_MANAGE_CATALOG_ROLES } from '@/types/db'
 
 export const dynamic = 'force-dynamic'
-
-const ALLOWED_ROLES: UserRole[] = ['admin', 'contable', 'recepcion']
 
 export default async function CatalogosPage() {
   const ctx = await getEffectiveUser()
   if (!ctx) redirect('/login')
-  if (!ALLOWED_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
+  if (!CAN_MANAGE_CATALOG_ROLES.includes(ctx.appUser.role)) redirect('/dashboard')
 
   const res = await listServiceCatalog({ includeInactive: true })
   const items = res.ok ? res.data : []

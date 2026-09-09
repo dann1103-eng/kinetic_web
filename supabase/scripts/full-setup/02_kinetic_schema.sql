@@ -4301,12 +4301,23 @@ drop policy if exists service_catalog_select on public.service_catalog;
 create policy service_catalog_select on public.service_catalog
   for select using (auth.role() = 'authenticated');
 
+-- Escritura del catálogo: admin/contable/recepción (mig 0135) +
+-- coordinadora_familias (mig 0186). Espejo de CAN_MANAGE_CATALOG_ROLES.
 drop policy if exists service_catalog_admin_write on public.service_catalog;
-create policy service_catalog_admin_write on public.service_catalog
+drop policy if exists service_catalog_mgmt_write on public.service_catalog;
+create policy service_catalog_mgmt_write on public.service_catalog
   for all using (
-    exists (select 1 from public.users u where u.id = auth.uid() and u.role = 'admin')
+    exists (
+      select 1 from public.users u
+      where u.id = auth.uid()
+        and u.role in ('admin', 'contable', 'recepcion', 'coordinadora_familias')
+    )
   ) with check (
-    exists (select 1 from public.users u where u.id = auth.uid() and u.role = 'admin')
+    exists (
+      select 1 from public.users u
+      where u.id = auth.uid()
+        and u.role in ('admin', 'contable', 'recepcion', 'coordinadora_familias')
+    )
   );
 
 -- =============================================================================

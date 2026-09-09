@@ -8,7 +8,11 @@ import { useUser } from '@/contexts/UserContext'
 import { UserAvatar } from '@/components/ui/UserAvatar'
 import { useInboxList } from '@/hooks/useInboxPolling'
 import { clearAllDrafts } from '@/hooks/useDraft'
-import { CAN_MANAGE_USERS_ROLES, type UserRole } from '@/types/db'
+import {
+  CAN_MANAGE_CATALOG_ROLES,
+  CAN_MANAGE_USERS_ROLES,
+  type UserRole,
+} from '@/types/db'
 
 interface NavItem {
   href: string
@@ -206,7 +210,7 @@ const adminGroupItems: NavItem[] = [
   {
     href: '/catalogos',
     label: 'Catálogos',
-    allowedRoles: ['admin', 'contable', 'recepcion'],
+    allowedRoles: CAN_MANAGE_CATALOG_ROLES,
     icon: (
       <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>sell</span>
     ),
