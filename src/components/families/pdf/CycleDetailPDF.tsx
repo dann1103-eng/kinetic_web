@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { Document, Page, View, Text, StyleSheet } from '@react-pdf/renderer'
 import type { CycleDetailData } from '@/lib/domain/billing/cycle-detail'
 
@@ -6,6 +7,10 @@ const RED = '#b31b25'
 const GRAY = '#595c5e'
 const LIGHT = '#eef3f2'
 const BORDER = '#c9d2d0'
+// Reposiciones. Morado porque no se parece a nada más de la hoja: verde son las
+// sesiones, rojo el encabezado y la mora, amarillo el total.
+const PURPLE = '#6d28d9'
+const PURPLE_LIGHT = '#ddd6fe'
 
 const s = StyleSheet.create({
   page: { paddingTop: 26, paddingBottom: 34, paddingHorizontal: 28, fontSize: 9, color: '#1c2935', fontFamily: 'Helvetica' },
@@ -29,6 +34,18 @@ const s = StyleSheet.create({
   calCellOn: { backgroundColor: '#bfe3dd' },
   calDay: { fontSize: 8 },
   calDayOn: { fontFamily: 'Helvetica-Bold', color: TEAL },
+  // Día solo de reposición: relleno morado. El borde va aparte porque un día
+  // que además tiene sesión normal conserva el relleno verde y solo suma el
+  // borde — y porque el borde es lo que sobrevive a una impresión en blanco y
+  // negro, donde los dos rellenos se ven igual de grises.
+  calCellRepl: { backgroundColor: PURPLE_LIGHT },
+  calCellReplRing: { borderWidth: 1.5, borderColor: PURPLE },
+  calDayRepl: { fontFamily: 'Helvetica-Bold', color: PURPLE },
+  legend: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  legendSwatch: { width: 9, height: 9 },
+  legendTxt: { fontSize: 7, color: GRAY },
+  replTxt: { fontFamily: 'Helvetica-Bold', color: PURPLE },
 
   // tablas genéricas
   tbl: { borderWidth: 1, borderColor: BORDER, borderTopWidth: 0 },
@@ -67,6 +84,7 @@ export function CycleDetailPDF({ data, paymentNote }: Props) {
   for (let i = 0; i < data.firstDowIndexMon; i++) cells.push({ day: null })
   for (let d = 1; d <= data.daysInMonth; d++) cells.push({ day: d })
   while (cells.length % 7 !== 0) cells.push({ day: null })
+  const hasReplacements = data.dayHasReplacement.some(Boolean)
 
   return (
     <Document>
@@ -93,15 +111,43 @@ export function CycleDetailPDF({ data, paymentNote }: Props) {
               <View style={s.calGrid}>
                 {cells.map((c, i) => {
                   const on = c.day != null && data.dayHasAppt[c.day]
+                  const repl = c.day != null && data.dayHasReplacement[c.day]
+                  const onlyRepl = repl && c.day != null && !data.dayHasRegular[c.day]
                   return (
-                    <View key={i} style={[s.calCell, on ? s.calCellOn : {}]}>
+                    <View
+                      key={i}
+                      style={[
+                        s.calCell,
+                        on ? s.calCellOn : {},
+                        onlyRepl ? s.calCellRepl : {},
+                        repl ? s.calCellReplRing : {},
+                      ]}
+                    >
                       {c.day != null && (
-                        <Text style={[s.calDay, on ? s.calDayOn : {}]}>{c.day}</Text>
+                        <Text
+                          style={[s.calDay, on ? s.calDayOn : {}, onlyRepl ? s.calDayRepl : {}]}
+                        >
+                          {c.day}
+                        </Text>
                       )}
                     </View>
                   )
                 })}
               </View>
+              {/* Solo si el mes tiene reposiciones: en el caso común la hoja
+                  queda exactamente como antes. */}
+              {hasReplacements && (
+                <View style={s.legend}>
+                  <View style={s.legendItem}>
+                    <View style={[s.legendSwatch, s.calCellOn]} />
+                    <Text style={s.legendTxt}>Sesión</Text>
+                  </View>
+                  <View style={s.legendItem}>
+                    <View style={[s.legendSwatch, s.calCellRepl, s.calCellReplRing]} />
+                    <Text style={s.legendTxt}>Reposición (sin costo)</Text>
+                  </View>
+                </View>
+              )}
             </View>
           </View>
 
@@ -118,18 +164,27 @@ export function CycleDetailPDF({ data, paymentNote }: Props) {
                   <Text style={s.therapyTitle}>{tb.label.toUpperCase()}</Text>
                   {tb.days.map((d) => (
                     <Text key={d.dow} style={{ fontSize: 7.5, marginBottom: 1 }}>
-                      {d.dowLabel}: {d.count} ({d.dates.join(', ')})
+                      {d.dowLabel}: {d.count} (
+                      {d.dates.map((date, i) => (
+                        <Fragment key={date}>
+                          {i > 0 ? ', ' : ''}
+                          <Text style={d.replacementDates.includes(date) ? s.replTxt : {}}>
+                            {date}
+                          </Text>
+                        </Fragment>
+                      ))}
+                      )
                     </Text>
                   ))}
                   <Text style={{ fontSize: 7.5, fontFamily: 'Helvetica-Bold' }}>
                     Total: {tb.total}
-                    {(() => {
-                      const notas = [
-                        tb.replacements > 0 ? `${tb.replacements} de reposición` : null,
-                        tb.absences > 0 ? `${tb.absences} sin asistir` : null,
-                      ].filter(Boolean)
-                      return notas.length > 0 ? ` (${notas.join(', ')})` : ''
-                    })()}
+                    {tb.replacements > 0 || tb.absences > 0 ? ' (' : ''}
+                    {tb.replacements > 0 && (
+                      <Text style={s.replTxt}>{tb.replacements} de reposición</Text>
+                    )}
+                    {tb.replacements > 0 && tb.absences > 0 ? ', ' : ''}
+                    {tb.absences > 0 ? `${tb.absences} sin asistir` : ''}
+                    {tb.replacements > 0 || tb.absences > 0 ? ')' : ''}
                   </Text>
                 </View>
               ))}

@@ -144,6 +144,47 @@ describe('buildCycleDetail — las filas de costo suman el total', () => {
     expect(data.agendaNotes[0]).toContain('1 sesión de reposición')
   })
 
+  // El documento resalta las reposiciones en otro color: necesita saber QUÉ día
+  // y QUÉ fecha de cada terapia lo son, no solo cuántas hay.
+  it('marca en el calendario el día que tiene una reposición', () => {
+    const data = buildCycleDetail(input)
+    expect(data.dayHasReplacement[10]).toBe(true)
+    expect(data.dayHasReplacement[11]).toBe(false)
+    expect(data.dayHasReplacement[17]).toBe(false)
+    expect(data.dayHasReplacement).toHaveLength(data.dayHasAppt.length)
+  })
+
+  it('distingue el día que solo tiene reposición del que además tiene sesión normal', () => {
+    const data = buildCycleDetail({
+      ...input,
+      appointments: [
+        ...appointments,
+        // Jueves 13: el niño viene solo a reponer.
+        { starts_at: '2026-08-13T15:00:00-06:00', service_type: 'sensorial', status: 'replacement' },
+      ],
+    })
+    // Lunes 10: Lenguaje y Sensorial normales + la reposición de Conductual.
+    expect(data.dayHasRegular[10]).toBe(true)
+    expect(data.dayHasReplacement[10]).toBe(true)
+    expect(data.dayHasRegular[13]).toBe(false)
+    expect(data.dayHasReplacement[13]).toBe(true)
+    // Martes 11: solo sesiones normales.
+    expect(data.dayHasRegular[11]).toBe(true)
+  })
+
+  it('identifica qué fechas del desglose por terapia son reposición', () => {
+    const data = buildCycleDetail(input)
+    const conductual = data.therapyBreakdowns.find((b) => b.service === 'conductual')
+    const porDia = Object.fromEntries(conductual!.days.map((d) => [d.dow, d.replacementDates]))
+    expect(porDia).toEqual({ mon: [10], tue: [] })
+  })
+
+  it('una terapia sin reposiciones no marca ninguna fecha', () => {
+    const data = buildCycleDetail(input)
+    const lenguaje = data.therapyBreakdowns.find((b) => b.service === 'lenguaje')
+    expect(lenguaje!.days.flatMap((d) => d.replacementDates)).toEqual([])
+  })
+
   it('caso reportado end-to-end: con la extra sincronizada el PDF cierra en $415', () => {
     // Diana agenda una conductual extra el lunes 10 (no es reposición: la señora
     // la pidió y la paga). El sync sube las sesiones cobradas de 3 a 4.

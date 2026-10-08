@@ -64,6 +64,8 @@ export interface TherapyDayBreakdown {
   dowLabel: string
   count: number
   dates: number[]
+  /** Las de `dates` que son reposición — el documento las resalta en otro color. */
+  replacementDates: number[]
 }
 
 export interface TherapyBreakdown {
@@ -104,6 +106,10 @@ export interface CycleDetailData {
   daysInMonth: number
   firstDowIndexMon: number // 0 = lunes
   dayHasAppt: boolean[] // longitud daysInMonth+1; índice = día del mes
+  /** Días con al menos una sesión que NO es reposición. Mismo índice que `dayHasAppt`. */
+  dayHasRegular: boolean[]
+  /** Días con al menos una reposición. Un día puede tener las dos cosas. */
+  dayHasReplacement: boolean[]
   therapyBreakdowns: TherapyBreakdown[]
   weeklyPlan: WeeklyPlanCell[] // lunes..viernes siempre + sábado/domingo solo si el plan los usa
   costRows: CostRow[]
@@ -187,6 +193,10 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
   )
 
   const dayHasAppt: boolean[] = new Array(daysInMonth + 1).fill(false)
+  const dayHasRegular: boolean[] = new Array(daysInMonth + 1).fill(false)
+  const dayHasReplacement: boolean[] = new Array(daysInMonth + 1).fill(false)
+  // service -> Set(dates) que son reposición
+  const replacementDatesByService = new Map<string, Set<number>>()
   // service -> dow -> Set(dates)
   const byServiceDow = new Map<string, Map<string, Set<number>>>()
   // Reposiciones por servicio: son citas que reponen una falta YA cobrada en su
@@ -200,12 +210,19 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
   for (const a of liveAppts) {
     const svc = a.service_type ?? 'otra'
     const { day, dow } = svParts(a.starts_at)
-    if (day >= 1 && day <= daysInMonth) dayHasAppt[day] = true
+    const isReplacement = a.status === 'replacement'
+    if (day >= 1 && day <= daysInMonth) {
+      dayHasAppt[day] = true
+      if (isReplacement) dayHasReplacement[day] = true
+      else dayHasRegular[day] = true
+    }
     if (!byServiceDow.has(svc)) byServiceDow.set(svc, new Map())
     const dowMap = byServiceDow.get(svc)!
     if (!dowMap.has(dow)) dowMap.set(dow, new Set())
     dowMap.get(dow)!.add(day)
-    if (a.status === 'replacement') {
+    if (isReplacement) {
+      if (!replacementDatesByService.has(svc)) replacementDatesByService.set(svc, new Set())
+      replacementDatesByService.get(svc)!.add(day)
       replacementByService.set(svc, (replacementByService.get(svc) ?? 0) + 1)
     } else if (a.status === 'no_show' || a.status === 'late_cancel') {
       absenceByService.set(svc, (absenceByService.get(svc) ?? 0) + 1)
@@ -227,13 +244,18 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
   // Desglose por terapia (ordenado por etiqueta).
   const therapyBreakdowns: TherapyBreakdown[] = Array.from(byServiceDow.entries())
     .map(([service, dowMap]) => {
+      const replacementDates = replacementDatesByService.get(service)
       const days: TherapyDayBreakdown[] = Array.from(dowMap.entries())
-        .map(([dow, dateSet]) => ({
-          dow,
-          dowLabel: DOW_LABEL[dow] ?? dow,
-          count: dateSet.size,
-          dates: Array.from(dateSet).sort((x, y) => x - y),
-        }))
+        .map(([dow, dateSet]) => {
+          const dates = Array.from(dateSet).sort((x, y) => x - y)
+          return {
+            dow,
+            dowLabel: DOW_LABEL[dow] ?? dow,
+            count: dateSet.size,
+            dates,
+            replacementDates: dates.filter((d) => replacementDates?.has(d)),
+          }
+        })
         .sort((a, b) => FULL_WEEK_ORDER.indexOf(a.dow as (typeof FULL_WEEK_ORDER)[number]) - FULL_WEEK_ORDER.indexOf(b.dow as (typeof FULL_WEEK_ORDER)[number]))
       const total = days.reduce((s, d) => s + d.count, 0)
       return {
@@ -437,6 +459,8 @@ export function buildCycleDetail(input: BuildCycleDetailInput): CycleDetailData 
     daysInMonth,
     firstDowIndexMon,
     dayHasAppt,
+    dayHasRegular,
+    dayHasReplacement,
     therapyBreakdowns,
     weeklyPlan,
     costRows,
