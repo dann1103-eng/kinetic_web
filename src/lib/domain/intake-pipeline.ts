@@ -62,6 +62,8 @@ function getCatalogEntry(
  * Reglas:
  *  - Toda transición requiere rol staff permitido.
  *  - Retroceder (toCode.sort_order < fromCode.sort_order) solo admin/directora.
+ *  - Moverse entre las fases de tratamiento (3.3 Activo ⇄ 4.1 Pausa ⇄ 4.2
+ *    Seguimiento) NO es retroceder: quien puede pausar puede reanudar.
  *  - Saltar 2+ pasos hacia adelante: permitido pero genera `warning`.
  *  - Desde una fase terminal (5.1, 5.2) solo admin/directora puede reabrir.
  */
@@ -98,7 +100,12 @@ export function validateTransition(
   }
 
   // Reverso o salir de fase terminal: solo admin/directora.
-  const isBackwards = from ? to.sort_order < from.sort_order : false
+  // Entre fases de tratamiento el `sort_order` no dice nada: el grupo 4 no es una
+  // etapa posterior a "Activo" sino un estado del que se entra y se sale. Tratar
+  // 4.1 → 3.3 como retroceso dejaba a quien pausó a un niño sin poder reanudarlo.
+  const isWithinTreatment =
+    from != null && isChildInActiveTreatment(from.code) && isChildInActiveTreatment(to.code)
+  const isBackwards = from ? to.sort_order < from.sort_order && !isWithinTreatment : false
   const isFromTerminal = from?.is_terminal ?? false
   if ((isBackwards || isFromTerminal) && !STAFF_ROLES_THAT_CAN_REVERT.includes(actorRole)) {
     return {
@@ -225,6 +232,18 @@ export function isChildInActiveTreatment(
 /** `true` si el niño está pausado (4.1 Pausa Temporal). */
 export function isChildPaused(currentPhaseCode: string | null | undefined): boolean {
   return currentPhaseCode === '4_1_pausa_temporal'
+}
+
+/**
+ * `true` si el cambio REANUDA las terapias: vuelve a 3.3 Activo desde una pausa
+ * o un seguimiento pendiente (4.x). El primer ingreso a activo y reabrir un
+ * cierre no cuentan.
+ */
+export function isResumingTreatment(
+  fromCode: string | null | undefined,
+  toCode: string,
+): boolean {
+  return toCode === '3_3_activo_en_terapias' && !!fromCode?.startsWith('4_')
 }
 
 /** `true` si el niño está en una fase terminal (5.1 Alta o 5.2 Retirado). */

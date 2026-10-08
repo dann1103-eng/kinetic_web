@@ -6,7 +6,7 @@ import {
   advanceChildPhase,
   getFutureAppointmentsCount,
 } from '@/app/actions/intake-pipeline'
-import { groupPhaseCatalog } from '@/lib/domain/intake-pipeline'
+import { groupPhaseCatalog, isResumingTreatment } from '@/lib/domain/intake-pipeline'
 import {
   PHASE_GROUP_COLORS,
   PHASE_GROUP_LABELS,
@@ -249,6 +249,18 @@ export function ChildIntakePipelineWidget({
                     Confirmo que se cancelen las {futureAppts} citas futuras.
                   </label>
                 )}
+              </div>
+            )}
+
+            {/* Pausar canceló las citas futuras y reanudar no las restaura: sin
+                este aviso el niño queda activo con la agenda vacía. */}
+            {isResumingTreatment(currentPhaseCode, confirmTarget.code) && (
+              <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+                <p className="text-xs text-amber-900">
+                  Las citas que se cancelaron al pausar no vuelven solas. Después de
+                  reanudar hay que generar o regenerar la agenda del mes en{' '}
+                  <strong>Ciclos mensuales</strong>.
+                </p>
               </div>
             )}
 
