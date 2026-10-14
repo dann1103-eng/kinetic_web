@@ -36,6 +36,11 @@ import {
 } from '@/lib/domain/billing/cycle-edit'
 import { createInvoiceForCycle } from './kinetic-invoices'
 import { computeMorningCandidates } from '@/lib/domain/billing/morning-candidates'
+import {
+  applyGroupMembership,
+  isCycleMonthInFuture,
+  syncGroupMembershipsToCurrentMonth,
+} from '@/lib/domain/group-membership-sync'
 import { fromZonedTime } from 'date-fns-tz'
 
 /** Cita matutina final a crear (la previsualización del modal o recomputada). */
@@ -695,6 +700,9 @@ export async function confirmMonthlyPaymentAndGenerate(
   // mensualidad pero no crea citas matutinas).
   if (input.programGroupId) {
     const admin = createAdminClient()
+    // El RPC mueve la membresía al grupo del ciclo sin mirar de qué mes es. Si es
+    // un mes futuro, la devuelve al grupo del mes en curso (ver group-membership-sync).
+    await syncGroupMembershipsToCurrentMonth(admin, { childIds: [input.childId] })
     await regenerateMorningAppointments(admin, {
       childId: input.childId,
       periodMonth,
@@ -862,6 +870,8 @@ export async function generateCycleAgenda(
   // Programa matutino: citas por niño + sesiones de grupo (igual que el combinado).
   if (input.programGroupId) {
     const admin = createAdminClient()
+    // Mismo motivo que en el flujo combinado: revertir el salto prematuro de grupo.
+    await syncGroupMembershipsToCurrentMonth(admin, { childIds: [input.childId] })
     await regenerateMorningAppointments(admin, {
       childId: input.childId,
       periodMonth,
@@ -1213,33 +1223,11 @@ export async function editMonthlyCycle(
   // 4) Programa matutino: upsert de membresía + (re)generar las citas del niño.
   if (input.programGroupId) {
     const admin = createAdminClient()
-    // [0152] Membresía idempotente: desactivar TODOS los registros activos del
-    // niño primero, luego upsert del grupo destino por (child_id, group_id).
-    // Evita la violación del índice único (child_id) WHERE active.
-    await admin
-      .from('program_group_members')
-      .update({ active: false })
-      .eq('child_id', cycle.child_id)
-      .eq('active', true)
-    const { data: existingMember } = await admin
-      .from('program_group_members')
-      .select('id')
-      .eq('child_id', cycle.child_id)
-      .eq('group_id', input.programGroupId)
-      .maybeSingle()
-    if (existingMember) {
-      await admin
-        .from('program_group_members')
-        .update({ active: true, attendance_days: input.attendanceDays ?? [] })
-        .eq('child_id', cycle.child_id)
-        .eq('group_id', input.programGroupId)
-    } else {
-      await admin.from('program_group_members').insert({
-        group_id: input.programGroupId,
-        child_id: cycle.child_id,
-        attendance_days: input.attendanceDays ?? [],
-        active: true,
-      })
+    // La membresía es una bandera sin fecha: si el ciclo es de un mes FUTURO no se
+    // mueve ahora (sacaría al niño de su grupo de este mes semanas antes de tiempo).
+    // El grupo de ese mes se aplica cuando llega (syncGroupMembershipsToCurrentMonth).
+    if (!isCycleMonthInFuture(String(cycle.period_month), new Date().toISOString())) {
+      await applyGroupMembership(admin, cycle.child_id, input.programGroupId, input.attendanceDays ?? [])
     }
     await regenerateMorningAppointments(admin, {
       childId: cycle.child_id,

@@ -17,6 +17,7 @@ import {
   type GroupSessionLite,
   type AttendanceRowLite,
 } from '@/lib/domain/morning-attendance'
+import { syncGroupMembershipsToCurrentMonth } from '@/lib/domain/group-membership-sync'
 
 // Roles que pueden gestionar grupos (espejo de kn_can_manage_groups en SQL).
 const MGMT_ROLES = [
@@ -527,6 +528,9 @@ export async function removeGroupMember(
 export async function ensureCurrentGroupSessions(): Promise<void> {
   const { supabase, user } = await getActor()
   if (!isMgmt(user.role)) return
+  // De paso, cada niño en el grupo de su ciclo del mes en curso (así las listas de
+  // miembros que se ven a continuación ya vienen corregidas).
+  await syncGroupMembershipsToCurrentMonth(createAdminClient())
   const { data: groups } = await supabase
     .from('program_groups')
     .select('id')
@@ -602,6 +606,11 @@ export async function getSessionRoster(
   | { ok: false; error: string }
 > {
   const { supabase } = await getActor()
+  // La lista sale de la membresía activa; antes de leerla, que cada niño esté en el
+  // grupo de su ciclo del mes en curso (un ciclo generado por adelantado la movía
+  // antes de tiempo y colaba niños de otro grupo). Idempotente y sin permisos del
+  // usuario: corrige un estado objetivo, no depende de quién abre la lista.
+  await syncGroupMembershipsToCurrentMonth(createAdminClient())
   const { data: session } = await supabase
     .from('program_group_sessions')
     .select('*')

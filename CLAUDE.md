@@ -390,6 +390,39 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
 > el KPI y el calendario del panel del niño (28-ago).
 
+## Sesión 14 oct 2026 — niños de otro grupo en la lista de BK1
+Sin migración. Tests nuevos: `src/lib/domain/group-membership-sync.test.ts`.
+
+- **Síntoma**: en `/mi-dia` la lista de BK1 traía 2 niños que son de BK2.
+- **Causa**: `program_group_members` es una bandera **sin fecha** ("activo en este
+  grupo"), pero el grupo de un niño se decide **por mes**, en su ciclo. Las RPC
+  `confirm_monthly_payment_and_generate` / `generate_cycle_agenda` (0152/0177) y
+  `editMonthlyCycle` movían la membresía al grupo del ciclo **sin mirar de qué mes
+  era**. Los ciclos de noviembre se generaron el 12-oct: los niños que cambian de
+  grupo (BK2→BK1) saltaron 19 días antes — aparecían en BK1 y desaparecían de BK2
+  mientras sus ciclos de sep/oct decían BK2. La lista (`getSessionRoster`) no tenía
+  ningún bug: lee la membresía activa, que estaba mal.
+- **Fix** (`src/lib/domain/group-membership-sync.ts`): invariante *membresía activa
+  = grupo del ciclo del mes en curso (SV)*. `planMembershipMoves` (pura) +
+  `syncGroupMembershipsToCurrentMonth` (glue, admin client). Corre tras generar un
+  ciclo (`confirmMonthlyPaymentAndGenerate`, `generateCycleAgenda`), al abrir la
+  lista (`getSessionRoster`) y en `ensureCurrentGroupSessions` (/operacion/grupos).
+  `editMonthlyCycle` ya no mueve la membresía si el ciclo es de un mes futuro. Se
+  autocorrige solo: al llegar el mes, la primera lista abierta aplica el cambio.
+- **No romper**: solo corrige membresías ACTIVAS con el grupo equivocado (no
+  resucita a un niño que se "Quitó" a mano) y no pisa `attendance_days` si el grupo
+  ya es el correcto.
+- Se corrigió en TS **tras** llamar las RPC en vez de redefinirlas (son 3 funciones
+  grandes). Si se reescriben algún día, mover la guardia al SQL.
+- **Diagnóstico rápido**: comparar la membresía activa contra
+  `monthly_session_cycles.program_group_id` del mes en curso; toda diferencia es
+  este bug.
+- **Cobertura por licencia de una miss de grupo matutino**: el staff de un grupo se
+  cambia en `/operacion/grupos` → "Editar grupo" → "Maestras / staff del grupo".
+  **"Sustituir terapeuta" NO lo cubre** (`therapist-reassignment.ts` no toca
+  `program_group_staff`). Quien está en el staff ve el grupo en `/mi-dia` y puede
+  pasar lista (`markSessionAttendance` exige estar en el staff o ser gestión).
+
 ## Sesión 31 ago 2026 — editar el plan borraba el último lunes del mes
 Sin migración.
 
