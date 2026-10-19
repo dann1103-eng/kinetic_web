@@ -3,6 +3,11 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
+import {
+  serverFailureFromDbError,
+  serverFailureFromException,
+  type ServerFailure,
+} from '@/lib/domain/submit-failure'
 import type { ReferralChannel, ServiceType, WaitlistEntry } from '@/types/db'
 
 const COORD_ROLES = [
@@ -49,59 +54,103 @@ export interface CreateWaitlistInput {
   interestText?: string | null
 }
 
+export type CreateWaitlistResult =
+  | { ok: true; entry: WaitlistEntry }
+  | ({ ok: false } & ServerFailure)
+
+/**
+ * Nunca lanza: cualquier falla vuelve como `{ ok: false, kind, error, … }` para
+ * que el modal muestre QUÉ pasó (ver `@/lib/domain/submit-failure`). Antes un
+ * `getActor()` que lanzaba salía como excepción genérica del cliente, y un
+ * intento que no llegaba a guardarse no dejaba ningún rastro (17-oct-2026).
+ */
 export async function createWaitlistEntry(
   input: CreateWaitlistInput,
-): Promise<{ ok: true; entry: WaitlistEntry } | { ok: false; error: string }> {
-  const { supabase, user } = await getActor()
-  if (!isCoord(user.role)) {
-    return { ok: false, error: 'No autorizado.' }
-  }
-  if (!input.childFullName.trim()) {
-    return { ok: false, error: 'El nombre del niño es requerido.' }
-  }
-  if (!input.parentFullName.trim()) {
-    return { ok: false, error: 'El nombre del padre/madre es requerido.' }
-  }
-  if (!input.parentPhone.trim()) {
-    return { ok: false, error: 'El teléfono de contacto es requerido.' }
-  }
-  if (!input.requestedServiceType) {
-    return { ok: false, error: 'El tipo de terapia es requerido.' }
-  }
+): Promise<CreateWaitlistResult> {
+  let actorId: string | null = null
+  try {
+    const { supabase, user } = await getActor()
+    actorId = user.id
+    if (!isCoord(user.role)) {
+      return failed(
+        { kind: 'permission', error: 'No autorizado.', detail: `rol efectivo: ${user.role}` },
+        actorId,
+      )
+    }
+    if (!input.childFullName.trim()) {
+      return failed({ kind: 'validation', error: 'El nombre del niño es requerido.' }, actorId)
+    }
+    if (!input.parentFullName.trim()) {
+      return failed({ kind: 'validation', error: 'El nombre del padre/madre es requerido.' }, actorId)
+    }
+    if (!input.parentPhone.trim()) {
+      return failed({ kind: 'validation', error: 'El teléfono de contacto es requerido.' }, actorId)
+    }
+    if (!input.requestedServiceType) {
+      return failed({ kind: 'validation', error: 'El tipo de terapia es requerido.' }, actorId)
+    }
 
-  const { data, error } = await supabase
-    .from('waitlist_entries')
-    .insert({
-      child_full_name: input.childFullName.trim(),
-      child_birthdate: input.childBirthdate || null,
-      child_diagnosis: input.childDiagnosis?.trim() || null,
-      parent_full_name: input.parentFullName.trim(),
-      parent_phone: input.parentPhone.trim(),
-      parent_email: input.parentEmail?.trim() || null,
-      requested_service_type: input.requestedServiceType,
-      preferred_therapist_id: input.preferredTherapistId || null,
-      preferred_days: input.preferredDays?.trim() || null,
-      notes: input.notes?.trim() || null,
-      referral_source_id: input.referralSourceId || null,
-      priority: input.priority ?? 0,
-      added_by_user_id: user.id,
-      child_age_text: input.childAgeText?.trim() || null,
-      has_previous_evaluation:
-        input.hasPreviousEvaluation === undefined ? null : input.hasPreviousEvaluation,
-      referral_channel: input.referralChannel ?? null,
-      referral_channel_other: input.referralChannelOther?.trim() || null,
-      interest_text: input.interestText?.trim() || null,
-    })
-    .select('*')
-    .single()
+    const { data, error } = await supabase
+      .from('waitlist_entries')
+      .insert({
+        child_full_name: input.childFullName.trim(),
+        child_birthdate: input.childBirthdate || null,
+        child_diagnosis: input.childDiagnosis?.trim() || null,
+        parent_full_name: input.parentFullName.trim(),
+        parent_phone: input.parentPhone.trim(),
+        parent_email: input.parentEmail?.trim() || null,
+        requested_service_type: input.requestedServiceType,
+        preferred_therapist_id: input.preferredTherapistId || null,
+        preferred_days: input.preferredDays?.trim() || null,
+        notes: input.notes?.trim() || null,
+        referral_source_id: input.referralSourceId || null,
+        priority: input.priority ?? 0,
+        added_by_user_id: user.id,
+        child_age_text: input.childAgeText?.trim() || null,
+        has_previous_evaluation:
+          input.hasPreviousEvaluation === undefined ? null : input.hasPreviousEvaluation,
+        referral_channel: input.referralChannel ?? null,
+        referral_channel_other: input.referralChannelOther?.trim() || null,
+        interest_text: input.interestText?.trim() || null,
+      })
+      .select('*')
+      .single()
 
-  if (error || !data) {
-    return { ok: false, error: error?.message ?? 'No se pudo crear la entrada.' }
+    if (error) return failed(serverFailureFromDbError(error), actorId)
+    if (!data) {
+      return failed(
+        { kind: 'unknown', error: 'La base de datos no devolvió la entrada creada.' },
+        actorId,
+      )
+    }
+
+    // La entrada ya está guardada: un fallo al refrescar la caché no debe
+    // convertirse en "no se pudo guardar" (el usuario reintentaría y duplicaría).
+    try {
+      revalidatePath('/operacion/lista-de-espera')
+      revalidatePath('/dashboard')
+    } catch (err) {
+      console.error('[waitlist] createWaitlistEntry: entrada guardada, pero falló revalidatePath', err)
+    }
+    return { ok: true, entry: data as WaitlistEntry }
+  } catch (err) {
+    return failed(serverFailureFromException(err), actorId)
   }
+}
 
-  revalidatePath('/operacion/lista-de-espera')
-  revalidatePath('/dashboard')
-  return { ok: true, entry: data as WaitlistEntry }
+/**
+ * Deja una línea en los logs del servidor y arma la respuesta de falla. No
+ * registra nada del paciente: `ServerFailure` ya viene sin datos de la fila.
+ */
+function failed(failure: ServerFailure, actorId: string | null): CreateWaitlistResult {
+  console.error('[waitlist] createWaitlistEntry falló', {
+    actorId,
+    kind: failure.kind,
+    code: failure.code,
+    error: failure.error,
+    detail: failure.detail,
+  })
+  return { ok: false, ...failure }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

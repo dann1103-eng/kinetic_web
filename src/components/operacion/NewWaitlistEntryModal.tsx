@@ -11,7 +11,14 @@ import {
 import { createWaitlistEntry } from '@/app/actions/waitlist'
 import { useUser } from '@/contexts/UserContext'
 import { useDraft } from '@/hooks/useDraft'
-import { DraftRestoreBanner, SaveStatusIndicator, OfflineSaveError } from '@/components/ui/DraftAutosave'
+import { DraftRestoreBanner, SaveStatusIndicator } from '@/components/ui/DraftAutosave'
+import { SubmitFailurePanel } from '@/components/ui/SubmitFailurePanel'
+import {
+  reportFromServerFailure,
+  reportFromThrown,
+  type FailureContext,
+  type SubmitFailureReport,
+} from '@/lib/domain/submit-failure'
 
 interface Props {
   open: boolean
@@ -22,7 +29,7 @@ interface Props {
 export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
-  const [error, setError] = useState<string | null>(null)
+  const [failure, setFailure] = useState<SubmitFailureReport | null>(null)
 
   const [childFullName, setChildFullName] = useState('')
   const [childBirthdate, setChildBirthdate] = useState('')
@@ -42,7 +49,6 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
   >(null)
   const [referralChannel, setReferralChannel] = useState<ReferralChannel | ''>('')
   const [referralChannelOther, setReferralChannelOther] = useState('')
-  const [failedOffline, setFailedOffline] = useState(false)
 
   // ── Autoguardado local del borrador (formulario de captura) ──
   const user = useUser()
@@ -96,8 +102,7 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
     setHasPreviousEvaluation(null)
     setReferralChannel('')
     setReferralChannelOther('')
-    setError(null)
-    setFailedOffline(false)
+    setFailure(null)
     clear() // descarta el borrador local
   }
 
@@ -108,49 +113,70 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
     return !!(childFullName.trim() || parentFullName.trim() || parentPhone.trim())
   }
 
+  // Qué se estaba haciendo y desde dónde, para el detalle técnico del error.
+  // Sin datos del niño: ver `FailureContext`.
+  function failureContext(): FailureContext {
+    const hasNavigator = typeof navigator !== 'undefined'
+    return {
+      action: 'Crear entrada de lista de espera',
+      now: new Date(),
+      online: hasNavigator ? navigator.onLine : true,
+      userAgent: hasNavigator ? navigator.userAgent : undefined,
+      userRef: `${user.full_name} (${user.role})`,
+    }
+  }
+
+  function showFailure(report: SubmitFailureReport) {
+    console.error('[waitlist] crear entrada falló\n' + report.technical)
+    setFailure(report)
+  }
+
   function handleSubmit() {
-    setError(null)
-    setFailedOffline(false)
+    setFailure(null)
     startTransition(async () => {
+      let res: Awaited<ReturnType<typeof createWaitlistEntry>>
       try {
-      const res = await createWaitlistEntry({
-        childFullName,
-        childBirthdate: childBirthdate || null,
-        childDiagnosis: childDiagnosis || null,
-        parentFullName,
-        parentPhone,
-        parentEmail: parentEmail || null,
-        requestedServiceType,
-        preferredTherapistId: preferredTherapistId || null,
-        preferredDays: preferredDays || null,
-        notes: notes || null,
-        priority,
-        childAgeText: childAgeText || null,
-        hasPreviousEvaluation,
-        referralChannel: referralChannel || null,
-        referralChannelOther:
-          referralChannel === 'otro' ? referralChannelOther || null : null,
-        interestText: interestText || null,
-      })
-      if (!res.ok) {
-        setError(res.error)
+        res = await createWaitlistEntry({
+          childFullName,
+          childBirthdate: childBirthdate || null,
+          childDiagnosis: childDiagnosis || null,
+          parentFullName,
+          parentPhone,
+          parentEmail: parentEmail || null,
+          requestedServiceType,
+          preferredTherapistId: preferredTherapistId || null,
+          preferredDays: preferredDays || null,
+          notes: notes || null,
+          priority,
+          childAgeText: childAgeText || null,
+          hasPreviousEvaluation,
+          referralChannel: referralChannel || null,
+          referralChannelOther:
+            referralChannel === 'otro' ? referralChannelOther || null : null,
+          interestText: interestText || null,
+        })
+      } catch (err) {
+        // La acción no devolvió nada: se cayó la red, venció la sesión, la página
+        // es de una versión vieja… `reportFromThrown` lo distingue y dice si
+        // PUDO haberse guardado (para no reintentar a ciegas y duplicar).
+        showFailure(reportFromThrown(err, failureContext()))
         return
       }
+      if (!res || typeof res.ok !== 'boolean') {
+        showFailure(
+          reportFromThrown(new Error('El servidor no devolvió una respuesta válida.'), failureContext()),
+        )
+        return
+      }
+      if (!res.ok) {
+        showFailure(reportFromServerFailure(res, failureContext()))
+        return
+      }
+      // Fuera del try a propósito: si algo de aquí abajo fallara, la entrada ya
+      // está guardada y NO debe mostrarse como "no se guardó".
       reset()
       router.refresh()
       onClose()
-      } catch {
-        // Distinguir sin-conexión real (mensaje correcto: "tus datos están a
-        // salvo, reintentá") de cualquier otro error inesperado (sesión
-        // vencida, etc.) — mostrar "sin conexión" ahí sería engañoso y podía
-        // hacer que alguien cerrara el modal creyendo que solo faltaba
-        // reintentar, perdiendo la entrada por completo.
-        if (typeof navigator !== 'undefined' && !navigator.onLine) {
-          setFailedOffline(true)
-        } else {
-          setError('Ocurrió un error inesperado al guardar. No cierres esta ventana — intentá de nuevo.')
-        }
-      }
     })
   }
 
@@ -390,34 +416,30 @@ export function NewWaitlistEntryModal({ open, onClose, therapists }: Props) {
           </Field>
         </div>
 
-        {failedOffline && (
-          <OfflineSaveError onRetry={handleSubmit} retrying={isPending} />
-        )}
-
-        {error && (
-          <div className="rounded-md bg-rose-50 border border-rose-200 px-3 py-2 text-sm text-rose-800">
-            {error}
+        {/* Pie fijo: el botón de crear y cualquier error quedan SIEMPRE a la vista,
+            aunque el formulario sea más alto que la pantalla (no hay que bajar
+            a buscarlos). */}
+        <div className="sticky bottom-0 -mx-5 -mb-5 px-5 pb-5 pt-3 bg-fm-surface-container-lowest border-t border-fm-outline-variant/20 space-y-3">
+          {failure && <SubmitFailurePanel report={failure} />}
+          <div className="flex items-center justify-end gap-2">
+            <SaveStatusIndicator savedAt={savedAt} online={online} className="mr-auto" />
+            <button
+              type="button"
+              onClick={handleCancelOrClose}
+              disabled={isPending}
+              className="px-4 py-2 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={isPending}
+              className="px-4 py-2 text-sm rounded-lg bg-fm-primary text-white font-semibold hover:opacity-90 disabled:opacity-60"
+            >
+              {isPending ? 'Guardando…' : 'Crear entrada'}
+            </button>
           </div>
-        )}
-
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-fm-outline-variant/20">
-          <SaveStatusIndicator savedAt={savedAt} online={online} className="mr-auto" />
-          <button
-            type="button"
-            onClick={handleCancelOrClose}
-            disabled={isPending}
-            className="px-4 py-2 text-sm rounded-lg text-fm-on-surface hover:bg-fm-surface-container"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={isPending}
-            className="px-4 py-2 text-sm rounded-lg bg-fm-primary text-white font-semibold hover:opacity-90 disabled:opacity-60"
-          >
-            {isPending ? 'Guardando…' : 'Crear entrada'}
-          </button>
         </div>
       </div>
     </div>
