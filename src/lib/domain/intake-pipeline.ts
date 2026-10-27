@@ -9,6 +9,8 @@
 
 import type {
   Appointment,
+  ChildDischargeRecord,
+  ChildPhaseHistoryEntry,
   IntakePhaseCatalogEntry,
   PhaseGroupNumber,
   UserRole,
@@ -31,6 +33,15 @@ export interface PhaseTransitionResult {
 }
 
 const STAFF_ROLES_THAT_CAN_REVERT: UserRole[] = ['admin', 'directora']
+// Un retiro (5.2) es decisión de la familia, y la familia puede volver: lo
+// reabren también las coordinadoras. El alta terapéutica (5.1) es un cierre
+// clínico y sigue siendo solo de dirección.
+const STAFF_ROLES_THAT_CAN_REOPEN_WITHDRAWAL: UserRole[] = [
+  'admin',
+  'directora',
+  'coordinadora_familias',
+  'coordinadora_terapias',
+]
 const STAFF_ROLES_THAT_CAN_ADVANCE: UserRole[] = [
   'admin',
   'directora',
@@ -65,7 +76,8 @@ function getCatalogEntry(
  *  - Moverse entre las fases de tratamiento (3.3 Activo ⇄ 4.1 Pausa ⇄ 4.2
  *    Seguimiento) NO es retroceder: quien puede pausar puede reanudar.
  *  - Saltar 2+ pasos hacia adelante: permitido pero genera `warning`.
- *  - Desde una fase terminal (5.1, 5.2) solo admin/directora puede reabrir.
+ *  - Reabrir un alta terapéutica (5.1) solo admin/directora. Un retiro (5.2)
+ *    también lo reabren las coordinadoras, hacia cualquier fase.
  */
 export function validateTransition(
   fromCode: string | null,
@@ -107,10 +119,18 @@ export function validateTransition(
     from != null && isChildInActiveTreatment(from.code) && isChildInActiveTreatment(to.code)
   const isBackwards = from ? to.sort_order < from.sort_order && !isWithinTreatment : false
   const isFromTerminal = from?.is_terminal ?? false
-  if ((isBackwards || isFromTerminal) && !STAFF_ROLES_THAT_CAN_REVERT.includes(actorRole)) {
+  const isFromWithdrawal = from?.code === '5_2_retirado'
+  const canRevert = isFromWithdrawal
+    ? STAFF_ROLES_THAT_CAN_REOPEN_WITHDRAWAL.includes(actorRole)
+    : STAFF_ROLES_THAT_CAN_REVERT.includes(actorRole)
+  if ((isBackwards || isFromTerminal) && !canRevert) {
     return {
       allowed: false,
-      reason: isFromTerminal
+      reason: isFromWithdrawal
+        ? 'Solo admin, directora o las coordinadoras pueden reabrir un retiro.'
+        : from?.code === '5_1_alta_terapeutica'
+        ? 'Solo admin/directora puede reabrir un alta terapéutica.'
+        : isFromTerminal
         ? 'Solo admin/directora puede reabrir desde una fase terminal.'
         : 'Solo admin/directora puede retroceder fases.',
       side_effects: [],
@@ -252,6 +272,39 @@ export function isChildClosed(currentPhaseCode: string | null | undefined): bool
     currentPhaseCode === '5_1_alta_terapeutica' ||
     currentPhaseCode === '5_2_retirado'
   )
+}
+
+/**
+ * Última vez que el niño salió de una fase terminal (se reabrió un alta o un
+ * retiro), o null si nunca pasó. Pasar de un cierre a otro no cuenta.
+ */
+export function lastReopenedAt(
+  history: Array<Pick<ChildPhaseHistoryEntry, 'from_phase_code' | 'to_phase_code' | 'changed_at'>>,
+): string | null {
+  let latest: string | null = null
+  for (const h of history) {
+    if (!isChildClosed(h.from_phase_code) || isChildClosed(h.to_phase_code)) continue
+    if (latest == null || new Date(h.changed_at).getTime() > new Date(latest).getTime()) {
+      latest = h.changed_at
+    }
+  }
+  return latest
+}
+
+/**
+ * `true` si una baja sin enviar quedó cerrada porque el niño se reabrió
+ * DESPUÉS de crearla (el retirado que vuelve). Sin esto, la baja firmada del
+ * retiro anterior seguía "abierta": la ficha avisaba que estaba sin terminar, el
+ * formulario la recargaba en vez de crear una nueva, y enviarla a la familia
+ * volvía a retirar al niño. Se deriva del historial de fases, sin estado propio,
+ * para que también cubra los niños que ya se reabrieron antes de esta regla.
+ */
+export function isDischargeSupersededByReopen(
+  record: Pick<ChildDischargeRecord, 'status' | 'created_at'>,
+  reopenedAt: string | null,
+): boolean {
+  if (record.status === 'sent_to_family' || reopenedAt == null) return false
+  return new Date(record.created_at).getTime() < new Date(reopenedAt).getTime()
 }
 
 /** `true` si el niño está aún en pipeline de admisión (grupos 1 y 2). */

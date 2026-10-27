@@ -4,7 +4,11 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import { calculateDischargeStats } from '@/lib/domain/intake-pipeline'
+import {
+  calculateDischargeStats,
+  isDischargeSupersededByReopen,
+  lastReopenedAt,
+} from '@/lib/domain/intake-pipeline'
 import { advanceChildPhase } from './intake-pipeline'
 import type {
   Appointment,
@@ -357,13 +361,20 @@ export async function sendDischargeToFamily(
   const admin = createAdminClient()
   const { data: existing } = await admin
     .from('child_discharge_records')
-    .select('id, status, child_id, discharge_type')
+    .select('id, status, child_id, discharge_type, created_at')
     .eq('id', recordId)
     .maybeSingle()
   if (!existing) return { ok: false, error: 'Registro no encontrado.' }
   if (existing.status !== 'signed') {
     return { ok: false, error: 'El alta debe estar firmada por la coordinadora de terapias primero.' }
   }
+  // Una baja que el niño ya dejó atrás (se retiró, volvió y se reabrió) se
+  // puede seguir entregando, pero NO debe volver a cerrarlo: la red de abajo lo
+  // retiraría de nuevo.
+  const superseded = isDischargeSupersededByReopen(
+    existing,
+    await fetchLastReopenedAt(admin, existing.child_id),
+  )
 
   const { error } = await admin
     .from('child_discharge_records')
@@ -375,9 +386,8 @@ export async function sendDischargeToFamily(
   // moviera a `finalizeDischarge` (31-ago-2026): esas quedaron con el niño
   // activo, y sin esto no tendrían ningún camino para retirarse — el desplegable
   // de fase abre este mismo formulario, y finalizeDischarge exige un borrador.
-  // Si la fase ya es la terminal no se toca: volver a avanzar desde una fase
-  // terminal solo lo permite admin/directora y le daría un error inútil a la
-  // coordinadora.
+  // Si la fase ya es la terminal no se toca: sería un cambio vacío, y salir de
+  // un alta solo lo permite admin/directora — a la coordinadora le daría error.
   const { data: childRow } = await admin
     .from('children')
     .select('family_id, current_phase_code')
@@ -388,7 +398,11 @@ export async function sendDischargeToFamily(
     (existing as { discharge_type?: DischargeType }).discharge_type === 'alta'
       ? '5_1_alta_terapeutica'
       : '5_2_retirado'
-  if (childRow && (childRow as { current_phase_code?: string }).current_phase_code !== targetCode) {
+  if (
+    childRow &&
+    !superseded &&
+    (childRow as { current_phase_code?: string }).current_phase_code !== targetCode
+  ) {
     const advanced = await advanceChildPhase(existing.child_id, targetCode, 'Cierre enviado a la familia.', {
       confirmCancelAppointments: true,
     })
@@ -419,7 +433,11 @@ export async function getDischargeRecord(
   return (data as ChildDischargeRecord | null) ?? null
 }
 
-export async function listDischargeRecordsForChild(
+/**
+ * Bajas del niño que siguen abiertas: ni enviadas a la familia ni cerradas por
+ * una reapertura posterior (`isDischargeSupersededByReopen`). Solo lectura.
+ */
+export async function listOpenDischargeRecordsForChild(
   childId: string,
 ): Promise<ChildDischargeRecord[]> {
   const { supabase } = await getActor()
@@ -427,6 +445,23 @@ export async function listDischargeRecordsForChild(
     .from('child_discharge_records')
     .select('*')
     .eq('child_id', childId)
+    .neq('status', 'sent_to_family')
     .order('discharge_date', { ascending: false })
-  return (data ?? []) as ChildDischargeRecord[]
+  const records = (data ?? []) as ChildDischargeRecord[]
+  if (records.length === 0) return records
+  const reopenedAt = await fetchLastReopenedAt(createAdminClient(), childId)
+  return records.filter((r) => !isDischargeSupersededByReopen(r, reopenedAt))
+}
+
+// Admin client: el historial solo decide si una baja sigue abierta. Si la RLS
+// lo ocultara, la baja vieja de un niño reabierto volvería a parecer abierta.
+async function fetchLastReopenedAt(
+  admin: ReturnType<typeof createAdminClient>,
+  childId: string,
+): Promise<string | null> {
+  const { data } = await admin
+    .from('child_phase_history')
+    .select('from_phase_code, to_phase_code, changed_at')
+    .eq('child_id', childId)
+  return lastReopenedAt(data ?? [])
 }

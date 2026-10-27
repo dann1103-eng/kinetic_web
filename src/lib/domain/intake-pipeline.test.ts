@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { isResumingTreatment, validateTransition } from './intake-pipeline'
-import type { IntakePhaseCatalogEntry, PhaseGroupNumber } from '@/types/db'
+import {
+  isDischargeSupersededByReopen,
+  isResumingTreatment,
+  lastReopenedAt,
+  validateTransition,
+} from './intake-pipeline'
+import type { DischargeStatus, IntakePhaseCatalogEntry, PhaseGroupNumber } from '@/types/db'
 
 // Espejo del seed de la mig 0121: [code, grupo, sub_order, sort_order, flags].
 const SEED: Array<
@@ -98,11 +103,11 @@ describe('validateTransition — lo que sigue siendo solo de dirección', () => 
     }
   })
 
-  it('la coordinadora no reabre un alta ni un retiro, ni siquiera hacia activo', () => {
-    for (const from of ['5_1_alta_terapeutica', '5_2_retirado']) {
-      const res = validateTransition(from, ACTIVO, catalog, 'coordinadora_terapias')
-      expect(res.allowed, from).toBe(false)
-      expect(res.reason).toBe('Solo admin/directora puede reabrir desde una fase terminal.')
+  it('las coordinadoras no reabren un alta terapéutica', () => {
+    for (const role of ['coordinadora_terapias', 'coordinadora_familias'] as const) {
+      const res = validateTransition('5_1_alta_terapeutica', ACTIVO, catalog, role)
+      expect(res.allowed, role).toBe(false)
+      expect(res.reason).toBe('Solo admin/directora puede reabrir un alta terapéutica.')
     }
   })
 
@@ -113,6 +118,98 @@ describe('validateTransition — lo que sigue siendo solo de dirección', () => 
       }
       expect(validateTransition('5_2_retirado', ACTIVO, catalog, role).allowed).toBe(true)
     }
+  })
+})
+
+describe('validateTransition — un retiro se puede reabrir', () => {
+  const RETIRADO = '5_2_retirado'
+
+  it('ambas coordinadoras reabren a un niño retirado que vuelve', () => {
+    for (const role of ['coordinadora_terapias', 'coordinadora_familias'] as const) {
+      const res = validateTransition(RETIRADO, ACTIVO, catalog, role)
+      expect(res.allowed, role).toBe(true)
+      expect(res.side_effects).toEqual([])
+    }
+  })
+
+  it('a cualquier fase, no solo a activo (puede volver a evaluación)', () => {
+    for (const to of ['2_1_entrevista_conocimiento', '3_1_propuesta_terapeutica', PAUSA]) {
+      expect(validateTransition(RETIRADO, to, catalog, 'coordinadora_familias').allowed, to).toBe(true)
+    }
+  })
+
+  it('volver a pausa sigue pidiendo cancelar las citas futuras', () => {
+    expect(validateTransition(RETIRADO, PAUSA, catalog, 'coordinadora_terapias').side_effects).toEqual([
+      { type: 'cancel_future_appointments', requires_confirmation: true },
+    ])
+  })
+
+  it('el resto del equipo no reabre un retiro', () => {
+    for (const role of ['terapista', 'recepcion', 'supervisor'] as const) {
+      const res = validateTransition(RETIRADO, ACTIVO, catalog, role)
+      expect(res.allowed, role).toBe(false)
+      expect(res.reason).toBe('Solo admin, directora o las coordinadoras pueden reabrir un retiro.')
+    }
+  })
+
+  it('reabrir un retiro no habilita a las coordinadoras a retroceder otras fases', () => {
+    expect(validateTransition(ACTIVO, '3_1_propuesta_terapeutica', catalog, 'coordinadora_familias').allowed).toBe(false)
+  })
+})
+
+describe('lastReopenedAt / isDischargeSupersededByReopen', () => {
+  const entry = (from: string | null, to: string, changed_at: string) => ({
+    from_phase_code: from,
+    to_phase_code: to,
+    changed_at,
+  })
+  const record = (status: DischargeStatus, created_at: string) => ({ status, created_at })
+
+  it('null si el niño nunca salió de una fase terminal', () => {
+    expect(lastReopenedAt([])).toBeNull()
+    expect(
+      lastReopenedAt([
+        entry(null, ACTIVO, '2026-03-01T10:00:00Z'),
+        entry(ACTIVO, '5_2_retirado', '2026-06-01T10:00:00Z'),
+      ]),
+    ).toBeNull()
+  })
+
+  it('toma la reapertura más reciente, sin importar el orden del historial', () => {
+    expect(
+      lastReopenedAt([
+        entry('5_2_retirado', ACTIVO, '2026-07-01T10:00:00Z'),
+        entry(ACTIVO, '5_2_retirado', '2026-08-01T10:00:00Z'),
+        entry('5_2_retirado', ACTIVO, '2026-10-01T10:00:00Z'),
+        entry('5_1_alta_terapeutica', ACTIVO, '2026-02-01T10:00:00Z'),
+      ]),
+    ).toBe('2026-10-01T10:00:00Z')
+  })
+
+  it('pasar de un cierre a otro (retiro → alta) no es reabrir', () => {
+    expect(lastReopenedAt([entry('5_2_retirado', '5_1_alta_terapeutica', '2026-07-01T10:00:00Z')])).toBeNull()
+  })
+
+  it('la baja firmada del retiro anterior queda cerrada al reabrir', () => {
+    const reopened = '2026-10-01T10:00:00Z'
+    expect(isDischargeSupersededByReopen(record('signed', '2026-06-01T10:00:00Z'), reopened)).toBe(true)
+    expect(isDischargeSupersededByReopen(record('draft', '2026-06-01T10:00:00Z'), reopened)).toBe(true)
+  })
+
+  it('una baja nueva, posterior a la reapertura, sigue abierta', () => {
+    expect(
+      isDischargeSupersededByReopen(record('draft', '2026-10-15T10:00:00Z'), '2026-10-01T10:00:00Z'),
+    ).toBe(false)
+  })
+
+  it('sin reapertura nada se cierra: la red de seguridad de las bajas viejas sigue viva', () => {
+    expect(isDischargeSupersededByReopen(record('signed', '2026-06-01T10:00:00Z'), null)).toBe(false)
+  })
+
+  it('una baja ya enviada a la familia no entra en la cuenta', () => {
+    expect(
+      isDischargeSupersededByReopen(record('sent_to_family', '2026-06-01T10:00:00Z'), '2026-10-01T10:00:00Z'),
+    ).toBe(false)
   })
 })
 

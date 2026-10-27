@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { ChildIntakePipelineWidget } from './ChildIntakePipelineWidget'
 import { ChildPhaseTimeline } from './ChildPhaseTimeline'
 import { DischargeFormModal } from '@/components/discharge/DischargeFormModal'
-import { listDischargeRecordsForChild } from '@/app/actions/discharge-records'
+import { listOpenDischargeRecordsForChild } from '@/app/actions/discharge-records'
 import { DISCHARGE_TYPE_LABELS } from '@/types/db'
 import type { ChildDischargeRecord, DischargeType, IntakePhaseCatalogEntry } from '@/types/db'
 import { formatDateEs } from '@/lib/domain/dates'
@@ -43,13 +43,16 @@ export function ChildIntakePipelinePanel({
    * así que un registro firmado NO se avisa... salvo que el niño siga sin su
    * fase terminal: eso son las bajas firmadas ANTES de que el cambio de fase se
    * moviera a la firma, que quedaron a medias y hay que destrabar.
+   *
+   * Un niño retirado que volvió tampoco está en fase terminal, pero su baja ya
+   * no está abierta: la reapertura la cerró y la lista no la trae.
    */
   const [pending, setPending] = useState<ChildDischargeRecord | null>(null)
   const isTerminal =
     currentPhaseCode === '5_1_alta_terapeutica' || currentPhaseCode === '5_2_retirado'
   useEffect(() => {
     let cancelled = false
-    listDischargeRecordsForChild(childId).then((recs) => {
+    listOpenDischargeRecordsForChild(childId).then((recs) => {
       if (cancelled) return
       const unfinished = recs.find(
         (r) => r.status === 'draft' || (r.status === 'signed' && !isTerminal),

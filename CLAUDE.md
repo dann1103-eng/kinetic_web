@@ -390,6 +390,46 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
 > el KPI y el calendario del panel del niño (28-ago).
 
+## Sesión 27 oct 2026 — las coordinadoras reabren a un niño retirado que vuelve
+Sin migración. Tests en `src/lib/domain/intake-pipeline.test.ts`.
+
+- **Pedido**: niños que se retiraron por decisión de los papás y después vuelven.
+  Solo admin/directora podían sacarlos de **5.2 Retirado**.
+- **Permiso** (`validateTransition`, `STAFF_ROLES_THAT_CAN_REOPEN_WITHDRAWAL`):
+  `coordinadora_terapias` y `coordinadora_familias` reabren un **retiro** hacia
+  **cualquier** fase (activo, pausa, o de vuelta a evaluación). El **alta
+  terapéutica (5.1)** sigue siendo solo de dirección: es un cierre clínico, no
+  una decisión de la familia. El resto de los retrocesos tampoco cambió. La UI no
+  necesitó cambios: el desplegable "Cambiar fase…" ya se mostraba a todos; el
+  bloqueo era solo del servidor. Restaurar a un niño **archivado** (mig 0166,
+  retirado hace >3 meses) ya lo podían las dos coordinadoras (`unarchiveChild`).
+
+### La baja del retiro anterior seguía "abierta" al reabrir
+Esto ya pasaba cuando admin reabría, pero con el permiso nuevo iba a ser lo
+normal. La baja firmada (enviarla a la familia es opcional, así que casi nunca
+pasa a `sent_to_family`) quedaba abierta y, con el niño ya fuera de la fase
+terminal:
+1. la ficha mostraba el aviso ámbar **"Se firmó, pero el niño/a quedó sin su fase
+   de cierre"** — que es la red de seguridad para las bajas firmadas antes del
+   31-ago;
+2. su botón "Abrir" llevaba a **"Enviar a familia"**, cuya red de seguridad
+   **volvía a retirar al niño** (`sendDischargeToFamily` avanza la fase si no es
+   la terminal);
+3. retirarlo de nuevo más adelante **recargaba la baja vieja** en vez de abrir una
+   nueva, y como ya estaba firmada no se podía "Firmar y finalizar".
+
+**Fix sin migración**: una baja sin enviar creada **antes de la última
+reapertura** (última entrada del historial que sale de 5.1/5.2 hacia una fase no
+terminal) queda cerrada — `lastReopenedAt` + `isDischargeSupersededByReopen`
+(puras). `listOpenDischargeRecordsForChild` las filtra (lo usan el modal y el
+aviso de la ficha) y `sendDischargeToFamily` ya no avanza la fase para una baja
+cerrada así. Se deriva del historial a propósito: también arregla, sin tocar
+datos, a los niños que admin ya había reabierto antes.
+
+> **No rompe la red de seguridad del 31-ago**: esas bajas firmadas a medias
+> nunca tuvieron una entrada que SALGA de una fase terminal (el niño nunca llegó
+> a ella), así que siguen apareciendo en el aviso.
+
 ## Sesión 14 oct 2026 — niños de otro grupo en la lista de BK1
 Sin migración. Tests nuevos: `src/lib/domain/group-membership-sync.test.ts`.
 
@@ -477,8 +517,9 @@ Sin migración.
   de fase se efectúe sin mi aprobación; a mí solo se me notifica") — la
   notificación la sigue disparando `advanceChildPhase`.
 
-> ⚠️ **Hay que quitar la segunda llamada, no dejar las dos.** Salir de una fase
-> terminal solo lo permite admin/directora (`validateTransition`), así que
+> ⚠️ **Hay que quitar la segunda llamada, no dejar las dos.** Salir de un alta
+> solo lo permite admin/directora (`validateTransition`; un retiro también las
+> coordinadoras desde el 27-oct), así que
 > volver a llamar `advanceChildPhase` al enviar le daría a la coordinadora un
 > error en un paso que salió bien.
 
@@ -498,7 +539,8 @@ si no existe** (`DischargeFormModal`, efecto de carga). Revisar contaminaba el
 dato que se quería revisar.
 
 Ahora la ficha muestra un aviso ámbar cuando la baja dejó algo sin resolver. Usa
-`listDischargeRecordsForChild`, que ya existía y es solo lectura.
+`listOpenDischargeRecordsForChild` (solo lectura; hasta oct-2026 se llamaba
+`listDischargeRecordsForChild` y traía todas — ver sesión 27-oct).
 
 **Firmar CIERRA la baja; enviar a la familia es opcional** (decisión del usuario,
 31-ago). Por eso el aviso NO aparece por un registro firmado… salvo que el niño

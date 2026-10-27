@@ -7,7 +7,7 @@ import {
   updateDischargeDraft,
   finalizeDischarge,
   sendDischargeToFamily,
-  listDischargeRecordsForChild,
+  listOpenDischargeRecordsForChild,
 } from '@/app/actions/discharge-records'
 import { useUser } from '@/contexts/UserContext'
 import {
@@ -63,19 +63,19 @@ export function DischargeFormModal({
   const canFinalizeSolo = ['admin', 'directora', 'coordinadora_terapias'].includes(user.role)
   // Un registro ya firmado ('signed') sigue editable para quien puede finalizarlo
   // solo — permite corregir/completar antes de "Enviar a familia" (paridad con
-  // el permiso de servidor en updateDischargeDraft). Una vez 'sent_to_family' el
-  // modal no lo vuelve a cargar como activo (ver listDischargeRecordsForChild
-  // arriba), así que ese estado nunca llega hasta acá.
+  // el permiso de servidor en updateDischargeDraft). Una vez 'sent_to_family' —o
+  // si el niño se reabrió después— el modal no lo vuelve a cargar como activo
+  // (ver listOpenDischargeRecordsForChild abajo), así que nunca llega hasta acá.
   const isEditable = !record || record.status === 'draft' || canFinalizeSolo
 
   // Cargar o crear draft al abrir
   useEffect(() => {
     let cancelled = false
     async function load() {
-      const existing = await listDischargeRecordsForChild(childId)
-      const active = existing.find(
-        (r) => r.discharge_type === dischargeType && r.status !== 'sent_to_family',
-      )
+      // Un niño retirado que volvió y se vuelve a retirar abre una baja NUEVA:
+      // la del retiro anterior ya no está abierta.
+      const existing = await listOpenDischargeRecordsForChild(childId)
+      const active = existing.find((r) => r.discharge_type === dischargeType)
       if (active) {
         if (cancelled) return
         setRecord(active)
@@ -166,7 +166,7 @@ export function DischargeFormModal({
         return
       }
       // La fase ya cambió al FIRMAR (finalizeDischarge). Volver a avanzarla acá
-      // fallaría: salir de una fase terminal solo lo permite admin/directora
+      // fallaría en un alta: salir de ella solo lo permite admin/directora
       // (`validateTransition`), así que a la coordinadora le daría error en un
       // paso que en realidad salió bien.
       router.refresh()
