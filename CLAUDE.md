@@ -345,6 +345,8 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 | **0184** | **Suspensión avisada** (`child_suspensions` + `appointments.suspension_id`): la familia avisa que el niño/a no vendrá un período y regresa. Las citas del rango se cancelan **atadas a la suspensión**, y lo que tiene `suspension_id` **no se cobra** (`billableSessionCounts`) — así no hubo que tocar el significado de `status='cancelled'`, que sigue siendo "cancelación tardía de la familia, se cobra y se acredita el mes siguiente". Revertible en bloque. NO cambia la fase clínica del niño. |
 | **0185** | **Líneas libres de cobro**: `monthly_session_cycles.extra_charges_json jsonb` (default `[]`) — cargos que no son terapias (materiales, evaluación suelta). Van fuera del descuento y dentro del total. ✅ **Aplicada y verificada en prod (29-ago-2026)**: se guardó un cargo libre sin error de columna. El código la tolera ausente igual (ver sesión 26–29 ago). |
 | **0183** | **Reposiciones individuales sin botón de iniciar sesión**: `start_therapy_session` (mig 0093) solo aceptaba citas `status='scheduled'` — una reposición nace directamente en `status='replacement'` (`resolve_absence_with_replacement`) y nunca pasa por `'scheduled'`, así que la RPC la rechazaba con `appointment_not_found_or_not_eligible`. Se amplía a `status in ('scheduled', 'replacement')`, misma firma. Acompaña un fix en `BigSessionCard.tsx` (el gate de los botones "Iniciar sesión"/"Inasistencia" en `/mi-dia` también solo aceptaba `'scheduled'`) — sin el fix de la RPC, el botón habría aparecido pero fallado al hacer clic. |
+| **0186** | RLS de escritura de `service_catalog` suma `coordinadora_familias` (`/catalogos`). Espejo en código: `CAN_MANAGE_CATALOG_ROLES` (`types/db.ts`). Estado de aplicación en prod: no verificado. |
+| **0187** | **Inasistencia de una reposición**: `mark_appointment_absence` (de 0160) solo aceptaba `status in ('scheduled','in_progress')`; una reposición vive en `'replacement'` y la RPC lanzaba `invalid_state_for_absence` ("La cita no está en un estado donde se pueda marcar inasistencia") — no había forma de reprogramar una reposición a la que el niño/a no llegó. Es el **mismo hueco que 0183** cerró en `start_therapy_session`: al ampliar un estado en un gate de UI, auditar TODAS las RPC de transición de cita, no solo la que reportaron. Se redefine verbatim de 0160 sumando `'replacement'`, misma firma. La reposición pasa a `no_show` y nace una ausencia NUEVA (`appointment_absences` es única por `appointment_id`) en `pending` → vuelve a `/aprobaciones`; su ventana de 30 días corre desde esa ausencia nueva. Acompaña el gate de "Marcar que no asistirá" en `AppointmentForm.tsx`. ✅ **Aplicada y verificada en prod (29-oct-2026)** contra `pg_proc`: una sola sobrecarga, acepta `replacement`, conserva la autorización de coordinación (0160) y el auto-waive matutino (0147). |
 
 > **IMPORTANTE**: aplicar migraciones manualmente en Supabase Dashboard (o vía
 > Management API `POST /v1/projects/<ref>/database/query` con el token del CLI —
@@ -360,8 +362,9 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > (read-lag del endpoint de query) — si la verificación no muestra el cambio,
 > reintentar la misma consulta de verificación antes de asumir que la
 > aplicación falló; no reaplicar a ciegas. No hay migración automática. **El
-> repo va hasta 0185; próximo libre = 0186.** ✅ TODAS aplicadas y verificadas
-> en prod (la 0185, el 29-ago-2026).
+> repo va hasta 0187; próximo libre = 0188.** ✅ Hasta la 0185 y la 0187 aplicadas y
+> verificadas en prod (la 0185 el 29-ago-2026, la 0187 el 29-oct-2026); la 0186 sin
+> verificar.
 > ⚠️ Hay DOS archivos con historia sobre el prefijo 0173 (biweekly_offset y
 > el de menciones renombrado a 0176) — ambos aplicados; no re-correr ninguno
 > de los dos por el nombre viejo.

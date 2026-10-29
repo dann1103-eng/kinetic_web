@@ -742,7 +742,8 @@ export function AppointmentForm({
             <div className="flex items-center gap-2">
               {isEdit && canMarkAbsence && existingAppointment &&
                 existingAppointment.event_type === 'terapia' &&
-                existingAppointment.status === 'scheduled' && (
+                (existingAppointment.status === 'scheduled' ||
+                  existingAppointment.status === 'replacement') && (
                 <button
                   type="button"
                   onClick={handleMarkAbsence}
