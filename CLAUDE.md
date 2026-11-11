@@ -157,6 +157,7 @@ Labels en `SERVICE_TYPE_LABELS` (db.ts). Paleta visual en `KINETIC_EVENT_PALETTE
 - `/agenda` — Calendario semanal del equipo
 - `/aprobaciones` — Inasistencias por reponer + informes cuatrimestrales pendientes + **recogidas tardías por cobrar/perdonar** (admin/directora)
 - `/operacion/lista-de-espera` — Lista de espera con filtros y prioridades
+- `/operacion/revisar-agenda` — **Agenda vs plan**: lista los niños cuya agenda del mes no coincide con su plan y la pone al día sin anular el ciclo (nov 2026)
 - `/inbox` — Chat interno del equipo (excluye family/client)
 - `/tiempo` — Control de tiempo personal
 - `/mis-recibos` — Recibos de planilla mensual del usuario, con firma digital de recepción (visible para todo el staff, oculto a family/client)
@@ -392,6 +393,129 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > lee de `program_group_sessions`/`program_session_attendance`. Ya causó cuatro
 > bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
 > el KPI y el calendario del panel del niño (28-ago).
+
+## Sesión 11 nov 2026 — la agenda no coincidía con el plan (días, horas y terapias ajenas)
+Sin migración. Tests: `src/lib/domain/agenda-plan-sync.test.ts` (27).
+
+- **Reportes** (dos el mismo día, mismo tipo de problema que llega "eventualmente
+  siempre"): dos hermanos con el plan bien pero **agendados en días y horarios
+  que no les corresponden**, y un niño con **una terapia agendada que no es de su
+  plan**. La pregunta de las coordinadoras fue si había que anular el ciclo y
+  generarlo de nuevo.
+- **Causa de fondo**: el plan y las citas son dos copias de lo mismo y nada las
+  mantenía iguales. Cada camino que tocaba una se acordaba —o no— de la otra, y no
+  había forma de VER el desfase ni de corregirlo sin anular el ciclo (un ciclo
+  pagado ni se podía editar).
+
+> ⚠️ **No se pudo verificar contra los datos reales de esos tres niños.** Esta
+> máquina (Mac) no tiene `.env.local`, ni CLI de Supabase, ni sesión iniciada en
+> la app o en el dashboard. Los cuatro defectos de abajo están **probados leyendo
+> el código y con tests**; cuál de ellos produjo cada caso reportado queda por
+> confirmar con la herramienta nueva (`/operacion/revisar-agenda`).
+
+### Cuatro huecos por los que la agenda se quedaba vieja
+Todos en la capa TS. El primero es el más probable para los tres casos: los
+ciclos del mes siguiente se generan a mediados del mes en curso.
+
+1. **"No tocar (aplica el próximo mes)" no aplicaba al próximo mes.** La opción
+   del editor del plan (`scheduleScope: 'skip_agenda'`) se saltaba TODOS los
+   ciclos ya generados, no solo el del mes en curso. Con el ciclo de noviembre
+   generado el 12 de octubre, editar el plan a fines de octubre con esa opción
+   dejaba noviembre con el horario anterior — y con las terapias anteriores.
+   Ahora protege únicamente el mes en curso.
+2. **Los planes con programa matutino nunca sincronizaban.** `upsertTreatmentPlan`
+   los excluía (`!hasMorning`) porque `regenerate_cycle_appointments` cancela toda
+   cita automática del mes, y eso se lleva las citas por-niño de programa
+   matutino (misma marca, también `scheduled`). Un niño de BlueKids + Lenguaje se
+   quedaba con el horario viejo de Lenguaje para siempre.
+3. **Los horarios huérfanos se agendaban.** Quitar una terapia del plan (✕), o
+   cambiarle el tipo, dejaba sus horarios en la programación semanal. El RPC los
+   manda a `skipped_overquota` (no tienen cuota), y desde el WYSIWYG de julio los
+   modales —y desde el 31-ago también editar el plan— suman esa lista para armar
+   el mes completo. Resultado: una terapia que el plan ya no tiene, agendada con
+   la terapista principal, y **cobrada** en cuanto el cobro seguía a la agenda.
+4. **`biweekly_offset` se descartaba al guardar.** `validateSchedule` armaba el
+   slot sin ese campo: el editor dejaba elegir "2ª y 4ª semana", el plan se
+   guardaba sin él y el niño salía agendado en la 1ª y 3ª. La firma de cambios
+   tampoco lo miraba, así que cambiar solo eso no tocaba la agenda.
+
+### Una sola regla: `agenda-plan-sync`
+- **Puro** (`src/lib/domain/agenda-plan-sync.ts`): `scheduledServices` (terapia
+  activa y no mensualidad; la **cuota no decide** qué se agenda), `fullMonthPattern`
+  (el patrón del mes: suma `skipped_overquota`, descarta servicios que no son del
+  plan, corta lo pasado y los días suspendidos), `planAgendaSync` (qué citas
+  sobran, cuáles faltan, cuáles solo cambian de duración), `driftSeverity`,
+  `orphanSlotServices`, `stripUnplannedServices`, `scheduleSignature`.
+- **Glue** (`agenda-plan-sync-db.ts`): `buildCycleAgendaSync` + `applyCycleAgendaSync`.
+  **Quirúrgico**: cancela solo las citas automáticas que el plan ya no respalda y
+  crea solo las que faltan. No usa `regenerate_cycle_appointments`, que cancelaba
+  y recreaba todo: por eso ahora sirve para planes con programa matutino, y deja
+  de sembrar una lápida `rescheduled` por cita en cada pasada (agosto juntó 1049).
+- **El patrón sale del mismo RPC que la previsualización del ciclo**
+  (`compute_monthly_appointment_candidates`), con el cliente del usuario: el RPC
+  valida `is_agency_user()` y con service role no hay usuario.
+
+**Qué NUNCA se cancela**: lo ya dado o pasado, las citas agendadas a mano (sin la
+marca `Auto-generado del ciclo`), las reposiciones, las reagendadas a propósito
+(`parent_appointment_id`), programas matutinos y citas de una suspensión.
+**Qué NO se repone**: un horario que la familia canceló (se cobra y se acredita
+por rollover). **Sí se repone** lo que canceló una pausa (nota `Cancelada
+automáticamente por cambio de fase…`): pausar cancela todo lo futuro y reanudar no
+restauraba nada — otra fuente de "no aparece en la calendarización".
+
+### `/operacion/revisar-agenda` — "Agenda vs plan"
+Mismo patrón que `/operacion/sincronizar-cobros`: **revisar → elegir → aplicar**.
+Mismos seis roles de gestión de ciclos. Separa dos grupos, porque no toda
+diferencia es un error:
+- **Agenda distinta al plan** (`systematic`): toda una terapia fuera del horario,
+  faltante, o una terapia ajena al plan. Arrancan tildados.
+- **Diferencias puntuales** (`one_off`): una cita suelta fuera de lugar con el
+  resto bien — casi siempre alguien la movió a propósito. Arrancan SIN tildar.
+
+Además, **aviso en la ficha del niño** (`AgendaPlanDriftBanner`): al abrirla
+consulta sus ciclos vigentes y, si la agenda no coincide, lo dice y ofrece
+corregirlo ahí. Funciona con el **mes ya pagado**: el cobro sigue a la agenda con
+`syncCycleChargeToAgenda` (pagado = no se re-cobra, la diferencia va al mes
+siguiente). Los niños en pausa o con alta/retiro no se revisan ni se re-agendan.
+
+> **Respuesta a "¿anulamos el ciclo y generamos otro?"**: no. Si el plan está
+> bien → "Agenda vs plan" o el aviso de la ficha. Si el plan está mal → corregirlo
+> y guardarlo: la agenda se actualiza sola.
+
+### Cambios en caminos existentes
+- `upsertTreatmentPlan` usa la sincronización quirúrgica (antes: RPC regenerate).
+  El **cobro de los planes sin programa matutino no cambió**. Los planes CON
+  programa matutino —que antes no pasaban por acá— hacen solo agenda + refresco
+  de la copia del horario + `syncCycleChargeToAgenda`; a propósito NO se les
+  aplica el recálculo por cuotas del plan (una mensualidad puede tener un precio
+  acordado). Tampoco re-agenda a un niño en pausa o con alta/retiro.
+- `dryRunMonthlyGeneration` filtra los servicios que no son del plan y los
+  devuelve en `unplanned_services`; los dos modales lo avisan en ámbar. Es la
+  única puerta del patrón hacia la previsualización, por eso se filtra ahí.
+- `fullMonthPatternOverride` **eliminada** (la reemplaza `fullMonthPattern`).
+- **Editor del plan**: quitar una terapia se lleva sus horarios; cambiarle el
+  tipo los re-apunta al tipo nuevo; aviso rojo con "Quitar esos horarios" si
+  queda alguno huérfano. El mensaje de fallo ya no culpa a un "conflicto de
+  horario del terapista" (desde la 0181 eso no bloquea): muestra el motivo real.
+
+### Hallazgos de cobro que NO se tocaron (quedan pendientes)
+Aparecieron al revisar el camino del cobro; son de plata y merecen su propia
+sesión con verificación contra producción.
+- **`buildChargeSyncPlan` ignora `extra_charges_json`** (mig 0185): compara
+  `payment_amount_usd` (con líneas libres) contra un monto recalculado sin ellas,
+  así que cualquier cambio de agenda en un ciclo pendiente con cargos libres le
+  baja el monto registrado, y `/operacion/sincronizar-cobros` lo lista siempre.
+  La factura sí los incluye.
+- **Ciclo pagado con rollover en modo descuento**: el ajuste se calcula como
+  `newAmount − paid_expected_usd`, pero `paid_expected_usd` descuenta el rollover
+  y `newAmount` no → el arrastre sale inflado por el monto del rollover.
+- **Editar el plan de un mes pagado re-cotiza con la CUOTA del plan**, no con lo
+  agendado: en un mes de cinco lunes (agenda 5, cuota 4) genera un crédito por
+  una sesión que sí se va a dar, hasta que el próximo cambio de agenda lo corrige.
+
+> **Entorno**: producción es **`https://www.kineticcenter.site`** (proyecto
+> `kinetic-web` en Vercel). `kinetic-web-rho.vercel.app`, que figura en
+> `docs/KINETIC_PROJECT_STATE.md`, **ya no es la app**.
 
 ## Sesión 27 oct 2026 — las coordinadoras reabren a un niño retirado que vuelve
 Sin migración. Tests en `src/lib/domain/intake-pipeline.test.ts`.

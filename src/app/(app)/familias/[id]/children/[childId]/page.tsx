@@ -21,6 +21,7 @@ import Link from 'next/link'
 import { ChildForm } from '@/components/families/ChildForm'
 import { DeleteChildButton } from '@/components/families/DeleteChildButton'
 import { RestoreChildBanner } from '@/components/families/RestoreChildBanner'
+import { AgendaPlanDriftBanner } from '@/components/families/AgendaPlanDriftBanner'
 
 // Eliminar PERMANENTEMENTE un niño (borra en cascada su historial). Roles de
 // gestión: dirección, ambas coordinadoras y recepción (paridad con deleteChild).
@@ -351,6 +352,11 @@ export default async function ChildProfilePage({ params, searchParams }: PagePro
               </Section>
 
               {/* Bloque estructural: plan + ciclos */}
+              {/* Aviso si la agenda de los ciclos vigentes no coincide con el plan
+                  (se consulta al cargar; si todo coincide no muestra nada). */}
+              {canManageCycles && plan?.active && cycles.length > 0 && (
+                <AgendaPlanDriftBanner childId={childId} />
+              )}
               <TreatmentPlanSection
                 childId={childId}
                 plan={plan}

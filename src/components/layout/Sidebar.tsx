@@ -192,6 +192,14 @@ const adminGroupItems: NavItem[] = [
     ),
   },
   {
+    href: '/operacion/revisar-agenda',
+    label: 'Agenda vs plan',
+    allowedRoles: ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'],
+    icon: (
+      <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>event_repeat</span>
+    ),
+  },
+  {
     href: '/operacion/sincronizar-cobros',
     label: 'Cobros vs agenda',
     allowedRoles: ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'],
