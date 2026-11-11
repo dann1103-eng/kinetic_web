@@ -67,22 +67,28 @@ export function AgendaPlanDriftBanner({ childId }: { childId: string }) {
     )
   }
 
-  // Una terapia entera fuera del plan pide atención; una cita suelta movida casi
-  // siempre es intencional, así que se avisa sin alarma.
-  const serious = rows.some((r) => r.severity === 'systematic')
+  // Solo "fuera del plan" es un error claro. Un quincenal en otra semana pide
+  // mirar el PLAN antes de tocar nada; citas movidas o faltantes suelen ser a
+  // propósito, así que se avisan sin alarma.
+  const outOfPlan = rows.some((r) => r.kind === 'out_of_plan')
+  const weekShift = rows.some((r) => r.kind === 'week_shift')
+  const serious = outOfPlan || weekShift
   const tone = serious
     ? 'border-amber-300 bg-amber-50 text-amber-900'
     : 'border-fm-outline-variant/30 bg-fm-surface-container-low text-fm-on-surface'
+  const title = outOfPlan
+    ? 'La agenda no coincide con el plan'
+    : weekShift
+      ? 'La agenda está en otras semanas que las del plan'
+      : rows.every((r) => r.kind === 'missing_only')
+        ? 'El plan tiene fechas que no están en la agenda'
+        : 'Hay citas fuera del horario del plan'
 
   return (
     <div className={`rounded-xl border px-4 py-3 ${tone}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold">
-            {serious
-              ? 'La agenda no coincide con el plan'
-              : 'Hay citas fuera del horario del plan'}
-          </p>
+          <p className="text-sm font-semibold">{title}</p>
           <ul className="mt-0.5 text-xs">
             {rows.map((r) => (
               <li key={r.cycleId}>
@@ -90,9 +96,17 @@ export function AgendaPlanDriftBanner({ childId }: { childId: string }) {
               </li>
             ))}
           </ul>
+          {weekShift && (
+            <p className="mt-1 text-xs">
+              Suele ser un horario quincenal. Revisá en el plan si es <b>1ª y 3ª</b> o{' '}
+              <b>2ª y 4ª</b> semana antes de tocar la agenda: hasta noviembre de 2026 el plan no
+              guardaba esa elección, así que lo más probable es que la agenda esté bien y el plan
+              mal. Corregí la semana en el plan y este aviso desaparece.
+            </p>
+          )}
           {!serious && (
             <p className="mt-1 text-[11px] text-fm-on-surface-variant">
-              Si alguien las movió a propósito, no hace falta hacer nada.
+              Si se movieron o se quitaron a propósito, no hace falta hacer nada.
             </p>
           )}
         </div>

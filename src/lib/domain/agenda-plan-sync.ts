@@ -219,6 +219,8 @@ export interface AgendaSyncPlan<T extends PatternSlot = PatternSlot> {
   /** Citas que ya están exactamente donde el plan dice. */
   kept: number
   keptByService: Record<string, number>
+  /** El patrón futuro del plan contra el que se comparó. */
+  expected: T[]
 }
 
 const slotKey = (service: string, startsAt: string) =>
@@ -333,37 +335,71 @@ export function planAgendaSync<T extends PatternSlot>(
   toCreate.sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
 
   const kept = Object.values(keptByService).reduce((s, n) => s + n, 0)
-  return { toCancel, toCreate, toResize, kept, keptByService }
+  return { toCancel, toCreate, toResize, kept, keptByService, expected: [...expectedByKey.values()] }
 }
 
-export type DriftSeverity =
+export type DriftKind =
   /** La agenda coincide con el plan. */
   | 'none'
-  /** Diferencias sueltas: casi siempre una cita movida a mano. */
-  | 'one_off'
-  /** La serie entera de un servicio está fuera del plan, o hay una terapia ajena. */
-  | 'systematic'
+  /**
+   * Hay citas en un horario que el plan no tiene, de una terapia que no es del
+   * plan, o duplicadas. Es lo que hay que corregir.
+   */
+  | 'out_of_plan'
+  /**
+   * Las citas están el mismo día de la semana y a la misma hora que el plan,
+   * pero en OTRA semana. Es la huella de un horario quincenal, y acá el que suele
+   * estar mal es el plan: hasta nov 2026 se guardaba sin la elección de semana
+   * (1ª/3ª vs 2ª/4ª). Sincronizar pasaría al niño a las semanas equivocadas.
+   */
+  | 'week_shift'
+  /** Una o dos citas fuera de lugar: casi siempre alguien las movió a mano. */
+  | 'moved'
+  /**
+   * No hay nada mal agendado; solo faltan fechas del patrón. Puede ser a
+   * propósito: al generar el ciclo se quitan citas con − / ✕.
+   */
+  | 'missing_only'
+
+/** Hasta cuántas citas fuera de lugar se consideran "movidas a mano". */
+const MAX_MOVED = 2
+
+/** Día de la semana y hora local (SV = UTC−6, sin horario de verano). */
+function weekdayTimeSV(iso: string): string {
+  const d = new Date(new Date(iso).getTime() - 6 * 3600 * 1000)
+  return `${d.getUTCDay()}|${d.getUTCHours()}:${d.getUTCMinutes()}`
+}
 
 /**
- * Qué tan serio es el desfase. Separa "le movieron una cita" (pasa todas las
- * semanas, es intencional) de "todo el horario de esta terapia es el viejo",
- * que es lo que hay que corregir.
+ * Qué clase de desfase es. No toda diferencia se corrige igual, y tratarlas
+ * todas como "la agenda está mal" es peligroso: en la primera revisión real
+ * (nov 2026) aparecieron niños quincenales cuyo PLAN era el equivocado, y niños
+ * a los que solo les faltaban citas porque alguien las había quitado a propósito.
+ * Solo `out_of_plan` se propone corregir sin que nadie lo mire.
  */
-export function driftSeverity(plan: AgendaSyncPlan): DriftSeverity {
+export function classifyDrift(plan: AgendaSyncPlan): DriftKind {
   if (!hasDrift(plan)) return 'none'
-  if (plan.toCancel.some((c) => c.reason === 'not_in_plan')) return 'systematic'
+  if (plan.toCancel.some((c) => c.reason === 'not_in_plan' || c.reason === 'duplicate')) {
+    return 'out_of_plan'
+  }
 
-  const touched = new Set<string>()
-  for (const c of plan.toCancel) {
-    if (c.reason === 'off_pattern') touched.add(c.appt.service_type as string)
+  const off = plan.toCancel.filter((c) => c.reason === 'off_pattern')
+  if (off.length === 0 && plan.toResize.length === 0) return 'missing_only'
+
+  if (off.length > 0 && plan.toResize.length === 0) {
+    const planSlots = new Set(plan.expected.map((e) => `${e.service}|${weekdayTimeSV(e.starts_at)}`))
+    const allWeekShift = off.every((c) =>
+      planSlots.has(`${c.appt.service_type}|${weekdayTimeSV(c.appt.starts_at)}`),
+    )
+    if (allWeekShift) return 'week_shift'
   }
-  for (const c of plan.toCreate) touched.add(c.service)
-  for (const c of plan.toResize) touched.add(c.appt.service_type as string)
-  for (const service of touched) {
-    // Ninguna cita de este servicio está donde el plan dice.
-    if ((plan.keptByService[service] ?? 0) === 0) return 'systematic'
+
+  if (plan.toResize.length > 0 || off.length > MAX_MOVED) return 'out_of_plan'
+  for (const c of off) {
+    // Ninguna cita de esta terapia está donde el plan dice.
+    if ((plan.keptByService[c.appt.service_type as string] ?? 0) === 0) return 'out_of_plan'
   }
-  return 'one_off'
+  return 'moved'
 }
 
 /** ¿Hay algo que corregir? */

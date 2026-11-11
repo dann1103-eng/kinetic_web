@@ -15,6 +15,37 @@ function currentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
+type Kind = AgendaDriftRow['kind']
+
+/**
+ * Los grupos, en el orden en que se muestran. Solo el primero arranca tildado:
+ * es el único donde la agenda está mal sin lugar a dudas. En los demás hay que
+ * mirar antes de tocar (ver `classifyDrift`).
+ */
+const GROUPS: { kind: Kind; title: string; help: string; warn?: boolean }[] = [
+  {
+    kind: 'out_of_plan',
+    title: 'Agenda distinta al plan',
+    help: 'Citas en un día u hora que el plan no tiene, de una terapia que no es del plan, o duplicadas. Esto es lo que hay que corregir.',
+  },
+  {
+    kind: 'week_shift',
+    title: 'Mismo día y hora, pero otra semana',
+    help: 'Casi siempre es un horario quincenal. Antes de sincronizar, abrí el plan y revisá si es 1ª y 3ª o 2ª y 4ª semana: hasta noviembre de 2026 el plan no guardaba esa elección, así que lo más probable es que la agenda esté bien y el plan mal. Corregí la semana en el plan y esta diferencia desaparece sola.',
+    warn: true,
+  },
+  {
+    kind: 'moved',
+    title: 'Citas movidas',
+    help: 'Una o dos citas fuera del horario del plan, con el resto en su lugar. Casi siempre alguien las movió a propósito: sincronizá solo las que sean un error.',
+  },
+  {
+    kind: 'missing_only',
+    title: 'Solo faltan citas',
+    help: 'No hay nada mal agendado: el plan generaría estas citas y no están. Puede ser a propósito (se quitaron al generar el ciclo, o el niño/a viene semana de por medio). Sincronizar las crea y el cobro las suma, así que agregalas solo si de verdad faltan.',
+  },
+]
+
 interface Preview {
   rows: AgendaDriftRow[]
   problems: AgendaDriftProblem[]
@@ -41,10 +72,10 @@ export function RevisarAgendaClient() {
       return
     }
     setPreview({ rows: res.rows, problems: res.problems, checked: res.checked, inactive: res.inactive })
-    // Solo arrancan tildados los de horario viejo o terapia ajena. Las
-    // diferencias sueltas casi siempre son citas movidas a mano a propósito.
-    setSelected(new Set(res.rows.filter((r) => r.severity === 'systematic').map((r) => r.cycleId)))
-    setOpen(new Set(res.rows.filter((r) => r.severity === 'systematic').map((r) => r.cycleId)))
+    // Solo arranca tildado (y abierto) lo que está mal sin lugar a dudas.
+    const clear = res.rows.filter((r) => r.kind === 'out_of_plan').map((r) => r.cycleId)
+    setSelected(new Set(clear))
+    setOpen(new Set(clear))
   }
 
   function handlePreview() {
@@ -85,9 +116,6 @@ export function RevisarAgendaClient() {
     else next.add(id)
     return next
   }
-
-  const systematic = (preview?.rows ?? []).filter((r) => r.severity === 'systematic')
-  const oneOff = (preview?.rows ?? []).filter((r) => r.severity === 'one_off')
 
   function renderGroup(rows: AgendaDriftRow[]) {
     return (
@@ -204,36 +232,29 @@ export function RevisarAgendaClient() {
         </p>
       )}
 
-      {systematic.length > 0 && (
-        <section className="space-y-2">
-          <div>
-            <h2 className="text-sm font-semibold text-fm-on-surface">
-              Agenda distinta al plan ({systematic.length})
-            </h2>
-            <p className="text-xs text-fm-on-surface-variant">
-              Toda una terapia está en un día u hora que el plan no tiene, falta completa, o hay
-              citas de una terapia que ya no es del plan. Esto es lo que hay que corregir.
-            </p>
-          </div>
-          {renderGroup(systematic)}
-        </section>
-      )}
-
-      {oneOff.length > 0 && (
-        <section className="space-y-2">
-          <div>
-            <h2 className="text-sm font-semibold text-fm-on-surface">
-              Diferencias puntuales ({oneOff.length})
-            </h2>
-            <p className="text-xs text-fm-on-surface-variant">
-              Una o dos citas fuera del horario del plan, con el resto en su lugar. Casi siempre es
-              una cita que alguien movió a propósito, así que arrancan sin tildar: sincronizá solo
-              las que sean un error.
-            </p>
-          </div>
-          {renderGroup(oneOff)}
-        </section>
-      )}
+      {GROUPS.map((g) => {
+        const rows = (preview?.rows ?? []).filter((r) => r.kind === g.kind)
+        if (rows.length === 0) return null
+        return (
+          <section key={g.kind} className="space-y-2">
+            <div>
+              <h2 className="text-sm font-semibold text-fm-on-surface">
+                {g.title} ({rows.length})
+              </h2>
+              <p
+                className={
+                  g.warn
+                    ? 'mt-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900'
+                    : 'text-xs text-fm-on-surface-variant'
+                }
+              >
+                {g.help}
+              </p>
+            </div>
+            {renderGroup(rows)}
+          </section>
+        )
+      })}
 
       {preview && preview.problems.length > 0 && (
         <section className="space-y-1">

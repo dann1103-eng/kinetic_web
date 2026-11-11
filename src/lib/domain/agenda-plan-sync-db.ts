@@ -29,13 +29,13 @@ import type {
 } from '@/types/db'
 import {
   AUTO_GENERATED_MARKER,
-  driftSeverity,
+  classifyDrift,
   fullMonthPattern,
   planAgendaSync,
   scheduledServices,
   type AgendaAppt,
   type AgendaSyncPlan,
-  type DriftSeverity,
+  type DriftKind,
   type PatternSlot,
 } from './agenda-plan-sync'
 import type { SuspensionWindow } from './suspensions'
@@ -57,7 +57,7 @@ export interface SyncCycleRef {
 export interface CycleAgendaSync {
   cycle: SyncCycleRef
   plan: AgendaSyncPlan<PatternSlot>
-  severity: DriftSeverity
+  kind: DriftKind
 }
 
 export type BuildSyncResult =
@@ -147,7 +147,7 @@ export async function buildCycleAgendaSync(
     nowISO,
     scheduledServices: scheduledServices(therapies),
   })
-  return { ok: true, sync: { cycle, plan, severity: driftSeverity(plan) } }
+  return { ok: true, sync: { cycle, plan, kind: classifyDrift(plan) } }
 }
 
 export interface ApplySyncResult {

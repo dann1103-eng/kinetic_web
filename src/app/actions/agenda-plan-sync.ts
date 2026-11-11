@@ -24,7 +24,7 @@ import { toZonedTime } from 'date-fns-tz'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
-import { hasDrift, type DriftReason, type DriftSeverity } from '@/lib/domain/agenda-plan-sync'
+import { hasDrift, type DriftKind, type DriftReason } from '@/lib/domain/agenda-plan-sync'
 import {
   applyCycleAgendaSync,
   buildCycleAgendaSync,
@@ -61,8 +61,8 @@ export interface AgendaDriftRow {
   /** 'YYYY-MM' */
   periodMonth: string
   paymentStatus: 'pending' | 'paid'
-  /** 'systematic' = horario viejo o terapia ajena · 'one_off' = diferencias sueltas. */
-  severity: Exclude<DriftSeverity, 'none'>
+  /** Qué clase de desfase es (ver `classifyDrift`). Solo 'out_of_plan' se propone corregir. */
+  kind: Exclude<DriftKind, 'none'>
   cancel: AgendaDriftLine[]
   create: AgendaDriftLine[]
   /** Citas que quedan en su día y hora pero cambian de duración. */
@@ -112,7 +112,7 @@ function isSchedulable(child: ChildRow | undefined): boolean {
 }
 
 function toRow(sync: CycleAgendaSync, cycle: CycleRow, child: ChildRow): AgendaDriftRow | null {
-  if (!hasDrift(sync.plan) || sync.severity === 'none') return null
+  if (!hasDrift(sync.plan) || sync.kind === 'none') return null
   return {
     cycleId: cycle.id,
     childId: cycle.child_id,
@@ -120,7 +120,7 @@ function toRow(sync: CycleAgendaSync, cycle: CycleRow, child: ChildRow): AgendaD
     childName: child.full_name,
     periodMonth: String(cycle.period_month).slice(0, 7),
     paymentStatus: cycle.payment_status,
-    severity: sync.severity,
+    kind: sync.kind,
     cancel: sync.plan.toCancel.map((c) => ({
       service: c.appt.service_type ?? '',
       startsAt: c.appt.starts_at,
@@ -191,9 +191,15 @@ async function driftForCycles(
     if (row) rows.push(row)
   }
 
+  const order: Record<AgendaDriftRow['kind'], number> = {
+    out_of_plan: 0,
+    week_shift: 1,
+    moved: 2,
+    missing_only: 3,
+  }
   rows.sort(
     (a, b) =>
-      (a.severity === b.severity ? 0 : a.severity === 'systematic' ? -1 : 1) ||
+      order[a.kind] - order[b.kind] ||
       a.childName.localeCompare(b.childName, 'es') ||
       a.periodMonth.localeCompare(b.periodMonth),
   )

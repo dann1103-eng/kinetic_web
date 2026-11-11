@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  driftSeverity,
+  classifyDrift,
   fullMonthPattern,
   orphanSlotServices,
   planAgendaSync,
@@ -240,7 +240,7 @@ describe('planAgendaSync — qué citas sobran y cuáles faltan frente al plan',
     expect(plan.toCancel).toEqual([])
     expect(plan.toCreate).toEqual([])
     expect(plan.kept).toBe(2)
-    expect(driftSeverity(plan)).toBe('none')
+    expect(classifyDrift(plan)).toBe('none')
   })
 
   it('horario viejo: el plan pasó de martes 10:00 a jueves 14:00 y la agenda no se enteró', () => {
@@ -261,7 +261,7 @@ describe('planAgendaSync — qué citas sobran y cuáles faltan frente al plan',
       '2026-11-19',
       '2026-11-26',
     ])
-    expect(driftSeverity(plan)).toBe('systematic')
+    expect(classifyDrift(plan)).toBe('out_of_plan')
   })
 
   it('terapia que ya no está en el plan: se cancela y se marca como tal', () => {
@@ -273,7 +273,7 @@ describe('planAgendaSync — qué citas sobran y cuáles faltan frente al plan',
     )
     expect(plan.toCancel).toEqual([{ appt: ghost, reason: 'not_in_plan' }])
     expect(plan.toCreate).toEqual([])
-    expect(driftSeverity(plan)).toBe('systematic')
+    expect(classifyDrift(plan)).toBe('out_of_plan')
   })
 
   it('nunca toca lo que ya pasó ni lo que ya se dio', () => {
@@ -296,7 +296,7 @@ describe('planAgendaSync — qué citas sobran y cuáles faltan frente al plan',
       [appt('lenguaje', '2026-11-17', '10:00'), extra],
     )
     expect(plan.toCancel).toEqual([])
-    expect(driftSeverity(plan)).toBe('none')
+    expect(classifyDrift(plan)).toBe('none')
   })
 
   it('una reposición no se cancela, y si cae en un horario del plan no se le agenda otra encima', () => {
@@ -329,7 +329,7 @@ describe('planAgendaSync — qué citas sobran y cuáles faltan frente al plan',
       ],
     )
     expect(plan.toCreate.map((c) => c.starts_at.slice(0, 10))).toEqual(['2026-11-17', '2026-11-24'])
-    expect(driftSeverity(plan)).toBe('systematic')
+    expect(classifyDrift(plan)).toBe('missing_only')
   })
 
   it('una cita reagendada a mano se respeta: ni se cancela ni se repone su horario original', () => {
@@ -377,7 +377,7 @@ describe('planAgendaSync — qué citas sobran y cuáles faltan frente al plan',
     expect(plan.toCancel).toEqual([])
     expect(plan.toCreate).toEqual([])
     expect(plan.toResize).toEqual([{ appt: a, ends_at: sv('2026-11-17', '11:00') }])
-    expect(driftSeverity(plan)).toBe('systematic')
+    expect(classifyDrift(plan)).toBe('out_of_plan')
   })
 
   it('una sola cita movida de día es un desfase puntual, no un horario viejo', () => {
@@ -387,6 +387,102 @@ describe('planAgendaSync — qué citas sobran y cuáles faltan frente al plan',
     )
     expect(plan.toCancel).toHaveLength(1)
     expect(plan.toCreate).toHaveLength(1)
-    expect(driftSeverity(plan)).toBe('one_off')
+    expect(classifyDrift(plan)).toBe('moved')
+  })
+})
+
+describe('classifyDrift — no toda diferencia se corrige igual', () => {
+  // Casos tomados de la primera revisión real de noviembre 2026 (nombres ficticios).
+  const run = (expected: PatternSlot[], actual: AgendaAppt[], svc: string[]) =>
+    planAgendaSync(expected, actual, { nowISO: NOW, scheduledServices: new Set(svc) })
+
+  it('horario viejo aunque otro día de la misma terapia esté bien: hay que corregirlo', () => {
+    // Familia Zelaya: el plan pasó el jueves a viernes y dejó el lunes igual. La
+    // agenda quedó lunes (bien) + jueves (viejo). Que el lunes coincida no lo
+    // vuelve una "diferencia puntual": son seis citas en un día que el plan no tiene.
+    const plan = run(
+      [
+        ...['16', '23', '30'].map((d) => pat('sensorial', `2026-11-${d}`, '14:30')),
+        ...['13', '20', '27'].map((d) => pat('sensorial', `2026-11-${d}`, '14:30')),
+      ],
+      [
+        ...['16', '23'].map((d) => appt('sensorial', `2026-11-${d}`, '14:30')),
+        ...['12', '19', '26'].map((d) => appt('sensorial', `2026-11-${d}`, '16:00')),
+      ],
+      ['sensorial'],
+    )
+    expect(plan.toCancel).toHaveLength(3)
+    expect(classifyDrift(plan)).toBe('out_of_plan')
+  })
+
+  it('mismo día y hora pero otra semana: NO se corrige solo, hay que mirar el plan', () => {
+    // Niño quincenal. La agenda lo tiene el 2º y 4º sábado (14 y 28); el plan dice
+    // 1º y 3º (7 y 21). Hasta nov 2026 el plan perdía esa elección al guardarse,
+    // así que lo más probable es que la agenda esté bien y el plan mal: sincronizar
+    // lo pasaría a las semanas equivocadas.
+    const plan = run(
+      [pat('psicologica', '2026-11-21', '11:30')],
+      [appt('psicologica', '2026-11-14', '11:30'), appt('psicologica', '2026-11-28', '11:30')],
+      ['psicologica'],
+    )
+    expect(plan.toCancel).toHaveLength(2)
+    expect(plan.toCreate).toHaveLength(1)
+    expect(classifyDrift(plan)).toBe('week_shift')
+  })
+
+  it('agenda semanal con plan quincenal también es un tema de semanas', () => {
+    const plan = run(
+      [pat('psicologica', '2026-11-21', '11:30')],
+      [
+        appt('psicologica', '2026-11-14', '11:30'),
+        appt('psicologica', '2026-11-21', '11:30'),
+        appt('psicologica', '2026-11-28', '11:30'),
+      ],
+      ['psicologica'],
+    )
+    expect(plan.kept).toBe(1)
+    expect(classifyDrift(plan)).toBe('week_shift')
+  })
+
+  it('solo faltan citas: puede ser a propósito, no se agregan solas', () => {
+    // El plan es semanal pero al niño le quitaron citas al generar el ciclo
+    // (viene semana de por medio). No hay nada mal agendado: solo "faltan".
+    const plan = run(
+      ['13', '20', '27'].map((d) => pat('lenguaje', `2026-11-${d}`, '13:30')),
+      [appt('lenguaje', '2026-11-20', '13:30')],
+      ['lenguaje'],
+    )
+    expect(plan.toCancel).toEqual([])
+    expect(plan.toCreate).toHaveLength(2)
+    expect(classifyDrift(plan)).toBe('missing_only')
+  })
+
+  it('dos terapias intercambiadas un solo día es una cita movida', () => {
+    const plan = run(
+      [
+        pat('sensorial', '2026-11-12', '14:30'),
+        pat('lenguaje', '2026-11-12', '15:00'),
+        pat('sensorial', '2026-11-19', '14:30'),
+        pat('lenguaje', '2026-11-19', '15:00'),
+      ],
+      [
+        appt('lenguaje', '2026-11-12', '14:30'),
+        appt('sensorial', '2026-11-12', '15:00'),
+        appt('sensorial', '2026-11-19', '14:30'),
+        appt('lenguaje', '2026-11-19', '15:00'),
+      ],
+      ['sensorial', 'lenguaje'],
+    )
+    expect(plan.toCancel).toHaveLength(2)
+    expect(classifyDrift(plan)).toBe('moved')
+  })
+
+  it('una cita duplicada siempre es un error', () => {
+    const plan = run(
+      [pat('lenguaje', '2026-11-17', '10:00')],
+      [appt('lenguaje', '2026-11-17', '10:00'), appt('lenguaje', '2026-11-17', '10:00')],
+      ['lenguaje'],
+    )
+    expect(classifyDrift(plan)).toBe('out_of_plan')
   })
 })

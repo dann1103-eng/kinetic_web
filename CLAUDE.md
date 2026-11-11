@@ -407,11 +407,17 @@ Sin migración. Tests: `src/lib/domain/agenda-plan-sync.test.ts` (27).
   había forma de VER el desfase ni de corregirlo sin anular el ciclo (un ciclo
   pagado ni se podía editar).
 
-> ⚠️ **No se pudo verificar contra los datos reales de esos tres niños.** Esta
-> máquina (Mac) no tiene `.env.local`, ni CLI de Supabase, ni sesión iniciada en
-> la app o en el dashboard. Los cuatro defectos de abajo están **probados leyendo
-> el código y con tests**; cuál de ellos produjo cada caso reportado queda por
-> confirmar con la herramienta nueva (`/operacion/revisar-agenda`).
+> **Verificado contra producción el mismo día**, con la herramienta nueva ya
+> desplegada (solo lectura, noviembre 2026: 97 ciclos revisados). Los tres casos
+> reportados aparecieron tal cual: los dos hermanos con las terapias en **jueves**
+> cuando el plan dice **viernes y lunes**, y el otro niño con tres citas de una
+> terapia que el plan ya había reemplazado por otra en el mismo horario. Es agenda
+> que no siguió a un cambio de plan (huecos 1–3); cuál de los tres fue en cada
+> caso no se puede saber sin el historial de ediciones.
+>
+> ⚠️ **Esta Mac no tiene acceso directo a la base** (ni `.env.local`, ni CLI de
+> Supabase): los datos reales solo se pueden mirar con la sesión del usuario
+> iniciada en `www.kineticcenter.site`.
 
 ### Cuatro huecos por los que la agenda se quedaba vieja
 Todos en la capa TS. El primero es el más probable para los tres casos: los
@@ -465,12 +471,29 @@ restauraba nada — otra fuente de "no aparece en la calendarización".
 
 ### `/operacion/revisar-agenda` — "Agenda vs plan"
 Mismo patrón que `/operacion/sincronizar-cobros`: **revisar → elegir → aplicar**.
-Mismos seis roles de gestión de ciclos. Separa dos grupos, porque no toda
-diferencia es un error:
-- **Agenda distinta al plan** (`systematic`): toda una terapia fuera del horario,
-  faltante, o una terapia ajena al plan. Arrancan tildados.
-- **Diferencias puntuales** (`one_off`): una cita suelta fuera de lugar con el
-  resto bien — casi siempre alguien la movió a propósito. Arrancan SIN tildar.
+Mismos seis roles de gestión de ciclos. **No toda diferencia se corrige igual**
+(`classifyDrift`); solo el primer grupo arranca tildado:
+
+| Grupo | Qué es | Qué hacer |
+|---|---|---|
+| `out_of_plan` — Agenda distinta al plan | Citas en un día/hora que el plan no tiene (más de dos, o toda una terapia), de una terapia ajena al plan, o duplicadas | Sincronizar |
+| `week_shift` — Mismo día y hora, otra semana | Huella de un horario **quincenal** | **Mirar el plan primero** (ver abajo) |
+| `moved` — Citas movidas | Una o dos citas fuera de lugar, el resto bien | Casi siempre intencional |
+| `missing_only` — Solo faltan citas | Nada mal agendado; faltan fechas del patrón | Puede ser a propósito (se quitaron con − / ✕ al generar) |
+
+> ⚠️ **En `week_shift` el que suele estar mal es el PLAN, no la agenda.** El hueco 4
+> hizo que durante meses el plan se guardara sin la elección de semana, así que
+> los quincenales de 2ª/4ª quedaron con un plan que dice 1ª/3ª mientras su agenda
+> (corregida a mano) está bien. Sincronizarlos los pasaría a las semanas
+> equivocadas. Apareció en la primera revisión real, y por eso existe el grupo:
+> la primera versión los clasificaba como "agenda distinta al plan" y los traía
+> tildados. La corrección es **arreglar la semana en el plan** (ahora sí se
+> guarda); la diferencia desaparece sola.
+
+> **Los dos primeros errores de clasificación los mostraron los datos reales, no
+> los tests.** Además del quincenal, un hermano con 6 citas en el día viejo salía
+> como "diferencia puntual" porque otro día de la misma terapia sí coincidía. La
+> regla de "puntual" pasó a ser un tope absoluto (`MAX_MOVED = 2`).
 
 Además, **aviso en la ficha del niño** (`AgendaPlanDriftBanner`): al abrirla
 consulta sus ciclos vigentes y, si la agenda no coincide, lo dice y ofrece
