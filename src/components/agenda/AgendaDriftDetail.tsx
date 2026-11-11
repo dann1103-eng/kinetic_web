@@ -1,5 +1,5 @@
 import type { AgendaDriftLine, AgendaDriftRow } from '@/app/actions/agenda-plan-sync'
-import type { DriftReason } from '@/lib/domain/agenda-plan-sync'
+import { sessionDeltaByService, type DriftReason } from '@/lib/domain/agenda-plan-sync'
 import { formatSvDateTime } from '@/lib/format/datetime-sv'
 import { SERVICE_TYPE_LABELS } from '@/types/db'
 import type { ServiceType } from '@/types/db'
@@ -68,8 +68,19 @@ export function AgendaDriftDetail({
 }: {
   row: Pick<AgendaDriftRow, 'cancel' | 'create' | 'resize' | 'kept'>
 }) {
+  const deltas = sessionDeltaByService(row)
   return (
     <div className="grid gap-3 text-xs text-fm-on-surface sm:grid-cols-2">
+      {deltas.length > 0 && (
+        <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 sm:col-span-2">
+          <b>Cambia la cantidad de sesiones del mes:</b>{' '}
+          {deltas
+            .map((d) => `${serviceLabel(d.service)} ${d.delta > 0 ? '+' : '−'}${Math.abs(d.delta)}`)
+            .join(' · ')}
+          . El cobro sigue a la agenda, así que el monto del mes también cambia (si ya está
+          pagado, la diferencia pasa a la mensualidad siguiente).
+        </p>
+      )}
       {row.cancel.length > 0 && (
         <div>
           <p className="mb-1 font-semibold text-fm-error">

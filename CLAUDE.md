@@ -495,6 +495,21 @@ Mismos seis roles de gestión de ciclos. **No toda diferencia se corrige igual**
 > como "diferencia puntual" porque otro día de la misma terapia sí coincidía. La
 > regla de "puntual" pasó a ser un tope absoluto (`MAX_MOVED = 2`).
 
+> ⚠️ **"El plan está bien" hay que comprobarlo antes de sincronizar.** De los tres
+> casos reportados, uno tenía el plan con **dos horarios idénticos** (misma
+> terapia, viernes 15:00 cargado dos veces; el segundo debía ser 15:30). La
+> comparación los toma por uno solo, así que sincronizar le habría dejado la
+> mitad de las sesiones. Ahora: `validateSchedule` no deja guardar un plan así
+> (`duplicateScheduleSlots`), el editor lo marca en rojo, y la revisión se niega a
+> sincronizar desde un plan con repetidos — el niño sale en "No se pudieron
+> revisar" con el motivo (`duplicatePatternSlots`).
+>
+> **El detalle avisa cuando cambia la CANTIDAD de sesiones** (`sessionDeltaByService`).
+> Otro de los casos pasaba el jueves a viernes, pero el patrón además traía un
+> quinto lunes que el ciclo no tenía: dos sesiones más, que el cobro suma solo.
+> Corregir el día y agregar sesiones son dos cosas distintas y la persona tiene
+> que verlo antes de aceptar.
+
 Además, **aviso en la ficha del niño** (`AgendaPlanDriftBanner`): al abrirla
 consulta sus ciclos vigentes y, si la agenda no coincide, lo dice y ofrece
 corregirlo ahí. Funciona con el **mes ya pagado**: el cobro sigue a la agenda con

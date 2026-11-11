@@ -21,7 +21,7 @@ import { withCatalogPrices, withPreservedPrices } from '@/lib/domain/billing/cat
 import { withPreservedOverrides } from '@/lib/domain/billing/manual-overrides'
 import { createInvoiceForCycle } from './kinetic-invoices'
 import { syncCycleChargeToAgenda } from './cycle-charge-sync'
-import { scheduleSignature } from '@/lib/domain/agenda-plan-sync'
+import { duplicateScheduleSlots, scheduleSignature } from '@/lib/domain/agenda-plan-sync'
 import { applyCycleAgendaSync, buildCycleAgendaSync } from '@/lib/domain/agenda-plan-sync-db'
 import { isChildClosed, isChildPaused } from '@/lib/domain/intake-pipeline'
 import { toZonedTime } from 'date-fns-tz'
@@ -124,6 +124,18 @@ function validateSchedule(input: unknown): TreatmentPlanScheduleSlot[] | string 
       frequency: freq,
       ...(freq === 'biweekly' ? { biweekly_offset: offset as 0 | 1 } : {}),
     })
+  }
+  // Dos horarios idénticos (misma terapia, día y hora) son un error de carga: el
+  // segundo casi siempre debía ser media hora después. No se puede adivinar cuál
+  // era la intención, y dejarlo pasar agenda dos citas encimadas o —al
+  // sincronizar— la mitad de las sesiones. Pasó con un plan real en nov 2026.
+  const dup = duplicateScheduleSlots(result)[0]
+  if (dup) {
+    return (
+      `Hay dos horarios iguales: ${DAY_OF_WEEK_LABELS[dup.day_of_week]} ${dup.time_local} · ` +
+      `${SERVICE_TYPE_LABELS[dup.service] ?? dup.service}. ` +
+      'Cambiá la hora de uno (por ejemplo, media hora después) o quitá el repetido.'
+    )
   }
   return result
 }

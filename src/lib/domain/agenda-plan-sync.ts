@@ -100,6 +100,76 @@ export function scheduleSignature(
   return JSON.stringify({ t, s })
 }
 
+/**
+ * Horarios REPETIDOS en la programación semanal: misma terapia, mismo día y
+ * misma hora dos veces. Es un error de carga (el segundo casi siempre debía ser
+ * media hora después) y no se puede adivinar cuál era la intención, así que el
+ * plan no se deja guardar así ni se sincroniza la agenda desde él.
+ *
+ * Dos quincenales en semanas distintas no chocan: juntos equivalen a semanal.
+ */
+export function duplicateScheduleSlots(
+  slots: TreatmentPlanScheduleSlot[] | null | undefined,
+): Pick<TreatmentPlanScheduleSlot, 'service' | 'day_of_week' | 'time_local'>[] {
+  const list = slots ?? []
+  const weeksOf = (s: TreatmentPlanScheduleSlot): number[] =>
+    (s.frequency ?? 'weekly') === 'biweekly' ? [s.biweekly_offset === 1 ? 1 : 0] : [0, 1]
+  const out: Pick<TreatmentPlanScheduleSlot, 'service' | 'day_of_week' | 'time_local'>[] = []
+  for (let i = 0; i < list.length; i++) {
+    for (let j = i + 1; j < list.length; j++) {
+      const a = list[i]
+      const b = list[j]
+      if (a.service !== b.service || a.day_of_week !== b.day_of_week) continue
+      if (a.time_local !== b.time_local) continue
+      if (!weeksOf(a).some((w) => weeksOf(b).includes(w))) continue
+      const seen = out.some(
+        (d) =>
+          d.service === a.service && d.day_of_week === a.day_of_week && d.time_local === a.time_local,
+      )
+      if (!seen) {
+        out.push({ service: a.service, day_of_week: a.day_of_week, time_local: a.time_local })
+      }
+    }
+  }
+  return out
+}
+
+/** Lo mismo sobre el patrón ya calculado del mes: misma terapia, mismo instante. */
+export function duplicatePatternSlots<T extends { service: string; starts_at: string }>(
+  pattern: T[],
+): T[] {
+  const seen = new Set<string>()
+  const reported = new Set<string>()
+  const out: T[] = []
+  for (const c of pattern) {
+    const key = `${c.service}|${new Date(c.starts_at).getTime()}`
+    if (seen.has(key) && !reported.has(key)) {
+      reported.add(key)
+      out.push(c)
+    }
+    seen.add(key)
+  }
+  return out
+}
+
+/**
+ * Cuántas sesiones de cada terapia gana o pierde el mes al sincronizar. Solo las
+ * que cambian. Importa porque el cobro sigue a la agenda: una sincronización que
+ * "solo corrige el día" puede además sumar una fecha que el ciclo no tenía.
+ */
+export function sessionDeltaByService(change: {
+  cancel: { service: string }[]
+  create: { service: string }[]
+}): { service: string; delta: number }[] {
+  const delta = new Map<string, number>()
+  for (const c of change.create) delta.set(c.service, (delta.get(c.service) ?? 0) + 1)
+  for (const c of change.cancel) delta.set(c.service, (delta.get(c.service) ?? 0) - 1)
+  return [...delta.entries()]
+    .filter(([, d]) => d !== 0)
+    .map(([service, d]) => ({ service, delta: d }))
+    .sort((a, b) => a.service.localeCompare(b.service))
+}
+
 /** Una cita que el patrón del plan produce. */
 export interface PatternSlot {
   service: string

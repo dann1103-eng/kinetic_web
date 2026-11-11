@@ -1,11 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import {
   classifyDrift,
+  duplicatePatternSlots,
+  duplicateScheduleSlots,
   fullMonthPattern,
   orphanSlotServices,
   planAgendaSync,
   scheduledServices,
   scheduleSignature,
+  sessionDeltaByService,
   stripUnplannedServices,
   type AgendaAppt,
   type PatternSlot,
@@ -484,5 +487,78 @@ describe('classifyDrift — no toda diferencia se corrige igual', () => {
       ['lenguaje'],
     )
     expect(classifyDrift(plan)).toBe('out_of_plan')
+  })
+})
+
+describe('horarios repetidos en el plan', () => {
+  // Caso real (nov 2026): un plan con "viernes 15:00 · Refuerzo" cargado DOS veces
+  // (el segundo debía ser 15:30). Sincronizar desde ese plan dejaba una sola cita
+  // por viernes en vez de dos — la mitad de las sesiones contratadas.
+  it('detecta dos horarios idénticos en la programación semanal', () => {
+    const dups = duplicateScheduleSlots([
+      slot('lenguaje', 'mon', '14:00'),
+      slot('refuerzo_academico', 'fri', '15:00'),
+      slot('refuerzo_academico', 'fri', '15:00'),
+    ])
+    expect(dups).toEqual([{ service: 'refuerzo_academico', day_of_week: 'fri', time_local: '15:00' }])
+  })
+
+  it('dos quincenales en semanas distintas NO son un repetido (equivalen a semanal)', () => {
+    expect(
+      duplicateScheduleSlots([
+        slot('lenguaje', 'sat', '09:00', { frequency: 'biweekly', biweekly_offset: 0 }),
+        slot('lenguaje', 'sat', '09:00', { frequency: 'biweekly', biweekly_offset: 1 }),
+      ]),
+    ).toEqual([])
+  })
+
+  it('un semanal y un quincenal a la misma hora sí chocan', () => {
+    expect(
+      duplicateScheduleSlots([
+        slot('lenguaje', 'sat', '09:00'),
+        slot('lenguaje', 'sat', '09:00', { frequency: 'biweekly', biweekly_offset: 1 }),
+      ]),
+    ).toHaveLength(1)
+  })
+
+  it('misma hora pero otra terapia no es un repetido', () => {
+    expect(
+      duplicateScheduleSlots([slot('lenguaje', 'mon', '14:00'), slot('sensorial', 'mon', '14:00')]),
+    ).toEqual([])
+  })
+
+  it('en el patrón del mes: dos citas de la misma terapia en el mismo instante', () => {
+    const dups = duplicatePatternSlots([
+      pat('refuerzo_academico', '2026-11-13', '15:00'),
+      pat('refuerzo_academico', '2026-11-13', '15:00'),
+      pat('lenguaje', '2026-11-16', '14:00'),
+    ])
+    expect(dups.map((d) => d.service)).toEqual(['refuerzo_academico'])
+  })
+})
+
+describe('sessionDeltaByService — cuántas sesiones cambia la sincronización', () => {
+  it('mover una terapia de día no cambia la cantidad', () => {
+    expect(
+      sessionDeltaByService({
+        cancel: [{ service: 'sensorial' }, { service: 'sensorial' }],
+        create: [{ service: 'sensorial' }, { service: 'sensorial' }],
+      }),
+    ).toEqual([])
+  })
+
+  it('avisa cuando el mes queda con más o menos sesiones de una terapia', () => {
+    // Al pasar el jueves a viernes, el plan además trae un quinto lunes que el
+    // ciclo no tenía: son 2 sesiones más, y el cobro del mes las suma.
+    expect(
+      sessionDeltaByService({
+        cancel: [{ service: 'lenguaje' }, { service: 'lenguaje' }, { service: 'lenguaje' }],
+        create: [{ service: 'sensorial' }, { service: 'conductual' }],
+      }),
+    ).toEqual([
+      { service: 'conductual', delta: 1 },
+      { service: 'lenguaje', delta: -3 },
+      { service: 'sensorial', delta: 1 },
+    ])
   })
 })

@@ -22,7 +22,7 @@ import type {
   TreatmentPlanTherapyEntry,
 } from '@/types/db'
 import { isMonthlyFlatEntry, isMorningProgramService, planHasTherapistCoverage } from '@/lib/domain/billing/monthly-flat'
-import { orphanSlotServices } from '@/lib/domain/agenda-plan-sync'
+import { duplicateScheduleSlots, orphanSlotServices } from '@/lib/domain/agenda-plan-sync'
 
 interface TherapistOption {
   id: string
@@ -304,6 +304,9 @@ export function TreatmentPlanEditor({
   // (el ciclo los ignora), pero confunden: el horario se ve en el plan y la
   // terapia no. Aparecían al quitar o cambiar una terapia sin limpiar sus slots.
   const orphanServices = useMemo(() => orphanSlotServices(therapies, slots), [therapies, slots])
+  // Dos horarios idénticos: el servidor no deja guardar el plan así; acá se
+  // avisa antes, mientras se edita.
+  const repeatedSlots = useMemo(() => duplicateScheduleSlots(slots), [slots])
 
   /** ¿Otra línea de terapia (distinta de `idx`) usa ese servicio? */
   function serviceUsedElsewhere(service: ServiceType, idx: number): boolean {
@@ -757,6 +760,26 @@ export function TreatmentPlanEditor({
               className="w-full rounded-lg border border-fm-outline-variant/30 bg-white px-3 py-2 text-sm"
             />
           </section>
+
+          {repeatedSlots.length > 0 && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 space-y-1">
+              <p className="font-semibold">Hay horarios repetidos en la programación semanal:</p>
+              <ul className="list-disc pl-4">
+                {repeatedSlots.map((d) => (
+                  <li key={`${d.service}-${d.day_of_week}-${d.time_local}`}>
+                    <b>
+                      {DAY_OF_WEEK_LABELS[d.day_of_week]} {d.time_local}
+                    </b>{' '}
+                    · {SERVICE_TYPE_LABELS[d.service] ?? d.service} está cargado dos veces.
+                  </li>
+                ))}
+              </ul>
+              <p>
+                Si son dos sesiones seguidas, poné la segunda media hora después. Así como está
+                el plan no se puede guardar.
+              </p>
+            </div>
+          )}
 
           {orphanServices.length > 0 && (
             <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 space-y-1">

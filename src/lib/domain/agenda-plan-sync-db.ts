@@ -27,9 +27,12 @@ import type {
   ServiceType,
   TreatmentPlanTherapyEntry,
 } from '@/types/db'
+import { SERVICE_TYPE_LABELS } from '@/types/db'
+import { formatSvDateTime } from '@/lib/format/datetime-sv'
 import {
   AUTO_GENERATED_MARKER,
   classifyDrift,
+  duplicatePatternSlots,
   fullMonthPattern,
   planAgendaSync,
   scheduledServices,
@@ -129,6 +132,20 @@ export async function buildCycleAgendaSync(
   )
 
   const expected = fullMonthPattern<PatternSlot>(dryRun, therapies, { nowISO, suspensions })
+
+  // Un plan con dos horarios idénticos produce dos citas en el mismo instante.
+  // No se sincroniza desde ahí: la comparación las tomaría por una sola y el
+  // niño quedaría con la mitad de las sesiones. Primero hay que corregir el plan.
+  const repeated = duplicatePatternSlots(expected)[0]
+  if (repeated) {
+    const label = SERVICE_TYPE_LABELS[repeated.service as ServiceType] ?? repeated.service
+    return {
+      ok: false,
+      error:
+        `El plan tiene dos horarios iguales de ${label} (${formatSvDateTime(repeated.starts_at)}). ` +
+        'Corregí la hora de uno en el plan; al guardarlo la agenda se actualiza sola.',
+    }
+  }
 
   // Solo lo futuro del mes: lo pasado nunca se toca.
   const { startISO, endISO } = monthWindow(cycle.period_month)
