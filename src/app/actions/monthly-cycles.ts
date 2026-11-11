@@ -41,6 +41,7 @@ import {
   isCycleMonthInFuture,
   syncGroupMembershipsToCurrentMonth,
 } from '@/lib/domain/group-membership-sync'
+import { stripUnplannedServices } from '@/lib/domain/agenda-plan-sync'
 import { fromZonedTime } from 'date-fns-tz'
 
 /** Cita matutina final a crear (la previsualización del modal o recomputada). */
@@ -224,7 +225,26 @@ export async function dryRunMonthlyGeneration(
     return { ok: false, error: `Error al calcular el ciclo: ${msg || 'desconocido'}` }
   }
 
-  return { ok: true, result: data as MonthlyCandidatesResult }
+  // Un horario cuyo servicio ya no es una terapia activa del plan NO se agenda.
+  // El RPC lo manda a `skipped_overquota` (no tiene cuota), y los modales suman
+  // esa lista para armar el mes completo: sin este filtro, quitar una terapia del
+  // plan sin limpiar sus horarios la dejaba agendándose —y cobrándose— igual.
+  // Se filtra acá porque es la única puerta del patrón hacia la previsualización.
+  const { data: planRow } = await createAdminClient()
+    .from('treatment_plans')
+    .select('therapies_json')
+    .eq('child_id', childId)
+    .eq('active', true)
+    .maybeSingle()
+  const { result, unplanned } = stripUnplannedServices(
+    data as MonthlyCandidatesResult,
+    ((planRow as { therapies_json?: unknown } | null)?.therapies_json ??
+      []) as TreatmentPlanTherapyEntry[],
+  )
+  return {
+    ok: true,
+    result: unplanned.length > 0 ? { ...result, unplanned_services: unplanned } : result,
+  }
 }
 
 /**
@@ -240,44 +260,6 @@ export async function dryRunMonthlyGeneration(
  *     sesión ya completada (duplicado) y el preview las reportaba a todas como
  *     conflicto. Ver `regenerate_cycle_appointments(p_only_future)` (mig 0177).
  */
-/**
- * Patrón COMPLETO del mes listo para mandar como `p_appointments_override`.
- *
- * **Nunca regenerar con `p_appointments_override: null`.** El RPC recomputa con
- * `compute_monthly_appointment_candidates`, que topa cada servicio a la cuota
- * del plan **gastándola con las fechas MÁS TEMPRANAS del mes**. Si además se
- * regenera `only_future`, esas fechas tempranas ya pasaron y no se recrean: la
- * cuota se consume en citas que nunca se crean y **el excedente del final del
- * mes se pierde en silencio**.
- *
- * Pasó en producción dos veces. La primera se arregló en `EditMonthlyCycleModal`
- * (ago 2026); la segunda fue por `upsertTreatmentPlan`, que regeneraba con
- * `null` — cuatro niños perdieron su sesión del lunes 31 de agosto, sus misses
- * no los vieron en la lista de asistencia y el cobro automático bajó el monto
- * de un mes que las familias ya habían pagado.
- *
- * Devuelve `null` si el patrón no se pudo calcular: ahí el caller decide, pero
- * NO debería regenerar a ciegas.
- */
-export async function fullMonthPatternOverride(
-  childId: string,
-  periodMonthInput: string,
-  onlyFuture: boolean,
-  now: Date = new Date(),
-): Promise<MonthlyCandidateAppointment[] | null> {
-  const dry = await dryRunMonthlyGeneration(childId, periodMonthInput)
-  if (!dry.ok) return null
-
-  // candidates + skipped_overquota = el patrón entero del mes, sin el tope.
-  // Los asuetos (skipped_holidays) SÍ se dejan afuera: no son días hábiles.
-  const all = [...dry.result.candidates, ...dry.result.skipped_overquota].sort((a, b) =>
-    a.starts_at.localeCompare(b.starts_at),
-  )
-  const nowISO = now.toISOString()
-  const pattern = onlyFuture ? all.filter((c) => c.starts_at >= nowISO) : all
-  return pattern
-}
-
 export async function dryRunCycleRegeneration(
   childId: string,
   periodMonthInput: string,

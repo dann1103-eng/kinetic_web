@@ -698,6 +698,20 @@ export function EditMonthlyCycleModal({ childId, plan, cycle, enrolledProgram, o
                       />
                     </div>
 
+                    {dryRun.unplanned_services && dryRun.unplanned_services.length > 0 && (
+                      <div className="rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
+                        El plan tiene horarios de{' '}
+                        <b>
+                          {dryRun.unplanned_services
+                            .map((s) => SERVICE_TYPE_LABELS[s as ServiceType] ?? s)
+                            .join(', ')}
+                        </b>{' '}
+                        pero no es una terapia activa del plan: <b>no se agenda ni se cobra</b>. Si
+                        debería ir, activala en el plan antes de continuar; si no, quitá esos
+                        horarios del plan.
+                      </div>
+                    )}
+
                     {liveConflicts.length > 0 && (
                       <div className="rounded-lg border border-amber-300 bg-amber-50/70 px-3 py-2 text-xs text-amber-900">
                         <p className="font-semibold">

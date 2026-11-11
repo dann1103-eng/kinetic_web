@@ -4138,6 +4138,8 @@ export interface MonthlyCandidateAppointment {
   starts_at: string
   ends_at: string
   duration_minutes: number
+  /** Terapista de esa terapia según el plan (el RPC lo resuelve por servicio). */
+  therapist_id?: string | null
 }
 
 export interface MonthlyConflict {
@@ -4164,6 +4166,11 @@ export interface MonthlyCandidatesResult {
     primary_therapist_id: string | null
     monthly_total_usd: number | null
   }
+  /**
+   * Servicios con horario en el plan pero sin terapia ACTIVA que los respalde.
+   * No se agendan; se informan para que alguien limpie el plan.
+   */
+  unplanned_services?: string[]
 }
 
 // =============================================================================

@@ -20,7 +20,10 @@ import { therapyLineAmount, isMorningProgramService, planTherapistIds } from '@/
 import { withCatalogPrices, withPreservedPrices } from '@/lib/domain/billing/catalog-price'
 import { withPreservedOverrides } from '@/lib/domain/billing/manual-overrides'
 import { createInvoiceForCycle } from './kinetic-invoices'
-import { fullMonthPatternOverride } from './monthly-cycles'
+import { syncCycleChargeToAgenda } from './cycle-charge-sync'
+import { scheduleSignature } from '@/lib/domain/agenda-plan-sync'
+import { applyCycleAgendaSync, buildCycleAgendaSync } from '@/lib/domain/agenda-plan-sync-db'
+import { isChildClosed, isChildPaused } from '@/lib/domain/intake-pipeline'
 import { toZonedTime } from 'date-fns-tz'
 
 const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'coordinadora_familias', 'recepcion', 'contable'] as const
@@ -109,12 +112,17 @@ function validateSchedule(input: unknown): TreatmentPlanScheduleSlot[] | string 
     if (freq !== 'weekly' && freq !== 'biweekly' && freq !== 'monthly') {
       return 'Frecuencia de slot inválida.'
     }
+    // En qué semanas cae un horario quincenal (0 = 1ª/3ª, 1 = 2ª/4ª). Este campo
+    // se descartaba acá: el editor dejaba elegir "2ª y 4ª", el plan se guardaba
+    // sin él y el niño salía agendado en la 1ª y 3ª — días que no le tocan.
+    const offset = freq === 'biweekly' && Number(s.biweekly_offset) === 1 ? 1 : 0
     result.push({
       day_of_week: s.day_of_week as DayOfWeek,
       time_local: s.time_local,
       duration_minutes: Math.floor(dur),
       service: s.service as ServiceType,
       frequency: freq,
+      ...(freq === 'biweekly' ? { biweekly_offset: offset as 0 | 1 } : {}),
     })
   }
   return result
@@ -190,38 +198,20 @@ export interface UpsertTreatmentPlanInput {
   scheduleScope?: 'only_future' | 'skip_agenda'
 }
 
-/** Resultado de regenerar las citas de los ciclos tras editar el plan. */
+/** Resultado de llevar el plan editado a la agenda ya generada. */
 export interface PlanRegenSummary {
-  /** Cuántos ciclos se regeneraron OK. */
+  /** Cuántos ciclos quedaron con la agenda al día. */
   regenerated: number
-  /** Meses ('YYYY-MM') cuyo ciclo no se pudo regenerar (conflicto de horario u otro). */
+  /** Meses ('YYYY-MM') cuya agenda NO se pudo actualizar. */
   conflictMonths: string[]
+  /** Por qué falló cada uno (para mostrarle a la persona la causa real). */
+  failures?: { month: string; error: string }[]
   /** Meses ('YYYY-MM') de ciclos PAGADOS cuyo monto cambió → se registró un ajuste
    *  que se cobrará el mes siguiente (desacople F2). */
   adjustedPaidMonths?: string[]
-}
-
-/** Campos del plan que afectan QUÉ citas se generan (para detectar cambios reales). */
-function computeRelevantSignature(
-  therapies: TreatmentPlanTherapyEntry[],
-  schedule: TreatmentPlanScheduleSlot[],
-): string {
-  const t = therapies.map((x) => ({
-    service: x.service,
-    active: x.active !== false,
-    sessions: x.sessions_per_month,
-    therapist: x.therapist_id ?? null,
-    mode: x.billing_mode ?? null,
-    dpw: x.days_per_week ?? null,
-  }))
-  const s = schedule.map((x) => ({
-    d: x.day_of_week,
-    t: x.time_local,
-    dur: x.duration_minutes,
-    svc: x.service,
-    f: x.frequency ?? 'weekly',
-  }))
-  return JSON.stringify({ t, s })
+  /** Citas canceladas / creadas en total, para el resumen. */
+  cancelledAppointments?: number
+  createdAppointments?: number
 }
 
 export async function upsertTreatmentPlan(
@@ -258,7 +248,7 @@ export async function upsertTreatmentPlan(
     .maybeSingle()
 
   const beforeJson = (existing ?? {}) as Partial<TreatmentPlan>
-  const beforeSignature = computeRelevantSignature(
+  const beforeSignature = scheduleSignature(
     (beforeJson.therapies_json ?? []) as TreatmentPlanTherapyEntry[],
     (beforeJson.schedule_pattern_json ?? []) as TreatmentPlanScheduleSlot[],
   )
@@ -320,39 +310,53 @@ export async function upsertTreatmentPlan(
     notes: input.notes ?? null,
   })
 
-  // ── Sincronizar la agenda: si cambió el horario/terapias y ya hay ciclos
-  //    PENDIENTES, regenerar sus citas para que la agenda refleje el plan nuevo.
-  //    (El plan es plantilla; las citas las crea el ciclo. Sin esto, editar el
-  //    plan no movía las citas ya generadas — bug reportado.)
-  //    Solo planes SIN programa matutino: los matutinos se generan por grupo y se
-  //    ajustan desde el ciclo, no desde el horario del plan.
-  //    [Desacople F2] Ahora incluye ciclos PAGADOS (antes solo pendientes): las
-  //    completadas/en curso se conservan; el guard relajado de mig 0177 lo
-  //    permite. Si el niño manda scheduleScope='skip_agenda', no se toca la
-  //    agenda ya generada. Para ciclos pagados cuyo monto cambia, se registra
-  //    billing_adjustment_usd que se cobrará el mes siguiente (F4).
+  // ── Llevar el plan a la agenda ya generada ───────────────────────────────
+  //    El plan es la plantilla; las citas las crea el ciclo. Si cambia lo que el
+  //    plan agenda, los ciclos ya generados tienen que enterarse o el niño sigue
+  //    saliendo en el horario viejo.
+  //
+  //    QUÉ SE TOCA (nov 2026 — tres huecos que dejaban la agenda vieja):
+  //
+  //    1. "No tocar (aplica el próximo mes)" protege SOLO el mes en curso. Antes
+  //       se saltaba todos los ciclos, y como el mes siguiente suele estar
+  //       generado desde mediados del actual, el cambio nunca le llegaba: el plan
+  //       quedaba bien y la agenda del mes nuevo salía con el horario anterior.
+  //    2. Los planes con programa matutino también se sincronizan. Se excluían
+  //       porque el RPC de regenerar se llevaba las citas matutinas; ahora la
+  //       sincronización solo toca terapias (ver agenda-plan-sync-db.ts).
+  //    3. Un niño en pausa o con alta/retiro no se re-agenda por editarle el plan.
+  //
+  //    Solo se toca lo FUTURO; lo ya dado nunca. Ciclos pagados incluidos: si su
+  //    monto cambia, la diferencia va a billing_adjustment_usd (mes siguiente).
   let regen: PlanRegenSummary | undefined
-  const afterSignature = computeRelevantSignature(therapiesValidated, scheduleValidated)
+  const afterSignature = scheduleSignature(therapiesValidated, scheduleValidated)
   const hasMorning = therapiesValidated.some(
     (t) => t.active && isMorningProgramService(t.service),
   )
   const scheduleScope = input.scheduleScope ?? 'only_future'
-  if (
-    kind === 'update' &&
-    afterSignature !== beforeSignature &&
-    !hasMorning &&
-    scheduleScope !== 'skip_agenda'
-  ) {
-    const sv = toZonedTime(new Date(), 'America/El_Salvador')
+  if (kind === 'update' && afterSignature !== beforeSignature) {
+    const now = new Date()
+    const nowISO = now.toISOString()
+    const sv = toZonedTime(now, 'America/El_Salvador')
     const currentMonthStart = `${sv.getFullYear()}-${String(sv.getMonth() + 1).padStart(2, '0')}-01`
     const admin = createAdminClient()
 
-    const { data: cyclesRaw } = await supabase
-      .from('monthly_session_cycles')
-      .select('id, period_month, payment_status, paid_expected_usd, invoice_id, discount_kind, discount_value, rollover_mode, rollover_discount_usd, treatment_plan_snapshot')
-      .eq('child_id', input.childId)
-      .eq('status', 'generated')
-      .gte('period_month', currentMonthStart)
+    const { data: childRow } = await admin
+      .from('children')
+      .select('current_phase_code')
+      .eq('id', input.childId)
+      .maybeSingle()
+    const phase = (childRow as { current_phase_code?: string | null } | null)?.current_phase_code
+    const childInactive = isChildPaused(phase) || isChildClosed(phase)
+
+    const { data: cyclesRaw } = childInactive
+      ? { data: [] }
+      : await supabase
+          .from('monthly_session_cycles')
+          .select('id, period_month, payment_status, paid_expected_usd, invoice_id, discount_kind, discount_value, rollover_mode, rollover_discount_usd, treatment_plan_snapshot')
+          .eq('child_id', input.childId)
+          .eq('status', 'generated')
+          .gte('period_month', currentMonthStart)
 
     // Catálogo: respaldo de precio para terapias que el snapshot todavía no
     // tenía (el plan nunca los trae).
@@ -360,7 +364,10 @@ export async function upsertTreatmentPlan(
     const catalogForPrices = (catalogRaw ?? []) as ServiceCatalogItem[]
 
     let regenerated = 0
+    let cancelledAppointments = 0
+    let createdAppointments = 0
     const conflictMonths: string[] = []
+    const failures: { month: string; error: string }[] = []
     const adjustedPaidMonths: string[] = []
     type CycleRow = {
       id: string
@@ -375,35 +382,56 @@ export async function upsertTreatmentPlan(
       treatment_plan_snapshot: Record<string, unknown> | null
     }
     for (const c of (cyclesRaw ?? []) as CycleRow[]) {
-      // El patrón COMPLETO del mes se manda explícito. Con override `null` el
-      // RPC recomputa y topa cada servicio a la cuota del plan gastándola con
-      // las fechas MÁS TEMPRANAS; como acá siempre se regenera `only_future`,
-      // esas fechas ya pasaron y no se recrean, así que la cuota se consume en
-      // citas que nunca se crean y se pierde el final del mes. Fue exactamente
-      // eso: cuatro niños se quedaron sin su sesión del lunes 31 de agosto de
-      // 2026 al editarles el plan, sus misses no los vieron en la lista de
-      // asistencia, y el cobro automático bajó el monto de un mes ya pagado.
-      const pattern = await fullMonthPatternOverride(input.childId, c.period_month, true)
-      if (pattern === null) {
-        // Sin patrón no se regenera a ciegas: dejar las citas como están es
-        // mucho menos malo que borrarles el final del mes.
-        console.error(
-          `[upsertTreatmentPlan] ${c.period_month}: no se pudo calcular el patrón; no se regenera.`,
-        )
-        conflictMonths.push(c.period_month.slice(0, 7))
+      const month = String(c.period_month).slice(0, 7)
+      // "No tocar": el mes en curso queda como está (ni agenda ni cobro). Los
+      // meses siguientes ya generados SÍ se actualizan — es lo que promete.
+      if (scheduleScope === 'skip_agenda' && month === currentMonthStart.slice(0, 7)) continue
+
+      const built = await buildCycleAgendaSync(
+        supabase,
+        admin,
+        { id: c.id, child_id: input.childId, period_month: String(c.period_month) },
+        nowISO,
+      )
+      if (!built.ok) {
+        // Sin patrón no se toca nada: dejar las citas como están es mucho menos
+        // malo que borrarlas a ciegas.
+        console.error(`[upsertTreatmentPlan] ${month}: ${built.error}`)
+        conflictMonths.push(month)
+        failures.push({ month, error: built.error })
         continue
       }
-      const { error: rErr } = await supabase.rpc('regenerate_cycle_appointments', {
-        p_cycle_id: c.id,
-        p_appointments_override: pattern,
-        p_only_future: true, // 'only_future': nunca toca las citas pasadas/marcadas
-      })
-      if (rErr) {
-        console.error(`[upsertTreatmentPlan] regen ${c.period_month} falló:`, rErr.message)
-        conflictMonths.push(c.period_month.slice(0, 7))
+      const applied = await applyCycleAgendaSync(admin, built.sync, user.id)
+      cancelledAppointments += applied.cancelled
+      createdAppointments += applied.created
+      if (applied.error) {
+        console.error(`[upsertTreatmentPlan] agenda ${month} falló:`, applied.error)
+        conflictMonths.push(month)
+        failures.push({ month, error: applied.error })
         continue
       }
       regenerated += 1
+
+      if (hasMorning) {
+        // Plan con programa matutino. Hasta nov 2026 estos planes no pasaban por
+        // acá (ni agenda ni cobro), así que NO se les aplica el recálculo de
+        // abajo, que re-cotiza el mes con las cuotas del plan y los precios del
+        // catálogo: una mensualidad puede tener un precio acordado con la familia
+        // y no es este el lugar para tocarla. Se hace lo mismo que al mover una
+        // cita a mano: se refresca la copia del horario y el cobro sigue a la
+        // agenda con sus guardas de siempre (`syncCycleChargeToAgenda`).
+        await admin
+          .from('monthly_session_cycles')
+          .update({
+            treatment_plan_snapshot: {
+              ...(c.treatment_plan_snapshot ?? {}),
+              schedule_pattern_json: scheduleValidated,
+            },
+          })
+          .eq('id', c.id)
+        await syncCycleChargeToAgenda(input.childId, [String(c.period_month).slice(0, 10)])
+        continue
+      }
 
       // Refrescar el snapshot con el plan nuevo (therapies + horario) para que la
       // facturación y el detalle de pago lean lo actual (cierre de fuga de snapshot).
@@ -466,7 +494,7 @@ export async function upsertTreatmentPlan(
             .from('monthly_session_cycles')
             .update({ billing_adjustment_usd: adjustment })
             .eq('id', c.id)
-          if (adjustment !== 0) adjustedPaidMonths.push(c.period_month.slice(0, 7))
+          if (adjustment !== 0) adjustedPaidMonths.push(month)
         }
       } else if (c.invoice_id) {
         // Ciclo PENDIENTE con factura: regenerarla desde el snapshot al día.
@@ -479,15 +507,18 @@ export async function upsertTreatmentPlan(
       regen = {
         regenerated,
         conflictMonths,
+        failures: failures.length > 0 ? failures : undefined,
         adjustedPaidMonths: adjustedPaidMonths.length > 0 ? adjustedPaidMonths : undefined,
+        cancelledAppointments,
+        createdAppointments,
       }
     }
   }
 
   // ── Sincronizar el TERAPEUTA en las citas futuras ya generadas ────────────
   //    Refleja en el horario los cambios de terapeuta por servicio del plan,
-  //    INCLUSO en ciclos ya pagados (la regeneración de arriba solo cubre ciclos
-  //    pendientes). Es no destructivo: no mueve horarios ni recrea citas, solo
+  //    también cuando el horario no cambió (ahí la sincronización de arriba no
+  //    corre). Es no destructivo: no mueve horarios ni recrea citas, solo
   //    reasigna therapist_id de las citas futuras 'scheduled'/'replacement'. Los
   //    programas matutinos se manejan por grupo y se excluyen.
   if (kind === 'update') {

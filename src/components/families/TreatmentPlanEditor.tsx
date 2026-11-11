@@ -22,6 +22,7 @@ import type {
   TreatmentPlanTherapyEntry,
 } from '@/types/db'
 import { isMonthlyFlatEntry, isMorningProgramService, planHasTherapistCoverage } from '@/lib/domain/billing/monthly-flat'
+import { orphanSlotServices } from '@/lib/domain/agenda-plan-sync'
 
 interface TherapistOption {
   id: string
@@ -299,6 +300,16 @@ export function TreatmentPlanEditor({
     return warnings
   }, [therapies, slots])
 
+  // Horarios cuyo servicio no tiene una terapia ACTIVA en el plan. No se agendan
+  // (el ciclo los ignora), pero confunden: el horario se ve en el plan y la
+  // terapia no. Aparecían al quitar o cambiar una terapia sin limpiar sus slots.
+  const orphanServices = useMemo(() => orphanSlotServices(therapies, slots), [therapies, slots])
+
+  /** ¿Otra línea de terapia (distinta de `idx`) usa ese servicio? */
+  function serviceUsedElsewhere(service: ServiceType, idx: number): boolean {
+    return therapies.some((t, i) => i !== idx && t.service === service)
+  }
+
   function patchTherapy(idx: number, patch: Partial<TreatmentPlanTherapyEntry>) {
     setTherapies((prev) => prev.map((t, i) => (i === idx ? { ...t, ...patch } : t)))
   }
@@ -336,13 +347,15 @@ export function TreatmentPlanEditor({
         }
         clear() // envío exitoso → ya no hace falta el borrador local
         router.refresh()
-        // Si algún ciclo pendiente no pudo regenerar sus citas (conflicto de
-        // horario), dejamos el modal abierto con un aviso en vez de cerrar.
+        // Si la agenda de algún ciclo no se pudo actualizar, dejamos el modal
+        // abierto con el motivo real en vez de cerrar como si nada.
         if (res.regen && res.regen.conflictMonths.length > 0) {
+          const why = res.regen.failures?.[0]?.error
           setRegenWarning(
-            `El plan se guardó, pero las citas de ${res.regen.conflictMonths.join(', ')} ` +
-              'no se pudieron regenerar por un conflicto de horario del terapista. ' +
-              'Resolvé el choque en la agenda o desde “Editar ciclo” de ese mes.',
+            `El plan se guardó, pero la agenda de ${res.regen.conflictMonths.join(', ')} ` +
+              `no se pudo actualizar${why ? ` (${why})` : ''}. ` +
+              'Las citas de ese mes quedaron como estaban: revisalas en ' +
+              '“Agenda vs plan” (menú Administración) para ponerlas al día.',
           )
           return
         }
@@ -462,20 +475,30 @@ export function TreatmentPlanEditor({
                           days_per_week: dpw,
                           sessions_per_month: 0,
                         })
+                        // Los horarios de la terapia reemplazada se van con ella,
+                        // salvo que otra línea del plan siga usando ese servicio.
+                        const dropPrev =
+                          isMorningProgramService(prevService) ||
+                          !serviceUsedElsewhere(prevService, idx)
                         setSlots((prev) =>
                           syncMorningProgramSlots(
-                            isMorningProgramService(prevService)
-                              ? prev.filter((s) => s.service !== prevService)
-                              : prev,
+                            dropPrev ? prev.filter((s) => s.service !== prevService) : prev,
                             service,
                             dpw,
                           ),
                         )
                       } else {
                         patchTherapy(idx, { service, billing_mode: 'per_session', days_per_week: null })
-                        // Si venía de un programa matutino, limpiar sus slots auto.
                         if (isMorningProgramService(prevService)) {
+                          // Venía de un programa matutino: limpiar sus slots auto.
                           setSlots((prev) => prev.filter((s) => s.service !== prevService))
+                        } else if (service !== prevService && !serviceUsedElsewhere(prevService, idx)) {
+                          // Se cambió el TIPO de una terapia: sus horarios pasan a
+                          // la nueva. Antes se quedaban con el servicio viejo, o
+                          // sea como horarios de una terapia que ya no existe.
+                          setSlots((prev) =>
+                            prev.map((s) => (s.service === prevService ? { ...s, service } : s)),
+                          )
                         }
                       }
                     }}
@@ -566,8 +589,15 @@ export function TreatmentPlanEditor({
                     onClick={() => {
                       const removed = therapies[idx]
                       setTherapies((prev) => prev.filter((_, i) => i !== idx))
-                      // Limpiar el horario auto-sembrado del programa matutino.
-                      if (removed && isMorningProgramService(removed.service)) {
+                      // Quitar la terapia se lleva sus horarios (antes solo pasaba
+                      // con los programas matutinos, y los de una terapia individual
+                      // quedaban huérfanos en la programación semanal). Si otra línea
+                      // usa el mismo servicio, los horarios son de esa y se quedan.
+                      if (
+                        removed &&
+                        (isMorningProgramService(removed.service) ||
+                          !serviceUsedElsewhere(removed.service, idx))
+                      ) {
                         setSlots((prev) => prev.filter((s) => s.service !== removed.service))
                       }
                     }}
@@ -728,6 +758,33 @@ export function TreatmentPlanEditor({
             />
           </section>
 
+          {orphanServices.length > 0 && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 space-y-1">
+              <p className="font-semibold">Hay horarios sin una terapia activa que los respalde:</p>
+              <ul className="list-disc pl-4">
+                {orphanServices.map((svc) => (
+                  <li key={svc}>
+                    <b>{SERVICE_TYPE_LABELS[svc as ServiceType] ?? svc}</b> tiene horario en la
+                    programación semanal, pero no es una terapia activa del plan.
+                  </li>
+                ))}
+              </ul>
+              <p>
+                Esos horarios <b>no se agendan</b>. Si la terapia ya no va, quitalos; si sí va,
+                agregala o activala arriba.
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setSlots((prev) => prev.filter((s) => !orphanServices.includes(s.service)))
+                }
+                className="rounded-md border border-red-300 bg-white px-2 py-1 text-[11px] font-medium text-red-700 hover:bg-red-100"
+              >
+                Quitar esos horarios
+              </button>
+            </div>
+          )}
+
           {quotaWarnings.length > 0 && (
             <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-800 space-y-0.5">
               <p className="font-semibold">Cuota vs horario — atención:</p>
@@ -737,10 +794,9 @@ export function TreatmentPlanEditor({
                 ))}
               </ul>
               <p className="text-[11px] mt-1 italic">
-                Esto no bloquea el guardado. Recordá: la <b>cuota mensual manda</b>.
-                Si el patrón genera más sesiones que la cuota, las extras se
-                descartan en el dry-run y solo se crean las primeras N
-                cronológicas.
+                Esto no bloquea el guardado. Al generar el ciclo se propone el{' '}
+                <b>horario completo del mes</b> y ahí se quitan las sesiones que
+                sobren; la cuota es la referencia de cuántas se contratan.
               </p>
             </div>
           )}
