@@ -8,9 +8,9 @@ import {
   dispatchChild,
   dispatchAndCharge,
   snoozeDispatch,
-  type PendingDispatch,
   type ReceptionQueueItem,
 } from '@/app/actions/dispatch'
+import type { PendingDispatch } from '@/lib/domain/dispatch-pending'
 import {
   PICKUP_GRACE_MINUTES,
   computeLatePickup,

@@ -23,7 +23,10 @@ async function getActor() {
   return { id: ctx.appUser.id, role: ctx.appUser.role }
 }
 
-export type { PendingDispatch }
+// OJO: no reexportar `PendingDispatch` desde acá. Este archivo es 'use server' y
+// Turbopack trata `export type { X }` de un import como exportación de VALOR
+// (registra una acción) → "Export PendingDispatch doesn't exist in target module"
+// y el build de Vercel falla. El tipo se importa de '@/lib/domain/dispatch-pending'.
 
 /**
  * Despachos pendientes (terapia finalizada, niño aún no recogido).

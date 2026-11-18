@@ -422,6 +422,15 @@ Sin migración. Tests: `src/lib/domain/dispatch-pending.test.ts` (5).
   (appointments.ts) bloquea "abrir otra terapia si hay un niño finalizado sin despachar"
   con la misma consulta, sin filtrar `child_id`. Nadie la llama hoy; si se cablea, añadirle
   `.not('child_id','is',null)` o una terapista que completó una reunión quedaría bloqueada.
+- **El primer push (`3c27102`) rompió el build de Vercel** (producción siguió con el deploy
+  anterior): al sacar `PendingDispatch` de `dispatch.ts` dejé `export type { PendingDispatch }`
+  para no tocar a los consumidores. **Un archivo `'use server'` NO puede reexportar un tipo
+  importado**: Turbopack lo registra como acción y falla con *"Export PendingDispatch doesn't
+  exist in target module"*. Un `export interface` declarado en el propio archivo sí se borra,
+  pero la reexportación no. Fix: `DispatchWatcher` importa el tipo de
+  `@/lib/domain/dispatch-pending`. **`tsc`, eslint y vitest NO detectan esto — solo
+  `npm run build`**; correrlo siempre antes de empujar un cambio que toque un archivo
+  `'use server'` (en especial si mueve o reexporta tipos).
 
 ## Sesión 11 nov 2026 — la agenda no coincidía con el plan (días, horas y terapias ajenas)
 Sin migración. Tests: `src/lib/domain/agenda-plan-sync.test.ts` (27).
