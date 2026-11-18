@@ -9,6 +9,7 @@
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/db'
+import { getMonthSessionsOverview } from './month-sessions'
 
 const TZ = 'America/El_Salvador'
 
@@ -75,18 +76,15 @@ export async function getMgmtDashboardData(
 ): Promise<MgmtDashboardData> {
   const { startISO, endISO, periodLabel } = monthBoundsSV(now)
 
-  // Citas del mes (todas)
-  const { data: monthApptsRaw } = await supabase
-    .from('appointments')
-    .select('id, status')
-    .gte('starts_at', startISO)
-    .lt('starts_at', endISO)
-  const monthAppts = monthApptsRaw ?? []
-  const counts = { scheduled: 0, completed: 0, no_show: 0, total: monthAppts.length }
-  for (const a of monthAppts) {
-    if (a.status === 'scheduled' || a.status === 'in_progress') counts.scheduled++
-    else if (a.status === 'completed') counts.completed++
-    else if (a.status === 'no_show') counts.no_show++
+  // Sesiones del mes. Paginado y con la regla por niño (sin lápidas `rescheduled`,
+  // sin canceladas, sin las citas sobrantes del programa matutino, con las jornadas
+  // de grupo). Antes: un `select` sin paginar → "1000" y "72 asistidas" (ago–nov 2026).
+  const overview = await getMonthSessionsOverview(supabase, startISO, endISO)
+  const counts = {
+    scheduled: overview.scheduled,
+    completed: overview.completed,
+    no_show: overview.noShow,
+    total: overview.total,
   }
 
   // Ingresos del mes (cycles generated del mes en curso)

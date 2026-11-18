@@ -394,6 +394,28 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
 > el KPI y el calendario del panel del niño (28-ago).
 
+## Sesión 18 nov 2026 — el dashboard de admin se quedaba en "1000" (tope de PostgREST)
+Sin migración. Tests: `month-sessions.test.ts` (12) y `dashboard-widgets.test.ts` (4).
+
+- **Síntoma**: "Sesiones del mes" decía **1000** (72 asistidas · 17 no-show) y "Carga del
+  mes" también "1000 citas". Real en la base (nov): 1774 filas, 249 completadas, 81 no-show.
+- **Causa**: `getMgmtDashboardData` y `getAppointmentsHeatmapMonth` traían TODAS las citas del
+  mes con un `select` sin paginar; PostgREST corta cada respuesta en 1000 sin error.
+  Ambos números eran 1000 *a la vez* porque los dos chocaban con el mismo corte.
+- **Los ingresos NO estaban mal**: 68 ciclos pagados, $16,330.50 en la base vs $16,331 en
+  pantalla. Tampoco las terapistas (235 sesiones). Se comprobó contra la base antes de tocar
+  nada — la sospecha inicial (ingresos también truncados) era falsa.
+- **Fix**: `getMonthSessionsOverview` (`month-sessions.ts`) es la ÚNICA fuente del KPI y del
+  widget (pagina con `fetchAllPaged`; los dos totales coinciden por construcción). Regla = la
+  de los paneles por niño: sin lápidas `rescheduled`, sin `cancelled`, sin las citas sobrantes
+  `programa_matutino`, **con** las jornadas de grupo (`fetchMorningMonthOverview`,
+  `morningLoadByDate`). Por eso el total NO es el conteo crudo de filas (1774): de esas, 454
+  son lápidas y 654 son sobrantes matutinas. Esperado hoy según SQL independiente: 1443
+  sesiones · 537 asistidas · 81 no-show.
+- `getTopTherapistsThisMonth` también pagina (`therapy_sessions`, `session_reports`).
+- **Margen que queda (no urgente)**: `getMonthlyRevenue` (reportes) lee todo el año de
+  ciclos en una consulta — 541 filas en 2026, tope 1000.
+
 ## Sesión 17 nov 2026 — el pop-up "¿Niño/a sigue ahí?" salía sin nombre ("niños fantasma")
 Sin migración. Tests: `src/lib/domain/dispatch-pending.test.ts` (5).
 

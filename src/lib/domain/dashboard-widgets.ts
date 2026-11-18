@@ -6,6 +6,8 @@
 import { toZonedTime, fromZonedTime } from 'date-fns-tz'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/db'
+import { fetchAllPaged } from '@/lib/supabase/paged'
+import { getMonthSessionsOverview } from './month-sessions'
 
 const TZ = 'America/El_Salvador'
 
@@ -93,16 +95,23 @@ export async function getTopTherapistsThisMonth(
   const endISO = nextMonthStartSV(now).toISOString()
 
   // Sesiones completadas del mes
-  const { data: sessionsRaw } = await supabase
-    .from('therapy_sessions')
-    .select('therapist_id, ended_at')
-    .gte('started_at', startISO)
-    .lt('started_at', endISO)
-    .not('ended_at', 'is', null)
-    .not('therapist_id', 'is', null)
+  // Paginado: una fila por sesión terminada, crece con el volumen del centro y
+  // PostgREST corta cada respuesta en 1000 sin avisar.
+  const sessionsRaw = await fetchAllPaged<{ therapist_id: string | null; ended_at: string | null }>(
+    () =>
+      supabase
+        .from('therapy_sessions')
+        .select('therapist_id, ended_at')
+        .gte('started_at', startISO)
+        .lt('started_at', endISO)
+        .not('ended_at', 'is', null)
+        .not('therapist_id', 'is', null)
+        .order('id'),
+    'dashboard: sesiones terminadas del mes',
+  )
 
   const sessionsByTher = new Map<string, number>()
-  for (const s of sessionsRaw ?? []) {
+  for (const s of sessionsRaw) {
     if (!s.therapist_id) continue
     sessionsByTher.set(
       s.therapist_id,
@@ -111,16 +120,21 @@ export async function getTopTherapistsThisMonth(
   }
 
   // Reportes aprobados del mes (el autor es el terapista que llenó el reporte)
-  const { data: reportsRaw } = await supabase
-    .from('session_reports')
-    .select('therapist_id, status, approved_at')
-    .in('status', ['approved', 'sent_to_family'])
-    .gte('approved_at', startISO)
-    .lt('approved_at', endISO)
-    .not('therapist_id', 'is', null)
+  const reportsRaw = await fetchAllPaged<{ therapist_id: string | null }>(
+    () =>
+      supabase
+        .from('session_reports')
+        .select('therapist_id, status, approved_at')
+        .in('status', ['approved', 'sent_to_family'])
+        .gte('approved_at', startISO)
+        .lt('approved_at', endISO)
+        .not('therapist_id', 'is', null)
+        .order('id'),
+    'dashboard: reportes de sesión aprobados del mes',
+  )
 
   const reportsByAuthor = new Map<string, number>()
-  for (const r of reportsRaw ?? []) {
+  for (const r of reportsRaw) {
     if (!r.therapist_id) continue
     reportsByAuthor.set(
       r.therapist_id,
@@ -176,19 +190,9 @@ export async function getAppointmentsHeatmapMonth(
   const endISO = nextMonthStartSV(now).toISOString()
   const totalDays = daysInMonthSV(now)
 
-  const { data } = await supabase
-    .from('appointments')
-    .select('starts_at, status')
-    .gte('starts_at', startISO)
-    .lt('starts_at', endISO)
-    .not('status', 'eq', 'rescheduled')
-
-  const byDay = new Map<number, number>()
-  for (const row of data ?? []) {
-    if (!row.starts_at) continue
-    const day = dayOfMonthSV(row.starts_at)
-    byDay.set(day, (byDay.get(day) ?? 0) + 1)
-  }
+  // Misma fuente que el KPI "Sesiones del mes" (paginada, sin lápidas ni
+  // sobrantes matutinos, con las jornadas de grupo): los dos totales coinciden.
+  const { byDay } = await getMonthSessionsOverview(supabase, startISO, endISO)
 
   const series: HeatmapDay[] = []
   for (let d = 1; d <= totalDays; d++) {

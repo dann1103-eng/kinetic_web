@@ -97,6 +97,37 @@ export function computeMorningAttendance(
 }
 
 /**
+ * Jornadas de programa matutino por fecha ('YYYY-MM-DD' → cuántos niños tienen
+ * jornada ese día): sesiones no canceladas × miembros del grupo cuyo
+ * `attendance_days` incluye ese día (vacío = todos). Es la misma regla de `total`
+ * de `computeMorningAttendance`, repartida por día — la suma de este mapa es la
+ * suma de los `total` de todos los niños.
+ */
+export function morningLoadByDate(
+  memberships: GroupMembershipLite[],
+  sessions: GroupSessionLite[],
+): Map<string, number> {
+  const membersByGroup = new Map<string, GroupMembershipLite[]>()
+  for (const m of memberships) {
+    const arr = membersByGroup.get(m.group_id) ?? []
+    arr.push(m)
+    membersByGroup.set(m.group_id, arr)
+  }
+
+  const load = new Map<string, number>()
+  for (const s of sessions) {
+    if (s.status === 'cancelled') continue
+    const code = weekdayCode(s.session_date)
+    let n = 0
+    for (const m of membersByGroup.get(s.group_id) ?? []) {
+      if (m.attendance_days.length === 0 || m.attendance_days.includes(code)) n++
+    }
+    if (n > 0) load.set(s.session_date, (load.get(s.session_date) ?? 0) + n)
+  }
+  return load
+}
+
+/**
  * Sesión de grupo matutino "aplanada" por niño, para pintarla en calendarios
  * (panel del niño y portal de padres) como si fuera una cita más. El programa
  * (blue_kids/learning_kids/aula_educativa) es un ServiceType de primera clase,
@@ -255,4 +286,58 @@ export async function fetchMorningAttendanceByChild(
     : []
 
   return computeMorningAttendance(memberships, sessions, attendance)
+}
+
+/**
+ * Las jornadas de programa matutino de TODO el centro en una ventana (para los
+ * KPI del dashboard de gestión): presentes, total aplicable y carga por fecha.
+ * Mismas reglas que `fetchMorningAttendanceByChild`, sumadas sobre todos los
+ * niños, sin necesidad de listarlos.
+ *
+ * La asistencia va paginada (niños × días del mes pasa de 1000 con varios
+ * grupos). Las membresías activas y las sesiones no: son del orden de decenas
+ * (niños en programa matutino; grupos × días del mes).
+ */
+export async function fetchMorningMonthOverview(
+  supabase: SupabaseClient<Database>,
+  startISO: string,
+  endISO: string,
+): Promise<{ present: number; total: number; loadByDate: Map<string, number> }> {
+  const empty = { present: 0, total: 0, loadByDate: new Map<string, number>() }
+
+  const { data: membersRaw } = await supabase
+    .from('program_group_members')
+    .select('child_id, group_id, attendance_days')
+    .eq('active', true)
+  const memberships = (membersRaw ?? []) as GroupMembershipLite[]
+  if (memberships.length === 0) return empty
+
+  const groupIds = Array.from(new Set(memberships.map((m) => m.group_id)))
+  const { data: sessionsRaw } = await supabase
+    .from('program_group_sessions')
+    .select('id, group_id, session_date, status')
+    .in('group_id', groupIds)
+    .gte('starts_at', startISO)
+    .lt('starts_at', endISO)
+  const sessions = (sessionsRaw ?? []) as GroupSessionLite[]
+  if (sessions.length === 0) return empty
+
+  const sessionIds = sessions.map((s) => s.id)
+  const attendance = await fetchAllPaged<AttendanceRowLite>(
+    () =>
+      supabase
+        .from('program_session_attendance')
+        .select('child_id, session_id, status')
+        .in('session_id', sessionIds)
+        .order('id'),
+    'program_session_attendance (mes)',
+  )
+
+  let present = 0
+  let total = 0
+  for (const v of computeMorningAttendance(memberships, sessions, attendance).values()) {
+    present += v.present
+    total += v.total
+  }
+  return { present, total, loadByDate: morningLoadByDate(memberships, sessions) }
 }
