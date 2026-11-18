@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getEffectiveUser } from '@/lib/auth/effective-user'
 import { computeLatePickup } from '@/lib/domain/billing/late-pickup'
+import { fetchPendingDispatches, type PendingDispatch } from '@/lib/domain/dispatch-pending'
 
 const MGMT_ROLES = ['admin', 'directora', 'coordinadora_terapias', 'recepcion', 'contable']
 
@@ -22,64 +23,22 @@ async function getActor() {
   return { id: ctx.appUser.id, role: ctx.appUser.role }
 }
 
-export interface PendingDispatch {
-  id: string
-  child_id: string
-  child_name: string
-  therapist_id: string | null
-  completed_at: string
-  snoozed_until: string | null
-}
+export type { PendingDispatch }
 
 /**
  * Despachos pendientes (terapia finalizada, niño aún no recogido).
  * Terapista ve los suyos; staff de gestión ve todos. Excluye los pospuestos.
  * Excluye niños ya entregados a recepción (tienen su propio flujo de tarjeta flotante).
+ * La consulta vive en `fetchPendingDispatches` (dominio, con tests).
  */
 export async function listPendingDispatches(): Promise<PendingDispatch[]> {
   const actor = await getActor()
   if (!actor) return []
   const supabase = await createClient()
-
-  let q = supabase
-    .from('appointments')
-    .select('id, child_id, therapist_id, completed_at, dispatch_snoozed_until')
-    .eq('status', 'completed')
-    .not('completed_at', 'is', null)
-    .is('dispatched_at', null)
-    // Excluir niños ya entregados a recepción (tienen su propio flujo de tarjeta flotante).
-    .or('dispatch_type.is.null,dispatch_type.in.(internal,to_parent)')
-
-  // Terapista/maestra: solo sus citas. Gestión: todas.
-  if (!MGMT_ROLES.includes(actor.role)) {
-    q = q.eq('therapist_id', actor.id)
-  }
-
-  const { data } = await q
-  const rows = (data ?? []) as {
-    id: string
-    child_id: string
-    therapist_id: string | null
-    completed_at: string
-    dispatch_snoozed_until: string | null
-  }[]
-  if (rows.length === 0) return []
-
-  const childIds = Array.from(new Set(rows.map((r) => r.child_id)))
-  const { data: childrenRaw } = await supabase
-    .from('children')
-    .select('id, full_name')
-    .in('id', childIds)
-  const nameById = new Map((childrenRaw ?? []).map((c) => [c.id, c.full_name]))
-
-  return rows.map((r) => ({
-    id: r.id,
-    child_id: r.child_id,
-    child_name: nameById.get(r.child_id) ?? 'Niño/a',
-    therapist_id: r.therapist_id,
-    completed_at: r.completed_at,
-    snoozed_until: r.dispatch_snoozed_until,
-  }))
+  return fetchPendingDispatches(supabase, {
+    actorId: actor.id,
+    seesAll: MGMT_ROLES.includes(actor.role),
+  })
 }
 
 /**

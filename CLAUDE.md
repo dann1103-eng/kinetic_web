@@ -394,6 +394,35 @@ Ver sección "Legacy FM — referencia" al final. Sigue activo para pipeline, bi
 > bugs distintos: asistencia contada doble (jul), la barra de `/ninos` (ago), y
 > el KPI y el calendario del panel del niño (28-ago).
 
+## Sesión 17 nov 2026 — el pop-up "¿Niño/a sigue ahí?" salía sin nombre ("niños fantasma")
+Sin migración. Tests: `src/lib/domain/dispatch-pending.test.ts` (5).
+
+- **Reporte**: a la directora y a las coordinadoras les aparecía "¿Niño/a sigue ahí?
+  La terapia finalizó hace N min…" sin nombre. No eran niños de prueba.
+- **Causa**: `completeFreePerson` (therapy-sessions.ts) completa las citas **sin niño**
+  (`child_id` NULL desde la mig 0156: evaluación a persona nueva, reunión de padres,
+  entrega de avances, entrevistas, "otro") con `status='completed'` + `completed_at`,
+  la misma marca que deja una terapia real. Nada las despacha jamás (los botones de
+  "Entregar" exigen `session.ended_at`, que solo existe con niño), y
+  `listPendingDispatches` solo filtraba por esa marca → a los 15 min
+  (`PICKUP_GRACE_MINUTES`) el pop-up salía, y como no hay `child_id` el nombre caía al
+  fallback `'Niño/a'`. Lo ven los roles de gestión (`MGMT_ROLES` = todas las citas) y la
+  terapista asignada.
+- **Verificado en prod (17-nov-2026, solo lectura)**: 117 citas sin niño completadas, las
+  117 con `dispatch_type='to_parent'` y **≥15 min** entre completar y despachar (mediana
+  19–21), cerradas a mano por `coordinadora_terapias` (59), `admin` (54) y otras. Las
+  terapias con niño: mediana 0 min (se despachan desde la tarjeta). Ninguna pendiente hoy.
+- **Fix**: la consulta pasó a `fetchPendingDispatches` (`src/lib/domain/dispatch-pending.ts`,
+  recibe el cliente → testeable) con `.not('child_id','is',null)`. Sin datos que limpiar.
+- **GOTCHA del fake de tests**: `createFakeSupabase` ignoraba en silencio `.not(col,'is',…)`
+  (solo entendía `not … in`) y no tenía `.or`, así que una prueba del filtro nuevo habría
+  pasado en verde sin el filtro. Ahora soporta `.not` con `is`/`eq`/`in`, y `.or` con
+  `eq/neq/is/in`; cualquier otro operador **lanza error** en vez de ignorarse.
+- **Pendiente (código muerto con el mismo predicado)**: `markAppointmentInProgress`
+  (appointments.ts) bloquea "abrir otra terapia si hay un niño finalizado sin despachar"
+  con la misma consulta, sin filtrar `child_id`. Nadie la llama hoy; si se cablea, añadirle
+  `.not('child_id','is',null)` o una terapista que completó una reunión quedaría bloqueada.
+
 ## Sesión 11 nov 2026 — la agenda no coincidía con el plan (días, horas y terapias ajenas)
 Sin migración. Tests: `src/lib/domain/agenda-plan-sync.test.ts` (27).
 

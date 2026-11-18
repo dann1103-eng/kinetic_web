@@ -19,7 +19,7 @@ export const POSTGREST_MAX_ROWS = 1000
 type Row = Record<string, unknown>
 export type FakeTables = Record<string, Row[]>
 
-type OpKind = 'eq' | 'neq' | 'is' | 'in' | 'notIn' | 'gte' | 'gt' | 'lt' | 'lte'
+type OpKind = 'eq' | 'neq' | 'is' | 'isNot' | 'in' | 'notIn' | 'gte' | 'gt' | 'lt' | 'lte' | 'or'
 interface Op {
   kind: OpKind
   col: string
@@ -33,6 +33,12 @@ function matches(row: Row, op: Op): boolean {
       return v === op.val
     case 'is':
       return op.val === null ? v == null : v === op.val
+    // `.not(col, 'is', null)` = IS NOT NULL.
+    case 'isNot':
+      return op.val === null ? v != null : v !== op.val
+    // `.or('a.is.null,b.in.(x,y)')`: pasa si CUALQUIER término pasa.
+    case 'or':
+      return (op.val as Op[]).some((t) => matches(row, t))
     case 'in':
       return (op.val as unknown[]).includes(v)
     // Semántica SQL: comparar contra NULL da NULL, o sea la fila no pasa.
@@ -57,6 +63,46 @@ function parseInList(raw: unknown): unknown[] {
     .replace(/^\(|\)$/g, '')
     .split(',')
     .map((s) => s.trim())
+}
+
+/** Parte `a.is.null,b.in.(x,y)` por las comas que no están dentro de paréntesis. */
+function splitTopLevel(raw: string): string[] {
+  const out: string[] = []
+  let depth = 0
+  let cur = ''
+  for (const ch of raw) {
+    if (ch === '(') depth += 1
+    if (ch === ')') depth -= 1
+    if (ch === ',' && depth === 0) {
+      out.push(cur)
+      cur = ''
+    } else {
+      cur += ch
+    }
+  }
+  if (cur) out.push(cur)
+  return out
+}
+
+/** Un término de `.or(...)`: `col.eq.x`, `col.neq.x`, `col.is.null`, `col.in.(a,b)`. */
+function parseOrTerm(term: string): Op {
+  const m = /^([^.]+)\.(eq|neq|is|in)\.(.*)$/.exec(term.trim())
+  if (!m) throw new Error(`createFakeSupabase: término de .or() no soportado: "${term}"`)
+  const [, col, op, raw] = m
+  switch (op) {
+    case 'eq':
+      return { kind: 'eq', col, val: raw }
+    case 'neq':
+      return { kind: 'neq', col, val: raw }
+    case 'in':
+      return { kind: 'in', col, val: parseInList(raw) }
+    default:
+      return {
+        kind: 'is',
+        col,
+        val: raw === 'null' ? null : raw === 'true' ? true : raw === 'false' ? false : raw,
+      }
+  }
 }
 
 export interface FakeSupabase {
@@ -124,8 +170,15 @@ export function createFakeSupabase(tables: FakeTables): FakeSupabase {
           then: (resolve: (v: { data: Row | null; error: null }) => unknown) =>
             resolve({ data: run()[0] ?? null, error: null }),
         }),
-        not: (col: string, op: string, val: unknown) =>
-          op === 'in' ? push('notIn', col, parseInList(val)) : builder,
+        // Un operador que el fake no entiende FALLA, no se ignora: ignorarlo en
+        // silencio dejaba pasar tests en verde con un filtro que no se aplicaba.
+        not: (col: string, op: string, val: unknown) => {
+          if (op === 'in') return push('notIn', col, parseInList(val))
+          if (op === 'is') return push('isNot', col, val)
+          if (op === 'eq') return push('neq', col, val)
+          throw new Error(`createFakeSupabase: .not(…, '${op}', …) no soportado`)
+        },
+        or: (filter: string) => push('or', '', splitTopLevel(filter).map(parseOrTerm)),
         order: (col: string, opts?: { ascending?: boolean }) => {
           orderBy.push({ col, ascending: opts?.ascending !== false })
           return builder
